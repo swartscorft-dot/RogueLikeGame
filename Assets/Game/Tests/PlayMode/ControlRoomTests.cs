@@ -711,6 +711,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Animation_TheShotGoesOffAtTheClipsFiringMoment()
         {
             CharacterAnimation view = RiggedView();
+            Assume.That(view.ShootFireTime, Is.GreaterThan(0f), "this model's shoot clip has a firing moment");
             _player.Teleport(NearA);
             yield return null;
 
@@ -723,6 +724,32 @@ namespace Roguelike.PlayModeTests
             float clipTime = state.normalizedTime * state.length;
             Assert.That(clipTime, Is.EqualTo(view.ShootFireTime).Within(0.08f),
                         "the clip is at its firing moment when the shot lands");
+        }
+
+        [UnityTest]
+        public IEnumerator Animation_Shooting_PointsBothArmsAndBothWeaponsAtTheTarget()
+        {
+            CharacterAnimation view = RiggedView();
+            Assume.That(view.RightWeapon != null && view.LeftWeapon != null, Is.True, "this model holds a weapon in each hand");
+            _player.Teleport(NearA);
+            yield return null;
+            yield return null;
+            Assert.That(view.AimWeight, Is.EqualTo(0f), "at rest the arms are as the clip has them");
+
+            _player.AttackTarget(_a);
+            yield return Until(() => view.AimWeight >= 1f, 2f);
+            Assert.That(view.AimWeight, Is.EqualTo(1f), "the arms come up for the shot");
+            yield return null; // read the pose after it was applied
+
+            Vector3 toTarget = Flat(_a.transform.position - _player.Position).normalized;
+            foreach (Transform weapon in new[] { view.RightWeapon, view.LeftWeapon })
+                Assert.That(Vector3.Dot(weapon.right, toTarget), Is.GreaterThan(0.97f), weapon.name + " points at the target");
+            foreach (Transform hand in new[] { view.RightHand, view.LeftHand })
+                Assert.That(Vector3.Dot(hand.position - _player.Position, toTarget), Is.GreaterThan(0.35f), hand.name + " is held out in front");
+
+            _player.Stop();
+            yield return Until(() => view.AimWeight <= 0f, 2f);
+            Assert.That(view.AimWeight, Is.EqualTo(0f), "and go down again when the shooting stops");
         }
 
         [UnityTest]

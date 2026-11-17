@@ -64,6 +64,22 @@ He answered one question: what G4 must hold (the enemy that fights back; no awak
 - **Agent against agent.** The player and the enemy both walk on the NavMesh. I have not looked at how they push each other when they meet.
 - **A headless run.** Not run, for the same reason as before.
 
+## After G4: the camera and a new figure (2026-11-17)
+
+Kristian played G4: "fun", "the boss was fine". Two things followed.
+
+- **Camera.** He found it too close. No published numbers for the Lost Ark camera exist; one rough measurement from a real screenshot put its character at about 10% of the screen height, against 21% in ours.
+  The camera distance went from 14 m to 28 m. Kristian: "much better". The pitch and the field of view are untouched.
+- **A new player figure.** Kristian no longer wanted the realistic gunslinger and made a drawn-style figure in Meshy (the Outrider) with a Desert Eagle, to be held one in each hand, and a shotgun.
+  - Through his Meshy account: the figure remeshed to 12 447 triangles and rigged, the pistol to 3 964 and the shotgun to 3 453 (the raw weapons were 470 000 and 224 000). Two clips bought: Idle 1 and Walk Forward While Shooting. 26 credits.
+  - The library has no clip that holds a pistol in each hand, and Walk Forward While Shooting turned out to be a long-gun stance (the hands 30 cm apart). So the Shoot pose is finished in code: `CharacterAnimation` straightens both arms toward the point the character faces and turns both pistols to point there. The bought clip is kept for the shotgun.
+  - The pistols hang on the hand bones and the shotgun on the spine. There is no dash clip; the dash shows the run clip at speed.
+  - One new PlayMode test: while shooting, both pistols point at the target within 14 degrees and both hands are held at least 0.35 m out in front; the arms go down again when the shooting stops.
+    The test for the old model's firing moment is inconclusive on this model, which has no such clip. 82 rule tests, 71 PlayMode tests pass.
+  - Seen in close-ups taken in Play mode: standing, shooting at a dummy, running.
+  - Not checked: how the hands sit on the grips up close, the shotgun against the coat when she runs, and whether she reads from the game camera at 28 m, where she is small and dark against the floor.
+  - The old gunslinger and the replaced files went to the Windows recycle bin. Kristian's reference images are in `docs/art/references/`, his original zips in `E:/repos/A-Roguelike-Game/meshy-downloads/`, outside the repository.
+
 ## Decisions waiting for Kristian
 
 The ten behaviours under "How the pieces behave" in the slice file are my choices, and so are the three new skills, the gauge's numbers and the enemy's. The ones most likely to matter in the hand:

@@ -11,7 +11,7 @@ namespace Roguelike.Rules.Tests
         {
             var feel = new FeelValues();
             Assert.That(feel.CameraPitch, Is.EqualTo(55f));
-            Assert.That(feel.CameraDistance, Is.EqualTo(14f));
+            Assert.That(feel.CameraDistance, Is.EqualTo(28f));
             Assert.That(feel.FieldOfView, Is.EqualTo(30f));
             Assert.That(feel.RunSpeed, Is.EqualTo(6f));
             Assert.That(feel.TimeToFullSpeed, Is.EqualTo(0f));

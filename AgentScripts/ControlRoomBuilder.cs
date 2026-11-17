@@ -30,19 +30,22 @@ public static class ControlRoomBuilder
     const string EnemyPath = SettingsDir + "/Enemy.asset";
     const string PlayerArtDir = Root + "/Art/Player";
 
-    // The rigged player model and its clips, as downloaded from Meshy (rig task, animation task).
-    const string RigDir = PlayerArtDir + "/Gunslinger";
-    const string RiggedModelPath = RigDir + "/Gunslinger_Rigged.fbx";
-    const string RunClipPath = RigDir + "/Gunslinger_Run.fbx";
-    const string ActionClipsPath = RigDir + "/Gunslinger_Actions.fbx";
-    const string ControllerPath = RigDir + "/Gunslinger.controller";
+    // The player figure Kristian made in Meshy on 2026-11-17 (the Outrider), rigged through Meshy, and her weapons.
+    const string RigDir = PlayerArtDir + "/Outrider";
+    const string RiggedModelPath = RigDir + "/Outrider_Rigged.fbx";
+    const string RunClipPath = RigDir + "/Outrider_Run.fbx";
+    const string ActionClipsPath = RigDir + "/Outrider_Actions.fbx";   // Idle 1, and a long-gun stance kept for the shotgun
+    const string ControllerPath = RigDir + "/Outrider.controller";
+    const string PistolModelPath = Root + "/Art/Weapons/DesertEagle/DesertEagle.fbx";
+    const string ShotgunModelPath = Root + "/Art/Weapons/Shotgun/Shotgun.fbx";
 
-    // Timings read off these clips by sampling them (see docs/playtests/g2-control-agent.md).
-    const float ShootFireTime = 2.4f;   // the draw ends and the hands are in front of the chest
-    const float ShootHoldEnd = 3.9f;    // just before the hands go down to the holsters
-    const float DashClipStart = 0.6f;   // the roll proper starts after a 0.6 s wind-up
-    const float DashClipEnd = 1.83f;
-    const float RunClipSpeed = 6f;      // a guess: the run cycle is 0.63 s
+    // How the clips are used. The run clip is in place, with a 0.63 s cycle; its fit to 6 m/s is a guess.
+    // There is no dash clip: the dash shows the run clip at speed. There is no shoot clip either: the body
+    // keeps its idle stance and CharacterAnimation points the arms and the pistols at the target.
+    const float RunClipSpeed = 6f;
+    const float DashRecovery = 0.05f;
+    const float PistolLength = 0.38f;
+    const float ShotgunLength = 1.0f;
 
     /// <summary>Turn of the player model around the up axis, in degrees, so that its front points along the player's forward.</summary>
     const float PlayerModelYaw = 0f;
@@ -111,12 +114,9 @@ public static class ControlRoomBuilder
         surface.collectObjects = CollectObjects.Children; // the floor only; actors are not walkable geometry
         surface.useGeometry = NavMeshCollectGeometry.RenderMeshes;
 
-        // Player: the rigged model if it is there, else the newest static model in Assets/Game/Art/Player,
-        // else a grey-box capsule. Either way the root stays 1 m above the ground, so control, camera and
-        // tests do not depend on the visual.
+        // Player: the rigged Outrider with her weapons if she is there, else a grey-box capsule.
+        // Either way the root stays 1 m above the ground, so control, camera and tests do not depend on the visual.
         GameObject riggedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(RiggedModelPath);
-        string modelPath = null;
-        GameObject modelAsset = riggedAsset == null ? NewestPlayerModel(out modelPath) : null;
         GameObject player;
         string playerVisual;
         CharacterAnimation animation = null;
@@ -125,12 +125,6 @@ public static class ControlRoomBuilder
             player = new GameObject("Player");
             player.transform.position = new Vector3(0f, 1f, 0f);
             playerVisual = "player visual: " + RiggedModelPath + "\n" + AttachRiggedModel(player, riggedAsset, out animation);
-        }
-        else if (modelAsset != null)
-        {
-            player = new GameObject("Player");
-            player.transform.position = new Vector3(0f, 1f, 0f);
-            playerVisual = "player visual: " + modelPath + "\n" + AttachModel(player, modelAsset, modelPath);
         }
         else
         {
@@ -240,41 +234,56 @@ public static class ControlRoomBuilder
              + (enemyCreated ? "enemy: created\n" : "enemy: kept\n") + playerVisual + Dump();
     }
 
-    /// <summary>The most recently written model file in the player art folder, or null when there is none.</summary>
-    static GameObject NewestPlayerModel(out string path)
+    /// <summary>
+    /// A weapon in a holder: its model centred in the holder and the holder scaled so the weapon is
+    /// <paramref name="length"/> m long. The models lie with the barrel along +X and the top along +Y,
+    /// so those are the holder's axes too. The caller places the holder and gives it a parent.
+    /// </summary>
+    static Transform WeaponHolder(string name, string modelPath, string materialName, float length, StringBuilder report)
     {
-        path = null;
-        if (!AssetDatabase.IsValidFolder(PlayerArtDir)) return null;
-        path = AssetDatabase.FindAssets("t:Model", new[] { PlayerArtDir })
-            .Select(AssetDatabase.GUIDToAssetPath)
-            .OrderByDescending(p => System.IO.File.GetLastWriteTimeUtc(p))
-            .ThenBy(p => p, System.StringComparer.Ordinal)
-            .FirstOrDefault();
-        return path == null ? null : AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        var asset = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+        if (asset == null)
+        {
+            report.Append("  ").Append(name).Append(": no model at ").Append(modelPath).Append('\n');
+            return null;
+        }
+
+        var holder = new GameObject(name);
+        var model = (GameObject)PrefabUtility.InstantiatePrefab(asset);
+        model.name = "Model";
+        model.transform.SetParent(holder.transform, false);
+
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
+        string look = ApplyLook(renderers, modelPath, materialName);
+        Bounds bounds = renderers[0].bounds;
+        foreach (Renderer r in renderers) bounds.Encapsulate(r.bounds);
+        model.transform.position -= bounds.center;
+        holder.transform.localScale = Vector3.one * (length / Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z));
+
+        report.AppendFormat(CultureInfo.InvariantCulture, "  {0}: {1} triangles, {2:0.00} m long, {3}\n",
+            name, TriangleCount(renderers), length, look);
+        return holder.transform;
     }
 
     /// <summary>
-    /// Puts the model under the player as "Visual": feet on the ground, centred on the player, facing the
-    /// player's forward. A model with no UVs cannot carry a texture, so it gets one flat material.
+    /// A pistol in a hand. The barrel lies along the forearm and the top of the gun faces forward while the
+    /// arm hangs, which is how a pistol sits in a lowered hand; raised, it points where the arm points.
+    /// The grip is put in the palm, a little past the wrist.
     /// </summary>
-    static string AttachModel(GameObject player, GameObject modelAsset, string modelPath)
+    static Transform PistolInHand(string name, Transform foreArm, Transform hand, StringBuilder report)
     {
-        var visual = (GameObject)PrefabUtility.InstantiatePrefab(modelAsset);
-        visual.name = "Visual";
-        visual.transform.SetParent(player.transform, true);
-        visual.transform.rotation = Quaternion.Euler(0f, PlayerModelYaw, 0f) * visual.transform.rotation;
+        Transform holder = WeaponHolder(name, PistolModelPath, "DesertEagle", PistolLength, report);
+        if (holder == null || foreArm == null || hand == null) return holder;
 
-        Renderer[] renderers = visual.GetComponentsInChildren<Renderer>();
-        if (renderers.Length == 0) return "  no renderer in the model\n";
-        string look = ApplyLook(renderers, modelPath);
-
-        Bounds bounds = renderers[0].bounds;
-        foreach (Renderer r in renderers) bounds.Encapsulate(r.bounds);
-        Vector3 p = player.transform.position;
-        visual.transform.position += new Vector3(p.x - bounds.center.x, -bounds.min.y, p.z - bounds.center.z);
-
-        return string.Format(CultureInfo.InvariantCulture, "  size {0:0.00} x {1:0.00} x {2:0.00} m, {3} triangles, {4}\n",
-            bounds.size.x, bounds.size.y, bounds.size.z, TriangleCount(renderers), look);
+        Vector3 along = (hand.position - foreArm.position).normalized;
+        Vector3 top = Vector3.forward - Vector3.Dot(Vector3.forward, along) * along;
+        top = top.sqrMagnitude > 1e-6f ? top.normalized : Vector3.up;
+        // The grip is behind and below the middle of the gun: 0.29 and 0.16 of its length.
+        Vector3 palm = hand.position + along * 0.08f;
+        holder.SetPositionAndRotation(palm + along * (0.29f * PistolLength) + top * (0.16f * PistolLength),
+                                      Quaternion.LookRotation(Vector3.Cross(along, top), top));
+        holder.SetParent(hand, true);
+        return holder;
     }
 
     /// <summary>
@@ -284,14 +293,9 @@ public static class ControlRoomBuilder
     static string AttachRiggedModel(GameObject player, GameObject riggedAsset, out CharacterAnimation animation)
     {
         ConfigureClips(RunClipPath, ("running", CharacterAnimation.RunState, true));
-        ConfigureClips(ActionClipsPath,
-            ("Idle", CharacterAnimation.IdleState, true),
-            ("Cowboy_Quick_Draw_Shooting", CharacterAnimation.ShootState, false),
-            ("Roll_Dodge", CharacterAnimation.DashState, false));
+        ConfigureClips(ActionClipsPath, ("Idle_02", CharacterAnimation.IdleState, true));
         AnimationClip idle = Clip(ActionClipsPath, CharacterAnimation.IdleState);
         AnimationClip run = Clip(RunClipPath, CharacterAnimation.RunState);
-        AnimationClip shoot = Clip(ActionClipsPath, CharacterAnimation.ShootState);
-        AnimationClip dash = Clip(ActionClipsPath, CharacterAnimation.DashState);
 
         var visual = (GameObject)PrefabUtility.InstantiatePrefab(riggedAsset);
         visual.name = "Visual";
@@ -300,28 +304,52 @@ public static class ControlRoomBuilder
         visual.transform.localRotation = Quaternion.Euler(0f, PlayerModelYaw, 0f);
 
         Renderer[] renderers = visual.GetComponentsInChildren<Renderer>();
-        string look = ApplyLook(renderers, RiggedModelPath);
+        string look = ApplyLook(renderers, RiggedModelPath, "Outrider");
+        var report = new StringBuilder();
 
+        // The weapons hang on the bones while the figure still stands in the pose it was rigged in.
+        Transform[] bones = visual.GetComponentsInChildren<Transform>();
+        Transform Bone(string name) => bones.FirstOrDefault(t => t.name == name);
+        Transform rightPistol = PistolInHand("Pistol_R", Bone("RightForeArm"), Bone("RightHand"), report);
+        Transform leftPistol = PistolInHand("Pistol_L", Bone("LeftForeArm"), Bone("LeftHand"), report);
+        Transform shotgun = WeaponHolder("Shotgun_Back", ShotgunModelPath, "Shotgun", ShotgunLength, report);
+        if (shotgun != null)
+        {
+            // Across the back: barrel up to her left, stock down to her right, flat against her.
+            shotgun.SetPositionAndRotation(player.transform.position + new Vector3(0f, 0.25f, -0.17f), Quaternion.Euler(0f, 0f, 120f));
+            shotgun.SetParent(Bone("Spine") ?? visual.transform, true);
+        }
+
+        // The body's stance while shooting is the idle; the dash shows the run. See the constants at the top.
         Animator animator = visual.GetComponent<Animator>();
         if (animator == null) animator = visual.AddComponent<Animator>();
-        animator.runtimeAnimatorController = BuildController(idle, run, shoot, dash);
+        animator.runtimeAnimatorController = BuildController(idle, run, idle, run);
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
         animation = visual.AddComponent<CharacterAnimation>();
         animation.Animator = animator;
-        animation.Hips = visual.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name == "Hips");
-        animation.ShootFireTime = ShootFireTime;
-        animation.ShootHoldEnd = ShootHoldEnd;
-        animation.DashClipStart = DashClipStart;
-        animation.DashClipEnd = DashClipEnd;
+        animation.Hips = Bone("Hips");
+        animation.ShootFireTime = 0f;
+        animation.ShootHoldEnd = 0f;
+        animation.DashClipStart = 0f;
+        animation.DashClipEnd = run != null ? run.length : 0f;
+        animation.DashRecovery = DashRecovery;
         animation.RunClipSpeed = RunClipSpeed;
+        animation.RightArm = Bone("RightArm");
+        animation.RightForeArm = Bone("RightForeArm");
+        animation.RightHand = Bone("RightHand");
+        animation.RightWeapon = rightPistol;
+        animation.LeftArm = Bone("LeftArm");
+        animation.LeftForeArm = Bone("LeftForeArm");
+        animation.LeftHand = Bone("LeftHand");
+        animation.LeftWeapon = leftPistol;
 
         string Length(AnimationClip c) => c != null ? c.length.ToString("0.00", CultureInfo.InvariantCulture) + " s" : "MISSING";
-        return string.Format(CultureInfo.InvariantCulture,
-            "  {0} triangles, {1} bones, {2}\n  clips: idle {3}, run {4}, shoot {5}, dash {6}\n",
-            TriangleCount(renderers), renderers.OfType<SkinnedMeshRenderer>().Sum(r => r.bones.Length), look,
-            Length(idle), Length(run), Length(shoot), Length(dash));
+        return string.Format(CultureInfo.InvariantCulture, "  {0} triangles, {1} bones, {2}\n  clips: idle {3}, run {4}\n",
+                   TriangleCount(renderers.Where(r => r is SkinnedMeshRenderer).ToArray()),
+                   renderers.OfType<SkinnedMeshRenderer>().Sum(r => r.bones.Length), look, Length(idle), Length(run))
+             + report;
     }
 
     /// <summary>Names the clips of a model file and sets which of them loop. Each rule: part of the take name, clip name, loop.</summary>
@@ -383,10 +411,11 @@ public static class ControlRoomBuilder
     }
 
     /// <summary>
-    /// Gives the model its look and says which: its own materials when they came in with textures, a material
-    /// built from the texture files next to it, or one flat material when it has no UVs or no textures.
+    /// Gives the model its look and says which: a material built from the texture files next to it, else its own
+    /// materials if they came in with textures, else one flat material (also when it has no UVs).
+    /// The built material comes first because the importer's own came out glossy, which breaks a drawn style.
     /// </summary>
-    static string ApplyLook(Renderer[] renderers, string modelPath)
+    static string ApplyLook(Renderer[] renderers, string modelPath, string materialName)
     {
         bool hasUvs = renderers.All(r => MeshOf(r) != null && MeshOf(r).HasVertexAttribute(VertexAttribute.TexCoord0));
         bool importedWithTextures = renderers.All(r => r.sharedMaterials.All(m => m != null && m.mainTexture != null));
@@ -397,15 +426,15 @@ public static class ControlRoomBuilder
             replacement = MaterialAsset("PlayerModel", new Color(0.82f, 0.74f, 0.62f), unlit: false);
             look = "no UVs: flat material";
         }
-        else if (importedWithTextures)
-        {
-            look = "the model's own materials";
-        }
         else
         {
-            // Meshy puts the textures next to the FBX but does not link them in it.
-            replacement = TexturedMaterial(modelPath, out look);
-            if (replacement == null)
+            // Meshy puts the textures next to the FBX but does not always link them in it.
+            replacement = TexturedMaterial(modelPath, materialName, out look);
+            if (replacement == null && importedWithTextures)
+            {
+                look = "the model's own materials";
+            }
+            else if (replacement == null)
             {
                 replacement = MaterialAsset("PlayerModel", new Color(0.82f, 0.74f, 0.62f), unlit: false);
                 look = "no texture files next to the model: flat material";
@@ -424,17 +453,26 @@ public static class ControlRoomBuilder
     /// "name_normal.png", "name_metallic.png" and "name_roughness.png". URP wants metallic in the red
     /// channel and smoothness (1 - roughness) in alpha of one texture, so that mask is generated here.
     /// </summary>
-    static Material TexturedMaterial(string modelPath, out string look)
+    static Material TexturedMaterial(string modelPath, string materialName, out string look)
     {
         string dir = System.IO.Path.GetDirectoryName(modelPath).Replace('\\', '/');
         string name = System.IO.Path.GetFileNameWithoutExtension(modelPath);
-        // Meshy's own export names the colour texture after the model; one extracted from an FBX is named after its material.
-        string colourPath = new[] { $"{dir}/{name}.png", $"{dir}/{name}_baseColor.png", $"{dir}/Material_0_baseColor.png" }
-            .FirstOrDefault(System.IO.File.Exists) ?? $"{dir}/{name}.png";
-        string normalPath = $"{dir}/{name}_normal.png";
-        string metallicPath = $"{dir}/{name}_metallic.png";
-        string roughnessPath = $"{dir}/{name}_roughness.png";
-        string maskPath = $"{dir}/{name}_urp_mask.png";
+        // Meshy's own export names the textures after the model ("name.png", "name_normal.png").
+        // Textures that Unity extracted from an FBX are named after its material ("BakedMaterial_baseColor.png").
+        string colourPath = $"{dir}/{name}.png";
+        string prefix = $"{dir}/{name}";
+        if (!System.IO.File.Exists(colourPath))
+        {
+            colourPath = System.IO.Directory.Exists(dir)
+                ? System.IO.Directory.GetFiles(dir, "*_baseColor.png").Select(p => p.Replace('\\', '/')).OrderBy(p => p, System.StringComparer.Ordinal).FirstOrDefault()
+                : null;
+            if (colourPath == null) { look = null; return null; }
+            prefix = colourPath.Substring(0, colourPath.Length - "_baseColor.png".Length);
+        }
+        string normalPath = prefix + "_normal.png";
+        string metallicPath = prefix + "_metallic.png";
+        string roughnessPath = prefix + "_roughness.png";
+        string maskPath = prefix + "_urp_mask.png";
         look = null;
         if (!System.IO.File.Exists(colourPath)) return null;
 
@@ -445,7 +483,7 @@ public static class ControlRoomBuilder
         if (hasNormal) ConfigureTexture(normalPath, TextureImporterType.NormalMap, srgb: false);
         if (hasMask) ConfigureTexture(maskPath, TextureImporterType.Default, srgb: false);
 
-        Material mat = MaterialAsset("PlayerModelTextured", Color.white, unlit: false);
+        Material mat = MaterialAsset(materialName, Color.white, unlit: false);
         mat.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(colourPath));
         mat.SetTexture("_BumpMap", hasNormal ? AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath) : null);
         SetKeyword(mat, "_NORMALMAP", hasNormal);

@@ -17,6 +17,10 @@ namespace Roguelike
     /// - The Dash clip plays from <see cref="DashClipStart"/> to <see cref="DashClipEnd"/> over the dash and
     ///   <see cref="DashRecovery"/> seconds after it.
     /// - The hips are held over the character, so a clip that travels (a roll) does not leave it.
+    ///
+    /// If the arm bones are set, the Shoot pose is finished in code: both arms are straightened toward the
+    /// point the character faces, and both weapons are turned to point there. No clip in the library holds
+    /// a pistol in each hand, and this way the guns always point where the shot goes.
     /// </summary>
     public sealed class CharacterAnimation : MonoBehaviour
     {
@@ -47,6 +51,21 @@ namespace Roguelike
         [Tooltip("The speed, in m/s, at which the Run clip's steps match the ground.")]
         public float RunClipSpeed = 6f;
 
+        [Header("Aiming in the Shoot pose (optional)")]
+        public Transform RightArm;
+        public Transform RightForeArm;
+        public Transform RightHand;
+        [Tooltip("The holder of the weapon in the right hand. Its local +X is the barrel and +Y the top of the weapon.")]
+        public Transform RightWeapon;
+        public Transform LeftArm;
+        public Transform LeftForeArm;
+        public Transform LeftHand;
+        public Transform LeftWeapon;
+        [Tooltip("Seconds to raise the arms into the aim, and to lower them again.")]
+        public float AimBlend = 0.08f;
+        [Tooltip("Metres ahead of the character that the arms point at. Shorter makes them converge more.")]
+        public float AimDistance = 6f;
+
         static readonly int s_Idle = Animator.StringToHash(IdleState);
         static readonly int s_Run = Animator.StringToHash(RunState);
         static readonly int s_Shoot = Animator.StringToHash(ShootState);
@@ -57,6 +76,12 @@ namespace Roguelike
         float _dashPoseUntil = float.NegativeInfinity;
         Vector3 _hipsRest;
         bool _started;
+        float _aimWeight;
+        Quaternion _rightWeaponRest = Quaternion.identity;
+        Quaternion _leftWeaponRest = Quaternion.identity;
+
+        /// <summary>0 with the arms as the clip has them, 1 with both arms and weapons pointed at the target.</summary>
+        public float AimWeight => _aimWeight;
 
         public CharacterPose Pose { get; private set; }
 
@@ -76,6 +101,8 @@ namespace Roguelike
             if (Player == null || Animator == null) { enabled = false; return; }
             Animator.applyRootMotion = false;
             if (Hips != null) _hipsRest = Animator.transform.InverseTransformPoint(Hips.position);
+            if (RightWeapon != null) _rightWeaponRest = RightWeapon.localRotation;
+            if (LeftWeapon != null) _leftWeaponRest = LeftWeapon.localRotation;
             _seenDashes = Player.DashesStarted;
             _seenActions = Player.ActionsStarted;
             Pose = CharacterPose.Idle;
@@ -95,7 +122,9 @@ namespace Roguelike
             if (newDash) _dashPoseUntil = now + feel.DashDuration + DashRecovery;
 
             CharacterPose pose = PoseRule.Pick(Player.IsDashing, Player.Action != ActionKind.None, now < _dashPoseUntil, Player.Speed);
-            bool restart = (pose == CharacterPose.Dash && newDash) || (pose == CharacterPose.Shoot && newAction);
+            // A Shoot clip with a firing moment starts over for every shot; one without is just a stance and plays on.
+            bool restart = (pose == CharacterPose.Dash && newDash)
+                        || (pose == CharacterPose.Shoot && newAction && ShootFireTime > 0f);
             if (pose != Pose || restart) Show(pose);
             else if (pose == CharacterPose.Shoot && PastTheFiringPose()) Animator.CrossFadeInFixedTime(s_Shoot, FadeToRun, 0, ShootFireTime);
 
@@ -145,15 +174,54 @@ namespace Roguelike
             }
         }
 
-        /// <summary>After the Animator has posed the skeleton: put the hips back over the character, keeping their height.</summary>
+        /// <summary>
+        /// After the Animator has posed the skeleton: put the hips back over the character, keeping their
+        /// height, and in the Shoot pose point the arms and the weapons at the target.
+        /// </summary>
         void LateUpdate()
         {
-            if (!_started || Hips == null) return;
-            Transform root = Animator.transform;
-            Vector3 local = root.InverseTransformPoint(Hips.position);
-            local.x = _hipsRest.x;
-            local.z = _hipsRest.z;
-            Hips.position = root.TransformPoint(local);
+            if (!_started) return;
+            if (Hips != null)
+            {
+                Transform root = Animator.transform;
+                Vector3 local = root.InverseTransformPoint(Hips.position);
+                local.x = _hipsRest.x;
+                local.z = _hipsRest.z;
+                Hips.position = root.TransformPoint(local);
+            }
+
+            float wanted = Pose == CharacterPose.Shoot ? 1f : 0f;
+            _aimWeight = AimBlend > 0f ? Mathf.MoveTowards(_aimWeight, wanted, Time.deltaTime / AimBlend) : wanted;
+
+            // The weapons are not animated, so they keep what was set last frame: start from how they are held.
+            if (RightWeapon != null) RightWeapon.localRotation = _rightWeaponRest;
+            if (LeftWeapon != null) LeftWeapon.localRotation = _leftWeaponRest;
+            if (_aimWeight <= 0f) return;
+
+            Vector3 ahead = Player.transform.position + Flat(Player.transform.forward).normalized * AimDistance;
+            AimArm(RightArm, RightForeArm, RightHand, RightWeapon, ahead);
+            AimArm(LeftArm, LeftForeArm, LeftHand, LeftWeapon, ahead);
         }
+
+        /// <summary>Straightens one arm toward a point ahead, level with its shoulder, and turns its weapon to point there.</summary>
+        void AimArm(Transform upper, Transform fore, Transform hand, Transform weapon, Vector3 ahead)
+        {
+            if (upper == null || fore == null || hand == null) return;
+            Vector3 dir = new Vector3(ahead.x, upper.position.y, ahead.z) - upper.position;
+            if (dir.sqrMagnitude < 1e-6f) return;
+            dir.Normalize();
+
+            upper.rotation = Quaternion.Slerp(upper.rotation,
+                Quaternion.FromToRotation(fore.position - upper.position, dir) * upper.rotation, _aimWeight);
+            fore.rotation = Quaternion.Slerp(fore.rotation,
+                Quaternion.FromToRotation(hand.position - fore.position, dir) * fore.rotation, _aimWeight);
+
+            if (weapon == null) return;
+            // The weapon's +X along the aim and its +Y up.
+            Quaternion aimed = Quaternion.LookRotation(Vector3.Cross(dir, Vector3.up), Vector3.up);
+            weapon.rotation = Quaternion.Slerp(weapon.rotation, aimed, _aimWeight);
+        }
+
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
     }
 }

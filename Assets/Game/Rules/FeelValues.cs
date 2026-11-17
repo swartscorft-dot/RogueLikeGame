@@ -12,7 +12,7 @@ namespace Roguelike.Rules
     {
         // Camera
         public float CameraPitch = 55f;           // degrees from the ground
-        public float CameraDistance = 14f;        // m
+        public float CameraDistance = 28f;        // m
         public float FieldOfView = 30f;           // degrees
 
         // Movement

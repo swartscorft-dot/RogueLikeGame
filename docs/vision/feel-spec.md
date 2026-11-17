@@ -7,7 +7,7 @@ Values marked "guess" are starting points to tune from. Double or halve; do not 
 | Parameter | Unit | Start value | Range | Status | Origin |
 |---|---|---|---|---|---|
 | Camera pitch from ground | degrees | 55 | 45-65 | guess | measure from Lost Ark footage |
-| Camera distance | m | 14 | 10-18 | guess | measure from footage |
+| Camera distance | m | 28 | 20-36 | guess | 14 was too close (Kristian 2026-11-17). Doubled after one rough measurement: in a Lost Ark screenshot the character is about 10% of the screen height; at 14 m ours was 21%. Kristian on 28: "much better" |
 | Field of view | degrees | 30 | 20-40 | guess | measure from footage |
 | Run speed | m/s | 6 | 4-8 | guess | own choice |
 | Time to full speed | s | 0 | 0-0.1 | guess | own choice |
@@ -35,4 +35,5 @@ Values marked "guess" are starting points to tune from. Double or halve; do not 
 | Run length, first complete run | min | 15-20 | - | decided | Kristian 2026-11-16 |
 
 Not in any source: camera values and Lost Ark's cancel rules. Kristian measures them from footage.
+The agent searched for Lost Ark's camera pitch, field of view and distance on 2026-11-17, in English and Korean, and found no published or datamined numbers. The pitch and the field of view are still guesses.
 Attack-move with a visible basic-attack range is a League-style addition on top of Lost Ark control. It implies a basic attack with a defined range.

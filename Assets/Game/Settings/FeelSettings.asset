@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Roguelike.Runtime::Roguelike.FeelSettings
   Values:
     CameraPitch: 55
-    CameraDistance: 14
+    CameraDistance: 28
     FieldOfView: 30
     RunSpeed: 6
     TimeToFullSpeed: 0
