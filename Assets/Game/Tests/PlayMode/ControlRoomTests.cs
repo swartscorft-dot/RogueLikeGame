@@ -26,6 +26,7 @@ namespace Roguelike.PlayModeTests
         FeelValues _feel;
         Damageable _a;
         Damageable _b;
+        Damageable _c;
 
         readonly Queue<InputFrame> _frames = new Queue<InputFrame>();
         InputFrame _idle;
@@ -47,6 +48,7 @@ namespace Roguelike.PlayModeTests
             _feel = _player.Feel;
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _b = GameObject.Find("Dummy_B").GetComponent<Damageable>();
+            _c = GameObject.Find("Dummy_C").GetComponent<Damageable>();
 
             // The real mouse and keyboard must not steer a test.
             _frames.Clear();
@@ -165,6 +167,74 @@ namespace Roguelike.PlayModeTests
             Assert.That(gap, Is.LessThanOrEqualTo(range + 0.05f), "shot from inside the range");
             Assert.That(gap, Is.GreaterThan(range - 0.6f), "stopped as soon as the target came into range");
             Assert.That(_b.HitsTaken, Is.EqualTo(0));
+        }
+
+        // The click picks the target: a dummy near the click wins over one nearer the character.
+
+        [UnityTest]
+        public IEnumerator AttackMove_ClickNearTheFartherDummy_ShootsThatOne_FromNearA() => AttackMoveShootsTheOneNearTheClick(NearA, _b, _a);
+
+        [UnityTest]
+        public IEnumerator AttackMove_ClickNearTheFartherDummy_ShootsThatOne_FromNearB() => AttackMoveShootsTheOneNearTheClick(NearB, _a, _b);
+
+        IEnumerator AttackMoveShootsTheOneNearTheClick(Vector3 from, Damageable clicked, Damageable nearer)
+        {
+            var origin = new GroundPoint(from.x, from.z);
+            Assume.That(Targeting.InRange(origin, clicked.GroundPosition, clicked.Radius, _feel.BasicAttackRange), Is.True, "the clicked dummy is in range");
+            Assume.That(Targeting.Gap(origin, nearer.GroundPosition, nearer.Radius),
+                        Is.LessThan(Targeting.Gap(origin, clicked.GroundPosition, clicked.Radius)), "and the other one is nearer the character");
+            _player.Teleport(from);
+            yield return null;
+            Vector3 start = _player.Position;
+
+            _player.AttackMoveTo(GroundBeside(clicked));
+            Assert.That(_player.OrderTarget, Is.SameAs(clicked), "the click picked the dummy near it");
+            yield return Until(() => clicked.HitsTaken + nearer.HitsTaken >= 2, 5f);
+
+            Assert.That(clicked.HitsTaken, Is.EqualTo(2), "shoots the dummy near the click");
+            Assert.That(nearer.HitsTaken, Is.EqualTo(0), "not the one nearer the character");
+            Assert.That(FlatDistance(_player.Position, start), Is.LessThan(0.05f), "does not walk while that target is in range");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove));
+        }
+
+        [UnityTest]
+        public IEnumerator AttackMove_ClickNearADummyOutOfRange_WalksToIt_AndLeavesTheNearerOneAlone()
+        {
+            float range = _feel.BasicAttackRange;
+            _player.Teleport(NearA);
+            yield return null;
+            Assume.That(Targeting.InRange(_player.GroundPosition, _a.GroundPosition, _a.Radius, range), Is.True, "A is in range");
+            Assume.That(Targeting.InRange(_player.GroundPosition, _c.GroundPosition, _c.Radius, range), Is.False, "C is not");
+
+            _player.AttackMoveTo(GroundBeside(_c));
+            Assert.That(_player.OrderTarget, Is.SameAs(_c));
+            yield return Until(() => _c.HitsTaken >= 1 || _a.HitsTaken >= 1, 10f);
+
+            Assert.That(_c.HitsTaken, Is.EqualTo(1), "walked to the dummy near the click and shot it");
+            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the dummy that was in range from the start is left alone");
+            float gap = Targeting.Gap(_player.GroundPosition, _c.GroundPosition, _c.Radius);
+            Assert.That(gap, Is.LessThanOrEqualTo(range + 0.05f), "shot from inside the range");
+            Assert.That(gap, Is.GreaterThan(range - 0.6f), "stopped as soon as it came into range");
+        }
+
+        [UnityTest]
+        public IEnumerator AttackMove_WhenTheClickedDummyDies_GoesOnWithTheNearest()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _b.TakeHit(_b.MaxHealth - 1); // one shot left in it
+            Assume.That(_b.IsAlive, Is.True);
+
+            _player.AttackMoveTo(GroundBeside(_b));
+            Assert.That(_player.OrderTarget, Is.SameAs(_b));
+            yield return Until(() => !_b.IsAlive, 3f);
+            Assert.That(_b.IsAlive, Is.False, "the clicked dummy is shot first");
+            Assert.That(_a.HitsTaken, Is.EqualTo(0));
+
+            yield return Until(() => _a.HitsTaken >= 2, 3f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(2), "then the nearest in range");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove), "the order stays");
+            Assert.That(_player.OrderTarget, Is.Null, "with no picked target left");
         }
 
         // ---------------- C5 Attack-target ----------------
@@ -436,7 +506,123 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.SkillShotHits, Is.EqualTo(1), "the cast went to the cursor, where Dummy_A stands");
         }
 
+        [UnityTest]
+        public IEnumerator Input_AThenClickOnTheGroundBesideADummy_OrdersAttackMove_GoingForThatDummy()
+        {
+            UseFakeInput();
+            _player.Teleport(NearA); // A is the nearer one; the click is beside B
+            yield return null;
+            yield return null; // let the camera settle on the new position
+            _idle = new InputFrame { CursorScreen = ScreenOf(GroundBeside(_b)) };
+
+            yield return Feed(new InputFrame { CursorScreen = _idle.CursorScreen, AttackMovePressed = true });
+            yield return Feed(new InputFrame { CursorScreen = _idle.CursorScreen, ConfirmPressed = true });
+
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove), "a click off the dummy is an attack-move");
+            Assert.That(_player.OrderTarget, Is.SameAs(_b), "that goes for the dummy nearest the click");
+        }
+
+        // ---------------- The rigged model ----------------
+        // These run only when the scene was built with a rigged player model.
+
+        [UnityTest]
+        public IEnumerator Animation_ShowsIdle_Run_Shoot_AndDash()
+        {
+            CharacterAnimation view = RiggedView();
+            yield return null;
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Idle));
+            Assert.That(InState(view, CharacterAnimation.IdleState), Is.True, "the Animator is in Idle");
+
+            _player.MoveTo(new Vector3(-6f, 0f, -5f));
+            yield return Until(() => view.Pose == CharacterPose.Run, 1f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Run), "moving shows Run");
+            yield return new WaitForSeconds(0.3f);
+            Assert.That(InState(view, CharacterAnimation.RunState), Is.True, "the Animator is in Run");
+
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => view.Pose == CharacterPose.Shoot, 1f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Shoot), "a shot shows Shoot");
+
+            Assert.That(_player.DashToward(_player.Position + Vector3.left * 10f), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => view.Pose == CharacterPose.Dash, 1f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Dash), "a dash shows Dash, and cuts the shot's animation");
+            yield return new WaitForSeconds(_feel.DashDuration * 0.5f);
+            Assert.That(InState(view, CharacterAnimation.DashState), Is.True, "the Animator is in Dash");
+
+            _player.Stop();
+            yield return new WaitForSeconds(_feel.DashDuration + view.DashRecovery + 0.3f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Idle), "and back to Idle when all is over");
+        }
+
+        [UnityTest]
+        public IEnumerator Animation_TheShotGoesOffAtTheClipsFiringMoment()
+        {
+            CharacterAnimation view = RiggedView();
+            _player.Teleport(NearA);
+            yield return null;
+
+            _player.AttackTarget(_a);
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1));
+
+            AnimatorStateInfo state = view.Animator.GetCurrentAnimatorStateInfo(0);
+            Assert.That(state.IsName(CharacterAnimation.ShootState), Is.True, "the Animator is in Shoot at the hit");
+            float clipTime = state.normalizedTime * state.length;
+            Assert.That(clipTime, Is.EqualTo(view.ShootFireTime).Within(0.08f),
+                        "the clip is at its firing moment when the shot lands");
+        }
+
+        [UnityTest]
+        public IEnumerator Animation_TheModelStaysOnTheCharacter_ThroughADash()
+        {
+            CharacterAnimation view = RiggedView();
+            yield return null;
+            Assert.That(_player.DashToward(_player.Position + Vector3.left * 10f), Is.EqualTo(IntentResult.Started));
+
+            float worst = 0f;
+            float until = Time.time + _feel.DashDuration + view.DashRecovery + 0.2f;
+            while (Time.time < until)
+            {
+                yield return null;
+                worst = Mathf.Max(worst, FlatDistance(view.Hips.position, _player.Position));
+            }
+            Assert.That(worst, Is.LessThan(0.3f), "the roll clip travels, but the model must not leave the character");
+        }
+
         // ---------------- Helpers ----------------
+
+        CharacterAnimation RiggedView()
+        {
+            var view = Object.FindAnyObjectByType<CharacterAnimation>();
+            if (view == null) Assert.Ignore("the scene was built without a rigged player model");
+            Assert.That(view.Player, Is.SameAs(_player));
+            Assert.That(view.Animator, Is.Not.Null);
+            Assert.That(view.Hips, Is.Not.Null);
+            return view;
+        }
+
+        /// <summary>True when the Animator is in the state, or cross-fading into it.</summary>
+        static bool InState(CharacterAnimation view, string stateName)
+        {
+            Animator animator = view.Animator;
+            return animator.GetCurrentAnimatorStateInfo(0).IsName(stateName)
+                || (animator.IsInTransition(0) && animator.GetNextAnimatorStateInfo(0).IsName(stateName));
+        }
+
+        /// <summary>
+        /// A point on the ground next to a dummy: outside the cursor pick slack, so it is a ground click,
+        /// and inside the attack-move click radius, so the click still picks that dummy.
+        /// </summary>
+        Vector3 GroundBeside(Damageable d)
+        {
+            float gap = (Placeholders.CursorPickSlack + _feel.AttackMoveClickRadius) * 0.5f;
+            Assume.That(gap, Is.GreaterThan(Placeholders.CursorPickSlack).And.LessThan(_feel.AttackMoveClickRadius),
+                        "the click radius is wider than the cursor pick slack");
+            Vector3 p = d.transform.position;
+            return new Vector3(p.x, 0f, p.z - (d.Radius + gap));
+        }
 
         void UseFakeInput() => _driver.InputSource = () => _frames.Count > 0 ? _frames.Dequeue() : _idle;
 

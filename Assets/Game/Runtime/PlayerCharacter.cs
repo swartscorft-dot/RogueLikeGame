@@ -73,6 +73,7 @@ namespace Roguelike
         public float Speed => _agent.velocity.magnitude;
 
         public OrderKind Order => _order;
+        /// <summary>The target the order goes for: the chosen one (attack-target) or the one the click picked (attack-move).</summary>
         public Damageable OrderTarget => _orderTarget;
         public ActionKind Action => _actionKind;
         public ActionPhase ActionPhase => _actionKind == ActionKind.None ? ActionPhase.None : _action.Phase(Time.time);
@@ -83,6 +84,8 @@ namespace Roguelike
         public bool HasBufferedPress => _buffer.HasItem;
 
         public int DashesStarted { get; private set; }
+        /// <summary>Counts every basic shot and skill that started its startup, whether or not it went on to fire.</summary>
+        public int ActionsStarted { get; private set; }
         public int BasicShotsFired { get; private set; }
         public int BasicShotHits { get; private set; }
         public int SkillShotsFired { get; private set; }
@@ -103,8 +106,14 @@ namespace Roguelike
         /// <summary>Order: walk to a point.</summary>
         public void MoveTo(Vector3 point) => SetOrder(OrderKind.Move, point, null);
 
-        /// <summary>Order: walk to a point and shoot the nearest target that is in basic-attack range on the way.</summary>
-        public void AttackMoveTo(Vector3 point) => SetOrder(OrderKind.AttackMove, point, null);
+        /// <summary>
+        /// Order: attack-move to a point. The click picks the target: the living target nearest the point,
+        /// if one is within the attack-move click radius. The character walks into range of it and shoots it,
+        /// leaving nearer targets alone. With no target near the point, or once that target is dead,
+        /// it walks to the point and shoots the target nearest to itself that is in basic-attack range.
+        /// </summary>
+        public void AttackMoveTo(Vector3 point) =>
+            SetOrder(OrderKind.AttackMove, point, NearestTo(new GroundPoint(point.x, point.z), Feel.AttackMoveClickRadius));
 
         /// <summary>Order: shoot this target, walking into range first.</summary>
         public void AttackTarget(Damageable target)
@@ -229,7 +238,14 @@ namespace Roguelike
                     break;
 
                 case OrderKind.AttackMove:
-                    Damageable nearest = NearestInRange(feel.BasicAttackRange);
+                    // The target the click picked comes first, for as long as it lives.
+                    if (_orderTarget != null && !_orderTarget.IsAlive) _orderTarget = null;
+                    if (_orderTarget != null)
+                    {
+                        ShootOrApproach(_orderTarget, feel);
+                        break;
+                    }
+                    Damageable nearest = NearestTo(GroundPosition, feel.BasicAttackRange);
                     if (nearest != null)
                     {
                         StartBasicShot(nearest, feel);
@@ -246,12 +262,17 @@ namespace Roguelike
                         Halt();
                         break;
                     }
-                    if (Targeting.InRange(GroundPosition, _orderTarget.GroundPosition, _orderTarget.Radius, feel.BasicAttackRange))
-                        StartBasicShot(_orderTarget, feel);
-                    else
-                        Travel(_orderTarget.transform.position);
+                    ShootOrApproach(_orderTarget, feel);
                     break;
             }
+        }
+
+        void ShootOrApproach(Damageable target, FeelValues feel)
+        {
+            if (Targeting.InRange(GroundPosition, target.GroundPosition, target.Radius, feel.BasicAttackRange))
+                StartBasicShot(target, feel);
+            else
+                Travel(target.transform.position);
         }
 
         void Travel(Vector3 point)
@@ -272,12 +293,13 @@ namespace Roguelike
             _travelDirty = true;
         }
 
-        Damageable NearestInRange(float range)
+        /// <summary>The living target whose edge is nearest to a point and within the range of it, or null.</summary>
+        Damageable NearestTo(GroundPoint from, float range)
         {
             IReadOnlyList<Damageable> all = Damageable.All;
             _targetScratch.Clear();
             for (int i = 0; i < all.Count; i++) _targetScratch.Add(all[i].Info);
-            int index = Targeting.NearestInRange(GroundPosition, _targetScratch, range);
+            int index = Targeting.NearestInRange(from, _targetScratch, range);
             return index < 0 ? null : all[index];
         }
 
@@ -331,6 +353,7 @@ namespace Roguelike
         void BeginAction(ActionKind kind, FeelValues feel)
         {
             _actionKind = kind;
+            ActionsStarted++;
             // G2: the placeholder skill uses the basic shot's timings.
             _action.Start(Time.time, feel.BasicShotStartup, feel.BasicShotActive, feel.BasicShotRecovery);
         }

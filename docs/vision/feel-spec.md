@@ -23,6 +23,8 @@ Values marked "guess" are starting points to tune from. Double or halve; do not 
 | Input buffer | s | 0.15 | 0.1-0.25 | guess | own choice |
 | Basic shot: startup / active / recovery | s | 0.15 / 0.05 / 0.25 | - | guess | own choice |
 | Basic attack range | m | 6 | 4-8 | guess | added in G2 by the agent, sized to what the camera shows |
+| Attack-move target | - | the target nearest the click; nearest the character when none is near the click | - | decided | Kristian 2026-11-17 |
+| Attack-move click radius | m | 2 | 1-4 | guess | added in G2 by the agent; how near the click a target must be to count as "near the click" |
 | Hit-stop on hit | s | 0.05 | 0-0.1 | guess | own choice |
 | Back attack | - | 90 degree arc, +5% damage, +10% crit | - | documented | Lost Ark (VULKK) |
 | Head attack | - | 90 degree arc, +20% damage, +10% stagger | - | documented | Lost Ark (VULKK) |

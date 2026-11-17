@@ -12,7 +12,7 @@ Unity 6000.6.9f1, one open Editor, never in focus during the checks. Model: Clau
 | C1 | Compile and rules | **pass** | No compile errors. 30 of 30 EditMode rule tests, one of which checks the code's start values against the feel-spec table |
 | C2 | Move | **pass** | Arrives in distance / run speed (within -0.2 s, +0.5 s), and the order ends |
 | C3 | Dash | **pass** | Covers 6 m within 0.3 m, then is refused while on cooldown |
-| C4 | Attack-move | **pass** | In range: two shots on the nearest dummy, none on the farther, no walking (tested from both sides). Out of range: walks, stops within 0.6 m of the range, then shoots |
+| C4 | Attack-move | **pass** | Click near no dummy: two shots on the dummy nearest the character, none on the farther, no walking (tested from both sides). Out of range: walks, stops within 0.6 m of the range, then shoots. Click near a dummy: see "Change after the first run" below |
 | C5 | Attack-target | **pass** | Shoots the chosen dummy and leaves the nearer one alone. The order ends when the target dies |
 | C6 | Commitment | **pass** | A move order during a shot moves nothing until recovery ends. The shot lands, then the move runs and no second shot is fired |
 | C7 | Dash-cancel | **pass** | A dash during startup starts at once. The cast never fires and the dummy keeps its health |
@@ -22,7 +22,49 @@ Unity 6000.6.9f1, one open Editor, never in focus during the checks. Model: Clau
 | C11 | Live and seen | **pass** | Play mode, Editor unfocused (focus log: the terminal held focus for all 170 samples). Frames 751 → 777. A showed the ring; a click on Dummy_C sent the character into range and Dummy_C went 1000 → 160. A capture shows the character, two dummies and the ring |
 | C12 | Scene by code | **pass** | Two builder runs: same hierarchy, same file set, no orphaned `.meta`. The settings asset has the same hash before and after the second run |
 
-PlayMode suite: 20 of 20. The whole loop (recompile, both suites) takes about 50 s in the open Editor.
+PlayMode suite: 20 of 20 at the first run, 25 of 25 after the change below. The whole loop (recompile, both suites) takes about 50 s in the open Editor.
+
+## Change after the first run: the click picks the attack-move target
+
+Kristian, 2026-11-17, before playing: "nearest the click is what we go for". Until then attack-move shot the dummy nearest the character.
+
+- **The rule now.** A ground click picks the living dummy nearest the click, if its edge is within 2 m of the click (the new feel value "attack-move click radius").
+  The character walks into range of that dummy and shoots it, and leaves nearer dummies alone.
+  With no dummy near the click, or once the picked one is dead, it shoots the dummy nearest the character, as before.
+- **Two details are my choices.** The pick is made once, at the click, not re-made for every shot. A picked dummy that is out of range is walked to, past dummies that are in range.
+- **Five new PlayMode tests**, all passing:
+  - A click beside the farther dummy shoots that one twice and the nearer one never (from both sides).
+  - A click beside Dummy_C, out of range, walks to it and shoots it; Dummy_A, in range from the start, takes no hit.
+  - When the picked dummy dies, the next two shots go to the dummy nearest the character and the order stays.
+  - Fed frames: A, then a click on the ground beside Dummy_B, orders an attack-move that goes for Dummy_B.
+- **The tests can fail.** They passed on their first run, so I planted two bugs in turn: the click picks nothing (5 tests failed), and the pick is made but ignored when shooting (4 tests failed). Both were removed; 30 rule tests and 25 PlayMode tests pass on the real code.
+- The debug readout now shows the picked dummy: `order AttackMove -> Dummy_B`.
+- The settings asset was saved through the Editor so the new value is in it. No tuned value changed.
+- Not checked live in Play mode or in a capture, and not played. There is no marker on screen for which dummy a click will pick.
+
+## Change after the first run: a rigged player model
+
+Art was out of scope for G2. Kristian brought it in on 2026-11-17: a gunslinger made in Meshy, in place of the grey capsule.
+Control does not depend on it. The player's root, agent and hit size are unchanged, and without the model files the builder falls back to the capsule.
+
+- **Where it came from.** Generated through Kristian's Meshy account from his own concept image, in T-pose, with Meshy's game-character model (15 807 triangles, 2K colour texture, no normal or metal maps).
+  Then auto-rigged (24 bones) and given three library animations. Cost: 15 + 5 + 9 = 29 credits. Run came free with the rig.
+- **Files.** `Assets/Game/Art/Player/Gunslinger/`: `Gunslinger_Rigged.fbx`, `Gunslinger_Run.fbx`, `Gunslinger_Actions.fbx` (Idle, Cowboy Quick Draw Shooting, Roll Dodge), the extracted colour texture, and `Gunslinger.controller`, which the builder writes.
+- **How it is shown.** `CharacterAnimation` reads the character and cross-fades between four Animator states: Idle, Run, Shoot, Dash. Which one is a rule in `PoseRule` (dash, then shot, then the dash animation's tail, then run or idle).
+- **Clip timings**, read off the clips by sampling the hips and hands every 0.1 s and looking at rendered poses:
+  - Shoot: the 7.3 s clip is a slow draw, a hold with both hands in front of the chest, and a holster. The draw ends at 2.4 s. The clip is entered one startup before that, so 2.4 s falls on the shot.
+  - Dash: the roll clip winds up for 0.6 s and then travels 3.7 m. It is played from 0.6 s to its end over the dash plus 0.25 s, and the hips are held over the character so the model does not leave it.
+  - Run: plays at character speed / 6 m/s. The 6 is a guess; the cycle is 0.63 s.
+- **Tests:** 4 rule tests for `PoseRule` and 3 PlayMode tests (the four poses follow the character; the Shoot clip is at 2.4 s when the hit lands; the hips stay within 0.3 m of the character through a dash).
+  They passed on their first run, so I planted two bugs: hips not held (the model drifted 3.7 m, caught) and the Shoot clip entered at its start (clip at 0.15 s at the hit, caught). Both removed. 34 rule tests and 28 PlayMode tests pass.
+- **Seen live**, Editor unfocused: captures of the shooting pose facing Dummy_A and of the roll. Not captured: the run, because the CLI was slower than the walk. Not played.
+
+What does not look right yet:
+
+- **The roll does not fit a 0.2 s dash.** The dash covers 6 m in 0.2 s; the roll then finishes on the spot, at 2.7 times its speed. Either the dash gets longer (a feel value) or it wants a lunge rather than a roll.
+- **The idle turns the body** up to 80 degrees to the side while looking around, so a standing character does not always show where it faces.
+- **The revolvers stay in their holsters.** They are part of the body mesh, so the shooting pose fans an empty hand.
+- **The same clip is used for the basic shot and the skill.**
 
 ## Can the tests fail?
 
@@ -75,7 +117,8 @@ The six behaviours under "How the pieces behave" in the slice file are my choice
 3. Attack-move keeps shooting for as long as a target is in range.
 4. Hit-stop freezes the whole game, on every hit, including every basic shot.
 
-I also added one row to `docs/vision/feel-spec.md`: basic attack range, 6 m, status guess.
+I added two value rows to `docs/vision/feel-spec.md`, both status guess: basic attack range, 6 m, and attack-move click radius, 2 m.
+The row "Attack-move target" records Kristian's decision of 2026-11-17.
 
 ## State for the play session
 

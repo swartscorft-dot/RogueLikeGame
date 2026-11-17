@@ -36,6 +36,7 @@ namespace Roguelike.Rules
         public float BasicShotActive = 0.05f;     // s
         public float BasicShotRecovery = 0.25f;   // s
         public float BasicAttackRange = 6f;       // m
+        public float AttackMoveClickRadius = 2f;  // m, from the click to a target's edge
 
         // Hits
         public float HitStop = 0.05f;             // s

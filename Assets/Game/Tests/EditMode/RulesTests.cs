@@ -27,6 +27,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(feel.BasicShotActive, Is.EqualTo(0.05f));
             Assert.That(feel.BasicShotRecovery, Is.EqualTo(0.25f));
             Assert.That(feel.BasicAttackRange, Is.EqualTo(6f));
+            Assert.That(feel.AttackMoveClickRadius, Is.EqualTo(2f));
             Assert.That(feel.HitStop, Is.EqualTo(0.05f));
         }
     }
@@ -314,6 +315,38 @@ namespace Roguelike.Rules.Tests
         {
             var targets = new List<TargetInfo> { At(3f, 0f), At(-3f, 0f) };
             Assert.That(Targeting.NearestInRange(Origin, targets, 6f), Is.EqualTo(0));
+        }
+    }
+
+    public class PoseRuleTests
+    {
+        [Test]
+        public void StandingIsIdle_AndMovingIsRun()
+        {
+            Assert.That(PoseRule.Pick(false, false, false, 0f), Is.EqualTo(CharacterPose.Idle));
+            Assert.That(PoseRule.Pick(false, false, false, PoseRule.MoveThreshold), Is.EqualTo(CharacterPose.Idle));
+            Assert.That(PoseRule.Pick(false, false, false, 6f), Is.EqualTo(CharacterPose.Run));
+        }
+
+        [Test]
+        public void AShotWinsOverMoving()
+        {
+            Assert.That(PoseRule.Pick(false, true, false, 6f), Is.EqualTo(CharacterPose.Shoot));
+        }
+
+        [Test]
+        public void ADashWinsOverEverything()
+        {
+            Assert.That(PoseRule.Pick(true, true, false, 6f), Is.EqualTo(CharacterPose.Dash));
+            Assert.That(PoseRule.Pick(true, false, false, 0f), Is.EqualTo(CharacterPose.Dash));
+        }
+
+        [Test]
+        public void TheDashAnimationRunsOnAfterTheDash_UnlessAShotStarts()
+        {
+            Assert.That(PoseRule.Pick(false, false, true, 6f), Is.EqualTo(CharacterPose.Dash));
+            Assert.That(PoseRule.Pick(false, false, true, 0f), Is.EqualTo(CharacterPose.Dash));
+            Assert.That(PoseRule.Pick(false, true, true, 0f), Is.EqualTo(CharacterPose.Shoot));
         }
     }
 }

@@ -23,8 +23,8 @@ namespace Roguelike
     /// The frame normally comes from the mouse and keyboard; tests set <see cref="InputSource"/> to feed their own.
     ///
     /// Right-click (held) moves and follows the cursor. A starts aiming an attack-move and shows the range ring;
-    /// left-click confirms it (on a target: attack that target; on the ground: attack-move there),
-    /// right-click or Esc cancels it. Space dashes toward the cursor. Q casts at the cursor.
+    /// left-click confirms it (on a target: attack that target; on the ground: attack-move there,
+    /// going for the target nearest the click), right-click or Esc cancels it. Space dashes toward the cursor. Q casts at the cursor.
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
     public sealed class PlayerInputDriver : MonoBehaviour

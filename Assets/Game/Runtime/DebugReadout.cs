@@ -27,7 +27,9 @@ namespace Roguelike
             {
                 Vector3 p = _player.Position;
                 _text.AppendLine(string.Format(s_Inv, "pos ({0:0.00}, {1:0.00})  speed {2:0.0} m/s", p.x, p.z, _player.Speed));
-                _text.AppendLine(string.Format(s_Inv, "order {0}{1}", _player.Order,
+                Damageable goesFor = _player.OrderTarget;
+                _text.AppendLine(string.Format(s_Inv, "order {0}{1}{2}", _player.Order,
+                    goesFor != null ? " -> " + goesFor.name : "",
                     _driver != null && _driver.IsAimingAttackMove ? "  AIMING attack-move" : ""));
                 _text.AppendLine(string.Format(s_Inv, "action {0} {1}{2}{3}", _player.Action, _player.ActionPhase,
                     _player.HasBufferedPress ? "  buffered press" : "", HitStop.IsActive ? "  HIT-STOP" : ""));

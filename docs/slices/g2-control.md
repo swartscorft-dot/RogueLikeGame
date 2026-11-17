@@ -15,7 +15,8 @@ One grey-box scene, `ControlRoom`, with:
 - **Move.** Right-click moves; a held click follows the cursor. Run speed, time to full speed and turn time from the feel spec.
 - **Dash** on Space, toward the cursor. Cooldown, distance, duration and i-frame from the feel spec. It cancels a shot or skill in progress.
 - **Basic attack with attack-move.** A shows the basic-attack range, left-click confirms, right-click or Esc cancels.
-  A click on the ground walks there and shoots the nearest target that comes into range. A click on a target attacks that target.
+  A click on a target attacks that target. A click on the ground is an attack-move that goes for the target nearest the click.
+  With no target near the click, it walks there and shoots the target nearest the character that comes into range.
   The shot has startup, active and recovery from the feel spec, and the character is locked for all three.
 - **One placeholder skill** on Q, aimed at the cursor. It exists so cursor aim, facing on cast, the cast lock and dash-cancel can be judged. G3 replaces it.
 - **Input buffer.** A dash or skill pressed while the character is locked fires when the lock ends, if it was pressed within the buffer time.
@@ -32,6 +33,11 @@ Out of scope: enemies that act, damage to the player, real skills, the identity 
    Dash and skill are presses. They go through the input buffer and are dropped when they are older than the buffer time.
 2. **Only the dash cancels.** A move order does not cancel a shot. The shot finishes its recovery first.
 3. **Attack-move keeps shooting** while a target is in range, and continues to the clicked point when none is.
+   **The click picks the target** (Kristian, 2026-11-17: "nearest the click is what we go for").
+   The living target nearest the click, if its edge is within the attack-move click radius, is picked when the order is given.
+   The character walks into range of it and shoots it, and leaves nearer targets alone.
+   With no target near the click, or once the picked target is dead, it shoots the target nearest the character.
+   The details are the agent's: the pick is made once, at the click, and a picked target that is out of range is walked to.
 4. **The basic shot is targeted** and cannot miss a living target. The placeholder skill is a line that can miss.
 5. **Hit-stop freezes the whole game** (time scale 0) for the feel-spec time.
 6. **In range** means: distance to the target's edge is at most the range.
@@ -43,6 +49,7 @@ Added to the feel spec as a guess, for Kristian to tune:
 | Parameter | Unit | Start value | Why |
 |---|---|---|---|
 | Basic attack range | m | 6 | The feel-spec camera shows about 5 m above the character, 4 m below and 8 m to each side |
+| Attack-move click radius | m | 2 | How near the click a target's edge must be to be picked. A third of the attack range; the dummies stand 8 m apart |
 
 Placeholders that are not feel values (in `Placeholders.cs`, replaced in G3): basic shot damage 40, skill range 12 m, skill half-width 0.3 m, skill damage 100, dummy health 1000 with refill after 2 s, cursor pick slack 0.5 m.
 The placeholder skill uses the basic shot's startup, active and recovery.
@@ -72,7 +79,7 @@ The placeholder skill uses the basic shot's startup, active and recovery.
 | C1 | Compile and rules | The project compiles, and the EditMode rule tests pass, including one that checks the code's start values against the feel-spec table |
 | C2 | Move | A PlayMode test: a move order arrives at the point in distance / run speed, within a tolerance |
 | C3 | Dash | Covers the dash distance, then is refused while on cooldown |
-| C4 | Attack-move | In range: shoots the nearest target, repeatedly, without walking. Out of range: walks until in range, then shoots |
+| C4 | Attack-move | Click near a target: shoots that one, not a nearer one, and walks to it when it is out of range. Click near no target: shoots the target nearest the character, repeatedly, without walking; out of range, walks until in range, then shoots |
 | C5 | Attack-target | Shoots only the chosen target |
 | C6 | Commitment | A move order given during a shot does not move the character until recovery ends, and then it moves |
 | C7 | Dash-cancel | A dash during a cast starts at once, and the cast deals no damage |
@@ -89,7 +96,7 @@ Play `ControlRoom` and change values in `FeelSettings.asset` while playing. Doub
 - Does a right-click move feel instant and exact? (run speed, time to full speed, turn time)
 - Is the dash a scarce, deliberate tool? (cooldown, distance, duration)
 - Does the shot's lock feel committed without feeling stuck? (startup, active, recovery, input buffer)
-- Is attack-move what you expected from League? (basic attack range, decisions 1 to 4 above)
+- Is attack-move what you expected from League? (basic attack range, attack-move click radius, decisions 1 to 4 above)
 - Is the hit-stop readable or annoying? (hit-stop)
 - Does the camera show enough? (pitch, distance, field of view)
 
