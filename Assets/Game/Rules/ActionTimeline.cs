@@ -3,8 +3,9 @@ namespace Roguelike.Rules
     public enum ActionPhase { None, Startup, Active, Recovery }
 
     /// <summary>
-    /// A committed action: startup, active, recovery. The character is locked for all three.
-    /// The hit resolves once, when the active phase is reached.
+    /// A committed action: startup, active, recovery. The hit resolves once, when the active phase is reached.
+    /// Whether the character is locked for all three phases is up to the user of the timeline:
+    /// <see cref="HitResolved"/> says when the hit is behind it.
     /// </summary>
     public sealed class ActionTimeline
     {
@@ -28,6 +29,9 @@ namespace Roguelike.Rules
         }
 
         public void Cancel() => _running = false;
+
+        /// <summary>True from the moment the hit has been resolved until the action is cancelled or started again.</summary>
+        public bool HitResolved => _running && _hitResolved;
 
         public ActionPhase Phase(float now)
         {

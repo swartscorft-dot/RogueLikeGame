@@ -12,7 +12,7 @@ Read first: `docs/vision/pillars.md`, `docs/vision/feel-spec.md`, `docs/decision
 
 One grey-box scene, `ControlRoom`, with:
 
-- **Move.** Right-click moves; a held click follows the cursor. Run speed, time to full speed and turn time from the feel spec.
+- **Move.** Right-click moves; a held click follows the cursor. A right-click on a target attacks it (added by Kristian on 2026-11-17). Run speed, time to full speed and turn time from the feel spec.
 - **Dash** on Space, toward the cursor. Cooldown, distance, duration and i-frame from the feel spec. It cancels a shot or skill in progress.
 - **Basic attack with attack-move.** A shows the basic-attack range, left-click confirms, right-click or Esc cancels.
   A click on a target attacks that target. A click on the ground is an attack-move that goes for the target nearest the click.
@@ -31,7 +31,12 @@ Out of scope: enemies that act, damage to the player, real skills, the identity 
 
 1. **Orders stay, presses expire.** Move, attack-move and attack-target are orders. The newest order replaces the old one and takes effect when the current lock ends, however early it was given.
    Dash and skill are presses. They go through the input buffer and are dropped when they are older than the buffer time.
-2. **Only the dash cancels.** A move order does not cancel a shot. The shot finishes its recovery first.
+2. **Only the dash cancels.** A move order does not cancel a shot.
+   ~~The shot finishes its recovery first.~~ Changed by Kristian on 2026-11-17, after playing G3: "it must feel responsive".
+   Then, the same day: "I want it as in League."
+   The basic shot never locks. Before it has gone off, a move order, an attack on another target, a skill or a dash cancels it, and a cancelled shot costs nothing.
+   After it has gone off, anything takes over at once. A shot that went off makes the next one wait out the whole shot time, so stepping between shots does not raise the fire rate.
+   Skills keep their lock: only the dash cancels a skill.
 3. **Attack-move keeps shooting** while a target is in range, and continues to the clicked point when none is.
    **The click picks the target** (Kristian, 2026-11-17: "nearest the click is what we go for").
    The living target nearest the click, if its edge is within the attack-move click radius, is picked when the order is given.

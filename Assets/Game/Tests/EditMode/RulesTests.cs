@@ -318,6 +318,26 @@ namespace Roguelike.Rules.Tests
         }
     }
 
+    public class ActionTimelineHitResolvedTests
+    {
+        [Test]
+        public void HitResolved_IsTrueOnlyAfterTheHitWasTaken()
+        {
+            var action = new ActionTimeline();
+            Assert.That(action.HitResolved, Is.False);
+            action.Start(0f, 0.15f, 0.05f, 0.25f);
+            Assert.That(action.HitResolved, Is.False, "in startup");
+            Assert.That(action.ConsumeHit(0.16f), Is.True);
+            Assert.That(action.HitResolved, Is.True, "the shot has gone off");
+
+            action.Start(1f, 0.15f, 0.05f, 0.25f);
+            Assert.That(action.HitResolved, Is.False, "a new action starts over");
+            action.ConsumeHit(1.2f);
+            action.Cancel();
+            Assert.That(action.HitResolved, Is.False, "a cancelled action has nothing behind it");
+        }
+    }
+
     public class PoseRuleTests
     {
         [Test]

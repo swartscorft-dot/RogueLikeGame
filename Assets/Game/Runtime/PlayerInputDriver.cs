@@ -10,25 +10,33 @@ namespace Roguelike
     public struct InputFrame
     {
         public Vector2 CursorScreen;
-        public bool MoveHeld;           // right mouse button, held
+        public bool MoveHeld;           // right mouse button, held: move, or attack the target under the cursor
         public bool AttackMovePressed;  // A
         public bool ConfirmPressed;     // left mouse button
         public bool CancelPressed;      // Esc
         public bool DashPressed;        // Space
-        public bool SkillPressed;       // Q
+        /// <summary>Skill keys that went down this frame. Bit 0 is the first skill key (Q), bit 1 the second (W), and so on.</summary>
+        public int SkillsPressed;
+        /// <summary>Skill keys that are down this frame, same bits. A key that went down this frame counts as down.</summary>
+        public int SkillsHeld;
     }
 
     /// <summary>
     /// Turns one <see cref="InputFrame"/> per frame into intents on the <see cref="PlayerCharacter"/>.
     /// The frame normally comes from the mouse and keyboard; tests set <see cref="InputSource"/> to feed their own.
     ///
-    /// Right-click (held) moves and follows the cursor. A starts aiming an attack-move and shows the range ring;
+    /// Right-click (held) on the ground moves and follows the cursor; on a target it attacks that target.
+    /// A starts aiming an attack-move and shows the range ring;
     /// left-click confirms it (on a target: attack that target; on the ground: attack-move there,
-    /// going for the target nearest the click), right-click or Esc cancels it. Space dashes toward the cursor. Q casts at the cursor.
+    /// going for the target nearest the click), right-click or Esc cancels it. Space dashes toward the cursor.
+    /// Q, W, E, R and D are the skill keys: the press, the release and the cursor all reach the character.
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
     public sealed class PlayerInputDriver : MonoBehaviour
     {
+        /// <summary>The skill keys, in slot order.</summary>
+        public static readonly Key[] SkillKeys = { Key.Q, Key.W, Key.E, Key.R, Key.D };
+
         static readonly Plane s_Ground = new Plane(Vector3.up, Vector3.zero);
 
         public RangeIndicator RangeRing;
@@ -38,6 +46,7 @@ namespace Roguelike
 
         PlayerCharacter _player;
         Camera _camera;
+        int _skillsHeldBefore;
 
         public bool IsAimingAttackMove { get; private set; }
 
@@ -53,8 +62,17 @@ namespace Roguelike
             if (_camera == null) return;
             if (!TryGroundPoint(input.CursorScreen, out Vector3 cursor)) return;
 
+            _player.AimAt(cursor);
             if (input.DashPressed) _player.DashToward(cursor);
-            if (input.SkillPressed) _player.CastAt(cursor);
+
+            int held = input.SkillsHeld | input.SkillsPressed;
+            for (int slot = 0; slot < SkillKeys.Length; slot++)
+            {
+                int bit = 1 << slot;
+                if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, cursor);
+                if ((_skillsHeldBefore & bit) != 0 && (held & bit) == 0) _player.ReleaseSkill(slot);
+            }
+            _skillsHeldBefore = held;
 
             if (input.AttackMovePressed) SetAiming(true);
             if (IsAimingAttackMove && input.CancelPressed) SetAiming(false);
@@ -69,7 +87,9 @@ namespace Roguelike
             if (input.MoveHeld)
             {
                 SetAiming(false);
-                _player.MoveTo(cursor);
+                Damageable target = TargetUnder(cursor);
+                if (target != null) _player.AttackTarget(target);
+                else _player.MoveTo(cursor);
             }
         }
 
@@ -79,7 +99,7 @@ namespace Roguelike
             Keyboard keyboard = Keyboard.current;
             if (mouse == null || keyboard == null) return null;
 
-            return new InputFrame
+            var frame = new InputFrame
             {
                 CursorScreen = mouse.position.ReadValue(),
                 MoveHeld = mouse.rightButton.isPressed,
@@ -87,8 +107,14 @@ namespace Roguelike
                 ConfirmPressed = mouse.leftButton.wasPressedThisFrame,
                 CancelPressed = keyboard.escapeKey.wasPressedThisFrame,
                 DashPressed = keyboard.spaceKey.wasPressedThisFrame,
-                SkillPressed = keyboard.qKey.wasPressedThisFrame,
             };
+            for (int slot = 0; slot < SkillKeys.Length; slot++)
+            {
+                var key = keyboard[SkillKeys[slot]];
+                if (key.wasPressedThisFrame) frame.SkillsPressed |= 1 << slot;
+                if (key.isPressed) frame.SkillsHeld |= 1 << slot;
+            }
+            return frame;
         }
 
         void SetAiming(bool aiming)

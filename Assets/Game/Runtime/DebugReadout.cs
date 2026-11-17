@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Roguelike
 {
-    /// <summary>A text readout in the top-left corner. The only UI in G2.</summary>
+    /// <summary>A text readout in the top-left corner, for looking at what the character is doing.</summary>
     public sealed class DebugReadout : MonoBehaviour
     {
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
@@ -20,8 +20,13 @@ namespace Roguelike
             if (_driver == null) _driver = FindAnyObjectByType<PlayerInputDriver>();
             if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.UpperLeft };
 
+            // Laid out for a view 720 pixels high and scaled to the real height, like the skill bar.
+            float scale = Screen.height / SkillBar.LayoutHeight;
+            Matrix4x4 matrixBefore = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+
             _text.Clear();
-            _text.AppendLine("RMB move  |  A then LMB attack-move  |  Space dash  |  Q skill");
+            _text.AppendLine("RMB move  |  A then LMB attack-move  |  Space dash  |  Q W E R D skills");
             int lines = 2;
             if (_player != null)
             {
@@ -31,11 +36,12 @@ namespace Roguelike
                 _text.AppendLine(string.Format(s_Inv, "order {0}{1}{2}", _player.Order,
                     goesFor != null ? " -> " + goesFor.name : "",
                     _driver != null && _driver.IsAimingAttackMove ? "  AIMING attack-move" : ""));
-                _text.AppendLine(string.Format(s_Inv, "action {0} {1}{2}{3}", _player.Action, _player.ActionPhase,
+                _text.AppendLine(string.Format(s_Inv, "action {0}{1} {2}{3}{4}", _player.Action,
+                    _player.ActiveSkill != null ? " (" + _player.ActiveSkill.Name + ")" : "", _player.ActionPhase,
                     _player.HasBufferedPress ? "  buffered press" : "", HitStop.IsActive ? "  HIT-STOP" : ""));
                 _text.AppendLine(string.Format(s_Inv, "dash cd {0:0.0} s{1}{2}", _player.DashCooldownRemaining,
                     _player.IsDashing ? "  DASHING" : "", _player.IsInvulnerable ? "  i-frame" : ""));
-                _text.AppendLine(string.Format(s_Inv, "basic {0}/{1} hit  skill {2} cast, {3} hit",
+                _text.AppendLine(string.Format(s_Inv, "basic {0}/{1} hit  skill hits {2}, targets hit {3}",
                     _player.BasicShotHits, _player.BasicShotsFired, _player.SkillShotsFired, _player.SkillShotHits));
                 lines += 5;
             }
@@ -46,7 +52,8 @@ namespace Roguelike
             }
             _text.Append(string.Format(s_Inv, "frame {0}", Time.frameCount));
 
-            GUI.Box(new Rect(10, 10, 520, 12 + lines * 20), _text.ToString(), _style);
+            GUI.Box(new Rect(10, 10, 580, 12 + lines * 20), _text.ToString(), _style);
+            GUI.matrix = matrixBefore;
         }
     }
 }

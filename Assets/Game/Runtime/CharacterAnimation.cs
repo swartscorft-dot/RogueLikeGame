@@ -12,6 +12,8 @@ namespace Roguelike
     ///
     /// The clip timings belong to the model's clips, so the scene builder sets them:
     /// - The Shoot clip is entered so that <see cref="ShootFireTime"/> falls on the moment the shot goes off.
+    ///   A skill that is held for longer than the firing pose lasts goes back to <see cref="ShootFireTime"/>
+    ///   at <see cref="ShootHoldEnd"/>, so the character does not holster its guns in the middle of a skill.
     /// - The Dash clip plays from <see cref="DashClipStart"/> to <see cref="DashClipEnd"/> over the dash and
     ///   <see cref="DashRecovery"/> seconds after it.
     /// - The hips are held over the character, so a clip that travels (a roll) does not leave it.
@@ -35,6 +37,8 @@ namespace Roguelike
         [Header("Timings of this model's clips")]
         [Tooltip("Seconds into the Shoot clip at which the shot goes off.")]
         public float ShootFireTime;
+        [Tooltip("Seconds into the Shoot clip at which the firing pose ends. 0 means the clip is never looped back.")]
+        public float ShootHoldEnd;
         [Tooltip("The part of the Dash clip to play, in seconds.")]
         public float DashClipStart;
         public float DashClipEnd;
@@ -92,12 +96,21 @@ namespace Roguelike
 
             CharacterPose pose = PoseRule.Pick(Player.IsDashing, Player.Action != ActionKind.None, now < _dashPoseUntil, Player.Speed);
             bool restart = (pose == CharacterPose.Dash && newDash) || (pose == CharacterPose.Shoot && newAction);
-            if (pose != Pose || restart) Show(pose, feel);
+            if (pose != Pose || restart) Show(pose);
+            else if (pose == CharacterPose.Shoot && PastTheFiringPose()) Animator.CrossFadeInFixedTime(s_Shoot, FadeToRun, 0, ShootFireTime);
 
             Animator.speed = SpeedFor(Pose, feel);
         }
 
-        void Show(CharacterPose pose, FeelValues feel)
+        /// <summary>True when the Shoot clip has played past its firing pose while the shot or skill is still going.</summary>
+        bool PastTheFiringPose()
+        {
+            if (ShootHoldEnd <= ShootFireTime || Animator.IsInTransition(0)) return false;
+            AnimatorStateInfo state = Animator.GetCurrentAnimatorStateInfo(0);
+            return state.shortNameHash == s_Shoot && state.normalizedTime * state.length >= ShootHoldEnd;
+        }
+
+        void Show(CharacterPose pose)
         {
             Pose = pose;
             switch (pose)
@@ -109,8 +122,8 @@ namespace Roguelike
                     Animator.CrossFadeInFixedTime(s_Run, FadeToRun, 0);
                     break;
                 case CharacterPose.Shoot:
-                    // Enter the clip one startup before its firing moment, so the two fall together.
-                    Animator.CrossFadeInFixedTime(s_Shoot, FadeToShoot, 0, Mathf.Max(0f, ShootFireTime - feel.BasicShotStartup));
+                    // Enter the clip as long before its firing moment as the shot or skill takes to its first hit.
+                    Animator.CrossFadeInFixedTime(s_Shoot, FadeToShoot, 0, Mathf.Max(0f, ShootFireTime - Player.ActionLeadTime));
                     break;
                 case CharacterPose.Dash:
                     Animator.CrossFadeInFixedTime(s_Dash, FadeToDash, 0, DashClipStart);

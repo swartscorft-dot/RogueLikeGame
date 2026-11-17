@@ -119,7 +119,7 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.Action == ActionKind.None, 5f);
             Assert.That(_player.SkillShotsFired, Is.EqualTo(1));
             Assert.That(_player.SkillShotHits, Is.EqualTo(1));
-            Assert.That(before - _a.CurrentHealth, Is.EqualTo(Placeholders.SkillDamage));
+            Assert.That(before - _a.CurrentHealth, Is.EqualTo(_player.Skills[0].Damage));
             Assert.That(_b.HitsTaken, Is.EqualTo(0), "the dummy off the line is untouched");
         }
 
@@ -290,34 +290,155 @@ namespace Roguelike.PlayModeTests
             Assert.That(_a.CurrentHealth, Is.EqualTo(_a.MaxHealth), "refilled");
         }
 
-        // ---------------- C6 Commitment ----------------
+        // ---------------- C6 The basic shot never locks, as in League ----------------
 
         [UnityTest]
-        public IEnumerator MoveOrderDuringAShot_WaitsForRecovery_ThenMoves()
+        public IEnumerator MoveOrderInAShotsStartup_CancelsTheShot()
         {
             _player.Teleport(NearA);
             yield return null;
             _player.AttackTarget(_a);
             yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
-            Assert.That(_player.Action, Is.EqualTo(ActionKind.BasicShot));
-            Vector3 lockedAt = _player.Position;
+            Assume.That(_player.ActionPhase, Is.EqualTo(ActionPhase.Startup));
+            Vector3 from = _player.Position;
+            float orderedAt = Time.time;
 
             _player.MoveTo(new Vector3(2f, 0f, -6f));
-            float deadline = Time.realtimeSinceStartup + 5f;
-            int lockedFrames = 0;
-            while (_player.Action == ActionKind.BasicShot && Time.realtimeSinceStartup < deadline)
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.None), "the shot is cancelled at once");
+            yield return Until(() => FlatDistance(_player.Position, from) > 0.3f, 2f);
+            Assert.That(FlatDistance(_player.Position, from), Is.GreaterThan(0.3f), "the character leaves");
+            Assert.That(Time.time - orderedAt, Is.LessThan(0.12f), "without waiting for the shot");
+
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the cancelled shot never lands");
+            Assert.That(_player.BasicShotsFired, Is.EqualTo(0));
+        }
+
+        [UnityTest]
+        public IEnumerator AShotCancelledInItsStartup_DoesNotDelayTheNextOne()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
+            Assume.That(_player.ActionPhase, Is.EqualTo(ActionPhase.Startup));
+
+            _player.MoveTo(_player.Position + Vector3.back);
+            yield return null;
+            float orderedAt = Time.time;
+            _player.AttackTarget(_a);
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+
+            Assert.That(_a.HitsTaken, Is.EqualTo(1));
+            Assert.That(Time.time - orderedAt, Is.LessThan(_feel.BasicShotStartup + 0.1f),
+                        "the new shot starts at once: nothing went off, so there is nothing to wait for");
+        }
+
+        [UnityTest]
+        public IEnumerator OrderingTheSameAttackAgain_DoesNotRestartTheShot()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
+            float seenAt = Time.time;
+
+            // As a held right-click on the target does: the same order, every frame.
+            while (_a.HitsTaken == 0 && Time.time - seenAt < 2f)
             {
-                Assert.That(FlatDistance(_player.Position, lockedAt), Is.LessThan(0.01f), "locked until the shot is over");
-                lockedFrames++;
+                _player.AttackTarget(_a);
                 yield return null;
             }
-            Assert.That(lockedFrames, Is.GreaterThan(0));
-            Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
-            Assert.That(_a.HitsTaken, Is.EqualTo(1), "the shot still landed");
+            Assert.That(_a.HitsTaken, Is.EqualTo(1));
+            Assert.That(Time.time - seenAt, Is.LessThan(_feel.BasicShotStartup + 0.06f), "the shot went off on time");
+        }
 
-            yield return Until(() => FlatDistance(_player.Position, lockedAt) > 1f, 3f);
-            Assert.That(FlatDistance(_player.Position, lockedAt), Is.GreaterThan(1f), "then the move order runs");
-            Assert.That(_a.HitsTaken, Is.EqualTo(1), "and it does not shoot again");
+        [UnityTest]
+        public IEnumerator AttackOnAnotherTarget_InAShotsStartup_SwitchesAtOnce()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            Assume.That(Targeting.InRange(_player.GroundPosition, _b.GroundPosition, _b.Radius, _feel.BasicAttackRange), Is.True, "B is in range too");
+            _player.AttackTarget(_a);
+            yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
+            Assume.That(_player.ActionPhase, Is.EqualTo(ActionPhase.Startup));
+            float orderedAt = Time.time;
+
+            _player.AttackTarget(_b);
+            yield return Until(() => _b.HitsTaken >= 1, 3f);
+
+            Assert.That(_b.HitsTaken, Is.EqualTo(1));
+            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the shot at the first target never went off");
+            Assert.That(Time.time - orderedAt, Is.LessThan(_feel.BasicShotStartup + 0.1f));
+        }
+
+        [UnityTest]
+        public IEnumerator MoveOrderInAShotsRecovery_MovesAtOnce()
+        {
+            Assume.That(_feel.BasicShotRecovery, Is.GreaterThan(0.15f));
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Assert.That(_player.IsInShotRecovery, Is.True, "the shot has gone off and its recovery is running");
+            Assert.That(_player.IsLocked, Is.False, "which does not lock");
+            Vector3 from = _player.Position;
+            float orderedAt = Time.time;
+
+            _player.MoveTo(new Vector3(2f, 0f, -6f));
+            yield return Until(() => FlatDistance(_player.Position, from) > 0.3f, 2f);
+            Assert.That(FlatDistance(_player.Position, from), Is.GreaterThan(0.3f));
+            Assert.That(Time.time - orderedAt, Is.LessThan(_feel.BasicShotRecovery * 0.6f), "it left during what would have been the recovery");
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
+        }
+
+        [UnityTest]
+        public IEnumerator CuttingTheRecoveryShort_DoesNotRaiseTheFireRate()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            float firstHit = Time.time;
+
+            // Step away and order the attack again at once: the fastest a player could try to shoot.
+            _player.MoveTo(_player.Position + Vector3.back);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _a.HitsTaken >= 2, 3f);
+
+            Assert.That(_a.HitsTaken, Is.EqualTo(2));
+            Assert.That(Time.time - firstHit, Is.GreaterThanOrEqualTo(ShotSeconds - 0.03f),
+                        "the second shot lands a whole shot time after the first, not sooner");
+        }
+
+        [UnityTest]
+        public IEnumerator SkillPressedInAShotsRecovery_StartsAtOnce()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Assume.That(_player.IsInShotRecovery, Is.True);
+
+            Assert.That(_player.PressSkill(0, _a.transform.position), Is.EqualTo(IntentResult.Started), "not buffered");
+            Assert.That(_player.ActiveSkillSlot, Is.EqualTo(0));
+        }
+
+        [UnityTest]
+        public IEnumerator SkillPressedInAShotsStartup_CancelsTheShot_AndStartsAtOnce()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
+            Assume.That(_player.ActionPhase, Is.EqualTo(ActionPhase.Startup));
+
+            Assert.That(_player.PressSkill(0, _a.transform.position), Is.EqualTo(IntentResult.Started), "not buffered");
+            Assert.That(_player.ActiveSkillSlot, Is.EqualTo(0));
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Assert.That(_player.BasicShotsFired, Is.EqualTo(0), "the basic shot never went off");
+            Assert.That(Lost(_a), Is.EqualTo(_player.Skills[0].Damage), "what landed is the skill");
         }
 
         // ---------------- C7 Dash-cancel ----------------
@@ -340,6 +461,9 @@ namespace Roguelike.PlayModeTests
             yield return new WaitForSeconds(_feel.DashDuration + ShotSeconds + 0.2f);
             Assert.That(_player.SkillShotsFired, Is.EqualTo(0), "the cancelled cast never fires");
             Assert.That(_a.CurrentHealth, Is.EqualTo(before));
+            Assume.That(_player.Skills[0].Cooldown, Is.GreaterThan(_feel.DashDuration + ShotSeconds + 0.5f));
+            Assert.That(_player.CastAt(_a.transform.position), Is.EqualTo(IntentResult.Rejected),
+                        "the cancelled skill is still on cooldown");
             Assert.That(FlatDistance(_player.Position, from), Is.EqualTo(_feel.DashDistance).Within(0.3f));
         }
 
@@ -456,6 +580,28 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
+        public IEnumerator Input_HeldRightClickOnADummy_AttacksIt_AtTheNormalRate()
+        {
+            UseFakeInput();
+            _player.Teleport(NearA);
+            yield return null;
+            yield return null; // let the camera settle on the new position
+            _idle = new InputFrame { CursorScreen = ScreenOf(_a.transform.position), MoveHeld = true };
+
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackTarget), "a right-click on a dummy is an attack, not a move");
+            Assert.That(_player.OrderTarget, Is.SameAs(_a));
+            float firstHit = Time.time;
+            Vector3 stoodAt = _player.Position;
+
+            yield return Until(() => _a.HitsTaken >= 2, 3f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(2));
+            Assert.That(Time.time - firstHit, Is.EqualTo(ShotSeconds).Within(0.06f),
+                        "holding the button on the dummy keeps shooting, neither faster nor slower");
+            Assert.That(FlatDistance(_player.Position, stoodAt), Is.LessThan(0.05f), "and does not walk");
+        }
+
+        [UnityTest]
         public IEnumerator Input_RightClickWhileAiming_CancelsTheAim_AndMoves()
         {
             UseFakeInput();
@@ -500,7 +646,7 @@ namespace Roguelike.PlayModeTests
 
             yield return null; // let the camera settle on the new position
             Vector2 onA = ScreenOf(_a.transform.position);
-            yield return Feed(new InputFrame { CursorScreen = onA, SkillPressed = true });
+            yield return Feed(new InputFrame { CursorScreen = onA, SkillsPressed = 1 });
             Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill));
             yield return Until(() => _player.Action == ActionKind.None, 5f);
             Assert.That(_player.SkillShotHits, Is.EqualTo(1), "the cast went to the cursor, where Dummy_A stands");
@@ -646,5 +792,6 @@ namespace Roguelike.PlayModeTests
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
         static float FlatDistance(Vector3 a, Vector3 b) => Flat(a - b).magnitude;
+        static int Lost(Damageable d) => d.MaxHealth - d.CurrentHealth;
     }
 }

@@ -1,9 +1,10 @@
-// G2 scene builder. Run through the Pipeline:
-//   unity command script run -- --file AgentScripts/G2SceneBuilder.cs --entry G2SceneBuilder.Build
+// Builds the control room, the one scene of G2 and G3. Run through the Pipeline:
+//   unity command script run -- --file AgentScripts/ControlRoomBuilder.cs --entry ControlRoomBuilder.Build
 // Rebuilds Assets/Game/Scenes/ControlRoom.unity from nothing on every run, so the result does not
 // depend on what the scene looked like before. Returns a hierarchy dump for comparison between runs.
 //
-// The feel settings asset is created only when it is missing. It holds Kristian's tuning and is never overwritten.
+// The feel settings and skill settings assets are created only when they are missing.
+// They hold Kristian's tuning and are never overwritten.
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -16,7 +17,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Rendering;
 
-public static class G2SceneBuilder
+public static class ControlRoomBuilder
 {
     const string Root = "Assets/Game";
     const string SceneDir = Root + "/Scenes";
@@ -25,6 +26,7 @@ public static class G2SceneBuilder
     const string ScenePath = SceneDir + "/ControlRoom.unity";
     const string NavMeshPath = SceneDir + "/ControlRoom_NavMesh.asset";
     const string SettingsPath = SettingsDir + "/FeelSettings.asset";
+    const string SkillsPath = SettingsDir + "/Skills.asset";
     const string PlayerArtDir = Root + "/Art/Player";
 
     // The rigged player model and its clips, as downloaded from Meshy (rig task, animation task).
@@ -36,6 +38,7 @@ public static class G2SceneBuilder
 
     // Timings read off these clips by sampling them (see docs/playtests/g2-control-agent.md).
     const float ShootFireTime = 2.4f;   // the draw ends and the hands are in front of the chest
+    const float ShootHoldEnd = 3.9f;    // just before the hands go down to the holsters
     const float DashClipStart = 0.6f;   // the roll proper starts after a 0.6 s wind-up
     const float DashClipEnd = 1.83f;
     const float RunClipSpeed = 6f;      // a guess: the run cycle is 0.63 s
@@ -55,6 +58,7 @@ public static class G2SceneBuilder
         Material basicShotMat = MaterialAsset("BasicShot", new Color(1f, 0.95f, 0.6f), unlit: true);
         Material skillMat = MaterialAsset("Skill", new Color(1f, 0.6f, 0.1f), unlit: true);
         Material ringMat = MaterialAsset("RangeRing", new Color(0.95f, 0.9f, 0.2f), unlit: true);
+        Material aimMat = MaterialAsset("SkillAim", new Color(1f, 0.45f, 0.1f), unlit: true);
 
         bool settingsCreated = false;
         var settings = AssetDatabase.LoadAssetAtPath<FeelSettings>(SettingsPath);
@@ -63,6 +67,15 @@ public static class G2SceneBuilder
             settings = ScriptableObject.CreateInstance<FeelSettings>();
             AssetDatabase.CreateAsset(settings, SettingsPath);
             settingsCreated = true;
+        }
+
+        bool skillsCreated = false;
+        var skills = AssetDatabase.LoadAssetAtPath<SkillSettings>(SkillsPath);
+        if (skills == null)
+        {
+            skills = ScriptableObject.CreateInstance<SkillSettings>();
+            AssetDatabase.CreateAsset(skills, SkillsPath);
+            skillsCreated = true;
         }
 
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -127,6 +140,7 @@ public static class G2SceneBuilder
         agent.baseOffset = 1f;
         var character = player.AddComponent<PlayerCharacter>();
         character.Settings = settings;
+        character.SkillSet = skills;
         character.BasicShotMaterial = basicShotMat;
         character.SkillMaterial = skillMat;
         var driver = player.AddComponent<PlayerInputDriver>();
@@ -144,10 +158,23 @@ public static class G2SceneBuilder
         ring.Player = character;
         driver.RangeRing = ring;
 
+        // Skill aim: the outline of the area the skill in use will hit.
+        var aimGo = new GameObject("SkillIndicator");
+        var aimLine = aimGo.AddComponent<LineRenderer>();
+        aimLine.sharedMaterial = aimMat;
+        aimLine.shadowCastingMode = ShadowCastingMode.Off;
+        aimLine.receiveShadows = false;
+        aimLine.enabled = false;
+        aimGo.AddComponent<SkillIndicator>().Player = character;
+
         // Training dummies: A and B are in basic-attack range of the start position, C is not.
         Dummy("Dummy_A", new Vector3(4f, 1f, 3f), dummyMat);
         Dummy("Dummy_B", new Vector3(-4f, 1f, 3f), dummyMat);
         Dummy("Dummy_C", new Vector3(0f, 1f, 10f), dummyMat);
+        // A tight group, for skills that hit an area. It stands clear of the three above.
+        Dummy("Dummy_D", new Vector3(-10f, 1f, 6f), dummyMat);
+        Dummy("Dummy_E", new Vector3(-11.2f, 1f, 6.6f), dummyMat);
+        Dummy("Dummy_F", new Vector3(-10.4f, 1f, 7.4f), dummyMat);
 
         // Camera
         var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
@@ -163,6 +190,7 @@ public static class G2SceneBuilder
 
         // Debug readout
         new GameObject("DebugReadout").AddComponent<DebugReadout>();
+        new GameObject("SkillBar").AddComponent<SkillBar>().Player = character;
 
         // Bake and persist the NavMesh. Reuse the existing asset so its GUID stays stable across runs.
         surface.BuildNavMesh();
@@ -186,7 +214,8 @@ public static class G2SceneBuilder
 
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
-        return (settingsCreated ? "settings: created\n" : "settings: kept\n") + playerVisual + Dump();
+        return (settingsCreated ? "settings: created\n" : "settings: kept\n")
+             + (skillsCreated ? "skills: created\n" : "skills: kept\n") + playerVisual + Dump();
     }
 
     /// <summary>The most recently written model file in the player art folder, or null when there is none.</summary>
@@ -261,6 +290,7 @@ public static class G2SceneBuilder
         animation.Animator = animator;
         animation.Hips = visual.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name == "Hips");
         animation.ShootFireTime = ShootFireTime;
+        animation.ShootHoldEnd = ShootHoldEnd;
         animation.DashClipStart = DashClipStart;
         animation.DashClipEnd = DashClipEnd;
         animation.RunClipSpeed = RunClipSpeed;

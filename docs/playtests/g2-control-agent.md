@@ -101,6 +101,7 @@ Kristian also answered two questions: what to continue with, and which button he
 ## What I could not verify
 
 - **The mouse and keyboard themselves.** `PlayerInputDriver.ReadDevices` (seven lines that read the mouse and keyboard) has never run under my control. A, left-click and Esc are new since the probe.
+  Kristian played on 2026-11-17 and said the mouse and keyboard work. He also said the roll after the dash and the idle that turns the body are fine for now.
 - **A headless run.** `unity test` with no Editor open was not run for G2. Closing the Editor means an administrator dialog when it reopens, because this shell is elevated.
 - **Whether any of it feels right.**
 - The dash's i-frame beyond its timing rule. Nothing damages the player in G2.
