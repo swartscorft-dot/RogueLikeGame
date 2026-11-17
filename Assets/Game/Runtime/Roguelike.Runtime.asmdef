@@ -1,0 +1,17 @@
+{
+    "name": "Roguelike.Runtime",
+    "rootNamespace": "Roguelike",
+    "references": [
+        "Roguelike.Rules",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
