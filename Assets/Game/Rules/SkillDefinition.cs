@@ -45,12 +45,17 @@ namespace Roguelike.Rules
         // Timing
         public float Startup = 0.15f;      // s before the first hit. Casting: the cast time. Charge: from release to the shot
         public float Recovery = 0.3f;      // s locked after the last hit
+        public int HitCount = 1;           // hits in a burst, for every input type but Holding
+        public float HitInterval = 0.1f;   // s between the hits of a burst
 
         // Area
         public float Range = 12f;          // m
         public float HalfWidth = 0.3f;     // m, Line
         public float Radius = 2.5f;        // m, Circle
         public float Angle = 50f;          // degrees, Cone
+
+        // Movement
+        public float MoveDistance = 0f;    // m the character moves during the startup: forward along the aim, or backward if negative
 
         // Holding and Charge
         public float HoldMax = 2f;         // s the key can be held before the skill ends (Holding) or fires by itself (Charge)
@@ -59,7 +64,11 @@ namespace Roguelike.Rules
         public float MinChargeDamage = 0.3f; // share of Damage dealt with no charge at all, Charge
     }
 
-    /// <summary>The five skills G3 starts with: one per input type. See docs/slices/g3-skills.md.</summary>
+    /// <summary>
+    /// The eight skills of the first class, in key order: Q W E R, S D F G.
+    /// The first five came in G3, one per input type. Scatter Blast, Backstep and Triple Tap came in G4.
+    /// See docs/slices/g3-skills.md and docs/slices/g4-kit.md.
+    /// </summary>
     public static class SkillDefaults
     {
         public static SkillDefinition[] Create() => new[]
@@ -88,8 +97,25 @@ namespace Roguelike.Rules
             },
             new SkillDefinition
             {
+                Name = "Scatter Blast", Input = SkillInput.Normal, Shape = SkillShape.Cone,
+                Cooldown = 9f, Damage = 220, Startup = 0.2f, Recovery = 0.35f, Range = 5f, Angle = 70f,
+            },
+            new SkillDefinition
+            {
                 Name = "Heavy Volley", Input = SkillInput.Casting, Shape = SkillShape.Line,
                 Cooldown = 16f, Damage = 400, Startup = 1f, Recovery = 0.5f, Range = 14f, HalfWidth = 1f,
+            },
+            new SkillDefinition
+            {
+                Name = "Backstep", Input = SkillInput.Normal, Shape = SkillShape.Line,
+                Cooldown = 12f, Damage = 80, Startup = 0.2f, Recovery = 0.2f, Range = 10f, HalfWidth = 0.4f,
+                MoveDistance = -5f,
+            },
+            new SkillDefinition
+            {
+                Name = "Triple Tap", Input = SkillInput.Normal, Shape = SkillShape.Line,
+                Cooldown = 7f, Damage = 70, Startup = 0.15f, Recovery = 0.3f, Range = 12f, HalfWidth = 0.3f,
+                HitCount = 3, HitInterval = 0.12f,
             },
         };
     }

@@ -20,7 +20,7 @@ namespace Roguelike.PlayModeTests
     /// </summary>
     public class SkillTests
     {
-        const int Quick = 0, Keg = 1, Fan = 2, Long = 3, Volley = 4;
+        const int Quick = 0, Keg = 1, Fan = 2, Long = 3, Volley = 5; // key order: Q W E R, S D F G
 
         static readonly Vector3 NearA = new Vector3(2f, 0f, 1f); // A is 2.3 m away here, B 5.8 m
 
@@ -36,6 +36,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator LoadScene()
         {
             Time.timeScale = 1f;
+            PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
             yield return null;
 
@@ -43,7 +44,7 @@ namespace Roguelike.PlayModeTests
             _driver = Object.FindAnyObjectByType<PlayerInputDriver>();
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             Assert.That(_player.SkillSet, Is.Not.Null, "the player uses the skill settings asset");
-            Assert.That(_player.Skills.Count, Is.EqualTo(5));
+            Assert.That(_player.Skills.Count, Is.EqualTo(8));
             _feel = _player.Feel;
             _a = Dummy("Dummy_A");
             _b = Dummy("Dummy_B");
@@ -58,7 +59,11 @@ namespace Roguelike.PlayModeTests
         }
 
         [TearDown]
-        public void RestoreTime() => Time.timeScale = 1f;
+        public void RestoreTimeAndInput()
+        {
+            Time.timeScale = 1f;
+            PlayerInputDriver.ReadRealDevices = true;
+        }
 
         // ---------------- The settings ----------------
 

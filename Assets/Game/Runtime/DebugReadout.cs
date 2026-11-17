@@ -18,7 +18,7 @@ namespace Roguelike
         {
             if (_player == null) _player = FindAnyObjectByType<PlayerCharacter>();
             if (_driver == null) _driver = FindAnyObjectByType<PlayerInputDriver>();
-            if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.UpperLeft };
+            if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 12, alignment = TextAnchor.UpperLeft };
 
             // Laid out for a view 720 pixels high and scaled to the real height, like the skill bar.
             float scale = Screen.height / SkillBar.LayoutHeight;
@@ -26,7 +26,7 @@ namespace Roguelike
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
 
             _text.Clear();
-            _text.AppendLine("RMB move  |  A then LMB attack-move  |  Space dash  |  Q W E R D skills");
+            _text.AppendLine("RMB move or attack  |  A then LMB attack-move  |  Space dash  |  QWER SDFG skills  |  Z focus");
             int lines = 2;
             if (_player != null)
             {
@@ -52,7 +52,7 @@ namespace Roguelike
             }
             _text.Append(string.Format(s_Inv, "frame {0}", Time.frameCount));
 
-            GUI.Box(new Rect(10, 10, 580, 12 + lines * 20), _text.ToString(), _style);
+            GUI.Box(new Rect(10, 10, 540, 10 + lines * 15), _text.ToString(), _style);
             GUI.matrix = matrixBefore;
         }
     }

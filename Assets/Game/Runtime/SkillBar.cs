@@ -6,24 +6,31 @@ using UnityEngine;
 namespace Roguelike
 {
     /// <summary>
-    /// The skill bar at the bottom of the screen: one box per skill with its key, name and cooldown,
-    /// and a bar above it for the cast, hold or charge of the skill in use. Grey-box UI, drawn with IMGUI.
+    /// The bars at the bottom of the screen: one box per skill with its key, name and cooldown; above them
+    /// the player's health and the focus gauge; and above those a bar for the cast, hold or charge of the
+    /// skill in use. Grey-box UI, drawn with IMGUI.
     /// It is laid out for a view 720 pixels high and scaled to the real height.
     /// </summary>
     public sealed class SkillBar : MonoBehaviour
     {
-        const float BoxWidth = 130f;
-        const float BoxHeight = 64f;
-        const float Gap = 8f;
-        const float BarHeight = 16f;
+        const float BoxWidth = 112f;
+        const float BoxHeight = 60f;
+        const float Gap = 6f;
+        const float BarHeight = 18f;
         public const float LayoutHeight = 720f;
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Ready = new Color(1f, 1f, 1f, 1f);
         static readonly Color s_Waiting = new Color(1f, 1f, 1f, 0.45f);
         static readonly Color s_InUse = new Color(1f, 0.75f, 0.2f, 1f);
+        static readonly Color s_Back = new Color(0f, 0f, 0f, 0.6f);
+        static readonly Color s_Health = new Color(0.85f, 0.2f, 0.2f, 1f);
+        static readonly Color s_Focus = new Color(0.25f, 0.6f, 1f, 1f);
+        static readonly Color s_Empowered = new Color(1f, 0.9f, 0.3f, 1f);
+        static readonly Color s_DarkText = new Color(0.1f, 0.1f, 0.1f, 1f);
 
         public PlayerCharacter Player;
+        public PlayerHealth Health;
 
         GUIStyle _box;
         GUIStyle _label;
@@ -32,24 +39,25 @@ namespace Roguelike
         {
             if (Player == null) Player = FindAnyObjectByType<PlayerCharacter>();
             if (Player == null) return;
+            if (Health == null) Health = Player.GetComponent<PlayerHealth>();
             if (_box == null)
             {
-                _box = new GUIStyle(GUI.skin.box) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
-                _label = new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+                _box = new GUIStyle(GUI.skin.box) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+                _label = new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
             }
 
             float scale = Screen.height / LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             float viewWidth = Screen.width / scale;
+            Color before = GUI.color;
 
             IReadOnlyList<SkillDefinition> skills = Player.Skills;
             int count = Mathf.Min(skills.Count, PlayerInputDriver.SkillKeys.Length);
             float total = count * BoxWidth + (count - 1) * Gap;
             float left = (viewWidth - total) * 0.5f;
-            float top = LayoutHeight - BoxHeight - 16f;
+            float top = LayoutHeight - BoxHeight - 14f;
             int active = Player.ActiveSkillSlot;
-            Color before = GUI.color;
 
             for (int slot = 0; slot < count; slot++)
             {
@@ -61,21 +69,48 @@ namespace Roguelike
                         PlayerInputDriver.SkillKeys[slot] + "  " + skills[slot].Name + "\n" + state, _box);
             }
 
+            // Health to the left, focus to the right.
+            float rowTop = top - BarHeight - 6f;
+            float half = (total - Gap) * 0.5f;
+            if (Health != null)
+            {
+                string text = Health.IsAlive
+                    ? string.Format(s_Inv, "HP {0} / {1}", Health.Current, Health.MaxHealth)
+                    : "DEAD";
+                Bar(new Rect(left, rowTop, half, BarHeight), Health.MaxHealth > 0 ? Health.Current / (float)Health.MaxHealth : 0f, s_Health, text);
+            }
+            IdentityValues identity = Player.Identity;
+            string focusText = Player.IsEmpowered
+                ? string.Format(s_Inv, "EMPOWERED {0:0.0} s", Player.EmpoweredRemaining)
+                : Player.IsFocusFull ? "FOCUS FULL: press Z"
+                : string.Format(s_Inv, "Focus {0:0} / {1:0}", Player.Focus, identity.MaxFocus);
+            bool bright = Player.IsEmpowered || Player.IsFocusFull;
+            Bar(new Rect(left + half + Gap, rowTop, half, BarHeight), Player.FocusBarFill,
+                bright ? s_Empowered : s_Focus, focusText, bright ? s_DarkText : s_Ready);
+
             // The cast, hold or charge of the skill in use.
             SkillDefinition skill = Player.ActiveSkill;
             SkillPhase phase = Player.SkillPhase;
             if (skill != null && (phase == SkillPhase.Startup || phase == SkillPhase.Channel))
-            {
-                var bar = new Rect(left, top - BarHeight - 6f, total, BarHeight);
-                GUI.color = new Color(0f, 0f, 0f, 0.6f);
-                GUI.DrawTexture(bar, Texture2D.whiteTexture);
-                GUI.color = s_InUse;
-                GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * Player.SkillProgress, bar.height), Texture2D.whiteTexture);
-                GUI.color = s_Ready;
-                GUI.Label(bar, BarText(skill, phase), _label);
-            }
+                Bar(new Rect(left, rowTop - BarHeight - 6f, total, BarHeight), Player.SkillProgress, s_InUse, BarText(skill, phase));
+
             GUI.color = before;
             GUI.matrix = matrixBefore;
+        }
+
+        void Bar(Rect rect, float fill, Color color, string text) => Bar(rect, fill, color, text, s_Ready);
+
+        void Bar(Rect rect, float fill, Color color, string text, Color textColor)
+        {
+            GUI.color = s_Back;
+            GUI.DrawTexture(rect, Texture2D.whiteTexture);
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width * Mathf.Clamp01(fill), rect.height), Texture2D.whiteTexture);
+            GUI.color = s_Ready;
+            Color contentBefore = GUI.contentColor;
+            GUI.contentColor = textColor;
+            GUI.Label(rect, text, _label);
+            GUI.contentColor = contentBefore;
         }
 
         static string BarText(SkillDefinition skill, SkillPhase phase)

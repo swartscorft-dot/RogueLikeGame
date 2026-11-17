@@ -11,7 +11,6 @@ namespace Roguelike
     [RequireComponent(typeof(LineRenderer))]
     public sealed class SkillIndicator : MonoBehaviour
     {
-        const int ArcSegments = 32;
         const float HeightAboveGround = 0.06f;
         const float BaseWidth = 0.06f;
 
@@ -33,7 +32,7 @@ namespace Roguelike
         {
             SkillDefinition skill = Player != null ? Player.ActiveSkill : null;
             SkillPhase phase = Player != null ? Player.SkillPhase : SkillPhase.None;
-            bool show = skill != null && (phase == SkillPhase.Startup || phase == SkillPhase.Channel);
+            bool show = skill != null && phase != SkillPhase.None && phase != SkillPhase.Recovery;
             if (_line.enabled != show) _line.enabled = show;
             if (!show) return;
 
@@ -47,50 +46,17 @@ namespace Roguelike
                 case SkillShape.Circle:
                     GroundPoint c = SkillRules.CircleCenter(skill, Player.GroundPosition,
                                                             new GroundPoint(Player.AimPoint.x, Player.AimPoint.z));
-                    DrawCircle(new Vector3(c.X, 0f, c.Z), skill.Radius);
+                    GroundOutline.Circle(_line, new Vector3(c.X, 0f, c.Z), skill.Radius, HeightAboveGround);
                     break;
                 case SkillShape.Cone:
-                    DrawCone(origin, dir, skill.Range, skill.Angle);
+                    GroundOutline.Cone(_line, origin, dir, skill.Range, skill.Angle, HeightAboveGround);
                     break;
                 default:
-                    DrawStrip(origin, dir, skill.Range, skill.HalfWidth);
+                    GroundOutline.Strip(_line, origin, dir, skill.Range, skill.HalfWidth, HeightAboveGround);
                     break;
-            }
-        }
-
-        void DrawStrip(Vector3 origin, Vector3 dir, float range, float halfWidth)
-        {
-            Vector3 side = Vector3.Cross(Vector3.up, dir) * halfWidth;
-            _line.positionCount = 4;
-            _line.SetPosition(0, Lift(origin - side));
-            _line.SetPosition(1, Lift(origin + side));
-            _line.SetPosition(2, Lift(origin + dir * range + side));
-            _line.SetPosition(3, Lift(origin + dir * range - side));
-        }
-
-        void DrawCircle(Vector3 center, float radius)
-        {
-            _line.positionCount = ArcSegments;
-            for (int i = 0; i < ArcSegments; i++)
-            {
-                float a = i / (float)ArcSegments * Mathf.PI * 2f;
-                _line.SetPosition(i, Lift(center + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius));
-            }
-        }
-
-        void DrawCone(Vector3 origin, Vector3 dir, float range, float angle)
-        {
-            const int arc = 12;
-            _line.positionCount = arc + 2;
-            _line.SetPosition(0, Lift(origin));
-            for (int i = 0; i <= arc; i++)
-            {
-                float yaw = Mathf.Lerp(-angle * 0.5f, angle * 0.5f, i / (float)arc);
-                _line.SetPosition(i + 1, Lift(origin + Quaternion.Euler(0f, yaw, 0f) * dir * range));
             }
         }
 
         static Vector3 Ground(Vector3 v) => new Vector3(v.x, 0f, v.z);
-        static Vector3 Lift(Vector3 v) => new Vector3(v.x, HeightAboveGround, v.z);
     }
 }

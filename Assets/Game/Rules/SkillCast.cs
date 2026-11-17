@@ -9,6 +9,8 @@ namespace Roguelike.Rules
         Startup,
         /// <summary>The key is being held: a Holding skill is hitting, a Charge skill is charging.</summary>
         Channel,
+        /// <summary>A burst is between its first and its last hit.</summary>
+        Active,
         /// <summary>Locked after the last hit.</summary>
         Recovery,
     }
@@ -17,11 +19,12 @@ namespace Roguelike.Rules
     /// One use of a skill, from the press to the end of its recovery. Time is passed in, in seconds.
     /// The character is locked for as long as <see cref="IsRunning"/>.
     ///
-    /// Normal, Point, Casting: Startup, one hit, Recovery.
+    /// Normal, Point, Casting: Startup, the hits, Recovery.
     /// Holding: Startup, then a hit at once and one every TickInterval while the key is down
     ///          (at most HoldMax), then Recovery. Released during the startup, it still hits once.
     /// Charge:  charges while the key is down (it fires by itself after HoldMax), then Startup,
-    ///          one hit, Recovery.
+    ///          the hits, Recovery.
+    /// "The hits" is one hit, or a burst of HitCount hits, HitInterval apart.
     /// </summary>
     public sealed class SkillCast
     {
@@ -52,7 +55,9 @@ namespace Roguelike.Rules
         /// <summary>Ends the skill at once. Hits that were not yet taken never happen.</summary>
         public void Cancel() => _running = false;
 
-        float ChannelStart => _skill.Input == SkillInput.Holding ? _start + _skill.Startup : _start;
+        bool IsHolding => _skill.Input == SkillInput.Holding;
+
+        float ChannelStart => IsHolding ? _start + _skill.Startup : _start;
 
         float ChannelEnd
         {
@@ -64,37 +69,30 @@ namespace Roguelike.Rules
             }
         }
 
-        float FirstHit
-        {
-            get
-            {
-                switch (_skill.Input)
-                {
-                    case SkillInput.Holding: return ChannelStart;
-                    case SkillInput.Charge: return ChannelEnd + _skill.Startup;
-                    default: return _start + _skill.Startup;
-                }
-            }
-        }
+        /// <summary>When the startup begins: at the press, or for a Charge skill at the release.</summary>
+        float StartupBegin => _skill.Input == SkillInput.Charge ? ChannelEnd : _start;
 
-        float End => (_skill.Input == SkillInput.Holding ? ChannelEnd : FirstHit) + _skill.Recovery;
+        float FirstHit => IsHolding ? ChannelStart : StartupBegin + _skill.Startup;
+
+        int BurstHits => IsHolding ? 1 : Math.Max(1, _skill.HitCount);
+
+        float LastHit => FirstHit + (BurstHits - 1) * Math.Max(0f, _skill.HitInterval);
+
+        float End => (IsHolding ? ChannelEnd : LastHit) + _skill.Recovery;
 
         public SkillPhase Phase(float now)
         {
             if (!_running || now < _start) return SkillPhase.None;
-            switch (_skill.Input)
+            if (IsHolding)
             {
-                case SkillInput.Holding:
-                    if (now < ChannelStart) return SkillPhase.Startup;
-                    if (now < ChannelEnd) return SkillPhase.Channel;
-                    break;
-                case SkillInput.Charge:
-                    if (now < ChannelEnd) return SkillPhase.Channel;
-                    if (now < FirstHit) return SkillPhase.Startup;
-                    break;
-                default:
-                    if (now < FirstHit) return SkillPhase.Startup;
-                    break;
+                if (now < ChannelStart) return SkillPhase.Startup;
+                if (now < ChannelEnd) return SkillPhase.Channel;
+            }
+            else
+            {
+                if (_skill.Input == SkillInput.Charge && now < ChannelEnd) return SkillPhase.Channel;
+                if (now < FirstHit) return SkillPhase.Startup;
+                if (now < LastHit) return SkillPhase.Active;
             }
             return now < End ? SkillPhase.Recovery : SkillPhase.None;
         }
@@ -105,9 +103,15 @@ namespace Roguelike.Rules
         public int HitsDue(float now)
         {
             if (!_running || now < FirstHit) return 0;
-            if (_skill.Input != SkillInput.Holding || _skill.TickInterval <= 0f) return 1;
-            float held = Math.Min(now, ChannelEnd) - ChannelStart;
-            return 1 + (int)Math.Floor(held / _skill.TickInterval + 1e-4f);
+            if (IsHolding)
+            {
+                if (_skill.TickInterval <= 0f) return 1;
+                float held = Math.Min(now, ChannelEnd) - ChannelStart;
+                return 1 + (int)Math.Floor(held / _skill.TickInterval + 1e-4f);
+            }
+            int burst = BurstHits;
+            if (burst == 1 || _skill.HitInterval <= 0f) return burst;
+            return Math.Min(burst, 1 + (int)Math.Floor((now - FirstHit) / _skill.HitInterval + 1e-4f));
         }
 
         /// <summary>
@@ -131,17 +135,24 @@ namespace Roguelike.Rules
             return Clamp01((Math.Min(now, ChannelEnd) - _start) / _skill.ChargeTime);
         }
 
+        /// <summary>How far the startup has come, 0 to 1: 0 before it begins, 1 from the first hit on. 0 when nothing runs.</summary>
+        public float StartupProgress(float now)
+        {
+            if (!_running) return 0f;
+            if (_skill.Startup <= 0f) return now >= StartupBegin ? 1f : 0f;
+            return Clamp01((now - StartupBegin) / _skill.Startup);
+        }
+
         /// <summary>
         /// For a bar on screen, 0 to 1: how far the startup has come (Startup phase), how much of the
-        /// longest hold is used (Holding), or the charge (Charge). 0 in recovery and when nothing runs.
+        /// longest hold is used (Holding), or the charge (Charge). 0 in a burst, in recovery and when nothing runs.
         /// </summary>
         public float Progress(float now)
         {
             switch (Phase(now))
             {
                 case SkillPhase.Startup:
-                    float begin = _skill.Input == SkillInput.Charge ? ChannelEnd : _start;
-                    return _skill.Startup <= 0f ? 1f : Clamp01((now - begin) / _skill.Startup);
+                    return StartupProgress(now);
                 case SkillPhase.Channel:
                     if (_skill.Input == SkillInput.Charge) return Charge(now);
                     return _skill.HoldMax <= 0f ? 1f : Clamp01((now - ChannelStart) / _skill.HoldMax);

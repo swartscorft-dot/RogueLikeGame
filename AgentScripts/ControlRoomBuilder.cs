@@ -1,10 +1,10 @@
-// Builds the control room, the one scene of G2 and G3. Run through the Pipeline:
+// Builds the control room, the one scene of G2, G3 and G4. Run through the Pipeline:
 //   unity command script run -- --file AgentScripts/ControlRoomBuilder.cs --entry ControlRoomBuilder.Build
 // Rebuilds Assets/Game/Scenes/ControlRoom.unity from nothing on every run, so the result does not
 // depend on what the scene looked like before. Returns a hierarchy dump for comparison between runs.
 //
-// The feel settings and skill settings assets are created only when they are missing.
-// They hold Kristian's tuning and are never overwritten.
+// The feel, skill and enemy settings assets are created only when they are missing.
+// They hold Kristian's tuning and are never overwritten. An older skill asset gets the skills it lacks.
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -27,6 +27,7 @@ public static class ControlRoomBuilder
     const string NavMeshPath = SceneDir + "/ControlRoom_NavMesh.asset";
     const string SettingsPath = SettingsDir + "/FeelSettings.asset";
     const string SkillsPath = SettingsDir + "/Skills.asset";
+    const string EnemyPath = SettingsDir + "/Enemy.asset";
     const string PlayerArtDir = Root + "/Art/Player";
 
     // The rigged player model and its clips, as downloaded from Meshy (rig task, animation task).
@@ -59,6 +60,8 @@ public static class ControlRoomBuilder
         Material skillMat = MaterialAsset("Skill", new Color(1f, 0.6f, 0.1f), unlit: true);
         Material ringMat = MaterialAsset("RangeRing", new Color(0.95f, 0.9f, 0.2f), unlit: true);
         Material aimMat = MaterialAsset("SkillAim", new Color(1f, 0.45f, 0.1f), unlit: true);
+        Material enemyMat = MaterialAsset("Enemy", new Color(0.4f, 0.12f, 0.45f), unlit: false);
+        Material telegraphMat = MaterialAsset("Telegraph", new Color(1f, 0.1f, 0.1f), unlit: true);
 
         bool settingsCreated = false;
         var settings = AssetDatabase.LoadAssetAtPath<FeelSettings>(SettingsPath);
@@ -76,6 +79,18 @@ public static class ControlRoomBuilder
             skills = ScriptableObject.CreateInstance<SkillSettings>();
             AssetDatabase.CreateAsset(skills, SkillsPath);
             skillsCreated = true;
+        }
+
+        bool skillsExtended = skills.EnsureStartSkills();
+        if (skillsExtended) EditorUtility.SetDirty(skills);
+
+        bool enemyCreated = false;
+        var enemySettings = AssetDatabase.LoadAssetAtPath<EnemySettings>(EnemyPath);
+        if (enemySettings == null)
+        {
+            enemySettings = ScriptableObject.CreateInstance<EnemySettings>();
+            AssetDatabase.CreateAsset(enemySettings, EnemyPath);
+            enemyCreated = true;
         }
 
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -143,6 +158,7 @@ public static class ControlRoomBuilder
         character.SkillSet = skills;
         character.BasicShotMaterial = basicShotMat;
         character.SkillMaterial = skillMat;
+        var playerHealth = player.AddComponent<PlayerHealth>();
         var driver = player.AddComponent<PlayerInputDriver>();
         if (animation != null) animation.Player = character;
 
@@ -190,7 +206,12 @@ public static class ControlRoomBuilder
 
         // Debug readout
         new GameObject("DebugReadout").AddComponent<DebugReadout>();
-        new GameObject("SkillBar").AddComponent<SkillBar>().Player = character;
+        var bar = new GameObject("SkillBar").AddComponent<SkillBar>();
+        bar.Player = character;
+        bar.Health = playerHealth;
+
+        // The enemy stands far to the right and back, out of its aggro range of the start and of every dummy.
+        Enemy(new Vector3(15f, 0f, -10f), enemySettings, character, playerHealth, enemyMat, telegraphMat);
 
         // Bake and persist the NavMesh. Reuse the existing asset so its GUID stays stable across runs.
         surface.BuildNavMesh();
@@ -215,7 +236,8 @@ public static class ControlRoomBuilder
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
         return (settingsCreated ? "settings: created\n" : "settings: kept\n")
-             + (skillsCreated ? "skills: created\n" : "skills: kept\n") + playerVisual + Dump();
+             + (skillsCreated ? "skills: created\n" : skillsExtended ? "skills: kept, missing ones added\n" : "skills: kept\n")
+             + (enemyCreated ? "enemy: created\n" : "enemy: kept\n") + playerVisual + Dump();
     }
 
     /// <summary>The most recently written model file in the player art folder, or null when there is none.</summary>
@@ -510,6 +532,62 @@ public static class ControlRoomBuilder
         obstacle.radius = 0.5f;
         obstacle.height = 2f;
         obstacle.carving = true;
+    }
+
+    /// <summary>
+    /// The enemy: an unscaled root on the ground with the agent and the logic, a scaled body, a nose that
+    /// shows where it faces, and a line for its telegraph.
+    /// </summary>
+    static void Enemy(Vector3 position, EnemySettings settings, PlayerCharacter player, PlayerHealth playerHealth,
+                      Material bodyMaterial, Material telegraphMaterial)
+    {
+        const float radius = 0.8f;
+        const float height = 3.2f;
+
+        var root = new GameObject("Enemy_Brute");
+        root.transform.position = position;
+
+        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        body.name = "Body";
+        body.transform.SetParent(root.transform, false);
+        body.transform.localPosition = new Vector3(0f, height * 0.5f, 0f);
+        body.transform.localScale = new Vector3(radius * 2f, height * 0.5f, radius * 2f);
+        body.GetComponent<Renderer>().sharedMaterial = bodyMaterial;
+        Object.DestroyImmediate(body.GetComponent<Collider>());
+
+        GameObject nose = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        nose.name = "Facing";
+        nose.transform.SetParent(root.transform, false);
+        nose.transform.localPosition = new Vector3(0f, height * 0.7f, radius);
+        nose.transform.localScale = new Vector3(0.5f, 0.5f, 0.7f);
+        nose.GetComponent<Renderer>().sharedMaterial = bodyMaterial;
+        Object.DestroyImmediate(nose.GetComponent<Collider>());
+
+        var telegraphGo = new GameObject("Telegraph");
+        telegraphGo.transform.SetParent(root.transform, false);
+        var telegraph = telegraphGo.AddComponent<LineRenderer>();
+        telegraph.sharedMaterial = telegraphMaterial;
+        telegraph.shadowCastingMode = ShadowCastingMode.Off;
+        telegraph.receiveShadows = false;
+        telegraph.enabled = false;
+
+        var damageable = root.AddComponent<Damageable>();
+        damageable.Radius = radius;
+        damageable.MaxHealth = settings.Values.Health;
+        root.AddComponent<HitFlash>().Target = body.GetComponent<Renderer>();
+
+        var agent = root.AddComponent<NavMeshAgent>();
+        agent.radius = radius;
+        agent.height = height;
+        agent.baseOffset = 0f;
+        agent.avoidancePriority = 60; // it walks around the player, not the other way
+
+        var brute = root.AddComponent<EnemyBrute>();
+        brute.Settings = settings;
+        brute.Player = player;
+        brute.PlayerHealth = playerHealth;
+        brute.Telegraph = telegraph;
+        brute.StrikeMaterial = telegraphMaterial;
     }
 
     /// <summary>Hierarchy of the active scene: names, positions and component types, in order.</summary>

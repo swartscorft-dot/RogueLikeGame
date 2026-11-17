@@ -47,5 +47,12 @@ namespace Roguelike
         }
 
         public void Refill() => _health.Reset();
+
+        /// <summary>Gives it a new maximum and fills it to that.</summary>
+        public void SetMaxHealth(int max)
+        {
+            MaxHealth = max;
+            _health = new Health(max);
+        }
     }
 }

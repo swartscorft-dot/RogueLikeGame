@@ -20,10 +20,13 @@ MonoBehaviour:
     Damage: 100
     Startup: 0.15
     Recovery: 0.3
+    HitCount: 1
+    HitInterval: 0.1
     Range: 12
     HalfWidth: 0.3
     Radius: 2.5
     Angle: 50
+    MoveDistance: 0
     HoldMax: 2
     TickInterval: 0.15
     ChargeTime: 1
@@ -35,10 +38,13 @@ MonoBehaviour:
     Damage: 180
     Startup: 0.5
     Recovery: 0.2
+    HitCount: 1
+    HitInterval: 0.1
     Range: 8
     HalfWidth: 0.3
     Radius: 2.5
     Angle: 50
+    MoveDistance: 0
     HoldMax: 2
     TickInterval: 0.15
     ChargeTime: 1
@@ -50,10 +56,13 @@ MonoBehaviour:
     Damage: 30
     Startup: 0.2
     Recovery: 0.3
+    HitCount: 1
+    HitInterval: 0.1
     Range: 7
     HalfWidth: 0.3
     Radius: 2.5
     Angle: 50
+    MoveDistance: 0
     HoldMax: 2
     TickInterval: 0.15
     ChargeTime: 1
@@ -65,11 +74,32 @@ MonoBehaviour:
     Damage: 300
     Startup: 0.1
     Recovery: 0.4
+    HitCount: 1
+    HitInterval: 0.1
     Range: 16
     HalfWidth: 0.25
     Radius: 2.5
     Angle: 50
+    MoveDistance: 0
     HoldMax: 2.5
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+  - Name: Scatter Blast
+    Input: 0
+    Shape: 2
+    Cooldown: 9
+    Damage: 220
+    Startup: 0.2
+    Recovery: 0.35
+    HitCount: 1
+    HitInterval: 0.1
+    Range: 5
+    HalfWidth: 0.3
+    Radius: 2.5
+    Angle: 70
+    MoveDistance: 0
+    HoldMax: 2
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
@@ -80,11 +110,55 @@ MonoBehaviour:
     Damage: 400
     Startup: 1
     Recovery: 0.5
+    HitCount: 1
+    HitInterval: 0.1
     Range: 14
     HalfWidth: 1
     Radius: 2.5
     Angle: 50
+    MoveDistance: 0
     HoldMax: 2
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+  - Name: Backstep
+    Input: 0
+    Shape: 0
+    Cooldown: 12
+    Damage: 80
+    Startup: 0.2
+    Recovery: 0.2
+    HitCount: 1
+    HitInterval: 0.1
+    Range: 10
+    HalfWidth: 0.4
+    Radius: 2.5
+    Angle: 50
+    MoveDistance: -5
+    HoldMax: 2
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+  - Name: Triple Tap
+    Input: 0
+    Shape: 0
+    Cooldown: 7
+    Damage: 70
+    Startup: 0.15
+    Recovery: 0.3
+    HitCount: 3
+    HitInterval: 0.12
+    Range: 12
+    HalfWidth: 0.3
+    Radius: 2.5
+    Angle: 50
+    MoveDistance: 0
+    HoldMax: 2
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+  Identity:
+    MaxFocus: 100
+    FocusPerDamage: 0.05
+    EmpoweredDuration: 8
+    EmpoweredDamage: 1.5

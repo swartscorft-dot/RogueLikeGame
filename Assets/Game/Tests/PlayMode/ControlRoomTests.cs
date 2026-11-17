@@ -37,6 +37,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator LoadScene()
         {
             Time.timeScale = 1f;
+            PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
             yield return null;
 
@@ -57,7 +58,11 @@ namespace Roguelike.PlayModeTests
         }
 
         [TearDown]
-        public void RestoreTime() => Time.timeScale = 1f;
+        public void RestoreTimeAndInput()
+        {
+            Time.timeScale = 1f;
+            PlayerInputDriver.ReadRealDevices = true;
+        }
 
         // ---------------- C2 Move ----------------
 

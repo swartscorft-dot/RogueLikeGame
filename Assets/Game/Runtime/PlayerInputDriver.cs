@@ -15,6 +15,7 @@ namespace Roguelike
         public bool ConfirmPressed;     // left mouse button
         public bool CancelPressed;      // Esc
         public bool DashPressed;        // Space
+        public bool IdentityPressed;    // Z: spend a full focus gauge on the empowered mode
         /// <summary>Skill keys that went down this frame. Bit 0 is the first skill key (Q), bit 1 the second (W), and so on.</summary>
         public int SkillsPressed;
         /// <summary>Skill keys that are down this frame, same bits. A key that went down this frame counts as down.</summary>
@@ -29,28 +30,44 @@ namespace Roguelike
     /// A starts aiming an attack-move and shows the range ring;
     /// left-click confirms it (on a target: attack that target; on the ground: attack-move there,
     /// going for the target nearest the click), right-click or Esc cancels it. Space dashes toward the cursor.
-    /// Q, W, E, R and D are the skill keys: the press, the release and the cursor all reach the character.
+    /// Q W E R and S D F G are the skill keys: the press, the release and the cursor all reach the character.
+    /// Z spends a full focus gauge. A dead character takes no input.
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
     public sealed class PlayerInputDriver : MonoBehaviour
     {
         /// <summary>The skill keys, in slot order.</summary>
-        public static readonly Key[] SkillKeys = { Key.Q, Key.W, Key.E, Key.R, Key.D };
+        public static readonly Key[] SkillKeys = { Key.Q, Key.W, Key.E, Key.R, Key.S, Key.D, Key.F, Key.G };
 
         static readonly Plane s_Ground = new Plane(Vector3.up, Vector3.zero);
 
         public RangeIndicator RangeRing;
 
+        /// <summary>
+        /// False shuts out the real mouse and keyboard for every driver, from its first frame on.
+        /// Tests set it before they load the scene: setting <see cref="InputSource"/> afterwards is one frame too late,
+        /// and whatever the person at the computer is doing would steer the test.
+        /// </summary>
+        public static bool ReadRealDevices = true;
+
         /// <summary>Where frames come from. Null means the mouse and keyboard. Return null for "no input this frame".</summary>
         public Func<InputFrame?> InputSource;
 
         PlayerCharacter _player;
+        PlayerHealth _health;
         Camera _camera;
         int _skillsHeldBefore;
 
         public bool IsAimingAttackMove { get; private set; }
 
-        void Awake() => _player = GetComponent<PlayerCharacter>();
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => ReadRealDevices = true;
+
+        void Awake()
+        {
+            _player = GetComponent<PlayerCharacter>();
+            _health = GetComponent<PlayerHealth>();
+        }
 
         void Update()
         {
@@ -62,7 +79,15 @@ namespace Roguelike
             if (_camera == null) return;
             if (!TryGroundPoint(input.CursorScreen, out Vector3 cursor)) return;
 
+            if (_health != null && !_health.IsAlive)
+            {
+                _skillsHeldBefore = 0;
+                SetAiming(false);
+                return;
+            }
+
             _player.AimAt(cursor);
+            if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(cursor);
 
             int held = input.SkillsHeld | input.SkillsPressed;
@@ -95,6 +120,7 @@ namespace Roguelike
 
         static InputFrame? ReadDevices()
         {
+            if (!ReadRealDevices) return null;
             Mouse mouse = Mouse.current;
             Keyboard keyboard = Keyboard.current;
             if (mouse == null || keyboard == null) return null;
@@ -107,6 +133,7 @@ namespace Roguelike
                 ConfirmPressed = mouse.leftButton.wasPressedThisFrame,
                 CancelPressed = keyboard.escapeKey.wasPressedThisFrame,
                 DashPressed = keyboard.spaceKey.wasPressedThisFrame,
+                IdentityPressed = keyboard.zKey.wasPressedThisFrame,
             };
             for (int slot = 0; slot < SkillKeys.Length; slot++)
             {

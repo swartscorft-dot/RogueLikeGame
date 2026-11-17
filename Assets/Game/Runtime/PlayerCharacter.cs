@@ -16,8 +16,8 @@ namespace Roguelike
     /// <summary>
     /// The player character. Everything that drives it goes through the intent API:
     /// <see cref="MoveTo"/>, <see cref="AttackMoveTo"/>, <see cref="AttackTarget"/>,
-    /// <see cref="DashToward"/>, <see cref="PressSkill"/>, <see cref="ReleaseSkill"/>, <see cref="AimAt"/>
-    /// and <see cref="Stop"/>.
+    /// <see cref="DashToward"/>, <see cref="PressSkill"/>, <see cref="ReleaseSkill"/>, <see cref="AimAt"/>,
+    /// <see cref="ActivateIdentity"/> and <see cref="Stop"/>.
     /// Input and tests both call these; nothing else moves the character.
     ///
     /// Orders (move, attack-move, attack-target) stay until done or replaced, and wait for a lock to end.
@@ -60,6 +60,8 @@ namespace Roguelike
         readonly SkillCast _cast = new SkillCast();
         readonly List<Cooldown> _cooldowns = new List<Cooldown>();
         readonly SkillDefinition[] _fallbackSkills = SkillDefaults.Create();
+        readonly FocusGauge _focus = new FocusGauge();
+        readonly IdentityValues _fallbackIdentity = new IdentityValues();
 
         NavMeshAgent _agent;
 
@@ -79,6 +81,8 @@ namespace Roguelike
         Vector3 _cursorPoint;
         bool _hasCursor;
         bool _bufferedSkillReleased;
+        float _castMoved;      // how far the skill in use has moved the character so far
+        Vector3 _castMoveDir;  // along the aim it was pressed with
 
         bool _dashing;
         Vector3 _dashFrom;
@@ -106,6 +110,7 @@ namespace Roguelike
                 {
                     case SkillPhase.Startup: return ActionPhase.Startup;
                     case SkillPhase.Channel: return ActionPhase.Active;
+                    case SkillPhase.Active: return ActionPhase.Active;
                     case SkillPhase.Recovery: return ActionPhase.Recovery;
                     default: return ActionPhase.None;
                 }
@@ -131,6 +136,16 @@ namespace Roguelike
         public Vector3 AimPoint => _aimPoint;
         public float SkillCooldownRemaining(int slot) =>
             slot >= 0 && slot < Skills.Count ? CooldownFor(slot).Remaining(Time.time) : 0f;
+
+        // ---------------- The identity gauge: focus ----------------
+
+        public IdentityValues Identity => SkillSet != null && SkillSet.Identity != null ? SkillSet.Identity : _fallbackIdentity;
+        public float Focus => _focus.Focus;
+        public bool IsFocusFull => _focus.IsFull(Identity);
+        public bool IsEmpowered => _focus.IsEmpowered(Time.time);
+        public float EmpoweredRemaining => _focus.EmpoweredRemaining(Time.time);
+        /// <summary>For the bar, 0 to 1: how full the gauge is, or while empowered how much of the mode is left.</summary>
+        public float FocusBarFill => _focus.BarFill(Time.time, Identity);
         public bool IsDashing => _dashing;
         /// <summary>True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock.</summary>
         public bool IsLocked => _dashing || _actionKind == ActionKind.Skill;
@@ -242,6 +257,16 @@ namespace Roguelike
             _hasCursor = true;
         }
 
+        /// <summary>
+        /// Press: spend a full focus gauge on the empowered mode. It takes no time and locks nothing,
+        /// so it can be pressed in the middle of a skill. Rejected unless the gauge is full.
+        /// </summary>
+        public IntentResult ActivateIdentity() =>
+            _focus.TryActivate(Time.time, Identity) ? IntentResult.Started : IntentResult.Rejected;
+
+        /// <summary>Fills the focus gauge. For tests and tools.</summary>
+        public void FillFocus() => _focus.Fill(Identity);
+
         /// <summary>Press and let go of the first skill at once. Shorthand for tests and tools.</summary>
         public IntentResult CastAt(Vector3 point)
         {
@@ -298,6 +323,16 @@ namespace Roguelike
             else if (_actionKind == ActionKind.Skill)
             {
                 SkillDefinition skill = _cast.Skill;
+                // A skill that moves the character does so over its startup, along the aim it was pressed with.
+                if (skill.MoveDistance != 0f)
+                {
+                    float moved = skill.MoveDistance * _cast.StartupProgress(now);
+                    if (moved != _castMoved)
+                    {
+                        _agent.Move(_castMoveDir * (moved - _castMoved));
+                        _castMoved = moved;
+                    }
+                }
                 // A skill that is held or charged follows the cursor until the key goes up.
                 if (_hasCursor && _cast.Phase(now) == SkillPhase.Channel)
                 {
@@ -507,6 +542,9 @@ namespace Roguelike
             _aimPoint = point;
             _castSlot = slot;
             _hasCursor = false; // follow only a cursor that is reported after this skill started, never a stale one
+            _castMoved = 0f;
+            Vector3 toAim = Flat(point - transform.position);
+            _castMoveDir = toAim.sqrMagnitude > 1e-6f ? toAim.normalized : Flat(transform.forward).normalized;
             if (Feel.FaceCursorOnCast) Face(Flat(point - transform.position));
 
             _actionKind = ActionKind.Skill;
@@ -535,9 +573,21 @@ namespace Roguelike
             if (_shotTarget == null || !_shotTarget.IsAlive) return false;
 
             SpawnBeam(transform.position, _shotTarget.transform.position, BasicBeamWidth, BasicShotMaterial);
-            if (_shotTarget.TakeHit(Placeholders.BasicShotDamage) <= 0) return false;
+            if (Deal(_shotTarget, Placeholders.BasicShotDamage) <= 0) return false;
             BasicShotHits++;
             return true;
+        }
+
+        /// <summary>
+        /// Deals damage to a target: more while empowered, and what was dealt fills the focus gauge.
+        /// Returns the amount actually removed.
+        /// </summary>
+        int Deal(Damageable target, int damage)
+        {
+            IdentityValues identity = Identity;
+            int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity));
+            _focus.AddDamage(applied, identity, Time.time);
+            return applied;
         }
 
         /// <summary>One hit of a skill: every living target its area touches takes the damage. True if any did.</summary>
@@ -559,7 +609,7 @@ namespace Roguelike
             {
                 Damageable d = all[i];
                 if (!SkillRules.Hits(skill, origin, aim, d.GroundPosition, d.Radius)) continue;
-                if (d.TakeHit(damage) <= 0) continue;
+                if (Deal(d, damage) <= 0) continue;
                 SkillShotHits++;
                 landed = true;
             }
