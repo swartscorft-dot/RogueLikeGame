@@ -183,7 +183,7 @@ namespace Roguelike.PlayModeTests
             SkillDefinition skill = Skill(Fan);
             _player.Teleport(NearA);
             yield return null;
-            Assume.That(Targeting.InRange(_player.GroundPosition, _b.GroundPosition, _b.Radius, skill.Range), Is.True, "B is within the cone's reach");
+            Assume.That(InReach(_player.GroundPosition, _b.GroundPosition, _b.Radius, skill.Range), Is.True, "B is within the cone's reach");
 
             _player.AimAt(_a.transform.position);
             Assert.That(_player.PressSkill(Fan, _a.transform.position), Is.EqualTo(IntentResult.Started));
@@ -411,5 +411,8 @@ namespace Roguelike.PlayModeTests
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
         static float FlatDistance(Vector3 a, Vector3 b) => Flat(a - b).magnitude;
+
+        /// <summary>True when a target's edge is within a reach of a point on the ground.</summary>
+        static bool InReach(GroundPoint from, GroundPoint target, float radius, float reach) => from.DistanceTo(target) - radius <= reach;
     }
 }

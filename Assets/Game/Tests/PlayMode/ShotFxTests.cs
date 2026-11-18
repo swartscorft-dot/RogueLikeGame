@@ -83,7 +83,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Assert.That(Object.FindObjectsByType<ShotFx>(), Is.Empty, "no effects before the shot");
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Watching(() => _player.BasicShotsFired >= 1, 3f);
             _player.Stop();
             Assert.That(_player.BasicShotsFired, Is.EqualTo(1), "the shot went off");
@@ -116,12 +116,12 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(NearA);
             yield return null;
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             bool secondClick = false;
             yield return Watching(() =>
             {
                 // Click to shoot: a second click for the second shot.
-                if (!secondClick && _player.BasicShotsFired >= 1) { _player.AttackTarget(_a); secondClick = true; }
+                if (!secondClick && _player.BasicShotsFired >= 1) { _player.Shoot(_a.transform.position); secondClick = true; }
                 return _player.BasicShotsFired >= 2;
             }, 3f);
             _player.Stop();
@@ -140,7 +140,7 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(NearA);
             yield return null;
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Watching(() => _player.BasicShotsFired >= 1, 3f);
             _player.Stop();
             Assert.That(Of(ShotFxKind.Streak).Count, Is.EqualTo(1));
@@ -156,7 +156,7 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(NearA);
             yield return null;
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             int frameOfTheHit = -1;
             yield return Watching(() =>
             {
@@ -399,7 +399,7 @@ namespace Roguelike.PlayModeTests
             {
                 // Click to shoot: a click whenever none is waiting, so the shots come once a cycle. Five clicks: the
                 // fifth keeps her aiming through the kick of the fourth, as a player clicking on would.
-                if (clicks < 5 && !_player.HasPendingShot) { _player.AttackTarget(_a); clicks++; }
+                if (clicks < 5 && !_player.HasPendingShot) { _player.Shoot(_a.transform.position); clicks++; }
                 Note();
                 poses.Add(new Pose1
                 {

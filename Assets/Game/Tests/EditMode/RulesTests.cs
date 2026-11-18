@@ -26,9 +26,11 @@ namespace Roguelike.Rules.Tests
             Assert.That(feel.BasicShotStartup, Is.EqualTo(0.08f));
             Assert.That(feel.BasicShotActive, Is.EqualTo(0.02f));
             Assert.That(feel.BasicShotRecovery, Is.EqualTo(0.125f));
-            Assert.That(feel.BasicAttackRange, Is.EqualTo(6f));
-            Assert.That(feel.AttackMoveClickRadius, Is.EqualTo(2f));
-            Assert.That(feel.ShotFrontAngle, Is.EqualTo(60f));
+            Assert.That(feel.BasicShotRange, Is.EqualTo(10f));
+            Assert.That(feel.BasicShotHalfWidth, Is.EqualTo(0.5f));
+            Assert.That(feel.ShotFrontAngle, Is.EqualTo(120f));
+            Assert.That(feel.ShotTurnTime, Is.EqualTo(0.2f));
+            Assert.That(feel.ShotTurnHold, Is.EqualTo(0.5f));
             Assert.That(feel.MovingShotSpeedShare, Is.EqualTo(0.5f));
             Assert.That(feel.MovingShotSlowdown, Is.EqualTo(0.15f));
             Assert.That(feel.MovingShotRecovery, Is.EqualTo(0.5f));
@@ -391,46 +393,53 @@ namespace Roguelike.Rules.Tests
             Assert.That(LineShot.Hits(Origin, Origin, 12f, 0.3f, new GroundPoint(0f, 0.2f), 0.5f), Is.False);
     }
 
-    public class TargetingTests
+    public class BasicShotLineTests
     {
         static readonly GroundPoint Origin = new GroundPoint(0f, 0f);
+        static readonly GroundPoint North = new GroundPoint(0f, 1f);
+        const float Range = 10f, HalfWidth = 0.5f;
 
         static TargetInfo At(float x, float z, bool alive = true) => new TargetInfo(new GroundPoint(x, z), 0.5f, alive);
 
         [Test]
-        public void GapIsMeasuredToTheEdge()
+        public void HitsTheNearestTargetOnTheLine_NotOneBehindIt()
         {
-            Assert.That(Targeting.Gap(Origin, new GroundPoint(3f, 4f), 0.5f), Is.EqualTo(4.5f).Within(1e-4f));
-            Assert.That(Targeting.Gap(Origin, new GroundPoint(0.2f, 0f), 0.5f), Is.EqualTo(0f), "inside the target");
+            var targets = new List<TargetInfo> { At(0f, 7f), At(0f, 3f), At(0f, 9f) };
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, targets), Is.EqualTo(1), "the nearer one along the line, whatever the list order");
         }
 
         [Test]
-        public void InRangeWhenTheEdgeIsInRange()
+        public void ATargetJustInsideTheHalfWidthIsHit_OneJustOutsideIsMissed()
         {
-            Assert.That(Targeting.InRange(Origin, new GroundPoint(0f, 6.4f), 0.5f, 6f), Is.True);
-            Assert.That(Targeting.InRange(Origin, new GroundPoint(0f, 6.6f), 0.5f, 6f), Is.False);
+            // A target touches the line when its centre is within half-width + its radius (1 m here) of it.
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, new List<TargetInfo> { At(0.98f, 5f) }), Is.EqualTo(0), "just inside");
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, new List<TargetInfo> { At(1.02f, 5f) }), Is.EqualTo(-1), "just outside");
         }
 
         [Test]
-        public void PicksTheNearestLivingTargetInRange()
+        public void BeyondTheRange_IsAMiss()
         {
-            var targets = new List<TargetInfo> { At(0f, 5f), At(2f, 0f), At(0f, 1f, alive: false), At(0f, 20f) };
-            Assert.That(Targeting.NearestInRange(Origin, targets, 6f), Is.EqualTo(1));
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, new List<TargetInfo> { At(0f, 9.9f) }), Is.EqualTo(0), "its edge within the range");
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, new List<TargetInfo> { At(0f, Range + 1.1f) }), Is.EqualTo(-1), "past the range and the half-width");
         }
 
         [Test]
-        public void NothingInRangeGivesMinusOne()
+        public void DeadTargets_AndTargetsBehindOrBeside_AreNotHit()
         {
-            var targets = new List<TargetInfo> { At(0f, 20f), At(0f, 1f, alive: false) };
-            Assert.That(Targeting.NearestInRange(Origin, targets, 6f), Is.EqualTo(-1));
-            Assert.That(Targeting.NearestInRange(Origin, new List<TargetInfo>(), 6f), Is.EqualTo(-1));
+            var targets = new List<TargetInfo> { At(0f, 3f, alive: false), At(0f, -4f), At(4f, 2f), At(0f, 6f) };
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, targets), Is.EqualTo(3), "the dead one, the one behind and the one beside are passed over");
+            Assert.That(LineShot.FirstHit(Origin, North, Range, HalfWidth, new List<TargetInfo>()), Is.EqualTo(-1), "nothing to hit");
         }
 
         [Test]
-        public void ATieGoesToTheFirst()
+        public void TheDirection_IsTowardThePoint_OrWhereSheFacesWhenThePointIsOnHer()
         {
-            var targets = new List<TargetInfo> { At(3f, 0f), At(-3f, 0f) };
-            Assert.That(Targeting.NearestInRange(Origin, targets, 6f), Is.EqualTo(0));
+            GroundPoint d = LineShot.Direction(Origin, new GroundPoint(3f, 4f), North);
+            Assert.That(d.X, Is.EqualTo(0.6f).Within(1e-4f));
+            Assert.That(d.Z, Is.EqualTo(0.8f).Within(1e-4f));
+            GroundPoint onHer = LineShot.Direction(Origin, new GroundPoint(0.02f, 0.03f), new GroundPoint(-2f, 0f));
+            Assert.That(onHer.X, Is.EqualTo(-1f).Within(1e-4f), "a point on her: where she faces");
+            Assert.That(onHer.Z, Is.EqualTo(0f).Within(1e-4f));
         }
     }
 
@@ -504,95 +513,128 @@ namespace Roguelike.Rules.Tests
         }
     }
 
-    public class ShotCommandsTests
+    public class ClickToShootRuleTests
     {
+        const float NextShotAt = 0.225f;
+
         [Test]
-        public void OneCommand_IsAnsweredByOneShot_ThenNothingIsOwed()
+        public void AClickWhenFree_FiresAtOnce_AndNothingWaits()
         {
-            var c = new ShotCommands();
-            Assert.That(c.Owed, Is.False);
-            c.Command();
-            Assert.That(c.Owed, Is.True);
-            c.ShotStarted(forTheCommand: true);
-            Assert.That(c.ShotWentOff(), Is.True, "the shot answered the command");
-            Assert.That(c.Owed, Is.False, "so nothing more is owed: no repeat");
+            var c = new ClickToShoot();
+            Assert.That(c.Click(false, 0.3f, NextShotAt), Is.True);
+            Assert.That(c.Waiting, Is.False, "one click, one shot: nothing left to repeat");
+            Assert.That(c.TakeWhenAllowed(false, 1f, NextShotAt), Is.False);
         }
 
         [Test]
-        public void ACommandDuringAShot_IsNotAnsweredByThatShot_ButWaitsForTheNext()
+        public void AClickDuringTheCycle_Waits_AndFiresWhenTheCycleAllows_NotSooner()
         {
-            var c = new ShotCommands();
-            c.Command();
-            c.ShotStarted(true);
-            c.Command(); // a click while the shot is going
-            Assert.That(c.ShotWentOff(), Is.False, "the shot in progress was for the earlier click");
-            Assert.That(c.Owed, Is.True, "the later click still waits for a shot of its own");
-            c.ShotStarted(true);
-            Assert.That(c.ShotWentOff(), Is.True);
-            Assert.That(c.Owed, Is.False);
+            var c = new ClickToShoot();
+            Assert.That(c.Click(false, 0.05f, NextShotAt), Is.False, "the last shot's time is not over");
+            Assert.That(c.Waiting, Is.True);
+            Assert.That(c.TakeWhenAllowed(false, 0.2f, NextShotAt), Is.False, "not sooner");
+            Assert.That(c.TakeWhenAllowed(false, NextShotAt, NextShotAt), Is.True, "exactly when the cycle allows");
+            Assert.That(c.Waiting, Is.False);
+            Assert.That(c.TakeWhenAllowed(false, 1f, NextShotAt), Is.False, "and only once");
         }
 
         [Test]
-        public void TenCommandsDuringOneShot_AreOneWaitingCommand()
+        public void TenClicksDuringOneCycle_AreOneWaitingClick()
         {
-            var c = new ShotCommands();
-            c.Command();
-            c.ShotStarted(true);
-            for (int i = 0; i < 10; i++) c.Command();
-            Assert.That(c.ShotWentOff(), Is.False);
-            c.ShotStarted(true);
-            Assert.That(c.ShotWentOff(), Is.True, "one more shot answers all ten");
-            Assert.That(c.Owed, Is.False);
+            var c = new ClickToShoot();
+            for (int i = 0; i < 10; i++) c.Click(true, 0.01f * i, NextShotAt);
+            Assert.That(c.TakeWhenAllowed(false, 1f, NextShotAt), Is.True);
+            Assert.That(c.TakeWhenAllowed(false, 1f, NextShotAt), Is.False, "ten clicks, one waiting shot");
         }
 
         [Test]
-        public void ACancelledShot_AnswersNothing_AndClearDropsTheCommand()
+        public void WhileBusy_TheClickWaits_AndClearDropsIt()
         {
-            var c = new ShotCommands();
-            c.Command();
-            c.ShotStarted(true);
-            c.ShotCancelled();
-            Assert.That(c.ShotWentOff(), Is.False, "a cancelled shot answers nothing");
-            Assert.That(c.Owed, Is.True, "the command still waits");
+            var c = new ClickToShoot();
+            Assert.That(c.Click(true, 5f, NextShotAt), Is.False, "busy: a shot, a skill or a dash is going");
+            Assert.That(c.TakeWhenAllowed(true, 5f, NextShotAt), Is.False, "still busy");
             c.Clear();
-            Assert.That(c.Owed, Is.False, "a move order, a dash or a skill drops it");
-            c.ShotStarted(true);
-            Assert.That(c.ShotWentOff(), Is.False, "and a later shot with no command answers nothing");
+            Assert.That(c.Waiting, Is.False, "a move order, a dash or a skill drops it");
+            Assert.That(c.TakeWhenAllowed(false, 5f, NextShotAt), Is.False);
         }
 
         [Test]
-        public void AShotNotStartedForTheCommand_DoesNotAnswerIt()
+        public void MustWait_WhileBusy_OrUntilTheShotTimeIsOver()
         {
-            var c = new ShotCommands();
-            c.Command();
-            c.ShotStarted(forTheCommand: false); // a shot on the move
-            Assert.That(c.ShotWentOff(), Is.False);
-            Assert.That(c.Owed, Is.True);
+            Assert.That(ClickToShoot.MustWait(true, 5f, 0f), Is.True);
+            Assert.That(ClickToShoot.MustWait(false, 0.1f, NextShotAt), Is.True);
+            Assert.That(ClickToShoot.MustWait(false, NextShotAt, NextShotAt), Is.False);
+        }
+    }
+
+    public class ShotFacingTests
+    {
+        const float Hold = 0.5f;
+
+        [Test]
+        public void AShotThatTurnsTheBody_StartsTheHold_AShotThatDoesNot_LeavesItFree()
+        {
+            var f = new ShotFacing();
+            f.ShotStarted(turnsBody: false, now: 0f, hold: Hold);
+            Assert.That(f.State, Is.EqualTo(ShotFacing.Mode.Free), "a shot inside the front angle does not turn the body");
+            f.ShotStarted(turnsBody: true, now: 1f, hold: Hold);
+            Assert.That(f.State, Is.EqualTo(ShotFacing.Mode.Held));
+            Assert.That(f.HoldUntil, Is.EqualTo(1.5f).Within(1e-5f));
         }
 
         [Test]
-        public void ACommandMustWait_WhileAShotIsGoing_OrItsShotTimeIsNotOver()
+        public void TheHold_LastsItsTimeAfterTheLastShot_AndAShotWithinItRenewsIt()
         {
-            Assert.That(ShotCommands.MustWait(true, 5f, 0f), Is.True, "a shot is going");
-            Assert.That(ShotCommands.MustWait(false, 0.1f, 0.225f), Is.True, "the last shot's time is not over");
-            Assert.That(ShotCommands.MustWait(false, 0.225f, 0.225f), Is.False, "exactly when it is over, the next may start");
-            Assert.That(ShotCommands.MustWait(false, 1f, 0.225f), Is.False);
+            var f = new ShotFacing();
+            f.ShotStarted(true, 0f, Hold);
+            Assert.That(f.Update(0.4f, true, false, false), Is.EqualTo(ShotFacing.Mode.Held));
+            f.ShotStarted(false, 0.45f, Hold); // a rhythm click, even with the aim inside the front angle of the turned body
+            Assert.That(f.Update(0.9f, true, false, false), Is.EqualTo(ShotFacing.Mode.Held), "renewed: still held 0.9 s after the first shot");
+            Assert.That(f.Update(0.96f, true, false, false), Is.EqualTo(ShotFacing.Mode.TurningBack), "0.5 s after the last shot it turns back");
         }
 
         [Test]
-        public void PendingOne_HoldsOne_ANewerReplacesIt_AndItNeverExpires()
+        public void WhenTheHoldEnds_MovingSheTurnsBack_StandingSheStaysAsSheIs()
         {
-            var p = new PendingOne<string>();
-            Assert.That(p.HasItem, Is.False);
-            p.Store("A");
-            p.Store("B");
-            Assert.That(p.Item, Is.EqualTo("B"), "the newer one replaces the older");
-            Assert.That(p.Take(), Is.EqualTo("B"));
-            Assert.That(p.HasItem, Is.False, "taking it empties the slot");
-            Assert.That(p.Take(), Is.Null);
-            p.Store("C");
-            p.Clear();
-            Assert.That(p.HasItem, Is.False);
+            var moving = new ShotFacing();
+            moving.ShotStarted(true, 0f, Hold);
+            Assert.That(moving.Update(0.6f, true, false, false), Is.EqualTo(ShotFacing.Mode.TurningBack));
+            Assert.That(moving.Update(0.65f, true, false, false), Is.EqualTo(ShotFacing.Mode.TurningBack), "until she faces her run");
+            Assert.That(moving.Update(0.7f, true, false, true), Is.EqualTo(ShotFacing.Mode.Free), "facing the run: free");
+
+            var standing = new ShotFacing();
+            standing.ShotStarted(true, 0f, Hold);
+            Assert.That(standing.Update(0.6f, false, false, false), Is.EqualTo(ShotFacing.Mode.Free), "no run to turn back to");
+        }
+
+        [Test]
+        public void TheAimBackInsideTheFrontOfTheRun_EndsTheHold()
+        {
+            var f = new ShotFacing();
+            f.ShotStarted(true, 0f, Hold);
+            Assert.That(f.Update(0.1f, true, aimInsideRunFront: true, facingRun: false), Is.EqualTo(ShotFacing.Mode.TurningBack));
+        }
+
+        [Test]
+        public void FromOutside_AMoveOrderTurnsBackAtTheRate_ADashOrSkillEndsItAtOnce()
+        {
+            var f = new ShotFacing();
+            f.ShotStarted(true, 0f, Hold);
+            f.End(turnBack: true);
+            Assert.That(f.State, Is.EqualTo(ShotFacing.Mode.TurningBack), "a move order");
+            f.ShotStarted(true, 0.1f, Hold);
+            f.End(turnBack: false);
+            Assert.That(f.State, Is.EqualTo(ShotFacing.Mode.Free), "a dash or a skill");
+        }
+
+        [Test]
+        public void TheTurn_IsLimitedByTheRate_TheShorterWayRound()
+        {
+            Assert.That(ShotFacing.Turn(0f, 180f, 0.2f, 0.1f), Is.EqualTo(90f).Within(1e-3f), "half a half turn in half the time");
+            Assert.That(ShotFacing.Turn(170f, -170f, 0.2f, 0.01f), Is.EqualTo(179f).Within(1e-3f), "through 180, not back through 0");
+            Assert.That(ShotFacing.Turn(10f, 20f, 0.2f, 0.1f), Is.EqualTo(20f).Within(1e-3f), "never past the target");
+            Assert.That(ShotFacing.Turn(0f, 135f, 0f, 0.001f), Is.EqualTo(135f).Within(1e-3f), "no turn time: at once");
+            Assert.That(ShotFacing.DeltaAngle(350f, 10f), Is.EqualTo(20f).Within(1e-3f));
         }
     }
 }

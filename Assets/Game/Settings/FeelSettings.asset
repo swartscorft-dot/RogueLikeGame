@@ -29,9 +29,11 @@ MonoBehaviour:
     BasicShotStartup: 0.08
     BasicShotActive: 0.02
     BasicShotRecovery: 0.125
-    BasicAttackRange: 6
-    AttackMoveClickRadius: 2
-    ShotFrontAngle: 60
+    BasicShotRange: 10
+    BasicShotHalfWidth: 0.5
+    ShotFrontAngle: 120
+    ShotTurnTime: 0.2
+    ShotTurnHold: 0.5
     MovingShotSpeedShare: 0.5
     MovingShotSlowdown: 0.15
     MovingShotRecovery: 0.5

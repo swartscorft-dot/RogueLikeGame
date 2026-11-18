@@ -44,6 +44,17 @@ namespace Roguelike
         [Tooltip("Seconds of the blast: a wedge over the cone, or a ring and a burst on the circle. 0 means none.")]
         public float BlastSeconds;
 
+        [Header("Sound")]
+        [Tooltip("The sound of this shot: once per shot, per burst hit and per hold tick, on hits and misses alike. None: silent.")]
+        public AudioClip Sound;
+        [Tooltip("0 to 1, before the master volume in the settings.")]
+        [Range(0f, 1f)] public float SoundVolume = 1f;
+        public float SoundPitch = 1f;
+        [Tooltip("Each shot's pitch moves by up to this share up or down at random (0.05 = 5 %), so quick shots do not sound like a machine.")]
+        public float SoundPitchSpread;
+        [Tooltip("Seconds into the clip to start: past its leading silence, so the bang lands with the flash. The builder sets it from the clip.")]
+        public float SoundStart;
+
         [Header("Recoil of the pistol that fired")]
         [Tooltip("How hard the pistol kicks, as a share of the base kick in the settings (angle and pull-back). 0: no kick. A charge skill kicks harder with the charge, as its flash grows.")]
         public float Recoil = 1f;
@@ -87,6 +98,12 @@ namespace Roguelike
         public float RecoilKickSeconds = StartRecoilKickSeconds;
         [Tooltip("Seconds from the peak back onto the target.")]
         public float RecoilSettleSeconds = StartRecoilSettleSeconds;
+
+        [Header("Sound")]
+        [Tooltip("Master volume of all the shot sounds, 0 to 1.")]
+        [Range(0f, 1f)] public float SoundVolume = 1f;
+        [Tooltip("Empowered shots are pitched by this factor: below 1 is deeper.")]
+        public float EmpoweredPitch = 0.94f;
 
         [Header("Empowered mode (focus spent)")]
         [Tooltip("Every part is this many times larger while empowered. 1 means no change.")]

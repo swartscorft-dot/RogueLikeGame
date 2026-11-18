@@ -16,8 +16,5 @@ namespace Roguelike.Rules
         public const float PlayerRadius = 0.5f;
         /// <summary>Seconds from the player's death until it stands at the start again. The control room is for practice.</summary>
         public const float PlayerRespawnDelay = 2f;
-
-        /// <summary>How far outside a target's edge a click still counts as a click on it.</summary>
-        public const float CursorPickSlack = 0.5f;
     }
 }

@@ -56,7 +56,7 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(NearA);
             yield return null;
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 1, 3f);
             Assert.That(_a.HitsTaken, Is.EqualTo(1));
             yield return new WaitForSeconds(Cycle * 3f);
@@ -64,7 +64,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "she stands");
             Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 2, 3f);
             Assert.That(_a.HitsTaken, Is.EqualTo(2), "a second command, a second shot");
         }
@@ -79,7 +79,7 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + 5f;
             while (Time.time < start + Cycle * 4.5f && Time.realtimeSinceStartup < deadline)
             {
-                _player.AttackTarget(_a); // a click every frame: far faster than she can shoot
+                _player.Shoot(_a.transform.position); // a click every frame: far faster than she can shoot
                 int before = _a.HitsTaken;
                 yield return null;
                 if (_a.HitsTaken > before) hits.Add(Time.time);
@@ -98,11 +98,11 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(NearA);
             yield return null;
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return null;
             Assume.That(_player.Action, Is.EqualTo(ActionKind.BasicShot), "the first shot is in its startup");
             Assume.That(_player.IsInShotRecovery, Is.False);
-            _player.AttackTarget(_a); // a click in the first part of the cycle
+            _player.Shoot(_a.transform.position); // a click in the first part of the cycle
 
             var hits = new List<float>();
             float deadline = Time.realtimeSinceStartup + 3f;
@@ -121,14 +121,14 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(NearA);
             yield return null;
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             float start = Time.time;
             int clicks = 1;
             float deadline = Time.realtimeSinceStartup + 3f;
             while (clicks < 10 && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
-                if (Time.time < start + Cycle * 0.9f) { _player.AttackTarget(_a); clicks++; }
+                if (Time.time < start + Cycle * 0.9f) { _player.Shoot(_a.transform.position); clicks++; }
                 else break;
             }
             Assume.That(clicks, Is.GreaterThanOrEqualTo(5), "several clicks inside the first cycle");
@@ -141,13 +141,13 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(NearA);
             yield return null;
-            Assume.That(Targeting.InRange(_player.GroundPosition, _b.GroundPosition, _b.Radius, _feel.BasicAttackRange), Is.True, "B is in range too");
-            _player.AttackTarget(_a);
+            Assume.That(InReach(_player.GroundPosition, _b.GroundPosition, _b.Radius, _feel.BasicShotRange), Is.True, "B is in range too");
+            _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 1, 3f);
             Assume.That(_player.IsInShotRecovery, Is.True, "in the first shot's recovery");
 
-            _player.AttackTarget(_a); // waits ...
-            _player.AttackTarget(_b); // ... and is replaced
+            _player.Shoot(_a.transform.position); // waits ...
+            _player.Shoot(_b.transform.position); // ... and is replaced
             yield return Until(() => _b.HitsTaken >= 1, 3f);
             yield return new WaitForSeconds(Cycle * 2f);
             Assert.That(_b.HitsTaken, Is.EqualTo(1), "the waiting shot went at the latest target");
@@ -169,9 +169,9 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(NearA);
             yield return null;
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 1, 3f);
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             Assert.That(_player.HasPendingShot, Is.True, "a click in the recovery waits for the next shot");
 
             takeOver();
@@ -188,11 +188,11 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _player.MoveTo(new Vector3(10f, 0f, 0f));
             yield return Until(() => _player.Position.x >= -1f, 4f);
-            Assume.That(Targeting.InRange(_player.GroundPosition, _a.GroundPosition, _a.Radius, _feel.BasicAttackRange), Is.True);
+            Assume.That(InReach(_player.GroundPosition, _a.GroundPosition, _a.Radius, _feel.BasicShotRange), Is.True);
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             Assume.That(_player.IsShootingOnTheMove, Is.True);
-            _player.AttackTarget(_a); // during the shot's startup: waits
+            _player.Shoot(_a.transform.position); // during the shot's startup: waits
             Assert.That(_player.HasPendingShot, Is.True, "a second click on the move waits");
             _player.MoveTo(new Vector3(10f, 0f, 2f));
             Assert.That(_player.HasPendingShot, Is.False, "a new move order drops it");
@@ -207,10 +207,10 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _player.MoveTo(new Vector3(10f, 0f, 0f));
             yield return Until(() => _player.Position.x >= -1f, 4f);
-            Assume.That(Targeting.InRange(_player.GroundPosition, _a.GroundPosition, _a.Radius, _feel.BasicAttackRange), Is.True);
+            Assume.That(InReach(_player.GroundPosition, _a.GroundPosition, _a.Radius, _feel.BasicShotRange), Is.True);
 
-            _player.AttackTarget(_a);
-            _player.AttackTarget(_a); // waits
+            _player.Shoot(_a.transform.position);
+            _player.Shoot(_a.transform.position); // waits
             int shotsBefore = _player.BasicShotsFired;
             float deadline = Time.realtimeSinceStartup + 3f;
             while (_player.BasicShotsFired - shotsBefore < 2 && Time.realtimeSinceStartup < deadline)
@@ -226,5 +226,8 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>True when a target's edge is within a reach of a point on the ground.</summary>
+        static bool InReach(GroundPoint from, GroundPoint target, float radius, float reach) => from.DistanceTo(target) - radius <= reach;
     }
 }

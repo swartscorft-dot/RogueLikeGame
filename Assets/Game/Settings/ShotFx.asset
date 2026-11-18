@@ -25,6 +25,11 @@ MonoBehaviour:
     HitSize: 0.6
     HitSeconds: 0.12
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 1d15a07cbfd00704fa54f6f773f88910, type: 3}
+    SoundVolume: 0.55
+    SoundPitch: 1
+    SoundPitchSpread: 0.05
+    SoundStart: 0.013416667
     Recoil: 1
   Skills:
   - Name: Quick Shot
@@ -39,6 +44,11 @@ MonoBehaviour:
     HitSize: 1
     HitSeconds: 0.16
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 8048135dcf39c6241b5870b103711bf6, type: 3}
+    SoundVolume: 0.65
+    SoundPitch: 1
+    SoundPitchSpread: 0
+    SoundStart: 0.02294331
     Recoil: 1.5
   - Name: Powder Keg
     Rim: {r: 0.9, g: 0.15, b: 0.05, a: 1}
@@ -52,6 +62,11 @@ MonoBehaviour:
     HitSize: 0.8
     HitSeconds: 0.15
     BlastSeconds: 0.35
+    Sound: {fileID: 8300000, guid: ae25c687424830a449d50a0f27c09e13, type: 3}
+    SoundVolume: 0.87589747
+    SoundPitch: 0.85
+    SoundPitchSpread: 0
+    SoundStart: 0.32647917
     Recoil: 0
   - Name: Fan Fire
     Rim: {r: 1, g: 0.85, b: 0.2, a: 1}
@@ -65,6 +80,11 @@ MonoBehaviour:
     HitSize: 0.6
     HitSeconds: 0.1
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 9b44fe64f857bce438596aaf5abb7526, type: 3}
+    SoundVolume: 0.4
+    SoundPitch: 1
+    SoundPitchSpread: 0.05
+    SoundStart: 0.015541667
     Recoil: 0.5
   - Name: Long Shot
     Rim: {r: 0.15, g: 0.3, b: 1, a: 1}
@@ -78,6 +98,11 @@ MonoBehaviour:
     HitSize: 1.3
     HitSeconds: 0.2
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 44112da08f7c1ab44a01f949f2fb1bb3, type: 3}
+    SoundVolume: 0.65
+    SoundPitch: 1
+    SoundPitchSpread: 0
+    SoundStart: 0.0543125
     Recoil: 1.3
   - Name: Scatter Blast
     Rim: {r: 1, g: 0.65, b: 0.1, a: 1}
@@ -91,6 +116,11 @@ MonoBehaviour:
     HitSize: 1
     HitSeconds: 0.15
     BlastSeconds: 0.22
+    Sound: {fileID: 8300000, guid: ae25c687424830a449d50a0f27c09e13, type: 3}
+    SoundVolume: 0.87589747
+    SoundPitch: 1
+    SoundPitchSpread: 0
+    SoundStart: 0.32647917
     Recoil: 2
   - Name: Heavy Volley
     Rim: {r: 1, g: 0.25, b: 0.15, a: 1}
@@ -104,6 +134,11 @@ MonoBehaviour:
     HitSize: 1.3
     HitSeconds: 0.2
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 44112da08f7c1ab44a01f949f2fb1bb3, type: 3}
+    SoundVolume: 0.65
+    SoundPitch: 1
+    SoundPitchSpread: 0.03
+    SoundStart: 0.0543125
     Recoil: 2.2
   - Name: Backstep
     Rim: {r: 0.2, g: 0.95, b: 0.95, a: 1}
@@ -117,6 +152,11 @@ MonoBehaviour:
     HitSize: 1
     HitSeconds: 0.16
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 8048135dcf39c6241b5870b103711bf6, type: 3}
+    SoundVolume: 0.65
+    SoundPitch: 1
+    SoundPitchSpread: 0
+    SoundStart: 0.02294331
     Recoil: 1.4
   - Name: Triple Tap
     Rim: {r: 0.65, g: 0.4, b: 1, a: 1}
@@ -130,6 +170,11 @@ MonoBehaviour:
     HitSize: 0.9
     HitSeconds: 0.12
     BlastSeconds: 0
+    Sound: {fileID: 8300000, guid: 8048135dcf39c6241b5870b103711bf6, type: 3}
+    SoundVolume: 0.65
+    SoundPitch: 1
+    SoundPitchSpread: 0.03
+    SoundStart: 0.02294331
     Recoil: 1
   CoreGlow: 4
   RimGlow: 1.8
@@ -137,5 +182,7 @@ MonoBehaviour:
   RecoilPullBack: 0.07
   RecoilKickSeconds: 0.04
   RecoilSettleSeconds: 0.16
+  SoundVolume: 1
+  EmpoweredPitch: 0.94
   EmpoweredScale: 1.25
   EmpoweredRim: {r: 1, g: 0.2, b: 0.6, a: 1}

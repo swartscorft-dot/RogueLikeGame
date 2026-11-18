@@ -540,6 +540,229 @@ Kristian liked the faster shot, the eased speed and the recoil ("yes, like it ve
 | A click in the first part of the cycle is lost (a command during an unanswered one is not counted) | `AClickEarlyInTheShot_IsNotLost_...` (1 shot, not 2), two rule tests |
 | Holding the right button repeats | `Input_HeldRightClickOnADummy_ShootsOnce_HoldingDoesNotRepeat` (3 shots, not 1) |
 
+### The basic shot aims at the cursor, and she looks toward it (2026-11-18, branch `art/grip`, uncommitted on top of 668c5c5)
+
+Kristian: "I wonder if we must make it so that we always shoot in the direction the mouse points. Won't it be easier to keep track of animations then?" Then, on the open choices, he confirmed four of them and added one: "I think she can look toward the mouse at least." Decision record: `docs/decisions/0002-basic-shot-aims-at-the-cursor.md`, on trial. If the trial is not confirmed, 668c5c5 has the old version.
+
+**How it is built.**
+- **The rule** is in `Roguelike.Rules`, with EditMode tests.
+  - `LineShot.FirstHit` gives the first living target a straight line touches, the nearest along the line. It uses the same touch test as the line skills (`LineShot.Hits`), and the shot stops at that target.
+  - `LineShot.Direction` turns a cursor point into a direction; a point on her gives where she faces.
+  - `TargetInfo` moved into `LineShot.cs`, because `Targeting` is gone.
+  - The click rule is now `ClickToShoot`: one waiting click at most, a wait while she is busy or the shot time is not over, and a move order, dash or skill drops it. With no targets to choose, it no longer needs the command numbers of `ShotCommands`.
+- **`PlayerCharacter.Shoot(point)`** is the new intent.
+  - It fires now, or leaves the click waiting.
+  - Standing, she shoots from where she stands; walking on a move order, it is a shot on the move, with no in-range condition.
+  - The aim (`AimEnd`) follows the live cursor (`AimAt`) until the shot goes off, and turns the body only if the aim is outside the front angle.
+  - When the shot goes off, `ResolveBasicShot` finds the first target on the line. The streak runs from the muzzle to that target, or 10 m out on a miss; the spark appears only on a hit. A miss still counts as a fired shot and costs its shot time.
+- **The only order left is a move.**
+  - `MoveTo` (a click) drops a waiting click and cancels a standing shot that has not gone off.
+  - `SteerTo` (the held right button) does neither. It never cancels a standing shot, so holding right while standing and clicking left does not lose the shot.
+- **Input:** a left click is `Shoot(cursor)`. The right-button press is `MoveTo(cursor)`, also on an enemy, and holding it is `SteerTo`. The A key, Esc's aim cancel, the range ring and the target-under-cursor pick are gone.
+- **Values, guesses, tuned in `Assets/Game/Settings/FeelSettings.asset`:** `BasicShotRange` 10 m (was the 6 m attack range) and `BasicShotHalfWidth` 0.5 m. The asset was re-saved by script, so the old `BasicAttackRange` and `AttackMoveClickRadius` lines left it.
+
+**Looking toward the cursor** (`CharacterAnimation`, presentation only).
+- While she is free (not in a skill, not dashing, alive), the head, the neck and a share of the top spine bone (`Spine`, 10%) turn toward the cursor's ground point.
+- It follows smoothly and stops at a limit to each side. With the cursor behind her, the head stays at the limit on its side until the cursor is clearly past straight behind on the other side. With no cursor reported, she looks ahead.
+- A shot hands the look over to the aim twist as the arms come up, and back as they go down.
+- **The arms stay put:** everything hanging from the top spine bone except the neck (shoulders, arms, pistols, shotgun) is turned back, so the muzzles do not move. The clips do not animate the shoulders' local positions, so that hold is undone at the start of the next LateUpdate; otherwise it piled up frame after frame and moved the pistols 4 to 6 cm, which a test caught.
+- It never turns the body or the legs.
+- **Values, guesses, on the `CharacterAnimation` component next to the twist values:** `LookLimit` 70 degrees, `LookSpineShare` 0.1, `LookSmoothing` 0.12 s, `LookHoldBehind` 30 degrees.
+
+**Removed:**
+- the attack-move and attack-target orders, `AttackMoveTo`, `AttackTarget`, `OrderTarget`, and walking into range;
+- the nearest-target and click-radius rules (`Targeting`) and the cursor pick slack (`Placeholders.CursorPickSlack`);
+- the A key, the aiming state and its readout line, and Esc's aim cancel;
+- `RangeIndicator.cs`, the `RangeRing` object in the builder, and the `RangeRing` material;
+- `ShotCommands` and `PendingOne`;
+- the feel values `BasicAttackRange` and `AttackMoveClickRadius`, and their feel-spec rows.
+
+Nothing else used them. The enemy has its own reach and does not use `Targeting`. The skill and kit tests used `Targeting.InRange` only to check their setup, and now have a small helper of their own.
+
+**Help line:** "RMB move | LMB shoot at the cursor | Space dash | QWER SDFG skills | Z focus".
+
+**Tests.**
+- **Totals:** rules 98 of 98 (100 before: 12 removed, 10 added). PlayMode 104 of 105, with the one inconclusive as before (112 before: 20 removed, 13 added).
+- **Deleted, behaviour gone:**
+  - the attack-move tests: shoots the nearest once (A and B sides), out of range walks in, the click picks the dummy near it (two), a dummy out of range is walked to, the clicked dummy dies before the shot, killing the clicked dummy ends the order;
+  - `AttackTarget_ShootsOnlyTheChosenTarget`, `AttackTarget_EndsWhenTheTargetDies`, `AttackOnAnotherTarget_InAShotsStartup_SwitchesAtOnce`;
+  - the A-key input tests: the range ring, A then click on a dummy, right-click while aiming, Esc cancels the aim, A then click beside a dummy, a left click is an attack-move;
+  - the rule tests for `Targeting` (5) and `ShotCommands`/`PendingOne` (7).
+- **Deleted, now covered by new tests:**
+  - `OrderingTheSameAttackAgain_DoesNotRestartTheShot`: a second click during the startup now waits; covered by `AClickEarlyInTheShot_IsNotLost…`.
+  - `Input_HeldRightClickOnADummy_ShootsOnce…`: right click no longer shoots; covered by `Input_RightClickOnAnEnemy_Moves_AndDoesNotShoot`, and holding by `Input_TheAKey_DoesNothing_AndAHeldLeftButton_IsOnePress`.
+  - `Input_ALeftClickNearATargetInRange_WhileWalking_IsAShotOnTheMove`: covered by `OnTheMove_AClickAtOpenFloor_IsAShotOnTheMove…`.
+- **Changed:**
+  - Every test that used `AttackTarget(dummy)` now calls `Shoot(dummy position)`: the cadence, League-rule, hit-stop, skill-in-shot, click-to-shoot, moving-shot, gait, twist, recoil, effects, animation and kit tests.
+  - `OnTheMove_ATargetOutOfRange_IsAttackedAsBefore` → `OnTheMove_AClickAtOpenFloor_IsAShotOnTheMove_TheMoveGoesOn_AndArrives`.
+  - `Standing_AnAttack_FiresOnce_AndSheStands` now checks that a click gives no order.
+  - The fed-frame click test uses `ShootPressed`.
+  - Setup checks that used `Targeting.InRange` use a local reach helper.
+  - The feel-values defaults test has the two new values.
+- **New:**
+  - Rules: the nearest target on the line and not one behind it; just inside and just outside the half-width; beyond the range; dead targets, targets behind and beside; the direction rule; and five `ClickToShoot` rule tests.
+  - PlayMode (`CursorAimTests`):
+    - a shot hits the nearest target on the line, the one behind it is not hit, and the streak ends at the target hit;
+    - a target just inside the half-width is hit and one just outside is missed;
+    - beyond the range is a miss;
+    - a miss still fires, its streak reaches the full 10 m toward the cursor, and the next shot waits out its cycle;
+    - the aim follows the cursor moved during the startup;
+    - a click does not move a standing character;
+    - left clicks at three cursor points shoot in those directions, through fed frames;
+    - right click on an enemy moves and does not shoot;
+    - the A key gives nothing the game acts on, and a held left button is one press, read from test devices the way the game reads the real ones;
+    - four look tests: the head turns 45 degrees with the body, the model and both pistols unmoved, compared at the same moments of the idle clip; with the cursor straight behind the head holds the limit and does not flip; the look is off during a skill lock and a dash; a shot fired while looking still goes to the cursor.
+- **Planted bugs,** one at a time and removed again:
+
+| Planted bug | Caught by |
+|---|---|
+| The shot pierces | `AShot_HitsTheNearestTargetOnTheLine_NotOneBehindIt` ("the one behind it is not", 1 not 0) |
+| The aim is frozen at the click | `TheAim_FollowsTheCursorMovedDuringTheStartup` |
+| A click makes her walk toward the cursor | `AClick_DoesNotMoveAStandingCharacter` (moved 2.7 m), and the miss and fed-click tests. At first the test aimed at a point off the floor, where she cannot walk, so it missed this bug; it now aims at the floor. |
+| The look turns the body | `Look_StandingWithTheCursorToTheSide…` ("nor has the model", 7.8 degrees) |
+
+**Seen** (`E:/repos/A-Roguelike-Game/blender-work/cursor-aim-captures/`, game camera, game angle close, and a close view; fire frame and 10 frames later; numbers in `shots.txt` and `look.txt`):
+- **Two targets in one line** (`line-*`): the nearer is hit, with its spark, and the streak stops at it. The farther one is untouched.
+- **A miss into open floor** (`miss-*`): a thin streak 10 m out with no spark. It reads as a miss in the still. In motion it lasts 0.1 s, so whether a miss reads at 4.4 shots a second needs his eye. At the game camera 10 m is most of the way to the top of the screen, which looks right for the reach.
+- **Standing at 45 degrees** (`stand45-*`): only the upper body turns, and it hits A. **Behind her** (`standbehind-*`): the whole body turns and fires behind.
+- **On the move at 45 degrees** (`move45-*`): the forward gait, upper body twisted about 47 degrees, the shot on the line. **Behind** (`movebehind-*`): the body turned, the backward gait.
+- **The look** (`look-{stand,run}-{0,45,m45,180}-*`): up close it reads as looking: the head and hat turn, and at 45 degrees the face turns toward or away from the camera, natural rather than creepy. Behind her, the head holds at 70 degrees on the left. **At the 28 m game camera it hardly reads:** from above the hat is a round brim, and only its crown and band show the turn, faintly. It will mostly be felt up close, or not at all.
+
+**Not verified:** play with the real mouse and keyboard, which is the trial itself; how a miss reads in motion; whether 10 m and 0.5 m feel right; the look while running in motion, which the stills cannot show.
+
+### Front angle 120, backpedalling instead of flipping, his backward jog, and the first sounds (2026-11-18, branch `art/grip`, uncommitted)
+
+Kristian set `ShotFrontAngle` to 120 while playing: "works fine". About shooting backward: "It gets corny when she has to shoot backward, she snaps back and forth. I imagine it is natural that she jogs backward while she shoots then." He also put five gunshot sounds in `blender-work/gunsound/`: "you can put gunshot 54 on the left-click shooting. Take the others for something random."
+
+**1. Front angle 120.**
+- When I started, his 120 was only in memory: the asset on disk still said 60, and the in-memory asset was marked unsaved. Once he was out of Play mode I saved it as it was, so the asset now holds 120.
+- 120 is the start value in `FeelValues` and in the feel-spec row (a guess, noted "Kristian 2026-11-18: set to 120 in play, works fine").
+- **Before the change,** the spine took 60% of the turn up to the 90 degree cap: 53 degrees of spine at 90. In the captures at 90 the waist looks wrung, more than his Blender pose with no extra spine twist. At 120 the twist stopped at 90 and the arms did the rest.
+- **Now:**
+  - the spine takes 60% up to a knee at 60 degrees and nothing beyond, so at most 36 degrees;
+  - the neck and head take the rest, up to 75 degrees;
+  - the arms aim on to the full angle;
+  - the twist cap is 120.
+  - It is continuous through 60, with no jump.
+  - Values on the `CharacterAnimation` component: `TorsoKnee` 60, `WideTorsoShare` 0, `MaxHeadTurn` 75, `MaxTwist` 120, `TorsoShare` 0.6.
+- **Captures:** `backward-captures/wide-before/` and `wide-after/`, at 60, 90 and 120 to each side, standing and running, from the game camera, a close view and straight above. Numbers are in `wide.txt`.
+  - After: at 90 the chest turns less and the arms reach out to the side.
+  - At 120 the arms reach back past the shoulder line. It looks like shooting over the shoulder: stretched, but I saw no arm clipping through the body in these views.
+  - Both pistols are on the aim line at every angle (dot product 0.98 to 1.0; the 0.98 is the hand that has just kicked).
+- **Nothing switches at 90 any more:**
+  - inside 120 the body never turns, and the forward shooting gait plays (a test at 112 degrees);
+  - the backward gait plays only when she moves against her facing, which now happens only after a turn beyond 120.
+
+**2. No snapping when she shoots backward.**
+- **The rule** is `ShotFacing` in `Roguelike.Rules` (`Assets/Game/Rules/ShotFacing.cs`), with six EditMode tests.
+  - A shot whose aim lies outside the front angle of the body starts the hold. Any shot while held renews it.
+  - The hold ends 0.5 s after the last shot, or, while she is moving, as soon as the live aim comes back inside the front angle of her run direction. Moving, she then turns back to the run; standing, she stays as she is.
+  - `Turn` limits a turn to the rate (a half turn in 0.2 s), the shorter way round.
+- **In `PlayerCharacter`,** one `UpdateFacing` runs every frame she is free or in a basic shot:
+  - while held, she turns toward the live aim at the rate;
+  - while turning back, toward her run direction at the rate;
+  - otherwise, the normal movement facing, unchanged.
+
+  The shot goes off at its normal time, exactly at the cursor; the upper body and arms cover what the body has not turned yet.
+- **Ending the hold from outside:**
+  - a new move order (a right click press) ends it with the turn back at the rate;
+  - holding the right button does not end it, so she can backpedal while steering;
+  - a dash and a skill end it at once, because they face their own way at once.
+- **Values,** tunable in `FeelSettings.asset` and in the feel-spec as guesses: `ShotTurnTime` 0.2 s for a half turn, `ShotTurnHold` 0.5 s.
+- The shooting gait (`InShootingGait`) now covers the hold and the turn back too. The gait follows the body: backward while she moves more against her facing than with it, forward otherwise, cross-faded.
+- **Three rhythm clicks behind her while running** (`backward-captures/back3-jog30/table.txt`, 60 frames a second):
+
+| t (s) | Facing from the run | Speed (m/s) | State | Gait |
+|---|---|---|---|---|
+| 0.02 | -18 (click 1) | 6.0 | held | run to forward gait |
+| 0.10 | -90 | 4.4 | held, shot 1 | forward |
+| 0.18 | -162 | 3.0 | held | backward, fading in |
+| 0.26 – 0.90 | 180 throughout (clicks 2 and 3, shots 2 and 3) | 3.0 – 3.7 | held | backward jog, 1.0 – 1.2 times |
+| 0.98 / 1.06 | 180 | 4.0 / 4.7 | held, recovering speed | backward, 1.3 / 1.6 times |
+| 1.14 | 126 | 5.4 | turning back | backward |
+| 1.22 | 54 | 5.8 | turning back | forward |
+| 1.30 | 0 | 6.0 | free | run |
+
+  **The flip-flop is gone.** She turns once in about 0.2 s, stays at 180 degrees through all three shots, and turns back once, about 0.5 s after the last shot.
+- **Her speed while backpedalling:**
+  - Between rhythm clicks the eased slow-down holds her at 3.0 to 3.7 m/s.
+  - After the last shot she is still held for 0.5 s while her speed climbs back: 4 to 5.4 m/s before she turns back, up to 6 m/s if the hold were longer.
+  - **Proposal, not built:** while she is held turned away from her run, cap her speed at a share of run speed. With 0.5 (3 m/s) the v2_30 jog plays at exactly its own speed. With 0.4 (2.4 m/s) the calmer v2_24 fits, as the Blender agent recommends. It would be one line in `ApplyMovementFeel` plus one feel value; I did not build it, waiting for his word.
+
+**3. His backward jog.**
+- `Outrider_grip@Jog_Backward_Shooting_v2_30.fbx` (built for 3.0 m/s) and `…_v2_24.fbx` (2.4 m/s) are in `Assets/Game/Art/Player/Outrider/`. They are in LFS like the other FBX files, Generic, with cameras and lights off.
+  - Their meshes are only assets: no second figure is placed anywhere.
+  - The first jog file (v1) was never imported.
+- **Verified after import:**
+  - one take each, `Jog_Backward_Shooting_v2_30` (0.533 s) and `Jog_Backward_Shooting_v2_24` (0.667 s), 30 fps, looping;
+  - 600 curves on 60 bones, and every curve's path resolves on the game's figure (`Visual`), so they play without retargeting or a bake.
+  - The finger curves are present but constant, so the baked grip stays.
+- **The setting:** `UseCalmBackJog` in `AgentScripts/ControlRoomBuilder.cs`. `false` (as built) uses v2_30 at 3.0 m/s; `true` uses v2_24 at 2.4 m/s. The clip speed goes with it, and is also live on the `CharacterAnimation` component (`ShootBackClipSpeed`).
+- The Meshy walk is no longer baked: its baked clip is deleted. The take is still inside `Outrider_ShootGaits.fbx`, unused. It is baked again only if the jog file is missing.
+- **Playback rates** for her actual speeds while turned backward:
+
+| Her speed (m/s) | When | v2_30 (3.0) | v2_24 (2.4) |
+|---|---|---|---|
+| 3.0 – 3.7 | between rhythm clicks | 1.0 – 1.22 | 1.25 – 1.52 |
+| 4.0 – 4.7 | the last 0.2 s of the hold | 1.33 – 1.56 | 1.65 – 1.95 |
+| 5.4 | starting to turn back | 1.78 | 2.25 |
+| 6.0 | if she recovered fully while held | 2.0 | 2.5 |
+
+- **Seen** (`back3-jog30/NN-side.png`, `-game.png`, `-gamezoom.png`): it reads as an upright jog backward, knees bent, with both pistols on the aim. The feet look planted in the stills. Sliding cannot be judged from stills, but at 3 to 3.7 m/s it plays at its own speed or a little above.
+- It is clearly better than the creeping walk, which I could only compare in an earlier, broken run. With the turn and the hold it gives one clean turn round, a backpedal, and one turn back.
+
+**4. Sounds.**
+- **Files:** in `Assets/Game/Audio/Shots/` (in LFS), with `SOURCES.md`, which gives pixabay.com, each original file name, the date added, and the Pixabay Content License as stated by Kristian, to be re-checked before a release.
+  - Imported by script: decompressed on load, PCM, preloaded, not streamed.
+- **Mapping as built** (each look in `Assets/Game/Settings/ShotFx.asset`, Sound section: clip, volume, pitch, pitch spread, start):
+  - basic shot: `gunshot_54`, volume 0.55, ±5 % pitch;
+  - Quick Shot, Backstep and Triple Tap: `gunshot_42`, volume 0.65 (Triple Tap ±3 %);
+  - Fan Fire: `gunshot_6`, volume 0.40, ±5 %;
+  - Long Shot and Heavy Volley: `deagle_50ae`, volume 0.65 (Heavy Volley ±3 %);
+  - Scatter Blast: `shotgun_blast`, volume 0.88; Powder Keg: the same at pitch 0.85, on landing.
+  - The master volume and the empowered pitch (0.94) are in the same asset.
+  - The builder fills in only looks that have no sound yet, so his changes are kept.
+- **The clips:**
+
+| Clip | Length | Channels | Rate | Leading silence | Peak |
+|---|---|---|---|---|---|
+| `gunshot_54` | 3.12 s | stereo | 24 kHz | 15 ms | 1.00 (0 dBFS) |
+| `gunshot_42` | 1.15 s | mono | 44.1 kHz | 25 ms | 1.00 |
+| `gunshot_6` | 2.04 s | stereo | 24 kHz | 18 ms | 1.00 |
+| `deagle_50ae` | 3.36 s | stereo | 48 kHz | 56 ms | 1.00 |
+| `shotgun_blast` | 2.98 s | stereo | 48 kHz | **328 ms** | 0.74 (-2.6 dBFS) |
+
+  Each sound starts 2 ms before its first sample above 0.01, so the bang lands with the flash; without that, the shotgun would come a third of a second late. All but the shotgun peak at full scale, so the volumes set the peaks at 0.55 (basic), 0.65 (skills) and 0.40 (Fan Fire). Peak is not loudness: one may still sound louder than another.
+- **Playback:**
+  - `ShotSounds` is a pool of ten 2D voices (no distance falloff from the 28 m camera), so tails overlap. The oldest voice is cut only when all ten are busy.
+  - One sound per shot, per burst hit, per hold tick and per landing, in the frame the shot fires, on hits and misses alike.
+  - The scene now has exactly one `AudioListener`, on the camera; before, it had none.
+- **Tests,** through `ShotSounds.Requested`, which records what was asked to play:
+  - a basic shot asks once, in the frame it fires, on a miss and on a hit, with the start offset applied;
+  - four shots at the fire rate give four sounds, none cut off;
+  - Triple Tap plays once per hit, Fan Fire once per tick, Powder Keg once at its pitch;
+  - a look with no clip plays nothing and logs no error;
+  - one listener.
+  - **Planted bugs:** the sound only on a hit, caught by the first test; always the first voice, so a new shot stops the last one, caught by the four-shots test.
+- **Not heard by anyone but Kristian.** What to listen for:
+  - whether the bang lands with the flash;
+  - the balance between the five (the basic shot meant a little below the skills, Fan Fire quieter);
+  - whether 4.4 shots a second with ±5 % pitch is pleasant or tiring;
+  - the shotgun pitched down as a stand-in for the Powder Keg explosion;
+  - the long tails (2 to 3.4 s) piling up.
+
+**Tests overall:** rules 104 of 104 (98 + 6 `ShotFacing`). PlayMode 117 of 118, with the one inconclusive as before (105 + 8 `BackpedalTests` + 5 `SoundTests`).
+- **Changed:**
+  - three moving-shot and standing tests now aim straight behind instead of at Dummy B or A, which are now inside the 120 degree angle, and allow for the turn time;
+  - the gait bake test now expects the jog;
+  - the feel-values defaults test;
+  - the A-key test waits up to ten frames for the test keyboard.
+- **Planted for the backpedal:**
+  - an instant turn, caught by the turn-over-time and turn-back tests;
+  - no hold, caught by three backpedal tests.
+
+**Not verified:** play with the real mouse; how the backpedal speed feels; the sound by ear; arm clipping at 120 from every view (I looked from three).
+
 ## Decisions waiting for Kristian
 
 The ten behaviours under "How the pieces behave" in the slice file are my choices, and so are the three new skills, the gauge's numbers and the enemy's. The ones most likely to matter in the hand:
@@ -553,7 +776,7 @@ The ten behaviours under "How the pieces behave" in the slice file are my choice
 ## State for the play session
 
 - The Editor is open on `Assets/Game/Scenes/ControlRoom.unity`, Play mode stopped, no compile errors.
-- Controls: right-click moves (held, it follows the cursor), or shoots what is under the cursor once. Left-click (or A, then left-click) is attack-move. One click, one shot: there is no auto-attack. Space dashes. Skills: Q Quick Shot, W Powder Keg, E Fan Fire (hold), R Long Shot (charge), S Scatter Blast, D Heavy Volley (cast), F Backstep, G Triple Tap. Z spends a full focus gauge.
+- Controls: right-click moves (held, it follows the cursor), also on an enemy. Left-click fires one basic shot toward the cursor; one click, one shot, no auto-attack, and she looks toward the cursor while free. Space dashes. Skills: Q Quick Shot, W Powder Keg, E Fan Fire (hold), R Long Shot (charge), S Scatter Blast, D Heavy Volley (cast), F Backstep, G Triple Tap. Z spends a full focus gauge.
 - The enemy is the tall purple shape far to the right and down from the start, at (15, -10). It stands still until you come within 9 m or hurt it. Its red outlines show where it will hit.
 - To tune: `Assets/Game/Settings/Skills.asset` (skills and the gauge), `Assets/Game/Settings/Enemy.asset` (the enemy), `Assets/Game/Settings/ShotFx.asset` (how the shots look, and the recoil) and `Assets/Game/Settings/PostProcessing.asset` (the bloom; untick Bloom there to turn it off), in the Inspector while playing.
 - Nothing is committed on `g4/kit`.

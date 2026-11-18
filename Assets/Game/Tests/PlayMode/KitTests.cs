@@ -75,8 +75,8 @@ namespace Roguelike.PlayModeTests
             SkillDefinition skill = Skill(Scatter);
             _player.Teleport(NearA);
             yield return null;
-            Assume.That(Targeting.InRange(_player.GroundPosition, _a.GroundPosition, _a.Radius, skill.Range), Is.True, "A is close enough");
-            Assume.That(Targeting.InRange(_player.GroundPosition, _b.GroundPosition, _b.Radius, skill.Range), Is.False, "B is not");
+            Assume.That(InReach(_player.GroundPosition, _a.GroundPosition, _a.Radius, skill.Range), Is.True, "A is close enough");
+            Assume.That(InReach(_player.GroundPosition, _b.GroundPosition, _b.Radius, skill.Range), Is.False, "B is not");
 
             Assert.That(_player.PressSkill(Scatter, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.Action == ActionKind.None, 3f);
@@ -160,7 +160,7 @@ namespace Roguelike.PlayModeTests
             int skillDamage = Mathf.RoundToInt(skill.Damage * identity.EmpoweredDamage);
             Assert.That(Lost(_a), Is.EqualTo(skillDamage), "the skill deals more");
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 2, 3f);
             _player.Stop();
             Assert.That(Lost(_a) - skillDamage, Is.EqualTo(Mathf.RoundToInt(Placeholders.BasicShotDamage * identity.EmpoweredDamage)),
@@ -323,10 +323,10 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(_enemy.Home + Vector3.left * 5f);
             yield return null;
-            Assume.That(Targeting.InRange(_player.GroundPosition, _enemyBody.GroundPosition, _enemyBody.Radius, _feel.BasicAttackRange), Is.True);
+            Assume.That(InReach(_player.GroundPosition, _enemyBody.GroundPosition, _enemyBody.Radius, _feel.BasicShotRange), Is.True);
             Assert.That(_enemyBody.MaxHealth, Is.EqualTo(_enemy.Values.Health), "its health comes from the settings");
 
-            _player.AttackTarget(_enemyBody);
+            _player.Shoot(_enemyBody.transform.position);
             yield return Until(() => _enemyBody.HitsTaken >= 1, 3f);
             Assert.That(Lost(_enemyBody), Is.EqualTo(Placeholders.BasicShotDamage));
         }
@@ -435,5 +435,8 @@ namespace Roguelike.PlayModeTests
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
         static float FlatDistance(Vector3 a, Vector3 b) => Flat(a - b).magnitude;
+
+        /// <summary>True when a target's edge is within a reach of a point on the ground.</summary>
+        static bool InReach(GroundPoint from, GroundPoint target, float radius, float reach) => from.DistanceTo(target) - radius <= reach;
     }
 }

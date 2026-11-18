@@ -62,7 +62,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(InRange(_a), Is.True, "A is in basic-attack range here");
             Assume.That(TurnsBodyFor(_a), Is.False, "and within the front angle");
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             float startedAt = Time.time;
             Assert.That(_player.IsShootingOnTheMove, Is.True, "it shoots on the move");
             Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "the move order stays");
@@ -101,17 +101,19 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator OnTheMove_ATargetOutOfRange_IsAttackedAsBefore()
+        public IEnumerator OnTheMove_AClickAtOpenFloor_IsAShotOnTheMove_TheMoveGoesOn_AndArrives()
         {
             yield return RunUntilX(-3f);
-            Assume.That(InRange(_c), Is.False, "C is out of range");
-
-            _player.AttackTarget(_c);
-            Assert.That(_player.IsShootingOnTheMove, Is.False);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackTarget), "the attack order takes over");
-            yield return Until(() => _c.HitsTaken >= 1, 6f);
-            Assert.That(_c.HitsTaken, Is.GreaterThanOrEqualTo(1), "it walks into range and shoots");
-            Assert.That(_player.ShotsOnTheMove, Is.EqualTo(0));
+            int shotsBefore = _player.BasicShotsFired;
+            _player.Shoot(new Vector3(-3f, 0f, -14f)); // open floor, far beyond the range: no in-range condition any more
+            Assert.That(_player.IsShootingOnTheMove, Is.True, "a click while walking is always a shot on the move");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "the move order stays");
+            yield return Until(() => _player.BasicShotsFired > shotsBefore, 2f);
+            Assert.That(_player.BasicShotsFired - shotsBefore, Is.EqualTo(1), "the shot went off, a miss");
+            Assert.That(_player.BasicShotHits, Is.EqualTo(0));
+            yield return Until(() => _player.Order == OrderKind.None, 6f);
+            Assert.That(FlatDistance(_player.Position, RunTo), Is.LessThan(0.2f), "she still arrives where she was going");
+            Assert.That(_player.ShotsOnTheMove, Is.EqualTo(1));
         }
 
         [UnityTest]
@@ -119,9 +121,9 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(new Vector3(2f, 0f, 1f));
             yield return null;
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             Assert.That(_player.IsShootingOnTheMove, Is.False);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackTarget));
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "a click gives no order: she does not walk");
             yield return Until(() => _a.HitsTaken >= 1, 3f);
             float cycle = _feel.BasicShotStartup + _feel.BasicShotActive + _feel.BasicShotRecovery;
             yield return new WaitForSeconds(cycle * 2f);
@@ -131,27 +133,23 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator OnTheMove_ATargetOutsideTheFrontAngle_TurnsTheBodyForTheShot_WhileItKeepsGoing_ThenFacesTheMoveAgain()
+        public IEnumerator OnTheMove_AnAimBehindHer_TurnsTheBodyForTheShot_WhileItKeepsGoing_ThenFacesTheMoveAgain()
         {
             yield return RunUntilX(-3.4f);
-            Assume.That(InRange(_b), Is.True, "B is in range here");
-            Assume.That(TurnsBodyFor(_b), Is.True, "and behind the front angle");
+            Vector3 behind = _player.Position + Vector3.left * 8f;
             float xAtCommand = _player.Position.x;
+            int shots = _player.BasicShotsFired;
 
-            _player.AttackTarget(_b);
+            _player.Shoot(behind);
             Assert.That(_player.IsShootingOnTheMove, Is.True);
-            Assert.That(_player.ShotTurnsBody, Is.True);
-            yield return null;
-            yield return null;
-            Assert.That(Vector3.Dot(Flat(_player.transform.forward), Flat(_b.transform.position - _player.Position).normalized),
-                        Is.GreaterThan(0.98f), "the body faces the target");
-            yield return Until(() => _b.HitsTaken >= 1, 2f);
-            Assert.That(_b.HitsTaken, Is.EqualTo(1));
+            Assert.That(_player.ShotTurnsBody, Is.True, "straight behind is outside the front angle");
+            yield return new WaitForSeconds(_feel.ShotTurnTime + 0.05f);
+            Assert.That(Vector3.Dot(Flat(_player.transform.forward), Vector3.left), Is.GreaterThan(0.98f), "the body has turned to the aim, at the shot turn rate");
+            yield return Until(() => _player.BasicShotsFired > shots, 2f);
             Assert.That(_player.Position.x, Is.GreaterThan(xAtCommand + 0.3f), "it kept going along its path meanwhile");
             Assert.That(Mathf.Abs(_player.Position.z), Is.LessThan(0.3f), "on its path");
 
-            yield return Until(() => !_player.IsShootingOnTheMove, 2f);
-            yield return null;
+            yield return Until(() => _player.FacingMode == ShotFacing.Mode.Free, 3f);
             yield return null;
             Assert.That(Vector3.Dot(Flat(_player.transform.forward), Vector3.right), Is.GreaterThan(0.98f), "then faces the way it goes again");
         }
@@ -160,7 +158,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator OnTheMove_ANewMoveOrderDuringTheWindUp_ChangesTheWay_ButDoesNotCancelTheShot()
         {
             yield return RunUntilX(-1f);
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             Assume.That(_player.IsShootingOnTheMove, Is.True);
             var newTarget = new Vector3(8f, 0f, -4f);
             _player.MoveTo(newTarget);
@@ -176,7 +174,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator OnTheMove_ADashDuringTheWindUp_CancelsTheShot()
         {
             yield return RunUntilX(-1f);
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             Assume.That(_player.IsShootingOnTheMove, Is.True);
             Assert.That(_player.DashToward(RunTo), Is.EqualTo(IntentResult.Started));
             Assert.That(_player.IsShootingOnTheMove, Is.False);
@@ -214,7 +212,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(Mathf.Abs(Vector3.SignedAngle(facing, Flat(_a.transform.position - _player.Position), Vector3.up)), Is.GreaterThan(20f),
                         "and well to the side");
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Until(() => _view.AimWeight >= 1f, 2f);
             yield return null;
             Assert.That(_player.ShotTurnsBody, Is.False);
@@ -226,18 +224,17 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator Standing_ATargetOutsideTheFrontAngle_TurnsTheWholeBody()
+        public IEnumerator Standing_AnAimOutsideTheFrontAngle_TurnsTheWholeBody()
         {
             _player.Teleport(new Vector3(0f, 0f, 3.5f));
             yield return null;
-            Assume.That(InRange(_a), Is.True);
-            Assume.That(TurnsBodyFor(_a), Is.True, "A is outside the front angle");
-
-            _player.AttackTarget(_a);
+            Vector3 behind = _player.Position - Flat(_player.transform.forward) * 6f;
+            _player.Shoot(behind);
             yield return Until(() => _player.Action == ActionKind.BasicShot, 1f);
-            Assert.That(_player.ShotTurnsBody, Is.True);
-            Assert.That(Vector3.Dot(Flat(_player.transform.forward), Flat(_a.transform.position - _player.Position).normalized),
-                        Is.GreaterThan(0.99f), "the body faces the target");
+            Assert.That(_player.ShotTurnsBody, Is.True, "straight behind is outside the front angle");
+            yield return new WaitForSeconds(_feel.ShotTurnTime + 0.05f);
+            Assert.That(Vector3.Dot(Flat(_player.transform.forward), Flat(behind - _player.Position).normalized),
+                        Is.GreaterThan(0.99f), "the body has turned to the aim");
         }
 
         // ---------------- Helpers ----------------
@@ -255,13 +252,13 @@ namespace Roguelike.PlayModeTests
             Assume.That(InRange(_a), Is.True, "A is in basic-attack range here");
             int hitsBefore = _a.HitsTaken;
             var hitTimes = new System.Collections.Generic.List<float>();
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             float first = Time.time;
             bool secondGiven = false;
             float deadline = Time.realtimeSinceStartup + 3f;
             while (hitTimes.Count < 2 && Time.realtimeSinceStartup < deadline)
             {
-                if (!secondGiven && Time.time >= first + cycle + 0.01f) { _player.AttackTarget(_a); secondGiven = true; }
+                if (!secondGiven && Time.time >= first + cycle + 0.01f) { _player.Shoot(_a.transform.position); secondGiven = true; }
                 yield return null;
                 if (_a.HitsTaken - hitsBefore > hitTimes.Count) hitTimes.Add(Time.time);
             }
@@ -275,10 +272,10 @@ namespace Roguelike.PlayModeTests
             yield return RunUntilX(-1f);
             hitsBefore = _a.HitsTaken;
             hitTimes.Clear();
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             first = Time.time;
             yield return Until(() => Time.time >= first + cycle * 0.2f, 1f);
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             deadline = Time.realtimeSinceStartup + 3f;
             while (hitTimes.Count < 2 && Time.realtimeSinceStartup < deadline)
             {
@@ -300,7 +297,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(TurnsBodyFor(_a), Is.False, "A is within the front angle");
             Assert.That(InState(view, CharacterAnimation.RunState), Is.True, "running shows the run");
 
-            _player.AttackTarget(_a);
+            _player.Shoot(_a.transform.position);
             yield return Until(() => view.Pose == CharacterPose.ShootMove, 0.5f);
             Assert.That(view.Pose, Is.EqualTo(CharacterPose.ShootMove), "a shot on the move shows the shooting gait");
             yield return new WaitForSeconds(_feel.ShootGaitFade + 0.02f);
@@ -331,7 +328,7 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + 4f;
             while (_player.BasicShotsFired - shotsBefore < 3 && Time.realtimeSinceStartup < deadline)
             {
-                if (given < 3 && Time.time >= start + given * (cycle + 0.03f)) { _player.AttackTarget(_a); given++; }
+                if (given < 3 && Time.time >= start + given * (cycle + 0.03f)) { _player.Shoot(_a.transform.position); given++; }
                 yield return null;
                 if (view.Pose == CharacterPose.ShootMove) inGait = true;
                 else if (inGait) leftGait = true;
@@ -350,10 +347,8 @@ namespace Roguelike.PlayModeTests
         {
             CharacterAnimation view = RiggedView();
             yield return RunUntilX(-3.4f);
-            Assume.That(InRange(_b), Is.True, "B is in range here");
-            Assume.That(TurnsBodyFor(_b), Is.True, "and behind the front angle");
+            _player.Shoot(_player.Position + Vector3.left * 8f); // straight behind her
 
-            _player.AttackTarget(_b);
             yield return Until(() => view.Pose == CharacterPose.ShootBack, 0.5f);
             Assert.That(view.Pose, Is.EqualTo(CharacterPose.ShootBack), "moving away from a target behind shows the backward gait");
             Assert.That(Vector3.Dot(Flat(_player.Velocity), Flat(_player.transform.forward)), Is.LessThan(0f), "she moves against where the body faces");
@@ -391,7 +386,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(_player.Speed, Is.EqualTo(_feel.RunSpeed).Within(0.4f), "at full speed");
         }
 
-        bool InRange(Damageable d) => Targeting.InRange(_player.GroundPosition, d.GroundPosition, d.Radius, _feel.BasicAttackRange);
+        bool InRange(Damageable d) => _player.GroundPosition.DistanceTo(d.GroundPosition) - d.Radius <= _feel.BasicShotRange;
 
         bool TurnsBodyFor(Damageable d)
         {

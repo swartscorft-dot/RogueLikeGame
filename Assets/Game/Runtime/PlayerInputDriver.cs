@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using Roguelike.Rules;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -10,10 +8,8 @@ namespace Roguelike
     public struct InputFrame
     {
         public Vector2 CursorScreen;
-        public bool MoveHeld;           // right mouse button, held: move, or attack the target under the cursor
-        public bool AttackMovePressed;  // A
-        public bool ConfirmPressed;     // left mouse button
-        public bool CancelPressed;      // Esc
+        public bool MoveHeld;           // right mouse button, held: move, and follow the cursor
+        public bool ShootPressed;       // left mouse button went down: one basic shot toward the cursor
         public bool DashPressed;        // Space
         public bool IdentityPressed;    // Z: spend a full focus gauge on the empowered mode
         /// <summary>Skill keys that went down this frame. Bit 0 is the first skill key (Q), bit 1 the second (W), and so on.</summary>
@@ -26,14 +22,10 @@ namespace Roguelike
     /// Turns one <see cref="InputFrame"/> per frame into intents on the <see cref="PlayerCharacter"/>.
     /// The frame normally comes from the mouse and keyboard; tests set <see cref="InputSource"/> to feed their own.
     ///
-    /// Right-click on the ground moves, and held it follows the cursor; on a target it attacks that target, once.
-    /// Every basic shot needs its own click: holding a button never repeats it (click to shoot, Kristian 2026-11-18).
-    /// Left-click is an attack-move at the cursor (on a target: attack that target; on the ground: attack-move there,
-    /// going for the target nearest the click). A first shows the range ring while aiming it;
-    /// left-click then confirms it as above,
-    /// and right-click or Esc cancels the aim. Space dashes toward the cursor.
-    /// Q W E R and S D F G are the skill keys: the press, the release and the cursor all reach the character.
-    /// Z spends a full focus gauge. A dead character takes no input.
+    /// Right-click moves to the point under the cursor, also when it is on an enemy, and held it follows the cursor.
+    /// Left-click fires one basic shot toward the cursor (decision 0002): every shot needs its own click, and holding
+    /// the button never repeats it. Space dashes toward the cursor. Q W E R and S D F G are the skill keys: the press,
+    /// the release and the cursor all reach the character. Z spends a full focus gauge. A dead character takes no input.
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
     public sealed class PlayerInputDriver : MonoBehaviour
@@ -42,8 +34,6 @@ namespace Roguelike
         public static readonly Key[] SkillKeys = { Key.Q, Key.W, Key.E, Key.R, Key.S, Key.D, Key.F, Key.G };
 
         static readonly Plane s_Ground = new Plane(Vector3.up, Vector3.zero);
-
-        public RangeIndicator RangeRing;
 
         /// <summary>
         /// False shuts out the real mouse and keyboard for every driver, from its first frame on.
@@ -60,8 +50,6 @@ namespace Roguelike
         Camera _camera;
         int _skillsHeldBefore;
         bool _moveHeldBefore;
-
-        public bool IsAimingAttackMove { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => ReadRealDevices = true;
@@ -86,7 +74,6 @@ namespace Roguelike
             {
                 _skillsHeldBefore = 0;
                 _moveHeldBefore = false;
-                SetAiming(false);
                 return;
             }
 
@@ -103,48 +90,27 @@ namespace Roguelike
             }
             _skillsHeldBefore = held;
 
-            if (input.AttackMovePressed) SetAiming(true);
-            if (IsAimingAttackMove && input.CancelPressed) SetAiming(false);
-            // Left-click is the attack-move at the cursor, with or without A first ("smart cast", Kristian 2026-11-18).
-            if (input.ConfirmPressed)
-            {
-                Damageable target = TargetUnder(cursor);
-                if (target != null) _player.AttackTarget(target);
-                else _player.AttackMoveTo(cursor);
-                SetAiming(false);
-            }
+            // Left button: one shot toward the cursor per press.
+            if (input.ShootPressed) _player.Shoot(cursor);
 
-            // Right button: the press attacks the target under the cursor or orders a move; held, it steers the
-            // move after the cursor. Holding it never repeats an attack: one press, one shot (click to shoot).
+            // Right button: the press orders the move; held, it steers the move after the cursor.
             bool movePressed = input.MoveHeld && !_moveHeldBefore;
             _moveHeldBefore = input.MoveHeld;
-            if (input.MoveHeld)
-            {
-                SetAiming(false);
-                Damageable target = TargetUnder(cursor);
-                if (movePressed)
-                {
-                    if (target != null) _player.AttackTarget(target);
-                    else _player.MoveTo(cursor);
-                }
-                else if (target == null) _player.SteerTo(cursor);
-            }
+            if (movePressed) _player.MoveTo(cursor);
+            else if (input.MoveHeld) _player.SteerTo(cursor);
         }
 
-        static InputFrame? ReadDevices()
-        {
-            if (!ReadRealDevices) return null;
-            Mouse mouse = Mouse.current;
-            Keyboard keyboard = Keyboard.current;
-            if (mouse == null || keyboard == null) return null;
+        static InputFrame? ReadDevices() => ReadRealDevices ? FrameFrom(Mouse.current, Keyboard.current) : null;
 
+        /// <summary>The frame a mouse and a keyboard give now. Public so tests can read virtual devices the same way.</summary>
+        public static InputFrame? FrameFrom(Mouse mouse, Keyboard keyboard)
+        {
+            if (mouse == null || keyboard == null) return null;
             var frame = new InputFrame
             {
                 CursorScreen = mouse.position.ReadValue(),
                 MoveHeld = mouse.rightButton.isPressed,
-                AttackMovePressed = keyboard.aKey.wasPressedThisFrame,
-                ConfirmPressed = mouse.leftButton.wasPressedThisFrame,
-                CancelPressed = keyboard.escapeKey.wasPressedThisFrame,
+                ShootPressed = mouse.leftButton.wasPressedThisFrame,
                 DashPressed = keyboard.spaceKey.wasPressedThisFrame,
                 IdentityPressed = keyboard.zKey.wasPressedThisFrame,
             };
@@ -157,12 +123,6 @@ namespace Roguelike
             return frame;
         }
 
-        void SetAiming(bool aiming)
-        {
-            IsAimingAttackMove = aiming;
-            if (RangeRing != null && RangeRing.IsVisible != aiming) RangeRing.SetVisible(aiming);
-        }
-
         bool TryGroundPoint(Vector2 screen, out Vector3 point)
         {
             Ray ray = _camera.ScreenPointToRay(screen);
@@ -173,27 +133,6 @@ namespace Roguelike
             }
             point = default;
             return false;
-        }
-
-        /// <summary>The living target under the cursor, with a little slack around its edge. Nearest wins.</summary>
-        static Damageable TargetUnder(Vector3 cursor)
-        {
-            var point = new GroundPoint(cursor.x, cursor.z);
-            IReadOnlyList<Damageable> all = Damageable.All;
-            Damageable best = null;
-            float bestGap = float.PositiveInfinity;
-            for (int i = 0; i < all.Count; i++)
-            {
-                Damageable d = all[i];
-                if (!d.IsAlive) continue;
-                float gap = Targeting.Gap(point, d.GroundPosition, d.Radius);
-                if (gap <= Placeholders.CursorPickSlack && gap < bestGap)
-                {
-                    best = d;
-                    bestGap = gap;
-                }
-            }
-            return best;
         }
     }
 }

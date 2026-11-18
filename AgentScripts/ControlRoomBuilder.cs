@@ -5,6 +5,7 @@
 //
 // The feel, skill, enemy, grip and shot-effect settings assets are created only when they are missing.
 // They hold Kristian's tuning and are never overwritten. An older skill asset gets the skills it lacks.
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -75,6 +76,15 @@ public static class ControlRoomBuilder
     const string ShootGaitsPath = RigDir + "/Outrider_ShootGaits.fbx";
     const float ShootRunClipSpeed = 2.1f;
     const float ShootBackClipSpeed = 0.85f;
+    // The backward gait: his own backward jog, made on his rig (no bake). Two versions, the same jog built for
+    // two ground speeds: v2_30 for 3.0 m/s, and v2_24 for 2.4 m/s, calmer, which pairs with a slower backpedal.
+    // THE SETTING: false uses v2_30, true uses v2_24; the clip speed goes with it. Without the file, the Meshy
+    // Walk_Backward_While_Shooting is baked instead.
+    const bool UseCalmBackJog = false;
+    static string OwnBackClipPath => RigDir + (UseCalmBackJog ? "/Outrider_grip@Jog_Backward_Shooting_v2_24.fbx" : "/Outrider_grip@Jog_Backward_Shooting_v2_30.fbx");
+    static float OwnBackClipSpeed => UseCalmBackJog ? 2.4f : 3.0f;
+    static readonly string[] OwnBackClipFiles =
+        { RigDir + "/Outrider_grip@Jog_Backward_Shooting_v2_30.fbx", RigDir + "/Outrider_grip@Jog_Backward_Shooting_v2_24.fbx" };
     const float DashRecovery = 0.05f;
     const float PistolLength = 0.38f;
     const float ShotgunLength = 1.0f;
@@ -91,7 +101,6 @@ public static class ControlRoomBuilder
         Material floorMat = MaterialAsset("Floor", new Color(0.45f, 0.45f, 0.47f), unlit: false);
         Material playerMat = MaterialAsset("Player", new Color(0.15f, 0.45f, 0.95f), unlit: false);
         Material dummyMat = MaterialAsset("Dummy", new Color(0.85f, 0.2f, 0.15f), unlit: false);
-        Material ringMat = MaterialAsset("RangeRing", new Color(0.95f, 0.9f, 0.2f), unlit: true);
         Material aimMat = MaterialAsset("SkillAim", new Color(1f, 0.45f, 0.1f), unlit: true);
         Material enemyMat = MaterialAsset("Enemy", new Color(0.4f, 0.12f, 0.45f), unlit: false);
         Material telegraphMat = MaterialAsset("Telegraph", new Color(1f, 0.1f, 0.1f), unlit: true);
@@ -139,6 +148,7 @@ public static class ControlRoomBuilder
         }
         bool shotFxExtended = shotFx.EnsureLooks(skills.Skills.Where(s => s != null).Select(s => s.Name));
         if (shotFxExtended) EditorUtility.SetDirty(shotFx);
+        string soundReport = SetUpShotSounds(shotFx);
         Material shotFxMat = ShotFxMaterial();
         VolumeProfile postProcessing = PostProcessingProfile(out bool postProcessingCreated);
 
@@ -199,6 +209,8 @@ public static class ControlRoomBuilder
         character.Settings = settings;
         character.SkillSet = skills;
         character.ShotLooks = shotFx;
+        // The shot sounds: a pool of 2D voices on an object of its own.
+        character.Sounds = new GameObject("ShotSounds").AddComponent<ShotSounds>();
         character.ShotFxMaterial = shotFxMat;
         if (animation != null)
         {
@@ -209,20 +221,8 @@ public static class ControlRoomBuilder
         playerVisual += "  muzzles: " + (character.RightMuzzle != null ? "right" : "no right") + ", "
                       + (character.LeftMuzzle != null ? "left" : "no left") + "\n";
         var playerHealth = player.AddComponent<PlayerHealth>();
-        var driver = player.AddComponent<PlayerInputDriver>();
+        player.AddComponent<PlayerInputDriver>();
         if (animation != null) animation.Player = character;
-
-        // Range ring, drawn in world space around the player while aiming an attack-move.
-        var ringGo = new GameObject("RangeRing");
-        var line = ringGo.AddComponent<LineRenderer>();
-        line.sharedMaterial = ringMat;
-        line.widthMultiplier = 0.08f;
-        line.shadowCastingMode = ShadowCastingMode.Off;
-        line.receiveShadows = false;
-        line.enabled = false;
-        var ring = ringGo.AddComponent<RangeIndicator>();
-        ring.Player = character;
-        driver.RangeRing = ring;
 
         // Skill aim: the outline of the area the skill in use will hit.
         var aimGo = new GameObject("SkillIndicator");
@@ -248,6 +248,7 @@ public static class ControlRoomBuilder
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = new Color(0.12f, 0.13f, 0.16f);
         var rig = camGo.AddComponent<CameraRig>();
+        camGo.AddComponent<AudioListener>(); // the one listener in the scene
         rig.Target = player.transform;
         rig.Settings = settings;
         Quaternion camRotation = Quaternion.Euler(settings.Values.CameraPitch, 0f, 0f);
@@ -312,7 +313,7 @@ public static class ControlRoomBuilder
         return (settingsCreated ? "settings: created\n" : "settings: kept\n")
              + (skillsCreated ? "skills: created\n" : skillsExtended ? "skills: kept, missing ones added\n" : "skills: kept\n")
              + (enemyCreated ? "enemy: created\n" : "enemy: kept\n")
-             + (shotFxCreated ? "shot effects: created\n" : shotFxExtended ? "shot effects: kept, missing looks added\n" : "shot effects: kept\n")
+             + (shotFxCreated ? "shot effects: created\n" : shotFxExtended ? "shot effects: kept, missing looks added\n" : "shot effects: kept\n") + soundReport
              + (oldBulletsRemoved ? "old bullet settings: removed\n" : "")
              + (postProcessingCreated ? "post-processing profile: created\n" : "post-processing profile: kept\n") + floorReport + playerVisual + Dump();
     }
@@ -478,13 +479,30 @@ public static class ControlRoomBuilder
         AnimationClip run = Clip(RunClipPath, CharacterAnimation.RunState);
         AnimationClip gait = Clip(ShootGaitsPath, CharacterAnimation.ShootMoveState);
         AnimationClip back = Clip(ShootGaitsPath, CharacterAnimation.ShootBackState);
+        bool ownBack = false;
         if (ownRig)
         {
             EnsureFolder(RigDir, "Baked");
             idle = BakeForRig(RiggedModelPath, idle, riggedPath, BakedDir + "/Outrider_grip_Idle.anim");
             run = BakeForRig(RiggedModelPath, run, riggedPath, BakedDir + "/Outrider_grip_Run.anim");
             gait = BakeForRig(RiggedModelPath, gait, riggedPath, BakedDir + "/Outrider_grip_ShootRun.anim");
-            back = BakeForRig(RiggedModelPath, back, riggedPath, BakedDir + "/Outrider_grip_ShootBack.anim");
+            if (!System.IO.File.Exists(OwnBackClipPath))
+                back = BakeForRig(RiggedModelPath, back, riggedPath, BakedDir + "/Outrider_grip_ShootBack.anim");
+            foreach (string file in OwnBackClipFiles)
+            {
+                // Both jogs are set up the same way, so switching is the one setting above.
+                if (!System.IO.File.Exists(file)) continue;
+                MakeGeneric(file);
+                WithoutCamerasAndLights(file);
+                ConfigureClips(file, ("", CharacterAnimation.ShootBackState, true));
+            }
+            if (System.IO.File.Exists(OwnBackClipPath))
+            {
+                // His own backward jog: already for this rig, used as it is.
+                ConfigureClips(OwnBackClipPath, ("", CharacterAnimation.ShootBackState, true));
+                AnimationClip own = Clip(OwnBackClipPath, CharacterAnimation.ShootBackState);
+                if (own != null) { back = own; ownBack = true; }
+            }
             rigReport += string.Format(CultureInfo.InvariantCulture, "  clips baked for this rig from {0}: idle {1} keys, run {2} keys, shooting gaits {3} and {4} keys\n",
                                        System.IO.Path.GetFileName(RiggedModelPath), KeyCount(idle), KeyCount(run), KeyCount(gait), KeyCount(back));
         }
@@ -546,7 +564,7 @@ public static class ControlRoomBuilder
         animation.DashRecovery = DashRecovery;
         animation.RunClipSpeed = RunClipSpeed;
         animation.ShootRunClipSpeed = ShootRunClipSpeed;
-        animation.ShootBackClipSpeed = ShootBackClipSpeed;
+        animation.ShootBackClipSpeed = ownBack ? OwnBackClipSpeed : ShootBackClipSpeed;
         animation.RightArm = Bone("RightArm");
         animation.RightForeArm = Bone("RightForeArm");
         animation.RightHand = Bone("RightHand");
@@ -921,6 +939,91 @@ public static class ControlRoomBuilder
     static float NavMeshLift(Vector3 floorPoint)
     {
         return NavMesh.SamplePosition(floorPoint, out NavMeshHit hit, 1f, NavMesh.AllAreas) ? hit.position.y - floorPoint.y : 0f;
+    }
+
+    // ---------------- Shot sounds ----------------
+
+    const string ShotSoundDir = Root + "/Audio/Shots";
+
+    /// <summary>The start mapping of sounds to looks (2026-11-18): clip, share of the loudest peak to aim at, pitch, pitch spread.</summary>
+    static readonly (string look, string clip, float level, float pitch, float spread)[] StartSounds =
+    {
+        ("Basic shot",    "gunshot_54",    0.55f, 1f,    0.05f), // Kristian's choice; a little below the skills
+        ("Quick Shot",    "gunshot_42",    0.65f, 1f,    0f),
+        ("Backstep",      "gunshot_42",    0.65f, 1f,    0f),
+        ("Triple Tap",    "gunshot_42",    0.65f, 1f,    0.03f),
+        ("Fan Fire",      "gunshot_6",     0.4f,  1f,    0.05f), // quieter: it ticks
+        ("Long Shot",     "deagle_50ae",   0.65f, 1f,    0f),
+        ("Heavy Volley",  "deagle_50ae",   0.65f, 1f,    0.03f),
+        ("Scatter Blast", "shotgun_blast", 0.65f, 1f,    0f),
+        ("Powder Keg",    "shotgun_blast", 0.65f, 0.85f, 0f),  // a stand-in for an explosion, pitched down
+    };
+
+    /// <summary>
+    /// Sets up the shot sound files (decompressed on load, preloaded, not streamed), measures each one, and gives
+    /// every look that has no sound yet its start sound. A look that already has one is left as it is.
+    /// </summary>
+    static string SetUpShotSounds(ShotFxSettings shotFx)
+    {
+        var sb = new StringBuilder("shot sounds:\n");
+        var facts = new Dictionary<string, (AudioClip clip, float lead, float peak)>();
+        foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { ShotSoundDir }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var importer = AssetImporter.GetAtPath(path) as AudioImporter;
+            if (importer == null) continue;
+            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+            if (settings.loadType != AudioClipLoadType.DecompressOnLoad || settings.compressionFormat != AudioCompressionFormat.PCM
+                || !settings.preloadAudioData || importer.loadInBackground)
+            {
+                settings.loadType = AudioClipLoadType.DecompressOnLoad;
+                settings.compressionFormat = AudioCompressionFormat.PCM;
+                settings.preloadAudioData = true;
+                importer.defaultSampleSettings = settings;
+                importer.loadInBackground = false;
+                importer.SaveAndReimport();
+            }
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            clip.LoadAudioData();
+            var data = new float[clip.samples * clip.channels];
+            clip.GetData(data, 0);
+            float peak = 0f;
+            int first = -1;
+            for (int i = 0; i < data.Length; i++)
+            {
+                float a = Mathf.Abs(data[i]);
+                if (a > peak) peak = a;
+                if (first < 0 && a > 0.01f) first = i;
+            }
+            float lead = first < 0 ? 0f : (first / clip.channels) / (float)clip.frequency;
+            facts[clip.name] = (clip, lead, peak);
+            sb.AppendFormat(CultureInfo.InvariantCulture, "  {0}: {1:F2} s, {2}, {3} Hz, leading silence {4:F0} ms, peak {5:F2} ({6:F1} dBFS)\n",
+                clip.name, clip.length, clip.channels == 1 ? "mono" : clip.channels + " channels", clip.frequency, lead * 1000f, peak,
+                peak > 0f ? 20f * Mathf.Log10(peak) : -999f);
+        }
+        if (facts.Count == 0) return "shot sounds: none found in " + ShotSoundDir + "\n";
+
+        bool changed = false;
+        foreach ((string look, string clipName, float level, float pitch, float spread) in StartSounds)
+        {
+            ShotLook target = look == "Basic shot" ? shotFx.Basic : shotFx.For(look);
+            if (target == null || target.Sound != null || !facts.TryGetValue(clipName, out var f)) continue;
+            target.Sound = f.clip;
+            target.SoundVolume = f.peak > 0f ? Mathf.Clamp01(level / f.peak) : level;
+            target.SoundPitch = pitch;
+            target.SoundPitchSpread = spread;
+            target.SoundStart = Mathf.Max(0f, f.lead - 0.002f);
+            changed = true;
+            sb.AppendFormat(CultureInfo.InvariantCulture, "  {0} <- {1}, volume {2:F2}, pitch {3:F2} +/- {4:P0}, starts at {5:F3} s\n",
+                look, clipName, target.SoundVolume, pitch, spread, target.SoundStart);
+        }
+        if (changed)
+        {
+            EditorUtility.SetDirty(shotFx);
+            AssetDatabase.SaveAssetIfDirty(shotFx);
+        }
+        else sb.Append("  every look already has its sound: kept\n");
+        return sb.ToString();
     }
 
     static void Dummy(string name, Vector3 position, Material material)

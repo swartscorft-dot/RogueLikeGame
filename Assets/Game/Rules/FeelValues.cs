@@ -35,11 +35,13 @@ namespace Roguelike.Rules
         public float BasicShotStartup = 0.08f;    // s (halved 2026-11-18: shoot more often)
         public float BasicShotActive = 0.02f;     // s
         public float BasicShotRecovery = 0.125f;  // s
-        public float BasicAttackRange = 6f;       // m
-        public float AttackMoveClickRadius = 2f;  // m, from the click to a target's edge
+        public float BasicShotRange = 10f;        // m, how far a basic shot toward the cursor reaches (decision 0002)
+        public float BasicShotHalfWidth = 0.5f;   // m, half the width of its line: it hits the first target the line touches
 
         // Aiming and shooting on the move (basic shot only)
-        public float ShotFrontAngle = 60f;        // degrees to each side of the facing: a target within it turns only the upper body
+        public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)
+        public float ShotTurnTime = 0.2f;         // s for a half turn of the body to a shot aimed outside the front angle, and back to the run after
+        public float ShotTurnHold = 0.5f;         // s she stays turned to the aim after the last such shot, backpedalling
         public float MovingShotSpeedShare = 0.5f; // share of run speed a shot on the move slows to
         public float MovingShotSlowdown = 0.15f;  // s to ease down to that share when a shot on the move starts
         public float MovingShotRecovery = 0.5f;   // s to ease back to full speed, once the shot has gone off and the slow-down is done

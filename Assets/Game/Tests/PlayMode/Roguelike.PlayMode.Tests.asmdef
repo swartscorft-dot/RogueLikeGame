@@ -4,6 +4,7 @@
     "references": [
         "Roguelike.Rules",
         "Roguelike.Runtime",
+        "Unity.InputSystem",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

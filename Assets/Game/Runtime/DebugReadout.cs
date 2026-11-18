@@ -10,14 +10,12 @@ namespace Roguelike
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
 
         PlayerCharacter _player;
-        PlayerInputDriver _driver;
         GUIStyle _style;
         readonly StringBuilder _text = new StringBuilder();
 
         void OnGUI()
         {
             if (_player == null) _player = FindAnyObjectByType<PlayerCharacter>();
-            if (_driver == null) _driver = FindAnyObjectByType<PlayerInputDriver>();
             if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 12, alignment = TextAnchor.UpperLeft };
 
             // Laid out for a view 720 pixels high and scaled to the real height, like the skill bar.
@@ -26,16 +24,13 @@ namespace Roguelike
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
 
             _text.Clear();
-            _text.AppendLine("RMB move, or shoot a target  |  LMB (or A, LMB) attack-move: one click, one shot  |  Space dash  |  QWER SDFG skills  |  Z focus");
+            _text.AppendLine("RMB move  |  LMB shoot at the cursor  |  Space dash  |  QWER SDFG skills  |  Z focus");
             int lines = 2;
             if (_player != null)
             {
                 Vector3 p = _player.Position;
                 _text.AppendLine(string.Format(s_Inv, "pos ({0:0.00}, {1:0.00})  speed {2:0.0} m/s", p.x, p.z, _player.Speed));
-                Damageable goesFor = _player.OrderTarget;
-                _text.AppendLine(string.Format(s_Inv, "order {0}{1}{2}", _player.Order,
-                    goesFor != null ? " -> " + goesFor.name : "",
-                    _driver != null && _driver.IsAimingAttackMove ? "  AIMING attack-move" : ""));
+                _text.AppendLine(string.Format(s_Inv, "order {0}{1}", _player.Order, _player.HasPendingShot ? "  click waiting" : ""));
                 _text.AppendLine(string.Format(s_Inv, "action {0}{1} {2}{3}{4}", _player.Action,
                     _player.ActiveSkill != null ? " (" + _player.ActiveSkill.Name + ")" : "", _player.ActionPhase,
                     _player.HasBufferedPress ? "  buffered press" : "", HitStop.IsActive ? "  HIT-STOP" : ""));

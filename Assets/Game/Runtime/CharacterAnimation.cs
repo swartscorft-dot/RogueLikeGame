@@ -82,8 +82,23 @@ namespace Roguelike
         public Transform Head;
         [Tooltip("The share of the turn toward the target that the spine takes, spread evenly over its bones; the arms take the rest. The neck and head turn on to face the target.")]
         [Range(0f, 1f)] public float TorsoShare = 0.6f;
-        [Tooltip("The upper body never turns more than this many degrees from the legs.")]
-        public float MaxTwist = 90f;
+        [Tooltip("The upper body never turns more than this many degrees from the legs; the arms aim on past it.")]
+        public float MaxTwist = 120f;
+        [Tooltip("Up to this aim angle the spine takes TorsoShare of the turn. Beyond it the spine takes only WideTorsoShare of the rest, and the head and arms do the turning, as in Kristian's 90 degree pose (no extra twist in the spine). Smooth across it.")]
+        public float TorsoKnee = 60f;
+        [Range(0f, 1f)] public float WideTorsoShare = 0f;
+        [Tooltip("The neck and head together never turn more than this many degrees from the chest.")]
+        public float MaxHeadTurn = 75f;
+
+        [Header("Looking toward the cursor while free (guesses)")]
+        [Tooltip("Degrees to each side the head and neck turn toward the cursor, together. Beyond it the head stays at the limit.")]
+        public float LookLimit = 70f;
+        [Tooltip("The share of the look the top spine bone takes; the neck and head take the rest. The arms are held where they were.")]
+        [Range(0f, 0.5f)] public float LookSpineShare = 0.1f;
+        [Tooltip("Seconds the look takes to follow the cursor (about two thirds of the way). Larger is lazier.")]
+        public float LookSmoothing = 0.12f;
+        [Tooltip("With the cursor behind her, degrees past straight behind it must go before the head swaps to the other side.")]
+        public float LookHoldBehind = 30f;
 
         static readonly int s_Idle = Animator.StringToHash(IdleState);
         static readonly int s_Run = Animator.StringToHash(RunState);
@@ -107,12 +122,28 @@ namespace Roguelike
         Quaternion _rightWeaponRest = Quaternion.identity;
         Quaternion _leftWeaponRest = Quaternion.identity;
         Vector3 _aimDirection = Vector3.forward;
+        float _look;          // degrees the head is turned toward the cursor, before the hand-over to the aim
+        float _lookSide = 1f; // which side the head holds when the cursor is behind her
+        PlayerHealth _health;
+        // The shoulders' local pose before the look held them back: what the clips do not animate is put back at the
+        // start of the next LateUpdate, or the look would pile up frame after frame.
+        readonly System.Collections.Generic.List<LookUndo> _lookUndo = new System.Collections.Generic.List<LookUndo>();
+
+        struct LookUndo
+        {
+            public Transform Bone;
+            public Vector3 Position, SetPosition;
+            public Quaternion Rotation, SetRotation;
+        }
 
         /// <summary>0 with the arms as the clip has them, 1 with both arms and weapons pointed at the target.</summary>
         public float AimWeight => _aimWeight;
 
         /// <summary>Degrees the upper body is turned from the legs this frame, clockwise seen from above.</summary>
         public float Twist { get; private set; }
+
+        /// <summary>Degrees the head turns toward the cursor this frame, clockwise seen from above, after the hand-over to the aim.</summary>
+        public float Look { get; private set; }
 
         public CharacterPose Pose { get; private set; }
 
@@ -134,6 +165,7 @@ namespace Roguelike
             if (Hips != null) _hipsRest = Animator.transform.InverseTransformPoint(Hips.position);
             if (RightWeapon != null) _rightWeaponRest = RightWeapon.localRotation;
             if (LeftWeapon != null) _leftWeaponRest = LeftWeapon.localRotation;
+            _health = Player.GetComponent<PlayerHealth>();
             _seenDashes = Player.DashesStarted;
             _seenActions = Player.ActionsStarted;
             _seenKicks = Player.KickCount;
@@ -247,6 +279,16 @@ namespace Roguelike
         void LateUpdate()
         {
             if (!_started) return;
+            // Put back what the look changed last frame and the clips do not animate (the Animator has just posed the
+            // rest). Done here, not in Update, so that between frames the pose stays as shown, muzzles included.
+            // A value the Animator wrote this frame is left as it is; one still as the look set it is put back.
+            foreach (LookUndo u in _lookUndo)
+            {
+                if (u.Bone == null) continue;
+                if (u.Bone.localPosition == u.SetPosition) u.Bone.localPosition = u.Position;
+                if (u.Bone.localRotation == u.SetRotation) u.Bone.localRotation = u.Rotation;
+            }
+            _lookUndo.Clear();
             float now = Time.time;
             if (Hips != null)
             {
@@ -274,6 +316,7 @@ namespace Roguelike
             // The weapons are not animated, so they keep what was set last frame: start from how they are held.
             if (RightWeapon != null) RightWeapon.localRotation = _rightWeaponRest;
             if (LeftWeapon != null) LeftWeapon.localRotation = _leftWeaponRest;
+            LookTowardCursor(body);
             Twist = 0f;
             if (_aimWeight > 0f)
             {
@@ -312,18 +355,102 @@ namespace Roguelike
         /// </summary>
         void TurnUpperBody(float degrees, float nudge = 0f)
         {
-            float turn = Mathf.Clamp(degrees, -MaxTwist, MaxTwist) * _aimWeight + nudge;
-            Twist = turn;
-            if (Mathf.Abs(turn) < 0.01f) return;
+            float aim = Mathf.Clamp(degrees, -MaxTwist, MaxTwist) * _aimWeight;
+            Twist = aim + nudge;
+            if (Mathf.Abs(Twist) < 0.01f) return;
             int spineBones = 0;
             if (Spine != null) foreach (Transform bone in Spine) if (bone != null) spineBones++;
-            float torso = spineBones > 0 ? TorsoShare : 0f;
+            // The spine's part: TorsoShare up to the knee, WideTorsoShare beyond it, so the chest stops turning at wide
+            // aims instead of wringing the back; the recoil's shoulder nudge rides on it.
+            float spine = spineBones > 0 ? SpineTurn(aim) + nudge : 0f;
             if (spineBones > 0)
                 foreach (Transform bone in Spine)
-                    if (bone != null) bone.rotation = Quaternion.AngleAxis(turn * torso / spineBones, Vector3.up) * bone.rotation;
-            float rest = turn * (1f - torso);
+                    if (bone != null) bone.rotation = Quaternion.AngleAxis(spine / spineBones, Vector3.up) * bone.rotation;
+            float rest = Mathf.Clamp(aim - (spine - (spineBones > 0 ? nudge : 0f)), -MaxHeadTurn, MaxHeadTurn);
             if (Neck != null) Neck.rotation = Quaternion.AngleAxis(rest * 0.4f, Vector3.up) * Neck.rotation;
             if (Head != null) Head.rotation = Quaternion.AngleAxis(rest * (Neck != null ? 0.6f : 1f), Vector3.up) * Head.rotation;
+        }
+
+        /// <summary>Degrees the spine turns for an aim this far to the side: continuous, flattening beyond the knee.</summary>
+        public float SpineTurn(float aim)
+        {
+            float a = Mathf.Abs(aim);
+            return Mathf.Sign(aim) * (TorsoShare * Mathf.Min(a, TorsoKnee) + WideTorsoShare * Mathf.Max(0f, a - TorsoKnee));
+        }
+
+        // ---------------- Looking toward the cursor ----------------
+
+        /// <summary>
+        /// While she is free (not in a skill, not dashing, not dead), the head and neck, and a small share of the top
+        /// of the spine, turn toward the cursor's ground point, up to <see cref="LookLimit"/> to each side, following it
+        /// smoothly. With the cursor behind her the head holds its side until the cursor is clearly on the other one.
+        /// A shot hands the look over to the aim twist (which turns the head to the aim) as the arms come up, and back
+        /// as they go down. Presentation only: the arms are held where they were, so the muzzles do not move, and the
+        /// body and legs are never turned.
+        /// </summary>
+        void LookTowardCursor(Vector3 body)
+        {
+            bool free = !Player.IsLocked && (_health == null || _health.IsAlive);
+            float wanted = 0f;
+            if (free && Player.HasLookPoint)
+            {
+                Vector3 toCursor = Flat(Player.LookPoint - Player.transform.position);
+                if (toCursor.sqrMagnitude > 0.04f) wanted = LookAngle(Vector3.SignedAngle(body, toCursor, Vector3.up));
+            }
+            float k = LookSmoothing > 0f ? 1f - Mathf.Exp(-Time.deltaTime / LookSmoothing) : 1f;
+            _look = Mathf.Lerp(_look, wanted, k);
+            Look = _look * (1f - _aimWeight);
+            if (Mathf.Abs(Look) < 0.01f) return;
+
+            float spine = Look * LookSpineShare;
+            Transform top = TopSpine();
+            if (top != null && Mathf.Abs(spine) > 0.001f)
+            {
+                // Turn the top of the spine, then put everything hanging from it except the neck back where it was,
+                // so the shoulders, arms and pistols stay exactly as they were.
+                Quaternion turn = Quaternion.AngleAxis(spine, Vector3.up);
+                Quaternion back = Quaternion.Inverse(turn);
+                Vector3 pivot = top.position;
+                top.rotation = turn * top.rotation;
+                for (int i = 0; i < top.childCount; i++)
+                {
+                    Transform child = top.GetChild(i);
+                    if (child == Neck) continue;
+                    var undo = new LookUndo { Bone = child, Position = child.localPosition, Rotation = child.localRotation };
+                    child.SetPositionAndRotation(pivot + back * (child.position - pivot), back * child.rotation);
+                    undo.SetPosition = child.localPosition;
+                    undo.SetRotation = child.localRotation;
+                    _lookUndo.Add(undo);
+                }
+            }
+            else spine = 0f;
+            float rest = Look - spine;
+            if (Neck != null) Neck.rotation = Quaternion.AngleAxis(rest * 0.4f, Vector3.up) * Neck.rotation;
+            if (Head != null) Head.rotation = Quaternion.AngleAxis(rest * (Neck != null ? 0.6f : 1f), Vector3.up) * Head.rotation;
+        }
+
+        /// <summary>The look for a cursor this many degrees from the facing: itself within the limit, else the limit on the side held.</summary>
+        float LookAngle(float degrees)
+        {
+            if (Mathf.Abs(degrees) <= LookLimit)
+            {
+                if (Mathf.Abs(degrees) > 1f) _lookSide = Mathf.Sign(degrees);
+                return degrees;
+            }
+            float side = Mathf.Sign(degrees);
+            // Straight behind, the side flips with the slightest move: hold the side until it is clearly the other one.
+            bool nearBehind = Mathf.Abs(degrees) > 180f - LookHoldBehind;
+            if (side != _lookSide && !nearBehind) _lookSide = side;
+            return _lookSide * LookLimit;
+        }
+
+        Transform TopSpine()
+        {
+            if (Spine == null) return null;
+            Transform top = null;
+            foreach (Transform bone in Spine)
+                if (bone != null && (top == null || bone.IsChildOf(top))) top = bone;
+            return top;
         }
 
         // ---------------- Recoil ----------------
