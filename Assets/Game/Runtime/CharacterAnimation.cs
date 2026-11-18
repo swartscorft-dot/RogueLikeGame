@@ -29,6 +29,8 @@ namespace Roguelike
         public const string RunState = "Run";
         public const string ShootState = "Shoot";
         public const string DashState = "Dash";
+        public const string ShootMoveState = "ShootRun";
+        public const string ShootBackState = "ShootBack";
 
         const float FadeToIdle = 0.15f;
         const float FadeToRun = 0.1f;
@@ -51,6 +53,10 @@ namespace Roguelike
         public float DashRecovery = 0.25f;
         [Tooltip("The speed, in m/s, at which the Run clip's steps match the ground.")]
         public float RunClipSpeed = 6f;
+        [Tooltip("The speed, in m/s, at which the forward shooting gait's steps match the ground. 0 plays it at its own speed.")]
+        public float ShootRunClipSpeed;
+        [Tooltip("The speed, in m/s, at which the backward shooting gait's steps match the ground. 0 plays it at its own speed.")]
+        public float ShootBackClipSpeed;
 
         [Header("Aiming in the Shoot pose (optional)")]
         public Transform RightArm;
@@ -65,7 +71,7 @@ namespace Roguelike
         [Tooltip("Where a pistol sits in a hand. Read every frame, so it can be tuned while playing. Optional.")]
         public GripSettings Grip;
         [Tooltip("Seconds to raise the arms into the aim, and to lower them again.")]
-        public float AimBlend = 0.08f;
+        public float AimBlend = 0.05f;
         [Tooltip("Metres toward the target that the arms point at. Shorter makes them converge more.")]
         public float AimDistance = 6f;
 
@@ -83,9 +89,17 @@ namespace Roguelike
         static readonly int s_Run = Animator.StringToHash(RunState);
         static readonly int s_Shoot = Animator.StringToHash(ShootState);
         static readonly int s_Dash = Animator.StringToHash(DashState);
+        static readonly int s_ShootMove = Animator.StringToHash(ShootMoveState);
+        static readonly int s_ShootBack = Animator.StringToHash(ShootBackState);
 
         int _seenDashes;
         int _seenActions;
+        int _seenKicks;
+        float _speed;
+        bool _backward;
+        // Recoil, per hand: when its kick started, and how hard.
+        float _kickRightAt = float.NegativeInfinity, _kickLeftAt = float.NegativeInfinity;
+        float _kickRightStrength, _kickLeftStrength;
         float _dashPoseUntil = float.NegativeInfinity;
         Vector3 _hipsRest;
         bool _started;
@@ -122,6 +136,7 @@ namespace Roguelike
             if (LeftWeapon != null) _leftWeaponRest = LeftWeapon.localRotation;
             _seenDashes = Player.DashesStarted;
             _seenActions = Player.ActionsStarted;
+            _seenKicks = Player.KickCount;
             Pose = CharacterPose.Idle;
             Animator.Play(s_Idle, 0, 0f);
             _started = true;
@@ -138,9 +153,25 @@ namespace Roguelike
             _seenActions = Player.ActionsStarted;
             if (newDash) _dashPoseUntil = now + feel.DashDuration + DashRecovery;
 
-            // A shot on the move keeps the legs running: it is shown as the run with the arms aimed on top.
+            // A shot on the move keeps the legs going: the shooting gait while it slows her (or the run, when the
+            // body turned for a target behind), with the arms aimed on top.
             bool acting = Player.Action != ActionKind.None && !Player.IsShootingOnTheMove;
-            CharacterPose pose = PoseRule.Pick(Player.IsDashing, acting, now < _dashPoseUntil, Player.Speed);
+            // A hit stop freezes time and the character's speed reads 0: keep the speed from before it, so a hit
+            // on the move does not flash the idle pose.
+            if (Time.timeScale > 0f)
+            {
+                _speed = Player.Speed;
+                // Backward: moving more against where the body faces than with it.
+                Vector3 velocity = Flat(Player.Velocity);
+                if (velocity.sqrMagnitude > 0.01f) _backward = Vector3.Dot(velocity, Flat(Player.transform.forward)) < 0f;
+            }
+            CharacterPose pose = PoseRule.Pick(Player.IsDashing, acting, now < _dashPoseUntil, _speed, Player.InShootingGait, _backward);
+            if (Player.KickCount != _seenKicks)
+            {
+                _seenKicks = Player.KickCount;
+                if (Player.KickLeftHand) { _kickLeftAt = now; _kickLeftStrength = Player.KickStrength; }
+                else { _kickRightAt = now; _kickRightStrength = Player.KickStrength; }
+            }
             // A Shoot clip with a firing moment starts over for every shot; one without is just a stance and plays on.
             bool restart = (pose == CharacterPose.Dash && newDash)
                         || (pose == CharacterPose.Shoot && newAction && ShootFireTime > 0f);
@@ -160,6 +191,7 @@ namespace Roguelike
 
         void Show(CharacterPose pose)
         {
+            CharacterPose from = Pose;
             Pose = pose;
             switch (pose)
             {
@@ -167,7 +199,14 @@ namespace Roguelike
                     Animator.CrossFadeInFixedTime(s_Idle, FadeToIdle, 0);
                     break;
                 case CharacterPose.Run:
-                    Animator.CrossFadeInFixedTime(s_Run, FadeToRun, 0);
+                    bool fromGait = from == CharacterPose.ShootMove || from == CharacterPose.ShootBack;
+                    Animator.CrossFadeInFixedTime(s_Run, fromGait ? Player.Feel.ShootGaitFade : FadeToRun, 0);
+                    break;
+                case CharacterPose.ShootMove:
+                    Animator.CrossFadeInFixedTime(s_ShootMove, Player.Feel.ShootGaitFade, 0);
+                    break;
+                case CharacterPose.ShootBack:
+                    Animator.CrossFadeInFixedTime(s_ShootBack, Player.Feel.ShootGaitFade, 0);
                     break;
                 case CharacterPose.Shoot:
                     // Enter the clip as long before its firing moment as the shot or skill takes to its first hit.
@@ -179,12 +218,20 @@ namespace Roguelike
             }
         }
 
+        /// <summary>How fast to play a gait clip so its steps match her actual speed; 1 if the clip's own speed is not set.</summary>
+        public float GaitRate(float clipSpeed) => clipSpeed > 0f ? Mathf.Clamp(_speed / clipSpeed, 0.25f, 8f) : 1f;
+
         float SpeedFor(CharacterPose pose, FeelValues feel)
         {
             switch (pose)
             {
                 case CharacterPose.Run:
-                    return RunClipSpeed > 0f ? Mathf.Clamp(Player.Speed / RunClipSpeed, 0.5f, 2f) : 1f;
+                    return RunClipSpeed > 0f ? Mathf.Clamp(_speed / RunClipSpeed, 0.5f, 2f) : 1f;
+                case CharacterPose.ShootMove:
+                    // The steps follow her actual speed, as it eases down and up around the shot.
+                    return GaitRate(ShootRunClipSpeed);
+                case CharacterPose.ShootBack:
+                    return GaitRate(ShootBackClipSpeed);
                 case CharacterPose.Dash:
                     float shown = feel.DashDuration + DashRecovery;
                     return shown > 0f ? Mathf.Max(0.1f, (DashClipEnd - DashClipStart) / shown) : 1f;
@@ -200,6 +247,7 @@ namespace Roguelike
         void LateUpdate()
         {
             if (!_started) return;
+            float now = Time.time;
             if (Hips != null)
             {
                 Transform root = Animator.transform;
@@ -229,11 +277,16 @@ namespace Roguelike
             Twist = 0f;
             if (_aimWeight > 0f)
             {
-                TurnUpperBody(Vector3.SignedAngle(body, _aimDirection, Vector3.up));
+                // The firing side's shoulder is nudged back by its kick: part of the turn, so the arms aimed after it
+                // still point at the target.
+                float nudge = 0.15f * (KickAngle(_kickRightAt, _kickRightStrength, now) - KickAngle(_kickLeftAt, _kickLeftStrength, now));
+                TurnUpperBody(Vector3.SignedAngle(body, _aimDirection, Vector3.up), nudge);
                 Vector3 ahead = Player.transform.position + _aimDirection * AimDistance;
                 AimArm(RightArm, RightForeArm, RightHand, RightWeapon, _rightWeaponRest, ahead);
                 AimArm(LeftArm, LeftForeArm, LeftHand, LeftWeapon, _leftWeaponRest, ahead);
             }
+            Kick(RightArm, RightForeArm, RightHand, RightWeapon, _kickRightAt, _kickRightStrength, now);
+            Kick(LeftArm, LeftForeArm, LeftHand, LeftWeapon, _kickLeftAt, _kickLeftStrength, now);
 
             // Last, with the hands and the weapons turned as they will be shown: seat each weapon in its hand.
             SeatInHand(RightWeapon, RightHand, outwardSign: -1f);
@@ -257,9 +310,9 @@ namespace Roguelike
         /// instead of hinging at the waist, then the neck and the head the rest of the way, so the head faces the
         /// target. The arms, aimed after this, make up what the spine leaves. Blended in and out with the aim.
         /// </summary>
-        void TurnUpperBody(float degrees)
+        void TurnUpperBody(float degrees, float nudge = 0f)
         {
-            float turn = Mathf.Clamp(degrees, -MaxTwist, MaxTwist) * _aimWeight;
+            float turn = Mathf.Clamp(degrees, -MaxTwist, MaxTwist) * _aimWeight + nudge;
             Twist = turn;
             if (Mathf.Abs(turn) < 0.01f) return;
             int spineBones = 0;
@@ -271,6 +324,81 @@ namespace Roguelike
             float rest = turn * (1f - torso);
             if (Neck != null) Neck.rotation = Quaternion.AngleAxis(rest * 0.4f, Vector3.up) * Neck.rotation;
             if (Head != null) Head.rotation = Quaternion.AngleAxis(rest * (Neck != null ? 0.6f : 1f), Vector3.up) * Head.rotation;
+        }
+
+        // ---------------- Recoil ----------------
+
+        /// <summary>0 to 1 to 0 over a kick: a fast ease-out up to the peak, then a smooth settle back.</summary>
+        float KickAmount(float startedAt, float now)
+        {
+            ShotFxSettings looks = Player.ShotLooks;
+            float up = looks != null ? looks.RecoilKickSeconds : ShotFxSettings.StartRecoilKickSeconds;
+            float down = looks != null ? looks.RecoilSettleSeconds : ShotFxSettings.StartRecoilSettleSeconds;
+            float t = now - startedAt;
+            if (t < 0f) return 0f;
+            if (t < up) { float x = up > 0f ? t / up : 1f; return 1f - (1f - x) * (1f - x); }
+            t -= up;
+            if (t >= down) return 0f;
+            float y = down > 0f ? t / down : 1f;
+            return 1f - y * y * (3f - 2f * y);
+        }
+
+        /// <summary>Degrees the muzzle of that hand's pistol is flipped up now; never more than 40.</summary>
+        float KickAngle(float startedAt, float strength, float now)
+        {
+            ShotFxSettings looks = Player.ShotLooks;
+            float angle = looks != null ? looks.RecoilAngle : ShotFxSettings.StartRecoilAngle;
+            return Mathf.Min(40f, angle * strength) * KickAmount(startedAt, now);
+        }
+
+        /// <summary>The peak muzzle flip, in degrees, of a kick of this strength: for tests and tools.</summary>
+        public float PeakKickAngle(float strength)
+        {
+            ShotFxSettings looks = Player.ShotLooks;
+            return Mathf.Min(40f, (looks != null ? looks.RecoilAngle : ShotFxSettings.StartRecoilAngle) * strength);
+        }
+
+        /// <summary>
+        /// The kick of the pistol that fired, on top of the aim: the hand comes back toward the shoulder with the
+        /// elbow giving (a two-bone bend), then the hand turns so the muzzle flips up. It never moves where the shot
+        /// started: the shot read the muzzle before this frame's pose.
+        /// </summary>
+        void Kick(Transform upper, Transform fore, Transform hand, Transform weapon, float startedAt, float strength, float now)
+        {
+            if (hand == null || weapon == null || strength <= 0f) return;
+            float k = KickAmount(startedAt, now);
+            if (k <= 0f) return;
+            ShotFxSettings looks = Player.ShotLooks;
+            float pull = Mathf.Min(0.15f, (looks != null ? looks.RecoilPullBack : ShotFxSettings.StartRecoilPullBack) * strength) * k;
+            float angle = KickAngle(startedAt, strength, now);
+            Vector3 barrel = weapon.right;
+            Vector3 flat = new Vector3(barrel.x, 0f, barrel.z);
+            if (flat.sqrMagnitude < 1e-6f) return;
+            flat.Normalize();
+            Quaternion held = hand.rotation;
+
+            if (upper != null && fore != null && pull > 0f)
+            {
+                Vector3 s = upper.position, target = hand.position - flat * pull + Vector3.up * (pull * 0.3f);
+                float a = Vector3.Distance(s, fore.position), b = Vector3.Distance(fore.position, hand.position);
+                float d = Mathf.Clamp(Vector3.Distance(s, target), Mathf.Abs(a - b) + 1e-3f, a + b - 1e-3f);
+                float want = Mathf.Acos(Mathf.Clamp((a * a + b * b - d * d) / (2f * a * b), -1f, 1f)) * Mathf.Rad2Deg;
+                float have = Vector3.Angle(s - fore.position, hand.position - fore.position);
+                Vector3 axis = Vector3.Cross(fore.position - s, hand.position - fore.position);
+                if (axis.sqrMagnitude < 1e-8f) axis = Vector3.Cross(flat, Vector3.up);
+                axis.Normalize();
+                // Bend the elbow by the difference, whichever way round brings the interior angle to what is wanted.
+                Quaternion before = fore.rotation;
+                fore.rotation = Quaternion.AngleAxis(have - want, axis) * before;
+                float plus = Vector3.Angle(s - fore.position, hand.position - fore.position);
+                fore.rotation = Quaternion.AngleAxis(want - have, axis) * before;
+                float minus = Vector3.Angle(s - fore.position, hand.position - fore.position);
+                if (Mathf.Abs(plus - want) < Mathf.Abs(minus - want)) fore.rotation = Quaternion.AngleAxis(have - want, axis) * before;
+                // Then the shoulder brings the hand to the target point.
+                upper.rotation = Quaternion.FromToRotation(hand.position - s, target - s) * upper.rotation;
+            }
+
+            hand.rotation = Quaternion.AngleAxis(angle, Vector3.Cross(flat, Vector3.up).normalized) * held;
         }
 
         /// <summary>

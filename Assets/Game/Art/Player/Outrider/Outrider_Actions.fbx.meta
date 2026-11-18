@@ -61,7 +61,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: Walk_Forward_While_Shooting
+      name: ShootWalk
       takeName: Walk_Forward_While_Shooting
       internalID: 3651897239074681142
       firstFrame: 0
@@ -72,7 +72,7 @@ ModelImporter:
       cycleOffset: 0
       loop: 0
       hasAdditiveReferencePose: 0
-      loopTime: 0
+      loopTime: 1
       loopBlend: 0
       loopBlendOrientation: 0
       loopBlendPositionY: 0

@@ -132,10 +132,10 @@ namespace Roguelike.PlayModeTests
 
         // Both sides are tested, so the nearest target must win whichever dummy the game happens to list first.
         [UnityTest]
-        public IEnumerator AttackMove_NearA_ShootsARepeatedly_WithoutWalking() => AttackMoveShootsTheNearest(NearA, _a, _b);
+        public IEnumerator AttackMove_NearA_ShootsAOnce_WithoutWalking_ThenStands() => AttackMoveShootsTheNearest(NearA, _a, _b);
 
         [UnityTest]
-        public IEnumerator AttackMove_NearB_ShootsBRepeatedly_WithoutWalking() => AttackMoveShootsTheNearest(NearB, _b, _a);
+        public IEnumerator AttackMove_NearB_ShootsBOnce_WithoutWalking_ThenStands() => AttackMoveShootsTheNearest(NearB, _b, _a);
 
         IEnumerator AttackMoveShootsTheNearest(Vector3 from, Damageable near, Damageable far)
         {
@@ -146,13 +146,16 @@ namespace Roguelike.PlayModeTests
             Vector3 start = _player.Position;
 
             _player.AttackMoveTo(from + Vector3.back * 9f);
-            yield return Until(() => near.HitsTaken + far.HitsTaken >= 2, 5f);
+            yield return Until(() => near.HitsTaken + far.HitsTaken >= 1, 5f);
+            Assert.That(near.HitsTaken, Is.EqualTo(1), "shoots the nearest target");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "and the order is done once the shot has gone off");
 
-            Assert.That(near.HitsTaken, Is.EqualTo(2), "keeps shooting the nearest target");
-            Assert.That(near.CurrentHealth, Is.EqualTo(near.MaxHealth - 2 * Placeholders.BasicShotDamage));
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+            Assert.That(near.HitsTaken, Is.EqualTo(1), "one click, one shot: no repeat");
+            Assert.That(near.CurrentHealth, Is.EqualTo(near.MaxHealth - Placeholders.BasicShotDamage));
             Assert.That(far.HitsTaken, Is.EqualTo(0), "not the farther one");
-            Assert.That(FlatDistance(_player.Position, start), Is.LessThan(0.05f), "does not walk while a target is in range");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove), "the order stays");
+            Assert.That(FlatDistance(_player.Position, start), Is.LessThan(0.05f), "does not walk: she stands");
+            Assert.That(_player.BasicShotsFired, Is.EqualTo(1));
         }
 
         [UnityTest]
@@ -172,6 +175,12 @@ namespace Roguelike.PlayModeTests
             Assert.That(gap, Is.LessThanOrEqualTo(range + 0.05f), "shot from inside the range");
             Assert.That(gap, Is.GreaterThan(range - 0.6f), "stopped as soon as the target came into range");
             Assert.That(_b.HitsTaken, Is.EqualTo(0));
+
+            Vector3 stoodAt = _player.Position;
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "one shot, no repeat");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
+            Assert.That(FlatDistance(_player.Position, stoodAt), Is.LessThan(0.05f), "and she stands");
         }
 
         // The click picks the target: a dummy near the click wins over one nearer the character.
@@ -194,12 +203,13 @@ namespace Roguelike.PlayModeTests
 
             _player.AttackMoveTo(GroundBeside(clicked));
             Assert.That(_player.OrderTarget, Is.SameAs(clicked), "the click picked the dummy near it");
-            yield return Until(() => clicked.HitsTaken + nearer.HitsTaken >= 2, 5f);
+            yield return Until(() => clicked.HitsTaken + nearer.HitsTaken >= 1, 5f);
+            yield return new WaitForSeconds(ShotSeconds * 2f);
 
-            Assert.That(clicked.HitsTaken, Is.EqualTo(2), "shoots the dummy near the click");
+            Assert.That(clicked.HitsTaken, Is.EqualTo(1), "shoots the dummy near the click, once");
             Assert.That(nearer.HitsTaken, Is.EqualTo(0), "not the one nearer the character");
             Assert.That(FlatDistance(_player.Position, start), Is.LessThan(0.05f), "does not walk while that target is in range");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove));
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "and then stands");
         }
 
         [UnityTest]
@@ -223,7 +233,25 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator AttackMove_WhenTheClickedDummyDies_GoesOnWithTheNearest()
+        public IEnumerator AttackMove_WhenTheClickedDummyDiesBeforeTheShot_TheNearestGetsTheOneShot()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+
+            _player.AttackMoveTo(GroundBeside(_b));
+            Assert.That(_player.OrderTarget, Is.SameAs(_b));
+            _b.TakeHit(_b.MaxHealth); // dies before her shot has started
+            Assert.That(_b.IsAlive, Is.False);
+
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "the nearest in range gets the shot instead");
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "and only the one");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
+        }
+
+        [UnityTest]
+        public IEnumerator AttackMove_KillingTheClickedDummy_EndsTheOrder_TheNextOneIsLeftAlone()
         {
             _player.Teleport(NearA);
             yield return null;
@@ -231,15 +259,11 @@ namespace Roguelike.PlayModeTests
             Assume.That(_b.IsAlive, Is.True);
 
             _player.AttackMoveTo(GroundBeside(_b));
-            Assert.That(_player.OrderTarget, Is.SameAs(_b));
             yield return Until(() => !_b.IsAlive, 3f);
-            Assert.That(_b.IsAlive, Is.False, "the clicked dummy is shot first");
-            Assert.That(_a.HitsTaken, Is.EqualTo(0));
-
-            yield return Until(() => _a.HitsTaken >= 2, 3f);
-            Assert.That(_a.HitsTaken, Is.EqualTo(2), "then the nearest in range");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove), "the order stays");
-            Assert.That(_player.OrderTarget, Is.Null, "with no picked target left");
+            Assert.That(_b.IsAlive, Is.False, "the clicked dummy is shot");
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the next one is left alone: it needs a click of its own");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
         }
 
         // ---------------- C5 Attack-target ----------------
@@ -251,12 +275,14 @@ namespace Roguelike.PlayModeTests
             yield return null;
 
             _player.AttackTarget(_b); // A is nearer, B is the order
-            yield return Until(() => _b.HitsTaken >= 2, 10f);
-
-            Assert.That(_b.HitsTaken, Is.EqualTo(2));
-            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the nearer dummy is left alone");
             Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackTarget));
             Assert.That(_player.OrderTarget, Is.SameAs(_b));
+            yield return Until(() => _b.HitsTaken >= 1, 10f);
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+
+            Assert.That(_b.HitsTaken, Is.EqualTo(1), "one shot at the chosen target");
+            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the nearer dummy is left alone");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "and then she stands");
         }
 
         [UnityTest]
@@ -380,7 +406,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator MoveOrderInAShotsRecovery_MovesAtOnce()
         {
-            Assume.That(_feel.BasicShotRecovery, Is.GreaterThan(0.15f));
+            Assume.That(_feel.BasicShotRecovery, Is.GreaterThan(0.08f), "a recovery long enough to leave during");
             _player.Teleport(NearA);
             yield return null;
             _player.AttackTarget(_a);
@@ -391,9 +417,9 @@ namespace Roguelike.PlayModeTests
             float orderedAt = Time.time;
 
             _player.MoveTo(new Vector3(2f, 0f, -6f));
-            yield return Until(() => FlatDistance(_player.Position, from) > 0.3f, 2f);
-            Assert.That(FlatDistance(_player.Position, from), Is.GreaterThan(0.3f));
-            Assert.That(Time.time - orderedAt, Is.LessThan(_feel.BasicShotRecovery * 0.6f), "it left during what would have been the recovery");
+            yield return Until(() => FlatDistance(_player.Position, from) > 0.15f, 2f);
+            Assert.That(FlatDistance(_player.Position, from), Is.GreaterThan(0.15f));
+            Assert.That(Time.time - orderedAt, Is.LessThan(_feel.BasicShotRecovery * 0.8f), "it left during what would have been the recovery");
             Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
         }
 
@@ -407,8 +433,8 @@ namespace Roguelike.PlayModeTests
             float firstHit = Time.time;
 
             // Step away and order the attack again every frame: the fastest a player could try to shoot.
-            // (On the move, an attack command that comes too early lapses as a buffered press does, so it is
-            // repeated here as a player hammering the button would.)
+            // (A command during the shot's cycle waits for the next shot; repeating it every frame is what a
+            // player hammering the button would do, and still gives one shot per cycle.)
             _player.MoveTo(_player.Position + Vector3.back);
             yield return null;
             yield return Until(() =>
@@ -514,7 +540,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator HitStop_FreezesTimeAtTheHit_ThenReleases()
         {
-            Assume.That(_feel.HitStop, Is.GreaterThan(0f));
+            Assume.That(_feel.BasicShotHitStop, Is.GreaterThan(0f), "a basic shot hit has a hit stop of its own");
             _player.Teleport(NearA);
             yield return null;
 
@@ -524,7 +550,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(Time.timeScale, Is.EqualTo(0f), "frozen on the frame of the hit");
             Assert.That(HitStop.IsActive, Is.True);
 
-            yield return new WaitForSecondsRealtime(_feel.HitStop + 0.1f);
+            yield return new WaitForSecondsRealtime(_feel.BasicShotHitStop + 0.1f);
             Assert.That(Time.timeScale, Is.EqualTo(1f), "time runs again");
             Assert.That(HitStop.IsActive, Is.False);
         }
@@ -590,25 +616,55 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator Input_HeldRightClickOnADummy_AttacksIt_AtTheNormalRate()
+        public IEnumerator Input_HeldRightClickOnADummy_ShootsOnce_HoldingDoesNotRepeat()
         {
             UseFakeInput();
             _player.Teleport(NearA);
             yield return null;
             yield return null; // let the camera settle on the new position
             _idle = new InputFrame { CursorScreen = ScreenOf(_a.transform.position), MoveHeld = true };
-
-            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            yield return null;
+            yield return null;
             Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackTarget), "a right-click on a dummy is an attack, not a move");
             Assert.That(_player.OrderTarget, Is.SameAs(_a));
-            float firstHit = Time.time;
-            Vector3 stoodAt = _player.Position;
 
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            Vector3 stoodAt = _player.Position;
+            yield return new WaitForSeconds(ShotSeconds * 3f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "holding the button for three shot times gives one shot: one press, one shot");
+            Assert.That(FlatDistance(_player.Position, stoodAt), Is.LessThan(0.05f), "and she does not walk");
+
+            // Let go and press again: a second shot.
+            _idle = new InputFrame { CursorScreen = ScreenOf(_a.transform.position) };
+            yield return null;
+            yield return null;
+            _idle = new InputFrame { CursorScreen = ScreenOf(_a.transform.position), MoveHeld = true };
             yield return Until(() => _a.HitsTaken >= 2, 3f);
-            Assert.That(_a.HitsTaken, Is.EqualTo(2));
-            Assert.That(Time.time - firstHit, Is.EqualTo(ShotSeconds).Within(0.06f),
-                        "holding the button on the dummy keeps shooting, neither faster nor slower");
-            Assert.That(FlatDistance(_player.Position, stoodAt), Is.LessThan(0.05f), "and does not walk");
+            Assert.That(_a.HitsTaken, Is.EqualTo(2), "a second press gives a second shot");
+        }
+
+        [UnityTest]
+        public IEnumerator Input_LeftClicksInRhythm_EveryClickIsAShot()
+        {
+            UseFakeInput();
+            _player.Teleport(NearA);
+            yield return null;
+            yield return null;
+            _idle = new InputFrame { CursorScreen = ScreenOf(_a.transform.position) };
+            var click = new InputFrame { CursorScreen = ScreenOf(_a.transform.position), ConfirmPressed = true };
+
+            // Three left clicks on the dummy, one every 0.6 shot times: faster than she can shoot.
+            float start = Time.time;
+            int given = 0;
+            float deadline = Time.realtimeSinceStartup + 4f;
+            while (_a.HitsTaken < 3 && Time.realtimeSinceStartup < deadline)
+            {
+                if (given < 3 && Time.time >= start + given * ShotSeconds * 0.6f) { _frames.Enqueue(click); given++; }
+                yield return null;
+            }
+            Assert.That(_a.HitsTaken, Is.EqualTo(3), "three clicks, three shots: a click during a shot's cycle is not lost");
+            yield return new WaitForSeconds(ShotSeconds * 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(3), "and no more");
         }
 
         [UnityTest]
@@ -852,6 +908,31 @@ namespace Roguelike.PlayModeTests
         }
 
         // ---------------- Helpers ----------------
+
+        [UnityTest]
+        public IEnumerator Animation_BothShootingGaitsAreBakedForThisRig()
+        {
+            CharacterAnimation view = RiggedView();
+            yield return null;
+            foreach (string state in new[] { CharacterAnimation.ShootMoveState, CharacterAnimation.ShootBackState })
+                Assert.That(view.Animator.HasState(0, Animator.StringToHash(state)), Is.True, "the Animator has a state " + state);
+            AnimationClip forward = null, backward = null;
+            foreach (AnimationClip clip in view.Animator.runtimeAnimatorController.animationClips)
+            {
+                if (clip == null) continue;
+                if (clip.name == "Outrider_grip_ShootRun") forward = clip;
+                if (clip.name == "Outrider_grip_ShootBack") backward = clip;
+            }
+            Assert.That(forward, Is.Not.Null, "the forward gait (Run and Shoot) baked for this rig");
+            Assert.That(backward, Is.Not.Null, "the backward gait (Walk Backward While Shooting) baked for this rig");
+            foreach (AnimationClip clip in new[] { forward, backward })
+            {
+                Assert.That(clip.length, Is.GreaterThan(0.3f), clip.name + ": a whole cycle");
+                Assert.That(clip.isLooping, Is.True, clip.name + ": looping");
+            }
+            Assert.That(view.ShootRunClipSpeed, Is.GreaterThan(0f), "the speeds their steps match are set");
+            Assert.That(view.ShootBackClipSpeed, Is.GreaterThan(0f));
+        }
 
         CharacterAnimation RiggedView()
         {

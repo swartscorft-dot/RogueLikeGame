@@ -29,6 +29,12 @@ namespace Roguelike
     /// anything takes over at once. A shot that did go off makes the next one wait out the whole shot time,
     /// so stepping between shots never raises the fire rate.
     ///
+    /// Click to shoot (Kristian 2026-11-18): every basic shot answers one attack command; there is no
+    /// auto-attack. An attack order walks into range if it must, fires one shot and is done, and she stands.
+    /// A command while a shot is still in its cycle waits and is answered by the next shot the moment the
+    /// cycle allows; only one waits, and a newer one replaces it (<see cref="ShotCommands"/>). A move order
+    /// drops it; so do a dash and a skill.
+    ///
     /// An attack command while walking on a move order, at a target in basic-attack range, is a shot on the move:
     /// the move goes on, slowed while the shot winds up and back to full speed shortly after it, and one shot is
     /// fired. A new move order changes where it goes and does not cancel that shot; a dash or a skill does.
@@ -93,9 +99,17 @@ namespace Roguelike
         bool _orderedDuringShot;                    // a new order came in while a basic shot was going
         bool _movingShot;                           // the basic shot in progress is a shot on the move
         bool _shotTurnsBody;                        // the basic shot in progress turned the whole body to its target
-        float _moveShotFiredAt = float.NegativeInfinity;
-        Damageable _pendingShotTarget;              // an attack command on the move that came before the next shot was allowed
-        float _pendingShotAt;
+        // The speed around shots on the move (MovingShot.SpeedShare): eased down from the share it had when the
+        // latest such shot started, and back up once that shot has gone off and the slow-down is done.
+        bool _easing;
+        float _easeStartedAt;
+        float _easeFrom = 1f;
+        float _easeFiredAfter = -1f;
+        bool _easeTurnedBody;
+        // Click to shoot: the attack order's command, and an attack command on the move that came while a shot
+        // was still in its cycle (it waits for the next shot, without expiring).
+        readonly ShotCommands _commands = new ShotCommands();
+        readonly PendingOne<Damageable> _pendingMoveShot = new PendingOne<Damageable>();
         Vector3 _cursorPoint;
         bool _hasCursor;
         bool _bufferedSkillReleased;
@@ -114,6 +128,7 @@ namespace Roguelike
         public Vector3 Position => transform.position;
         public GroundPoint GroundPosition => new GroundPoint(transform.position.x, transform.position.z);
         public float Speed => _agent.velocity.magnitude;
+        public Vector3 Velocity => _agent.velocity;
 
         public OrderKind Order => _order;
         /// <summary>The target the order goes for: the chosen one (attack-target) or the one the click picked (attack-move).</summary>
@@ -174,12 +189,23 @@ namespace Roguelike
         public bool IsInvulnerable => _dash.IsInvulnerable(Time.time);
         public float DashCooldownRemaining => _dash.CooldownRemaining(Time.time);
         public bool HasBufferedPress => _buffer.HasItem;
+        /// <summary>True while an attack command waits for its shot: an attack order not yet answered, or a click on the move waiting for the cycle.</summary>
+        public bool HasPendingShot => _commands.Owed || _pendingMoveShot.HasItem;
         /// <summary>True while a basic shot is fired on the move: the move order goes on under it.</summary>
         public bool IsShootingOnTheMove => _actionKind == ActionKind.BasicShot && _movingShot;
         /// <summary>True while the basic shot in progress turned the whole body to its target (it lay outside the front angle).</summary>
         public bool ShotTurnsBody => _actionKind == ActionKind.BasicShot && _shotTurnsBody;
         /// <summary>The speed the character may walk at now: the run speed, or less while it shoots on the move.</summary>
         public float SpeedLimit => _agent.speed;
+        /// <summary>
+        /// True while the speed is eased down or back up around a shot on the move: the shooting gait, forward or
+        /// (with the body turned to a target behind) backward.
+        /// </summary>
+        public bool InShootingGait => _easing;
+        /// <summary>Counts the shots and skill hits fired from a pistol, for the recoil. Which hand and how hard is in the next two.</summary>
+        public int KickCount { get; private set; }
+        public bool KickLeftHand { get; private set; }
+        public float KickStrength { get; private set; }
         /// <summary>Counts every basic shot that started on the move.</summary>
         public int ShotsOnTheMove { get; private set; }
 
@@ -203,8 +229,19 @@ namespace Roguelike
 
         // ---------------- Intent API ----------------
 
-        /// <summary>Order: walk to a point.</summary>
+        /// <summary>Order: walk to a point. It drops an attack command that waits for its shot.</summary>
         public void MoveTo(Vector3 point) => SetOrder(OrderKind.Move, point, null);
+
+        /// <summary>
+        /// The held move button following the cursor. It walks to the point as <see cref="MoveTo"/> does, but it
+        /// keeps a click on the move that waits for its shot, and it leaves alone an attack order given while the
+        /// button was held: that order goes first, and the steering takes over again once its shot has gone off.
+        /// </summary>
+        public void SteerTo(Vector3 point)
+        {
+            if (_order == OrderKind.AttackMove || _order == OrderKind.AttackTarget) return;
+            SetOrder(OrderKind.Move, point, null, keepWaitingShot: true);
+        }
 
         /// <summary>
         /// Order: attack-move to a point. The click picks the target: the living target nearest the point,
@@ -216,6 +253,7 @@ namespace Roguelike
         {
             Damageable picked = NearestTo(new GroundPoint(point.x, point.z), Feel.AttackMoveClickRadius);
             if (picked != null && TryShootOnTheMove(picked)) return;
+            _commands.Command();
             SetOrder(OrderKind.AttackMove, point, picked);
         }
 
@@ -224,25 +262,22 @@ namespace Roguelike
         {
             if (target == null) return;
             if (TryShootOnTheMove(target)) return;
+            _commands.Command();
             SetOrder(OrderKind.AttackTarget, target.transform.position, target);
         }
 
         /// <summary>
         /// An attack command while walking on a move order, at a target within basic-attack range, does not replace
         /// the move: the character fires one basic shot on the move and walks on to where it was going. A command
-        /// that comes before the next shot is allowed waits as a buffered press does, and lapses after the input
-        /// buffer time. Returns false when the command is not one for a shot on the move.
+        /// that comes before the next shot is allowed waits, without expiring, and is fired the moment the shot
+        /// cycle allows; a newer one replaces it. Returns false when the command is not one for a shot on the move.
         /// </summary>
         bool TryShootOnTheMove(Damageable target)
         {
             if (!IsWalkingOnMoveOrder || !target.IsAlive) return false;
             if (!Targeting.InRange(GroundPosition, target.GroundPosition, target.Radius, Feel.BasicAttackRange)) return false;
-            if (_actionKind == ActionKind.None && Time.time >= _nextShotAt) StartBasicShot(target, Feel, onTheMove: true);
-            else
-            {
-                _pendingShotTarget = target;
-                _pendingShotAt = Time.time;
-            }
+            if (!ShotCommands.MustWait(_actionKind != ActionKind.None, Time.time, _nextShotAt)) StartBasicShot(target, Feel, onTheMove: true);
+            else _pendingMoveShot.Store(target);
             return true;
         }
 
@@ -267,6 +302,7 @@ namespace Roguelike
         {
             if (_dashing || !_dash.CanStart(Time.time)) return IntentResult.Rejected;
 
+            DropWaitingShot();
             if (_actionKind != ActionKind.None)
             {
                 if (_actionKind == ActionKind.Skill && !Feel.DashCancelsSkill) return BufferPress(PressKind.Dash, point);
@@ -274,7 +310,7 @@ namespace Roguelike
                 _cast.Cancel();
                 EndAction();
             }
-            _pendingShotTarget = null;
+            _easing = false; // a dash ends the slow of a shot on the move at once
             return StartDash(point) ? IntentResult.Started : IntentResult.Rejected;
         }
 
@@ -343,8 +379,8 @@ namespace Roguelike
             _dashing = false;
             _hasCursor = false;
             _buffer.Clear();
-            _pendingShotTarget = null;
-            _moveShotFiredAt = float.NegativeInfinity;
+            _pendingMoveShot.Clear();
+            _easing = false;
             ClearOrder();
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
@@ -374,8 +410,10 @@ namespace Roguelike
                 {
                     // Only a shot that went off makes the next one wait.
                     _nextShotAt = _shotStartedAt + _action.Total;
-                    if (_movingShot) _moveShotFiredAt = now;
-                    if (ResolveBasicShot()) HitStop.Trigger(feel.HitStop);
+                    // Click to shoot: the attack order is done once the shot it was given for has gone off.
+                    if (_commands.ShotWentOff() && (_order == OrderKind.AttackMove || _order == OrderKind.AttackTarget)) ClearOrder();
+                    if (_movingShot && _easing) _easeFiredAfter = now - _easeStartedAt;
+                    if (ResolveBasicShot()) HitStop.Trigger(feel.BasicShotHitStop);
                 }
                 if (_movingShot)
                 {
@@ -396,8 +434,10 @@ namespace Roguelike
                 }
                 else
                 {
-                    // Once the shot has gone off, an order that came in during it does not wait for the recovery.
-                    bool cutShort = _action.HitResolved && (_orderedDuringShot || _buffer.HasItem);
+                    // Once the shot has gone off, an order that came in during it does not wait for the recovery,
+                    // unless it is a click to shoot a target in range from here: that waits for the next shot anyway,
+                    // and the recovery runs out exactly when the next shot may start, so the arms stay up between.
+                    bool cutShort = _action.HitResolved && ((_orderedDuringShot && !NextShotFromHere(feel)) || _buffer.HasItem);
                     if (_action.IsRunning(now) && !cutShort) return;
                     _action.Cancel();
                     EndAction();
@@ -431,19 +471,26 @@ namespace Roguelike
                 EndAction();
             }
 
-            // Free from here on: first a buffered press, then a waiting shot on the move, then the standing order.
-            if (_pendingShotTarget != null && !_buffer.HasItem)
+            // Free from here on: first a buffered press, then a click on the move waiting for its shot, then the order.
+            if (_pendingMoveShot.HasItem && !_buffer.HasItem && now >= _nextShotAt)
             {
-                Damageable waiting = _pendingShotTarget;
-                if (now - _pendingShotAt > feel.InputBuffer || !waiting.IsAlive) _pendingShotTarget = null;
-                else if (now >= _nextShotAt)
+                Damageable waiting = _pendingMoveShot.Take();
+                if (waiting.IsAlive)
                 {
-                    _pendingShotTarget = null;
-                    if (IsWalkingOnMoveOrder
-                        && Targeting.InRange(GroundPosition, waiting.GroundPosition, waiting.Radius, feel.BasicAttackRange))
+                    if (IsWalkingOnMoveOrder)
                     {
-                        StartBasicShot(waiting, feel, onTheMove: true);
-                        return;
+                        // Still walking: the shot goes on the move. A target that has left the range meanwhile is let go.
+                        if (Targeting.InRange(GroundPosition, waiting.GroundPosition, waiting.Radius, feel.BasicAttackRange))
+                        {
+                            StartBasicShot(waiting, feel, onTheMove: true);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // She has stopped walking meanwhile: the click is answered standing, as an attack order.
+                        _commands.Command();
+                        SetOrder(OrderKind.AttackTarget, waiting.transform.position, waiting);
                     }
                 }
             }
@@ -464,8 +511,11 @@ namespace Roguelike
 
         void ApplyMovementFeel(FeelValues feel)
         {
-            _agent.speed = feel.RunSpeed * MovingShot.SpeedShare(_movingShot && !_action.HitResolved, Time.time - _moveShotFiredAt,
-                                                                 feel.MovingShotSpeedShare, feel.MovingShotRecovery);
+            // A shot on the move that was cancelled before it went off ends the slow at once.
+            if (_easing && _easeFiredAfter < 0f && !_movingShot) _easing = false;
+            if (_easing && MovingShot.IsOver(Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSlowdown, feel.MovingShotRecovery))
+                _easing = false;
+            _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
                 _agent.velocity = _agent.velocity.normalized * _agent.speed;
@@ -474,8 +524,12 @@ namespace Roguelike
 
         // ---------------- Orders ----------------
 
-        void SetOrder(OrderKind kind, Vector3 point, Damageable target)
+        void SetOrder(OrderKind kind, Vector3 point, Damageable target, bool keepWaitingShot = false)
         {
+            // Any order replaces a click waiting on the move (only one command waits); a move order also drops
+            // the attack command. The held move button keeps a waiting click (SteerTo).
+            if (!keepWaitingShot) _pendingMoveShot.Clear();
+            if (kind == OrderKind.Move) _commands.Clear();
             if (_actionKind == ActionKind.BasicShot && _movingShot && kind == OrderKind.Move)
             {
                 // A new move during a shot on the move only changes where the character is going.
@@ -502,6 +556,7 @@ namespace Roguelike
 
         void ClearOrder()
         {
+            _commands.Clear();
             _order = OrderKind.None;
             _orderTarget = null;
             _travelDirty = true;
@@ -568,6 +623,11 @@ namespace Roguelike
             Halt();
             if (BodyMustTurnTo(target, feel)) Face(Flat(target.transform.position - transform.position));
         }
+
+        /// <summary>True when the order is an attack on a living target already in range: its shot is fired from where she stands.</summary>
+        bool NextShotFromHere(FeelValues feel) =>
+            (_order == OrderKind.AttackTarget || _order == OrderKind.AttackMove) && _orderTarget != null && _orderTarget.IsAlive
+            && Targeting.InRange(GroundPosition, _orderTarget.GroundPosition, _orderTarget.Radius, feel.BasicAttackRange);
 
         /// <summary>True when a target lies outside the front angle, so a basic shot at it turns the whole body.</summary>
         bool BodyMustTurnTo(Damageable target, FeelValues feel)
@@ -646,8 +706,18 @@ namespace Roguelike
             if (_shotTurnsBody) Face(Flat(_aimPoint - transform.position));
             _actionKind = ActionKind.BasicShot;
             _movingShot = onTheMove;
-            if (onTheMove) ShotsOnTheMove++;
+            if (onTheMove)
+            {
+                ShotsOnTheMove++;
+                // Ease down from the speed it has now: full speed, or wherever a chained shot left it.
+                _easeFrom = CurrentSpeedShare(feel);
+                _easeStartedAt = Time.time;
+                _easeFiredAfter = -1f;
+                _easeTurnedBody = _shotTurnsBody;
+                _easing = true;
+            }
             _orderedDuringShot = false;
+            _commands.ShotStarted(forTheCommand: !onTheMove); // a standing shot answers the attack order
             ActionsStarted++;
             ActionLeadTime = feel.BasicShotStartup;
             _shotStartedAt = Time.time;
@@ -657,10 +727,12 @@ namespace Roguelike
         void StartSkill(int slot, Vector3 point)
         {
             SkillDefinition skill = Skills[slot];
+            DropWaitingShot();
             _action.Cancel(); // a skill may start during a basic shot, and ends it
+            _commands.ShotCancelled();
             _movingShot = false;
             _shotTurnsBody = false;
-            _pendingShotTarget = null;
+            _easing = false; // a skill ends the slow of a shot on the move at once
             Halt();
             _shotTarget = null;
             _aimPoint = point;
@@ -678,8 +750,21 @@ namespace Roguelike
             CooldownFor(slot).Start(Time.time, skill.Cooldown);
         }
 
+        /// <summary>
+        /// A dash or a skill drops the attack command waiting for its shot: a click on the move, and an attack
+        /// order while a shot is still in its cycle (including the shot it cancels). An attack order still walking
+        /// to its target, with no shot in its cycle, survives, as a move order does.
+        /// </summary>
+        void DropWaitingShot()
+        {
+            _pendingMoveShot.Clear();
+            bool attacking = _order == OrderKind.AttackMove || _order == OrderKind.AttackTarget;
+            if (attacking && ShotCommands.MustWait(_actionKind == ActionKind.BasicShot, Time.time, _nextShotAt)) ClearOrder();
+        }
+
         void EndAction()
         {
+            if (_actionKind == ActionKind.BasicShot) _commands.ShotCancelled();
             _actionKind = ActionKind.None;
             _shotTarget = null;
             _castSlot = -1;
@@ -699,7 +784,8 @@ namespace Roguelike
             if (_shotTarget == null || !_shotTarget.IsAlive) return false;
 
             Look look = LookFor(null, 0f);
-            Vector3 muzzle = NextMuzzle();
+            Vector3 muzzle = NextMuzzle(out bool leftHand);
+            Kick(leftHand, look);
             Vector3 hit = _shotTarget.transform.position;
             Vector3 end = new Vector3(hit.x, muzzle.y, hit.z);
             SpawnFlash(look, muzzle, end - muzzle);
@@ -796,10 +882,11 @@ namespace Roguelike
         /// The barrel end the next shot fires from, taking turns between the hands. Without pistols, a point
         /// over the character's ground point at the height the old beams were drawn at.
         /// </summary>
-        Vector3 NextMuzzle()
+        Vector3 NextMuzzle(out bool leftHand)
         {
             Transform muzzle = _leftHandNext ? LeftMuzzle : RightMuzzle;
             if (muzzle == null) muzzle = _leftHandNext ? RightMuzzle : LeftMuzzle;
+            leftHand = muzzle != null && muzzle == LeftMuzzle;
             _leftHandNext = !_leftHandNext;
             if (muzzle != null) return muzzle.position;
             Vector3 p = transform.position;
@@ -828,7 +915,8 @@ namespace Roguelike
 
             // Streaks run level, at the height of the muzzle, and end where the area ends: the range is
             // measured from the character, as the hit is.
-            Vector3 muzzle = NextMuzzle();
+            Vector3 muzzle = NextMuzzle(out bool leftHand);
+            Kick(leftHand, look);
             Vector3 level = new Vector3(origin.X, muzzle.y, origin.Z);
             SpawnFlash(look, muzzle, dir);
             if (skill.Shape == SkillShape.Cone)
@@ -865,6 +953,21 @@ namespace Roguelike
             }
             return muzzle;
         }
+
+        /// <summary>Tells the animation that a pistol fired, which hand and how hard it kicks (the look's recoil, scaled like its flash).</summary>
+        void Kick(bool leftHand, Look look)
+        {
+            KickLeftHand = leftHand;
+            KickStrength = look.Values.Recoil * look.Scale * look.Width;
+            KickCount++;
+        }
+
+        /// <summary>The share of run speed it may walk at now: 1, or eased around a shot on the move.</summary>
+        float CurrentSpeedShare(FeelValues feel) =>
+            _easing
+                ? MovingShot.SpeedShare(_easeFrom, Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSpeedShare,
+                                        feel.MovingShotSlowdown, feel.MovingShotRecovery)
+                : 1f;
 
         void SpawnFlash(Look look, Vector3 muzzle, Vector3 direction)
         {

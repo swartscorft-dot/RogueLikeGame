@@ -44,6 +44,10 @@ namespace Roguelike
         [Tooltip("Seconds of the blast: a wedge over the cone, or a ring and a burst on the circle. 0 means none.")]
         public float BlastSeconds;
 
+        [Header("Recoil of the pistol that fired")]
+        [Tooltip("How hard the pistol kicks, as a share of the base kick in the settings (angle and pull-back). 0: no kick. A charge skill kicks harder with the charge, as its flash grows.")]
+        public float Recoil = 1f;
+
         public ShotLook Copy() => (ShotLook)MemberwiseClone();
     }
 
@@ -59,6 +63,10 @@ namespace Roguelike
         public const float StartCoreGlow = 4f;
         public const float StartRimGlow = 1.8f;
         public const float StartEmpoweredScale = 1.25f;
+        public const float StartRecoilAngle = 16f;
+        public const float StartRecoilPullBack = 0.07f;
+        public const float StartRecoilKickSeconds = 0.04f;
+        public const float StartRecoilSettleSeconds = 0.16f;
         public static readonly Color StartEmpoweredRim = new Color(1f, 0.2f, 0.6f);
 
         public ShotLook Basic = ShotFxDefaults.Basic();
@@ -69,6 +77,16 @@ namespace Roguelike
         public float CoreGlow = StartCoreGlow;
         [Tooltip("How many times brighter the outer, coloured shapes are drawn. A little above the threshold gives a halo in their own colour. 1 means no glow. Start value 1.8, a guess.")]
         public float RimGlow = StartRimGlow;
+
+        [Header("Recoil: the base kick, scaled by each look's Recoil (start values, guesses)")]
+        [Tooltip("Degrees the muzzle of the pistol that fired flips up at the peak of the kick.")]
+        public float RecoilAngle = StartRecoilAngle;
+        [Tooltip("Metres the hand comes back toward the shoulder at the peak, the elbow giving.")]
+        public float RecoilPullBack = StartRecoilPullBack;
+        [Tooltip("Seconds from the shot to the peak of the kick.")]
+        public float RecoilKickSeconds = StartRecoilKickSeconds;
+        [Tooltip("Seconds from the peak back onto the target.")]
+        public float RecoilSettleSeconds = StartRecoilSettleSeconds;
 
         [Header("Empowered mode (focus spent)")]
         [Tooltip("Every part is this many times larger while empowered. 1 means no change.")]
@@ -104,6 +122,10 @@ namespace Roguelike
             RimGlow = StartRimGlow;
             EmpoweredScale = StartEmpoweredScale;
             EmpoweredRim = StartEmpoweredRim;
+            RecoilAngle = StartRecoilAngle;
+            RecoilPullBack = StartRecoilPullBack;
+            RecoilKickSeconds = StartRecoilKickSeconds;
+            RecoilSettleSeconds = StartRecoilSettleSeconds;
         }
     }
 
@@ -111,12 +133,12 @@ namespace Roguelike
     public static class ShotFxDefaults
     {
         static ShotLook Look(string name, Color rim, float flash, float flashSeconds, float streak, float streakSeconds,
-                             float hit, float hitSeconds, int rays = 5, float blast = 0f, float charge = 1f) =>
+                             float hit, float hitSeconds, int rays = 5, float blast = 0f, float charge = 1f, float recoil = 1f) =>
             new ShotLook
             {
                 Name = name, Rim = rim, FlashSize = flash, FlashSeconds = flashSeconds, StreakWidth = streak,
                 StreakSeconds = streakSeconds, HitSize = hit, HitSeconds = hitSeconds, Rays = rays,
-                BlastSeconds = blast, FullChargeScale = charge,
+                BlastSeconds = blast, FullChargeScale = charge, Recoil = recoil,
             };
 
         static ShotLook Burst(ShotLook look, Color core)
@@ -137,13 +159,13 @@ namespace Roguelike
         {
             switch (name)
             {
-                case "Quick Shot":    return Look(name, new Color(1f, 0.5f, 0.1f), 1f, 0.1f, 0.4f, 0.16f, 1f, 0.16f);
-                case "Powder Keg":    return Burst(Look(name, new Color(0.9f, 0.15f, 0.05f), 0f, 0f, 0f, 0f, 0.8f, 0.15f, blast: 0.35f), new Color(1f, 0.95f, 0.5f));
-                case "Fan Fire":      return Look(name, new Color(1f, 0.85f, 0.2f), 0.7f, 0.08f, 0.22f, 0.11f, 0.6f, 0.1f, rays: 4);
-                case "Long Shot":     return Look(name, new Color(0.15f, 0.3f, 1f), 1.1f, 0.12f, 0.45f, 0.4f, 1.3f, 0.2f, charge: 2f);
-                case "Scatter Blast": return Look(name, new Color(1f, 0.65f, 0.1f), 1.3f, 0.1f, 0.22f, 0.12f, 1f, 0.15f, rays: 5, blast: 0.22f);
-                case "Heavy Volley":  return Look(name, new Color(1f, 0.25f, 0.15f), 2f, 0.14f, 0.4f, 0.22f, 1.3f, 0.2f);
-                case "Backstep":      return Look(name, new Color(0.2f, 0.95f, 0.95f), 1f, 0.1f, 0.36f, 0.16f, 1f, 0.16f);
+                case "Quick Shot":    return Look(name, new Color(1f, 0.5f, 0.1f), 1f, 0.1f, 0.4f, 0.16f, 1f, 0.16f, recoil: 1.5f);
+                case "Powder Keg":    return Burst(Look(name, new Color(0.9f, 0.15f, 0.05f), 0f, 0f, 0f, 0f, 0.8f, 0.15f, blast: 0.35f, recoil: 0f), new Color(1f, 0.95f, 0.5f));
+                case "Fan Fire":      return Look(name, new Color(1f, 0.85f, 0.2f), 0.7f, 0.08f, 0.22f, 0.11f, 0.6f, 0.1f, rays: 4, recoil: 0.5f);
+                case "Long Shot":     return Look(name, new Color(0.15f, 0.3f, 1f), 1.1f, 0.12f, 0.45f, 0.4f, 1.3f, 0.2f, charge: 2f, recoil: 1.3f);
+                case "Scatter Blast": return Look(name, new Color(1f, 0.65f, 0.1f), 1.3f, 0.1f, 0.22f, 0.12f, 1f, 0.15f, rays: 5, blast: 0.22f, recoil: 2f);
+                case "Heavy Volley":  return Look(name, new Color(1f, 0.25f, 0.15f), 2f, 0.14f, 0.4f, 0.22f, 1.3f, 0.2f, recoil: 2.2f);
+                case "Backstep":      return Look(name, new Color(0.2f, 0.95f, 0.95f), 1f, 0.1f, 0.36f, 0.16f, 1f, 0.16f, recoil: 1.4f);
                 case "Triple Tap":    return Look(name, new Color(0.65f, 0.4f, 1f), 0.85f, 0.08f, 0.32f, 0.1f, 0.9f, 0.12f);
                 default:              return Look(name, new Color(1f, 0.6f, 0.15f), 0.6f, 0.1f, 0.2f, 0.14f, 0.8f, 0.14f);
             }

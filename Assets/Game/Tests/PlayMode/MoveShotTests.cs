@@ -63,20 +63,33 @@ namespace Roguelike.PlayModeTests
             Assume.That(TurnsBodyFor(_a), Is.False, "and within the front angle");
 
             _player.AttackTarget(_a);
+            float startedAt = Time.time;
             Assert.That(_player.IsShootingOnTheMove, Is.True, "it shoots on the move");
             Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "the move order stays");
             yield return null;
             yield return null;
-            Assert.That(_player.SpeedLimit, Is.EqualTo(_feel.RunSpeed * _feel.MovingShotSpeedShare).Within(1e-3f), "slowed while the shot winds up");
-            Assert.That(_player.Speed, Is.EqualTo(_feel.RunSpeed * _feel.MovingShotSpeedShare).Within(0.4f), "and walking at that speed");
+            Assert.That(_player.SpeedLimit, Is.LessThan(_feel.RunSpeed), "it starts slowing at once");
+            Assert.That(_player.SpeedLimit, Is.GreaterThan(_feel.RunSpeed * _feel.MovingShotSpeedShare + 0.05f), "but eases down, not in a jump");
             Assert.That(_player.ShotTurnsBody, Is.False, "the target is within the front angle");
             Assert.That(Vector3.Dot(Flat(_player.transform.forward), Vector3.right), Is.GreaterThan(0.98f), "so the body keeps facing the way it runs");
 
+            float firedAt = -1f;
+            float slowAt = startedAt + _feel.MovingShotSlowdown;
+            yield return Until(() =>
+            {
+                if (firedAt < 0f && _a.HitsTaken >= 1) firedAt = Time.time;
+                return Time.time >= slowAt;
+            }, 2f);
+            Assert.That(_player.SpeedLimit, Is.EqualTo(_feel.RunSpeed * _feel.MovingShotSpeedShare).Within(0.1f), "at the slow share when the slow-down is done");
+            Assert.That(_player.Speed, Is.EqualTo(_feel.RunSpeed * _feel.MovingShotSpeedShare).Within(0.4f), "and walking at that speed");
+
             yield return Until(() => _a.HitsTaken >= 1, 2f);
+            if (firedAt < 0f) firedAt = Time.time;
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "one shot, and it hit");
-            float firedAt = Time.time;
-            float due = firedAt + _feel.MovingShotRecovery + 0.03f;
-            yield return Until(() => Time.time >= due, 2f);
+            float due = Mathf.Max(firedAt, slowAt) + _feel.MovingShotRecovery + 0.03f;
+            yield return Until(() => Time.time >= due - 0.06f, 3f);
+            Assert.That(_player.SpeedLimit, Is.LessThan(_feel.RunSpeed), "not yet at full speed shortly before the recovery time is up");
+            yield return Until(() => Time.time >= due, 3f);
             Assert.That(_player.SpeedLimit, Is.EqualTo(_feel.RunSpeed).Within(1e-3f), "back to full speed after the recovery time");
             Assert.That(_player.Speed, Is.EqualTo(_feel.RunSpeed).Within(0.4f), "and running at it");
 
@@ -102,15 +115,18 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator Standing_AnAttack_IsAsBefore_TheOrderTakesOverAndRepeats()
+        public IEnumerator Standing_AnAttack_FiresOnce_AndSheStands()
         {
             _player.Teleport(new Vector3(2f, 0f, 1f));
             yield return null;
             _player.AttackTarget(_a);
             Assert.That(_player.IsShootingOnTheMove, Is.False);
             Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackTarget));
-            yield return Until(() => _a.HitsTaken >= 2, 3f);
-            Assert.That(_a.HitsTaken, Is.GreaterThanOrEqualTo(2), "standing, the attack order keeps shooting");
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            float cycle = _feel.BasicShotStartup + _feel.BasicShotActive + _feel.BasicShotRecovery;
+            yield return new WaitForSeconds(cycle * 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "standing, one command is one shot (click to shoot)");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
             Assert.That(_player.ShotsOnTheMove, Is.EqualTo(0));
         }
 
@@ -227,6 +243,144 @@ namespace Roguelike.PlayModeTests
         // ---------------- Helpers ----------------
 
         /// <summary>Starts the run from <see cref="RunFrom"/> to <see cref="RunTo"/> and waits until the character has passed x.</summary>
+        // ---------------- Fire rate, and the shooting gait ----------------
+
+        [UnityTest]
+        public IEnumerator FireRate_IsFromTheSettings_TwoCommandsACycleApartGiveTwoShots_AFasterPairToo_ButNotSooner()
+        {
+            float cycle = _feel.BasicShotStartup + _feel.BasicShotActive + _feel.BasicShotRecovery;
+
+            // Two commands a cycle apart: two shots, a cycle apart.
+            yield return RunUntilX(-1f);
+            Assume.That(InRange(_a), Is.True, "A is in basic-attack range here");
+            int hitsBefore = _a.HitsTaken;
+            var hitTimes = new System.Collections.Generic.List<float>();
+            _player.AttackTarget(_a);
+            float first = Time.time;
+            bool secondGiven = false;
+            float deadline = Time.realtimeSinceStartup + 3f;
+            while (hitTimes.Count < 2 && Time.realtimeSinceStartup < deadline)
+            {
+                if (!secondGiven && Time.time >= first + cycle + 0.01f) { _player.AttackTarget(_a); secondGiven = true; }
+                yield return null;
+                if (_a.HitsTaken - hitsBefore > hitTimes.Count) hitTimes.Add(Time.time);
+            }
+            Assert.That(hitTimes.Count, Is.EqualTo(2), "two commands a cycle apart give two shots");
+            Assert.That(hitTimes[1] - hitTimes[0], Is.GreaterThanOrEqualTo(cycle - 0.02f), "no closer together than a cycle");
+            Assert.That(hitTimes[1] - hitTimes[0], Is.LessThan(cycle + 0.12f), "and the second as soon as it was given");
+            Assert.That(hitTimes[0] - first, Is.LessThan(_feel.BasicShotStartup + 0.06f), "the first goes off after the startup from the settings");
+
+            // Two commands closer together than the cycle allows, the second early in the first shot's cycle:
+            // the second is not lost; it waits and goes off a whole cycle after the first, not sooner (click to shoot).
+            yield return RunUntilX(-1f);
+            hitsBefore = _a.HitsTaken;
+            hitTimes.Clear();
+            _player.AttackTarget(_a);
+            first = Time.time;
+            yield return Until(() => Time.time >= first + cycle * 0.2f, 1f);
+            _player.AttackTarget(_a);
+            deadline = Time.realtimeSinceStartup + 3f;
+            while (hitTimes.Count < 2 && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+                if (_a.HitsTaken - hitsBefore > hitTimes.Count) hitTimes.Add(Time.time);
+            }
+            Assert.That(hitTimes.Count, Is.EqualTo(2), "a faster pair gives two shots: the second click waited");
+            Assert.That(hitTimes[1] - hitTimes[0], Is.GreaterThanOrEqualTo(cycle - 0.02f), "the second no sooner than a cycle after the first");
+            Assert.That(hitTimes[1] - hitTimes[0], Is.LessThan(cycle + 0.06f), "and as soon as the cycle allows");
+            yield return new WaitForSeconds(cycle * 2f);
+            Assert.That(_a.HitsTaken - hitsBefore, Is.EqualTo(2), "and no third");
+        }
+
+        [UnityTest]
+        public IEnumerator OnTheMove_TheLegsShowTheShootingGait_ThenTheRunAgain()
+        {
+            CharacterAnimation view = RiggedView();
+            yield return RunUntilX(-1f);
+            Assume.That(TurnsBodyFor(_a), Is.False, "A is within the front angle");
+            Assert.That(InState(view, CharacterAnimation.RunState), Is.True, "running shows the run");
+
+            _player.AttackTarget(_a);
+            yield return Until(() => view.Pose == CharacterPose.ShootMove, 0.5f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.ShootMove), "a shot on the move shows the shooting gait");
+            yield return new WaitForSeconds(_feel.ShootGaitFade + 0.02f);
+            Assert.That(_player.InShootingGait, Is.True, "still slowed by the shot");
+            Assert.That(InState(view, CharacterAnimation.ShootMoveState), Is.True, "the Animator is in the shooting gait");
+            float expected = view.GaitRate(view.ShootRunClipSpeed);
+            Assert.That(view.Animator.speed, Is.EqualTo(expected).Within(expected * 0.25f + 0.05f), "its steps are played at her actual speed");
+
+            yield return Until(() => !_player.InShootingGait, 2f);
+            Assert.That(_player.SpeedLimit, Is.EqualTo(_feel.RunSpeed).Within(1e-3f), "the gait ends when the speed is back up");
+            yield return Until(() => view.Pose == CharacterPose.Run, 0.5f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Run), "and the run comes back");
+            yield return new WaitForSeconds(_feel.ShootGaitFade + 0.05f);
+            Assert.That(InState(view, CharacterAnimation.RunState), Is.True, "the Animator is in Run again");
+        }
+
+        [UnityTest]
+        public IEnumerator OnTheMove_ChainedShots_StayInTheShootingGait()
+        {
+            CharacterAnimation view = RiggedView();
+            float cycle = _feel.BasicShotStartup + _feel.BasicShotActive + _feel.BasicShotRecovery;
+            yield return RunUntilX(-1.5f);
+            Assume.That(InRange(_a), Is.True, "A is in basic-attack range here");
+
+            int shotsBefore = _player.BasicShotsFired, given = 0;
+            float start = Time.time;
+            bool inGait = false, leftGait = false, leftAnimatorGait = false;
+            float deadline = Time.realtimeSinceStartup + 4f;
+            while (_player.BasicShotsFired - shotsBefore < 3 && Time.realtimeSinceStartup < deadline)
+            {
+                if (given < 3 && Time.time >= start + given * (cycle + 0.03f)) { _player.AttackTarget(_a); given++; }
+                yield return null;
+                if (view.Pose == CharacterPose.ShootMove) inGait = true;
+                else if (inGait) leftGait = true;
+                if (inGait && Time.time > start + _feel.ShootGaitFade + 0.05f && !InState(view, CharacterAnimation.ShootMoveState))
+                    leftAnimatorGait = true;
+            }
+            Assert.That(_player.BasicShotsFired - shotsBefore, Is.EqualTo(3), "three shots on the move");
+            Assert.That(_player.ShotsOnTheMove, Is.GreaterThanOrEqualTo(3));
+            Assert.That(inGait, Is.True, "in the shooting gait");
+            Assert.That(leftGait, Is.False, "and never back in the run between the shots");
+            Assert.That(leftAnimatorGait, Is.False, "nor did the Animator leave the gait");
+        }
+
+        [UnityTest]
+        public IEnumerator OnTheMove_ATargetBehind_ShowsTheBackwardGait_ThenTheRun()
+        {
+            CharacterAnimation view = RiggedView();
+            yield return RunUntilX(-3.4f);
+            Assume.That(InRange(_b), Is.True, "B is in range here");
+            Assume.That(TurnsBodyFor(_b), Is.True, "and behind the front angle");
+
+            _player.AttackTarget(_b);
+            yield return Until(() => view.Pose == CharacterPose.ShootBack, 0.5f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.ShootBack), "moving away from a target behind shows the backward gait");
+            Assert.That(Vector3.Dot(Flat(_player.Velocity), Flat(_player.transform.forward)), Is.LessThan(0f), "she moves against where the body faces");
+            yield return new WaitForSeconds(_feel.ShootGaitFade + 0.02f);
+            Assert.That(InState(view, CharacterAnimation.ShootBackState), Is.True, "the Animator is in the backward gait");
+            Assert.That(view.Animator.speed, Is.EqualTo(view.GaitRate(view.ShootBackClipSpeed)).Within(0.3f), "its steps played at her actual speed");
+
+            yield return Until(() => !_player.InShootingGait, 2f);
+            yield return Until(() => view.Pose == CharacterPose.Run, 0.5f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Run), "and the run comes back");
+            yield return new WaitForSeconds(_feel.ShootGaitFade + 0.05f);
+            Assert.That(InState(view, CharacterAnimation.RunState), Is.True, "the Animator is in Run again");
+        }
+
+        CharacterAnimation RiggedView()
+        {
+            if (_view == null) Assert.Ignore("the scene was built without a rigged player model");
+            return _view;
+        }
+
+        static bool InState(CharacterAnimation view, string stateName)
+        {
+            Animator animator = view.Animator;
+            return animator.GetCurrentAnimatorStateInfo(0).IsName(stateName)
+                || (animator.IsInTransition(0) && animator.GetNextAnimatorStateInfo(0).IsName(stateName));
+        }
+
         IEnumerator RunUntilX(float x)
         {
             _player.Teleport(RunFrom);

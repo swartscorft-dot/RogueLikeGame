@@ -63,10 +63,18 @@ public static class ControlRoomBuilder
     const string PistolModelPath = Root + "/Art/Weapons/DesertEagle/DesertEagle.fbx";
     const string ShotgunModelPath = Root + "/Art/Weapons/Shotgun/Shotgun.fbx";
 
-    // How the clips are used. The run clip is in place, with a 0.63 s cycle; its fit to 6 m/s is a guess.
+    // How the clips are used. The run clip is in place, with a 0.63 s cycle; on his rig a planted foot slides back at
+    // 5.7 to 6.1 m/s (measured 2026-11-18), so 6 m/s fits.
     // There is no dash clip: the dash shows the run clip at speed. There is no shoot clip either: the body
     // keeps its idle stance and CharacterAnimation points the arms and the pistols at the target.
     const float RunClipSpeed = 6f;
+    // The shooting gaits, bought 2026-11-18 for the Meshy rig: Run_and_Shoot (forward) and
+    // Walk_Backward_While_Shooting_inplace (backward). Measured on his rig 2026-11-18: Run_and_Shoot carries its
+    // hips 1.5 m in its 0.667 s (2.25 m/s, which the hips hold takes out) while a planted foot creeps 0.1 to 0.3 m/s
+    // forward, so the feet pass under the body at about 2.1 m/s; the backward walk is in place, feet 0.76 to 0.93 m/s.
+    const string ShootGaitsPath = RigDir + "/Outrider_ShootGaits.fbx";
+    const float ShootRunClipSpeed = 2.1f;
+    const float ShootBackClipSpeed = 0.85f;
     const float DashRecovery = 0.05f;
     const float PistolLength = 0.38f;
     const float ShotgunLength = 1.0f;
@@ -283,6 +291,18 @@ public static class ControlRoomBuilder
             AssetDatabase.CreateAsset(surface.navMeshData, NavMeshPath);
         }
 
+        // The baked NavMesh lies a few centimetres over the floor (voxel rounding), and the agents stand on it,
+        // so a figure placed for a floor at y = 0 would float that much. Lower the visible parts by it: the
+        // player's model and the enemy's body. The roots, and so every gameplay position, stay where the agents put them.
+        float lift = NavMeshLift(floor.transform.position);
+        if (player.transform.Find("Visual") is Transform model) model.localPosition += Vector3.down * lift;
+        GameObject brute = GameObject.Find("Enemy_Brute");
+        if (brute != null)
+            foreach (string part in new[] { "Body", "Facing" })
+                if (brute.transform.Find(part) is Transform t) t.localPosition += Vector3.down * lift;
+        string floorReport = string.Format(CultureInfo.InvariantCulture,
+            "floor: the NavMesh lies {0:F3} m over it; the player's model and the enemy's body are lowered by that\n", lift);
+
         var scene = EditorSceneManager.GetActiveScene();
         EditorSceneManager.SaveScene(scene, ScenePath);
         AssetDatabase.SaveAssets();
@@ -294,7 +314,7 @@ public static class ControlRoomBuilder
              + (enemyCreated ? "enemy: created\n" : "enemy: kept\n")
              + (shotFxCreated ? "shot effects: created\n" : shotFxExtended ? "shot effects: kept, missing looks added\n" : "shot effects: kept\n")
              + (oldBulletsRemoved ? "old bullet settings: removed\n" : "")
-             + (postProcessingCreated ? "post-processing profile: created\n" : "post-processing profile: kept\n") + playerVisual + Dump();
+             + (postProcessingCreated ? "post-processing profile: created\n" : "post-processing profile: kept\n") + floorReport + playerVisual + Dump();
     }
 
     /// <summary>
@@ -446,20 +466,27 @@ public static class ControlRoomBuilder
         // baked into a clip of its own (BakeForRig): every body bone turns from his rest exactly as the Meshy bone
         // turns from its rest. Everything is Generic; there are no avatars.
         bool ownRig = riggedPath == OwnRigModelPath;
-        string rigReport = "  generic: " + MakeGeneric(RunClipPath) + ", " + MakeGeneric(ActionClipsPath)
+        WithoutCamerasAndLights(ShootGaitsPath);
+        string rigReport = "  generic: " + MakeGeneric(RunClipPath) + ", " + MakeGeneric(ActionClipsPath) + ", " + MakeGeneric(ShootGaitsPath)
                          + (ownRig ? ", " + MakeGeneric(riggedPath) : "") + "\n";
         riggedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(riggedPath);
         ConfigureClips(RunClipPath, ("running", CharacterAnimation.RunState, true));
         ConfigureClips(ActionClipsPath, ("Idle_02", CharacterAnimation.IdleState, true));
+        ConfigureClips(ShootGaitsPath, ("Run_and_Shoot", CharacterAnimation.ShootMoveState, true),
+                       ("Walk_Backward_While_Shooting", CharacterAnimation.ShootBackState, true));
         AnimationClip idle = Clip(ActionClipsPath, CharacterAnimation.IdleState);
         AnimationClip run = Clip(RunClipPath, CharacterAnimation.RunState);
+        AnimationClip gait = Clip(ShootGaitsPath, CharacterAnimation.ShootMoveState);
+        AnimationClip back = Clip(ShootGaitsPath, CharacterAnimation.ShootBackState);
         if (ownRig)
         {
             EnsureFolder(RigDir, "Baked");
             idle = BakeForRig(RiggedModelPath, idle, riggedPath, BakedDir + "/Outrider_grip_Idle.anim");
             run = BakeForRig(RiggedModelPath, run, riggedPath, BakedDir + "/Outrider_grip_Run.anim");
-            rigReport += string.Format(CultureInfo.InvariantCulture, "  clips baked for this rig from {0}: idle {1} keys, run {2} keys\n",
-                                       System.IO.Path.GetFileName(RiggedModelPath), KeyCount(idle), KeyCount(run));
+            gait = BakeForRig(RiggedModelPath, gait, riggedPath, BakedDir + "/Outrider_grip_ShootRun.anim");
+            back = BakeForRig(RiggedModelPath, back, riggedPath, BakedDir + "/Outrider_grip_ShootBack.anim");
+            rigReport += string.Format(CultureInfo.InvariantCulture, "  clips baked for this rig from {0}: idle {1} keys, run {2} keys, shooting gaits {3} and {4} keys\n",
+                                       System.IO.Path.GetFileName(RiggedModelPath), KeyCount(idle), KeyCount(run), KeyCount(gait), KeyCount(back));
         }
 
         var visual = (GameObject)PrefabUtility.InstantiatePrefab(riggedAsset);
@@ -502,7 +529,7 @@ public static class ControlRoomBuilder
         Animator animator = visual.GetComponent<Animator>();
         if (animator == null) animator = visual.AddComponent<Animator>();
         animator.avatar = null;
-        animator.runtimeAnimatorController = BuildController(idle, run, idle, run);
+        animator.runtimeAnimatorController = BuildController(idle, run, idle, run, gait, back);
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
@@ -518,6 +545,8 @@ public static class ControlRoomBuilder
         animation.DashClipEnd = run != null ? run.length : 0f;
         animation.DashRecovery = DashRecovery;
         animation.RunClipSpeed = RunClipSpeed;
+        animation.ShootRunClipSpeed = ShootRunClipSpeed;
+        animation.ShootBackClipSpeed = ShootBackClipSpeed;
         animation.RightArm = Bone("RightArm");
         animation.RightForeArm = Bone("RightForeArm");
         animation.RightHand = Bone("RightHand");
@@ -711,7 +740,7 @@ public static class ControlRoomBuilder
     /// The Animator controller: one state per pose and no transitions, because CharacterAnimation
     /// cross-fades between the states itself. The asset is reused so its GUID stays stable across runs.
     /// </summary>
-    static AnimatorController BuildController(AnimationClip idle, AnimationClip run, AnimationClip shoot, AnimationClip dash)
+    static AnimatorController BuildController(AnimationClip idle, AnimationClip run, AnimationClip shoot, AnimationClip dash, AnimationClip shootRun, AnimationClip shootBack)
     {
         var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
         if (controller == null) controller = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
@@ -724,6 +753,8 @@ public static class ControlRoomBuilder
         machine.AddState(CharacterAnimation.RunState).motion = run;
         machine.AddState(CharacterAnimation.ShootState).motion = shoot;
         machine.AddState(CharacterAnimation.DashState).motion = dash;
+        machine.AddState(CharacterAnimation.ShootMoveState).motion = shootRun;
+        machine.AddState(CharacterAnimation.ShootBackState).motion = shootBack;
         EditorUtility.SetDirty(controller);
         return controller;
     }
@@ -884,6 +915,12 @@ public static class ControlRoomBuilder
         if (r is SkinnedMeshRenderer skinned) return skinned.sharedMesh;
         var filter = r.GetComponent<MeshFilter>();
         return filter != null ? filter.sharedMesh : null;
+    }
+
+    /// <summary>How far over the floor's top the baked NavMesh lies, measured at a point of the floor.</summary>
+    static float NavMeshLift(Vector3 floorPoint)
+    {
+        return NavMesh.SamplePosition(floorPoint, out NavMeshHit hit, 1f, NavMesh.AllAreas) ? hit.position.y - floorPoint.y : 0f;
     }
 
     static void Dummy(string name, Vector3 position, Material material)

@@ -117,7 +117,13 @@ namespace Roguelike.PlayModeTests
             yield return null;
 
             _player.AttackTarget(_a);
-            yield return Watching(() => _player.BasicShotsFired >= 2, 3f);
+            bool secondClick = false;
+            yield return Watching(() =>
+            {
+                // Click to shoot: a second click for the second shot.
+                if (!secondClick && _player.BasicShotsFired >= 1) { _player.AttackTarget(_a); secondClick = true; }
+                return _player.BasicShotsFired >= 2;
+            }, 3f);
             _player.Stop();
             List<Seen> streaks = Of(ShotFxKind.Streak);
             Assert.That(streaks.Count, Is.EqualTo(2), "two shots, one streak each");
@@ -365,6 +371,84 @@ namespace Roguelike.PlayModeTests
         }
 
         // ---------------- Helpers ----------------
+
+        // ---------------- Recoil ----------------
+
+        struct Pose1
+        {
+            public int Frame;
+            public float At, RightUp, LeftUp, RightDot, LeftDot;
+        }
+
+        [UnityTest]
+        public IEnumerator Recoil_KicksOnlyThePistolThatFired_AndEachIsBackOnTheTargetBeforeItsNextShot()
+        {
+            AssumePistols();
+            ShotFxSettings looks = _player.ShotLooks;
+            Assume.That(looks != null && looks.Basic.Recoil > 0f, Is.True, "the basic shot kicks");
+            float kick = looks.RecoilKickSeconds, settle = looks.RecoilSettleSeconds;
+            _player.Teleport(NearA);
+            yield return null;
+            Vector3 toTarget = Flat(_a.transform.position - _player.Position).normalized;
+
+            var poses = new List<Pose1>();
+            float strength = 0f;
+            int clicks = 0;
+            float deadline = Time.realtimeSinceStartup + 5f;
+            while (Time.realtimeSinceStartup < deadline)
+            {
+                // Click to shoot: a click whenever none is waiting, so the shots come once a cycle. Five clicks: the
+                // fifth keeps her aiming through the kick of the fourth, as a player clicking on would.
+                if (clicks < 5 && !_player.HasPendingShot) { _player.AttackTarget(_a); clicks++; }
+                Note();
+                poses.Add(new Pose1
+                {
+                    Frame = Time.frameCount, At = Time.time,
+                    RightUp = Up(_view.RightWeapon), LeftUp = Up(_view.LeftWeapon),
+                    RightDot = Vector3.Dot(_view.RightWeapon.right, toTarget), LeftDot = Vector3.Dot(_view.LeftWeapon.right, toTarget),
+                });
+                if (_player.BasicShotsFired >= 1 && strength == 0f) strength = _player.KickStrength;
+                List<Seen> sofar = Of(ShotFxKind.Flash);
+                if (sofar.Count >= 4 && Time.time > sofar[3].At + kick + settle + 0.05f) break;
+                yield return null;
+            }
+            _player.Stop();
+
+            List<Seen> flashes = Of(ShotFxKind.Flash);
+            Assert.That(flashes.Count, Is.GreaterThanOrEqualTo(4), "a burst of four");
+            float peak = _view.PeakKickAngle(strength);
+            Assert.That(peak, Is.GreaterThan(3f), "a kick big enough to see");
+            for (int i = 0; i < 4; i++)
+            {
+                Seen f = flashes[i];
+                string shot = "shot " + (i + 1) + " (" + Hand(f) + "): ";
+                Assert.That(f.FromBarrel, Is.LessThan(AtTheBarrel), shot + "the flash starts at the barrel end; the kick did not move it");
+                if (i > 0) Assert.That(f.NearestWeapon, Is.Not.SameAs(flashes[i - 1].NearestWeapon), shot + "the hands take turns");
+                bool right = f.NearestWeapon == _view.RightWeapon;
+                int at = poses.FindIndex(p => p.Frame == f.Frame);
+                Assert.That(at, Is.GreaterThanOrEqualTo(0));
+                // The pose read in the shot's frame is the one from before the shot.
+                Assert.That(Dot(poses[at], right), Is.GreaterThan(0.97f), shot + "that pistol was back on the target when it fired");
+                float baseUp = UpOf(poses[at], right), maxUp = float.NegativeInfinity;
+                for (int k = at + 1; k < poses.Count && poses[k].At <= f.At + kick + settle; k++)
+                {
+                    if (poses[k].At <= f.At + kick + 0.05f) maxUp = Mathf.Max(maxUp, UpOf(poses[k], right) - baseUp);
+                    Assert.That(Dot(poses[k], !right), Is.GreaterThan(0.97f), shot + "the other pistol stays on the target");
+                    Assert.That(Mathf.Abs(UpOf(poses[k], !right) - UpOf(poses[at], !right)), Is.LessThan(2f), shot + "the other pistol's muzzle does not flip up");
+                }
+                Assert.That(maxUp, Is.InRange(peak * 0.7f, peak * 1.1f), shot + "the muzzle flips up by the kick's angle");
+                int after = poses.FindIndex(p => p.At > f.At + kick + settle + 0.02f);
+                if (after >= 0 && (i + 1 >= flashes.Count || poses[after].Frame <= flashes[i + 1].Frame + 1))
+                {
+                    Assert.That(Mathf.Abs(UpOf(poses[after], right) - baseUp), Is.LessThan(2f), shot + "settled back after the kick");
+                    Assert.That(Dot(poses[after], right), Is.GreaterThan(0.97f), shot + "on the target again");
+                }
+            }
+        }
+
+        static float Up(Transform weapon) => Mathf.Asin(Mathf.Clamp(weapon.right.y, -1f, 1f)) * Mathf.Rad2Deg;
+        static float UpOf(Pose1 p, bool right) => right ? p.RightUp : p.LeftUp;
+        static float Dot(Pose1 p, bool right) => right ? p.RightDot : p.LeftDot;
 
         void AssumePistols()
         {

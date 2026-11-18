@@ -26,9 +26,15 @@ MonoBehaviour:
     DashCancelsSkill: 1
     FaceCursorOnCast: 1
     InputBuffer: 0.15
-    BasicShotStartup: 0.15
-    BasicShotActive: 0.05
-    BasicShotRecovery: 0.25
+    BasicShotStartup: 0.08
+    BasicShotActive: 0.02
+    BasicShotRecovery: 0.125
     BasicAttackRange: 6
     AttackMoveClickRadius: 2
+    ShotFrontAngle: 60
+    MovingShotSpeedShare: 0.5
+    MovingShotSlowdown: 0.15
+    MovingShotRecovery: 0.5
+    ShootGaitFade: 0.15
     HitStop: 0.05
+    BasicShotHitStop: 0.025

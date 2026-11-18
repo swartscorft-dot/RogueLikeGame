@@ -26,7 +26,8 @@ namespace Roguelike
     /// Turns one <see cref="InputFrame"/> per frame into intents on the <see cref="PlayerCharacter"/>.
     /// The frame normally comes from the mouse and keyboard; tests set <see cref="InputSource"/> to feed their own.
     ///
-    /// Right-click (held) on the ground moves and follows the cursor; on a target it attacks that target.
+    /// Right-click on the ground moves, and held it follows the cursor; on a target it attacks that target, once.
+    /// Every basic shot needs its own click: holding a button never repeats it (click to shoot, Kristian 2026-11-18).
     /// Left-click is an attack-move at the cursor (on a target: attack that target; on the ground: attack-move there,
     /// going for the target nearest the click). A first shows the range ring while aiming it;
     /// left-click then confirms it as above,
@@ -58,6 +59,7 @@ namespace Roguelike
         PlayerHealth _health;
         Camera _camera;
         int _skillsHeldBefore;
+        bool _moveHeldBefore;
 
         public bool IsAimingAttackMove { get; private set; }
 
@@ -83,6 +85,7 @@ namespace Roguelike
             if (_health != null && !_health.IsAlive)
             {
                 _skillsHeldBefore = 0;
+                _moveHeldBefore = false;
                 SetAiming(false);
                 return;
             }
@@ -111,12 +114,20 @@ namespace Roguelike
                 SetAiming(false);
             }
 
+            // Right button: the press attacks the target under the cursor or orders a move; held, it steers the
+            // move after the cursor. Holding it never repeats an attack: one press, one shot (click to shoot).
+            bool movePressed = input.MoveHeld && !_moveHeldBefore;
+            _moveHeldBefore = input.MoveHeld;
             if (input.MoveHeld)
             {
                 SetAiming(false);
                 Damageable target = TargetUnder(cursor);
-                if (target != null) _player.AttackTarget(target);
-                else _player.MoveTo(cursor);
+                if (movePressed)
+                {
+                    if (target != null) _player.AttackTarget(target);
+                    else _player.MoveTo(cursor);
+                }
+                else if (target == null) _player.SteerTo(cursor);
             }
         }
 

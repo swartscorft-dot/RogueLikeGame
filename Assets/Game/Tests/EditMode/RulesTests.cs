@@ -23,15 +23,18 @@ namespace Roguelike.Rules.Tests
             Assert.That(feel.DashCancelsSkill, Is.True);
             Assert.That(feel.FaceCursorOnCast, Is.True);
             Assert.That(feel.InputBuffer, Is.EqualTo(0.15f));
-            Assert.That(feel.BasicShotStartup, Is.EqualTo(0.15f));
-            Assert.That(feel.BasicShotActive, Is.EqualTo(0.05f));
-            Assert.That(feel.BasicShotRecovery, Is.EqualTo(0.25f));
+            Assert.That(feel.BasicShotStartup, Is.EqualTo(0.08f));
+            Assert.That(feel.BasicShotActive, Is.EqualTo(0.02f));
+            Assert.That(feel.BasicShotRecovery, Is.EqualTo(0.125f));
             Assert.That(feel.BasicAttackRange, Is.EqualTo(6f));
             Assert.That(feel.AttackMoveClickRadius, Is.EqualTo(2f));
             Assert.That(feel.ShotFrontAngle, Is.EqualTo(60f));
             Assert.That(feel.MovingShotSpeedShare, Is.EqualTo(0.5f));
-            Assert.That(feel.MovingShotRecovery, Is.EqualTo(0.2f));
+            Assert.That(feel.MovingShotSlowdown, Is.EqualTo(0.15f));
+            Assert.That(feel.MovingShotRecovery, Is.EqualTo(0.5f));
+            Assert.That(feel.ShootGaitFade, Is.EqualTo(0.15f));
             Assert.That(feel.HitStop, Is.EqualTo(0.05f));
+            Assert.That(feel.BasicShotHitStop, Is.EqualTo(0.025f));
         }
     }
 
@@ -76,31 +79,72 @@ namespace Roguelike.Rules.Tests
 
     public class MovingShotTests
     {
+        const float Slow = 0.5f, Down = 0.15f, Up = 0.5f;
+
+        static float Share(float from, float t, float firedAfter) => MovingShot.SpeedShare(from, t, firedAfter, Slow, Down, Up);
+
         [Test]
-        public void WhileTheShotWindsUp_TheSpeedIsTheSlowShare()
+        public void TheSlowDown_StartsAtTheCurrentShare_AndReachesTheSlowShareAtTheSlowDownTime_NotBefore()
         {
-            Assert.That(MovingShot.SpeedShare(true, -1f, 0.5f, 0.2f), Is.EqualTo(0.5f));
+            Assert.That(Share(1f, 0f, -1f), Is.EqualTo(1f).Within(1e-5f), "it starts where the speed was");
+            Assert.That(Share(1f, Down * 0.5f, -1f), Is.EqualTo(0.75f).Within(1e-5f), "halfway in time, halfway down (smoothstep)");
+            Assert.That(Share(1f, Down * 0.9f, -1f), Is.GreaterThan(Slow + 1e-4f), "not there before the slow-down time");
+            Assert.That(Share(1f, Down, -1f), Is.EqualTo(Slow).Within(1e-5f), "there at the slow-down time");
         }
 
         [Test]
-        public void AfterTheShot_TheSpeedComesBackInAStraightLine_AndIsFullAfterTheRecovery()
+        public void TheSpeedUp_WaitsForTheShotToGoOff_AndForTheSlowDownToFinish()
         {
-            Assert.That(MovingShot.SpeedShare(false, 0f, 0.5f, 0.2f), Is.EqualTo(0.5f).Within(1e-5f));
-            Assert.That(MovingShot.SpeedShare(false, 0.1f, 0.5f, 0.2f), Is.EqualTo(0.75f).Within(1e-5f));
-            Assert.That(MovingShot.SpeedShare(false, 0.2f, 0.5f, 0.2f), Is.EqualTo(1f));
-            Assert.That(MovingShot.SpeedShare(false, 3f, 0.5f, 0.2f), Is.EqualTo(1f));
+            // The shot goes off early (0.08 s), before the slow-down is over: no climb until 0.15 s.
+            Assert.That(Share(1f, 0.12f, 0.08f), Is.GreaterThan(Slow), "still coming down");
+            Assert.That(Share(1f, Down, 0.08f), Is.EqualTo(Slow).Within(1e-5f));
+            // The shot has not gone off: it stays slow however long that takes.
+            Assert.That(Share(1f, 1f, -1f), Is.EqualTo(Slow).Within(1e-5f));
+            // The shot goes off late (0.3 s): the climb starts then.
+            Assert.That(Share(1f, 0.29f, 0.3f), Is.EqualTo(Slow).Within(1e-5f));
+            Assert.That(Share(1f, 0.31f, 0.3f), Is.GreaterThan(Slow));
         }
 
         [Test]
-        public void WithoutAMovingShot_TheSpeedIsFull()
+        public void TheSpeedUp_ReachesFullSpeedAfterTheRecoveryTime()
         {
-            Assert.That(MovingShot.SpeedShare(false, -1f, 0.5f, 0.2f), Is.EqualTo(1f));
+            Assert.That(Share(1f, Down + Up * 0.5f, 0.08f), Is.EqualTo(0.75f).Within(1e-5f), "halfway in time, halfway up");
+            Assert.That(Share(1f, Down + Up * 0.95f, 0.08f), Is.LessThan(1f));
+            Assert.That(Share(1f, Down + Up, 0.08f), Is.EqualTo(1f).Within(1e-5f));
+            Assert.That(Share(1f, 5f, 0.08f), Is.EqualTo(1f).Within(1e-5f));
+            Assert.That(MovingShot.IsOver(Down + Up + 1e-4f, 0.08f, Down, Up), Is.True);
+            Assert.That(MovingShot.IsOver(Down + Up - 0.01f, 0.08f, Down, Up), Is.False);
         }
 
         [Test]
-        public void NoRecoveryTime_MeansFullSpeedTheMomentTheShotGoesOff()
+        public void TheCurve_GoesOneWayAtATime_WithoutJumps()
         {
-            Assert.That(MovingShot.SpeedShare(false, 0f, 0.5f, 0f), Is.EqualTo(1f));
+            float last = Share(1f, 0f, 0.08f);
+            bool rising = false;
+            for (int i = 1; i <= 1000; i++)
+            {
+                float t = i * 0.001f;
+                float s = Share(1f, t, 0.08f);
+                Assert.That(Mathf.Abs(s - last), Is.LessThan(0.01f), $"no jump at {t:F3} s");
+                if (s > last + 1e-6f) rising = true;
+                if (rising) Assert.That(s, Is.GreaterThanOrEqualTo(last - 1e-6f), $"once rising it does not fall again, at {t:F3} s");
+                else Assert.That(s, Is.LessThanOrEqualTo(last + 1e-6f), $"falling until it rises, at {t:F3} s");
+                last = s;
+            }
+        }
+
+        [Test]
+        public void AChainedShot_EasesDownFromTheShareItHasThen()
+        {
+            float midClimb = Share(1f, Down + Up * 0.5f, 0.08f); // 0.75
+            Assert.That(Share(midClimb, 0f, -1f), Is.EqualTo(midClimb).Within(1e-5f), "no jump at the new shot");
+            Assert.That(Share(midClimb, Down * 0.5f, -1f), Is.EqualTo((midClimb + Slow) * 0.5f).Within(1e-5f));
+            Assert.That(Share(midClimb, Down, -1f), Is.EqualTo(Slow).Within(1e-5f));
+        }
+
+        static class Mathf
+        {
+            public static float Abs(float x) => System.Math.Abs(x);
         }
     }
 
@@ -439,6 +483,116 @@ namespace Roguelike.Rules.Tests
             Assert.That(PoseRule.Pick(false, false, true, 6f), Is.EqualTo(CharacterPose.Dash));
             Assert.That(PoseRule.Pick(false, false, true, 0f), Is.EqualTo(CharacterPose.Dash));
             Assert.That(PoseRule.Pick(false, true, true, 0f), Is.EqualTo(CharacterPose.Shoot));
+        }
+
+        [Test]
+        public void WalkingWhileSlowedByAShot_ShowsTheShootingGait_ButADashStillWins()
+        {
+            Assert.That(PoseRule.Pick(false, true, false, 3f, shootingGait: true), Is.EqualTo(CharacterPose.ShootMove));
+            Assert.That(PoseRule.Pick(false, false, false, 4f, shootingGait: true), Is.EqualTo(CharacterPose.ShootMove), "also between chained shots");
+            Assert.That(PoseRule.Pick(true, false, false, 4f, shootingGait: true), Is.EqualTo(CharacterPose.Dash));
+            Assert.That(PoseRule.Pick(false, true, false, 0f, shootingGait: true), Is.EqualTo(CharacterPose.Shoot), "standing still it is the shot");
+        }
+
+        [Test]
+        public void MovingBackwardWhileSlowedByAShot_ShowsTheBackwardGait()
+        {
+            Assert.That(PoseRule.Pick(false, true, false, 3f, shootingGait: true, movingBackward: true), Is.EqualTo(CharacterPose.ShootBack));
+            Assert.That(PoseRule.Pick(false, true, false, 3f, shootingGait: true, movingBackward: false), Is.EqualTo(CharacterPose.ShootMove));
+            Assert.That(PoseRule.Pick(true, false, false, 4f, shootingGait: true, movingBackward: true), Is.EqualTo(CharacterPose.Dash), "a dash still wins");
+            Assert.That(PoseRule.Pick(false, false, false, 4f, shootingGait: false, movingBackward: true), Is.EqualTo(CharacterPose.Run), "without a shot it is the run");
+        }
+    }
+
+    public class ShotCommandsTests
+    {
+        [Test]
+        public void OneCommand_IsAnsweredByOneShot_ThenNothingIsOwed()
+        {
+            var c = new ShotCommands();
+            Assert.That(c.Owed, Is.False);
+            c.Command();
+            Assert.That(c.Owed, Is.True);
+            c.ShotStarted(forTheCommand: true);
+            Assert.That(c.ShotWentOff(), Is.True, "the shot answered the command");
+            Assert.That(c.Owed, Is.False, "so nothing more is owed: no repeat");
+        }
+
+        [Test]
+        public void ACommandDuringAShot_IsNotAnsweredByThatShot_ButWaitsForTheNext()
+        {
+            var c = new ShotCommands();
+            c.Command();
+            c.ShotStarted(true);
+            c.Command(); // a click while the shot is going
+            Assert.That(c.ShotWentOff(), Is.False, "the shot in progress was for the earlier click");
+            Assert.That(c.Owed, Is.True, "the later click still waits for a shot of its own");
+            c.ShotStarted(true);
+            Assert.That(c.ShotWentOff(), Is.True);
+            Assert.That(c.Owed, Is.False);
+        }
+
+        [Test]
+        public void TenCommandsDuringOneShot_AreOneWaitingCommand()
+        {
+            var c = new ShotCommands();
+            c.Command();
+            c.ShotStarted(true);
+            for (int i = 0; i < 10; i++) c.Command();
+            Assert.That(c.ShotWentOff(), Is.False);
+            c.ShotStarted(true);
+            Assert.That(c.ShotWentOff(), Is.True, "one more shot answers all ten");
+            Assert.That(c.Owed, Is.False);
+        }
+
+        [Test]
+        public void ACancelledShot_AnswersNothing_AndClearDropsTheCommand()
+        {
+            var c = new ShotCommands();
+            c.Command();
+            c.ShotStarted(true);
+            c.ShotCancelled();
+            Assert.That(c.ShotWentOff(), Is.False, "a cancelled shot answers nothing");
+            Assert.That(c.Owed, Is.True, "the command still waits");
+            c.Clear();
+            Assert.That(c.Owed, Is.False, "a move order, a dash or a skill drops it");
+            c.ShotStarted(true);
+            Assert.That(c.ShotWentOff(), Is.False, "and a later shot with no command answers nothing");
+        }
+
+        [Test]
+        public void AShotNotStartedForTheCommand_DoesNotAnswerIt()
+        {
+            var c = new ShotCommands();
+            c.Command();
+            c.ShotStarted(forTheCommand: false); // a shot on the move
+            Assert.That(c.ShotWentOff(), Is.False);
+            Assert.That(c.Owed, Is.True);
+        }
+
+        [Test]
+        public void ACommandMustWait_WhileAShotIsGoing_OrItsShotTimeIsNotOver()
+        {
+            Assert.That(ShotCommands.MustWait(true, 5f, 0f), Is.True, "a shot is going");
+            Assert.That(ShotCommands.MustWait(false, 0.1f, 0.225f), Is.True, "the last shot's time is not over");
+            Assert.That(ShotCommands.MustWait(false, 0.225f, 0.225f), Is.False, "exactly when it is over, the next may start");
+            Assert.That(ShotCommands.MustWait(false, 1f, 0.225f), Is.False);
+        }
+
+        [Test]
+        public void PendingOne_HoldsOne_ANewerReplacesIt_AndItNeverExpires()
+        {
+            var p = new PendingOne<string>();
+            Assert.That(p.HasItem, Is.False);
+            p.Store("A");
+            p.Store("B");
+            Assert.That(p.Item, Is.EqualTo("B"), "the newer one replaces the older");
+            Assert.That(p.Take(), Is.EqualTo("B"));
+            Assert.That(p.HasItem, Is.False, "taking it empties the slot");
+            Assert.That(p.Take(), Is.Null);
+            p.Store("C");
+            p.Clear();
+            Assert.That(p.HasItem, Is.False);
         }
     }
 }

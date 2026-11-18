@@ -32,18 +32,21 @@ namespace Roguelike.Rules
         public float InputBuffer = 0.15f;         // s
 
         // Basic shot
-        public float BasicShotStartup = 0.15f;    // s
-        public float BasicShotActive = 0.05f;     // s
-        public float BasicShotRecovery = 0.25f;   // s
+        public float BasicShotStartup = 0.08f;    // s (halved 2026-11-18: shoot more often)
+        public float BasicShotActive = 0.02f;     // s
+        public float BasicShotRecovery = 0.125f;  // s
         public float BasicAttackRange = 6f;       // m
         public float AttackMoveClickRadius = 2f;  // m, from the click to a target's edge
 
         // Aiming and shooting on the move (basic shot only)
         public float ShotFrontAngle = 60f;        // degrees to each side of the facing: a target within it turns only the upper body
-        public float MovingShotSpeedShare = 0.5f; // share of run speed while a shot on the move winds up
-        public float MovingShotRecovery = 0.2f;   // s from the shot going off to full speed again
+        public float MovingShotSpeedShare = 0.5f; // share of run speed a shot on the move slows to
+        public float MovingShotSlowdown = 0.15f;  // s to ease down to that share when a shot on the move starts
+        public float MovingShotRecovery = 0.5f;   // s to ease back to full speed, once the shot has gone off and the slow-down is done
+        public float ShootGaitFade = 0.15f;       // s to cross-fade between the run and the shooting gait
 
         // Hits
-        public float HitStop = 0.05f;             // s
+        public float HitStop = 0.05f;             // s, a skill hit
+        public float BasicShotHitStop = 0.025f;   // s, a basic shot hit (halved 2026-11-18 with the faster shot)
     }
 }

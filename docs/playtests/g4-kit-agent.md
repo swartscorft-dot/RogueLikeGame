@@ -314,6 +314,232 @@ Kristian: "I think we must look at the run animations again after the new rig." 
 - **Tests:** 90 rule tests, 93 of 94 PlayMode tests (with the two new input tests), the one inconclusive as before. No test pinned the old animation.
 - **Way back:** delete the `OwnRigModelPath,` line in `PlayerModelPreference`. The builder then uses `Rigged_lukket_begge.fbx` with the original clips, as before; the baked clips are then unused.
 
+### A faster shot, a shooting gait, eased speed and recoil (2026-11-18, branch `art/grip`, uncommitted, on top of 160885d)
+
+Kristian asked for four things. First, shoot more often. Second, use the bought clip `Walk_Forward_While_Shooting` for the legs during a shot on the move. Third, ease the speed down and up: "I imagine the deceleration and the acceleration must be slower". Fourth, if it can be done, a simple recoil on every shot.
+
+**1. The faster basic shot.**
+- Startup, active and recovery go from 0.15 / 0.05 / 0.25 s to 0.08 / 0.02 / 0.125 s. The change is in `FeelValues`, in the feel-spec row (still a guess, noted "Kristian 2026-11-18: shoot more often") and in `FeelSettings.asset`. An editor script first checked that the asset still held 0.15 / 0.05 / 0.25, then set those three fields only. Damage stays at 40.
+- **Shots per second:** 2.2 before (one shot every 0.45 s), 4.4 now (one every 0.225 s). Basic-shot damage per second goes from 89 to 178.
+- **Focus:** a shot gives 2, so it takes 50 shots to fill the gauge: 22.5 s of steady fire before, 11.25 s now.
+- **Knock-on effects:**
+  - **Aim blend.** At 0.08 s the arms would only just reach the target as the shot goes off, so the blend (and the twist that uses it) is now 0.05 s. The arms are up before the shot.
+  - **Hit stop.** 0.05 s would be 22% of a 0.225 s shot, so basic-shot hits have their own `BasicShotHitStop` of 0.025 s, which is 11% of a shot. Skill hits keep 0.05 s. This is new and also a guess.
+  - **Effects.** The flash (0.07 s) and the streak (0.1 s) are over before the next shot. Each pistol fires every 0.45 s, so a hand's effects never overlap.
+  - **Input buffer.** The buffer (0.15 s) is now more than half a shot. A second command in the first 0.075 s of a shot lapses. A command any later is kept and fires as soon as the shot allows. A test pins this.
+  - **The moving shot's slow** would have lasted only 0.08 s under the old rule. The new eased rule (part 3) replaces it.
+  - **Changed test:** `MoveOrderInAShotsRecovery_MovesAtOnce` assumed a recovery longer than 0.15 s, so it turned inconclusive. It now steps 0.15 m (not 0.3 m) and checks she left within 80% of the recovery.
+
+**2. The shooting gait.**
+- `Walk_Forward_While_Shooting` is baked for his rig like the idle and the run (`Baked/Outrider_grip_ShootWalk.anim`, 3.27 s, looping). The Animator has a new state, `ShootWalk`.
+- New pose `ShootMove` (`PoseRule`): while a shot on the move slows her (target in front), the legs, hips and body play the gait. The arms and the upper-body twist are procedural on top, as before.
+- It cross-fades from and to the run over `ShootGaitFade` (0.15 s, in `FeelSettings.asset`, a guess). Chained shots stay in the gait. The gait ends when her speed is back up. A target behind her keeps the run, as before.
+- A hit stop no longer flashes the idle pose for a frame on the move. During a hit stop her speed reads 0, so the animation now keeps the speed from before it. This was a bug before too, with the run.
+- **Playback speed comes from her actual speed. That rate is absurd, so here it is in numbers:**
+  - Measured on his rig, a planted foot in the clip slides back at 0.30 to 0.34 m/s. It is a slow creeping walk, with a 3.27 s cycle and 0.49 m steps.
+  - Her moving shot runs at 3 m/s at the slowest (share 0.5) and up to 6 m/s as she speeds up. With the feet matched to the ground, the clip plays at 10 to 20 times its speed: a whole cycle in 0.16 to 0.33 s. That is quick tiny steps, and the captures show it.
+  - **What would look right:** the clip at its own speed fits a share of about 0.05 (0.3 m/s). At a normal walking cadence (about 3 times, a 1.1 s cycle) it fits a share of about 0.15 (0.9 m/s), with the feet still matched. At a share of 0.5, no walking clip fits; it would need a jog or run-and-gun clip.
+  - My choice: build it as asked and leave it on. In the gait the speed is matched to the ground (`ShootWalkClipSpeed` 0.3 on the `CharacterAnimation` component, clamped at 20 times). Kristian should judge it in the hand.
+  - The way back is one line: delete the `shootingGait` condition in `PoseRule.Pick`, or set `ShootGaitFade` large.
+- `RunClipSpeed` stays at 6. Measured on his rig, the run clip's planted foot slides back at 5.7 to 6.1 m/s, so it fits. The comment now says so.
+
+**3. Eased speed around a shot on the move** (`MovingShot.SpeedShare`, rule in `Roguelike.Rules`).
+- **Slowing down:** smoothstep from the share she has when the shot starts down to `MovingShotSpeedShare` (0.5), over `MovingShotSlowdown` (0.15 s, new).
+- **Speeding up:** starts only once the shot has gone off and the slow-down is done. Smoothstep back to full speed over `MovingShotRecovery`, now 0.5 s (was 0.2; it was not in the asset, so the asset now has 0.5).
+- **A chained shot** eases down from the share she has at that moment.
+- **A dash, a skill, or a shot cancelled before it goes off** ends the slow at once.
+- All three values are in `FeelValues`, in `FeelSettings.asset` and in the feel-spec, as guesses.
+- **Speed over time from the game,** stepping at 60 frames a second. "Limit" is the share of run speed allowed; "actual" is the NavMeshAgent's speed. Raw tables are in `shoot-gait-captures/speed-table-raw.txt`.
+
+| t (s) | One shot: limit | One shot: actual | Chain of three (commands at 0, 0.28, 0.52 s): limit | Chain: actual |
+|---|---|---|---|---|
+| 0.02 | 1.00 (command) | 1.00 | 1.00 (command 1) | 1.00 |
+| 0.08 | 0.73 (shot) | 0.82 | 0.73 (shot 1) | 0.82 |
+| 0.14 | 0.51 | 0.55 | 0.51 | 0.55 |
+| 0.20 | 0.51 | 0.50 | 0.51 | 0.50 |
+| 0.26 | 0.56 | 0.53 | 0.56 | 0.53 |
+| 0.32 / 0.34 | 0.63 | 0.58 | 0.53 (shot 2) | 0.54 |
+| 0.38 / 0.40 | 0.72 | 0.66 | 0.50 | 0.51 |
+| 0.44 / 0.46 | 0.81 | 0.75 | 0.51 | 0.50 |
+| 0.50 / 0.52 | 0.89 | 0.84 | 0.54 (command 3) | 0.53 |
+| 0.56 / 0.58 | 0.96 | 0.92 | 0.52 (shot 3) | 0.53 |
+| 0.62 / 0.64 | 0.99 | 0.97 | 0.50 | 0.50 |
+| 0.68 / 0.70 | 1.00 (run again) | 1.00 | 0.51 | 0.50 |
+| 0.76 – 1.12 | 1.00 | 1.00 | 0.56, 0.63, 0.72, 0.81, 0.89, 0.96, 0.99 | lags about 0.05 behind |
+| 1.18 | | | 1.00 (run again) | 1.00 |
+
+- **Metres lost per moving shot,** at 6 m/s:
+  - Old rule with the old timing: 0.75 m, calculated (0.15 s at half speed, then a 0.2 s straight climb).
+  - Old rule with the new timing: 0.54 m, calculated.
+  - New rule: 0.98 m, calculated. **Measured in the game: 1.15 m**, because the agent's actual speed lags the limit on the way up.
+  - A chain of three loses 2.59 m (measured).
+  - So the eased version costs her about 0.4 m more per shot than before. That is what "slower deceleration and acceleration" buys. The 0.5 s climb is the value to tune.
+- The gait's playback follows the actual speed, so the steps slow and quicken with the curve.
+
+**4. Recoil** (`CharacterAnimation`, presentation only).
+- On every shot from a pistol, only the hand that fired kicks:
+  - the hand comes back toward the shoulder and the elbow gives (a two-bone bend);
+  - the muzzle flips up;
+  - the shoulder on that side is nudged back by 15% of the flip, as part of the upper-body turn, so the other arm still aims true.
+- The kick is fast (ease-out to the peak) and the settle slower (smoothstep back).
+- **Values, all in `ShotFx.asset` and all guesses:**
+  - the base kick: `RecoilAngle` 16 degrees, `RecoilPullBack` 0.07 m, `RecoilKickSeconds` 0.04, `RecoilSettleSeconds` 0.16;
+  - per look, `Recoil` as a share of the base: basic 1, Quick Shot 1.5, Long Shot 1.3 (and it grows with the charge, as the flash does), Scatter Blast 2, Heavy Volley 2.2, Backstep 1.4, Triple Tap 1, Fan Fire 0.5 (small), **Powder Keg 0 (none: it is thrown, not fired)**;
+  - empowered shots kick 25% harder, with their effects;
+  - caps at 40 degrees and 0.15 m.
+  These were written into his `ShotFx.asset` by script: only the new fields, nothing else changed.
+- A kick lasts 0.2 s, less than a shot (0.225 s) and far less than that hand's next shot (0.45 s).
+- **It never moves where the shot starts.** The shot reads the muzzle in the fire frame, before the kick is posed. The flash stays where the muzzle was, so in the frames after the shot the pistol is seen pulled back from its own flash by a few centimetres. That is the trade-off of "do not move the muzzle-effect start".
+
+**Tests.**
+- Rules: 92 of 92 (90 before; the moving-shot tests rewritten into five; one new pose test).
+  - Moving-shot tests: the slow-down starts at the current share and reaches the slow share at the slow-down time and not before; the speed-up waits for both conditions; full speed after the recovery time; the curve goes one way at a time without jumps; a chained shot eases from the current share.
+  - Pose test: walking while slowed by a shot shows the shooting gait, and a dash still wins.
+- PlayMode: 98 of 99 pass, with the one inconclusive as before (`Animation_TheShotGoesOffAtTheClipsFiringMoment`). New:
+  - `FireRate_IsFromTheSettings_TwoCommandsACycleApartGiveTwoShots_AFasterPairOne`;
+  - `OnTheMove_TheLegsShowTheShootingGait_ThenTheRunAgain` (pose, Animator state, playback at her speed, back to Run);
+  - `OnTheMove_ChainedShots_StayInTheShootingGait`;
+  - `Animation_TheShootingGaitIsBakedForThisRig`;
+  - `Recoil_KicksOnlyThePistolThatFired_AndEachIsBackOnTheTargetBeforeItsNextShot`. Over a standing burst of four, it checks for each shot that the flash is at the barrel end, the hands take turns, the firing pistol was on target when it fired, the muzzle flips up by 70 to 110% of the kick angle, and the other pistol stays on target and does not flip. It also checks that the firing pistol has settled back afterwards.
+- Changed: the moving-shot test now checks the eased curve: it starts slowing at once but not in a jump, is at the slow share when the slow-down is done, is not yet at full speed just before the recovery is up, and is at full speed after it. Also `MoveOrderInAShotsRecovery_MovesAtOnce` (see part 1), and `HitStop_FreezesTimeAtTheHit_ThenReleases`, which now uses the basic-shot hit stop.
+- **Planted bugs,** one at a time and removed again:
+
+| Planted bug | Caught by |
+|---|---|
+| The next shot waits twice the shot time | the fire-rate test (one shot, not two) |
+| The shooting gait is never shown | both gait tests |
+| The speed-up does not wait for the slow-down to finish | three of the five rule tests |
+| Both pistols kick on every shot | the recoil test ("the other pistol's muzzle does not flip up", 8 degrees). Before that check was added, the other-pistol-on-target check caught it only narrowly (0.969 against 0.97), so the flip check was added. |
+
+**Seen.** Captures are in `E:/repos/A-Roguelike-Game/blender-work/shoot-gait-captures/`. They were taken in Play mode at 60 frames a second. Each frame has the game camera (`-game`), the game camera's angle moved in close (`-gamezoom`), and a side or close view. Each sequence has a `.txt` with time, speed share, pose and shots per frame.
+- `moveshot-ahead-01..08` and `moveshot-45-01..08`, every 5 frames over 0.6 s: from the run into the gait, the shot, and back to the run. The gait reads as a walk with legs apart and both pistols on the target, but the steps are very fast (see part 2).
+- `chain3-01..10`: three shots, in the gait all the way.
+- `burst4-01..08`: standing, four shots, hands in turn.
+- `recoil-f00..f13`: a single kick, frame by frame. The near hand comes back with the elbow bent and the muzzle up at frames 2 to 4, and is back on line by frame 13.
+- **Found, not fixed:** in every pose she stands 8.3 cm above the floor. The NavMesh surface is at y 0.083 over a floor at 0, and the model is placed for y 0. It shows in the side views. This was there before this work; the fix would be one line in the builder or `CharacterAnimation`.
+
+**Not verified:** play with the real mouse and keyboard; how 4.4 shots a second feels; whether the fast gait reads well at the game camera's distance in motion (stills cannot show it); the recoil on skills other than the basic shot, which has no test of its own; Triple Tap and Fan Fire, whose hits come closer together than a kick lasts.
+
+### Click to shoot, feet on the floor, and the bought shooting gaits (2026-11-18, branch `art/grip`, uncommitted)
+
+Kristian liked the faster shot, the eased speed and the recoil ("yes, like it very much"); those stand. Then: "I think auto attack is not a thing any more, but click to shoot. Then it hangs together better."
+
+**1. Click to shoot, no auto-attack.**
+- **Before:** a standing attack order kept firing until something else was ordered. Only shots on the move were one per command. An attack command on the move in the first 0.075 s of a shot lapsed.
+- **Now every basic shot needs its own command:** a left click, a right click on an enemy, or A then left click.
+  - **Standing, target in range:** one shot, then she stands.
+  - **Walking on a move order, target in range:** one shot on the move, as before.
+  - **Target out of range:** she walks until it is in range, fires once and stands.
+  - **Attack-move on the ground with nothing near the click:** she walks toward the point as before. If a target comes into range on the way, she fires once at it and stands; she does not walk on to the point.
+- **Fast clicking loses nothing.** A click while a shot is still in its cycle waits, wherever in the cycle it lands, and fires as the next shot the moment the cycle allows, standing or moving.
+  - Only one click waits. A newer click replaces it, so the waiting shot goes at the latest target, and ten clicks in one cycle are still one shot.
+  - A move order, a dash or a skill drops the waiting click.
+  - The fire rate is still capped by the whole shot time (0.225 s), however fast the clicks come.
+- **Holding a button does not repeat:** one press, one shot. Holding the right button on the ground still steers the walk after the cursor.
+- **The League rule is unchanged:** a move order before a standing shot has gone off cancels it at no cost, and an attack on another target before it has gone off switches at once.
+- **How it is built:**
+  - **The rule** is `ShotCommands` in `Roguelike.Rules` (`Assets/Game/Rules/ShotCommands.cs`), with EditMode tests. Each attack command gets a number. A shot is tagged with the command it was started for. When the shot goes off, it answers its command only if no newer command has come in meanwhile; a newer one still waits for a shot of its own. `MustWait` is the cycle cap. `PendingOne<T>` holds at most one waiting item, with no expiry.
+  - **Standing,** the attack order itself is the waiting shot. It is done, and cleared, when its own shot goes off, so nothing repeats. A click during a shot replaces the order. It then waits for the cycle in the existing "next shot waits the whole shot time" check, walking into range first if it must.
+  - **On the move,** the waiting click is a `PendingOne<Damageable>`. It no longer lapses after the input buffer. When it fires, if she is still walking and the target is in range, it is a shot on the move. If she has stopped meanwhile, it becomes a standing attack order. If she is still walking but the target has left the range, it is let go.
+  - **The general input buffer** (0.15 s, for dashes and skills during a lock) is untouched. Shots no longer go through anything like it, which kept the code simpler than bending the buffer.
+  - **The held right button:** the input driver sends an attack or a move only on the press. On the held frames it calls a new `SteerTo`. `SteerTo` walks like `MoveTo` but keeps a waiting click on the move, and leaves alone an attack order given while the button was held; once that order's shot has gone off, the steering takes over again. Without this, holding right to walk would have dropped every waiting click on every frame.
+  - **A dash or a skill** drops a click on the move, and an attack order while a shot is in its cycle (including the shot it cancels). An attack order still walking to a target out of range, with no shot in its cycle, survives a dash, as a move order does.
+  - **Arms between rhythm clicks.** With a click waiting on a target in range from where she stands, the shot's recovery is no longer cut short. It runs out exactly when the next shot may start, so the arms stay up between shots. Cutting it short dropped them for a moment, which the recoil test caught.
+- **On-screen help line:** "RMB move, or shoot a target | LMB (or A, LMB) attack-move: one click, one shot".
+- **Feel-spec rows:** Attack-move, Right-click on an enemy, Attack command while walking, and a new "Basic attack repeat" row, all marked "Kristian 2026-11-18: click to shoot, no auto-attack".
+- **Clicks and shots from the running game** (`click-shoot-captures/click-table.txt`, frames step 0.02 s). Six clicks, one every 7 frames, which is about twice the fire rate:
+
+| | Clicks (s) | Shots started (s) | Gaps between shots (s) | Shots |
+|---|---|---|---|---|
+| Standing | 0.00, 0.12, 0.24, 0.38, 0.48, 0.60 | 0.04, 0.28, 0.52, 0.76 | 0.24, 0.24, 0.24 | 4 of 6 |
+| Walking | 0.00, 0.10, 0.24, 0.34, 0.48, 0.58 | 0.02, 0.24, 0.48, 0.72 | 0.22, 0.24, 0.24 | 4 of 6 |
+
+  Every shot starts on the first frame the 0.225 s cycle allows. Two clicks each time fall inside one cycle, so under the one-waiting rule they make one shot: 6 clicks give 4 shots, and no click is lost beyond that rule.
+- **Hold-to-fire, if he wants it:** small, about an hour with tests. The driver would re-send the attack while the left button (or the right button on a target) is held, whenever no click is waiting. The waiting rule already caps it at the fire rate. It needs a "left button held" field in the input frame and one test.
+
+**2. Feet on the floor.**
+- **Cause:** the baked NavMesh lies 0.083 m over the floor (voxel rounding). The agents stand on it, and both figures were placed for a floor at y = 0.
+- **The enemy** had the same offset: its root stood at 0.083 and its body bottom was at 0.083. **The dummies** did not: they are not agents, and their bottoms are at 0.000.
+- **Fix:** in the builder, after the NavMesh is baked, measure how far it lies over the floor (`NavMeshLift`) and lower the player's model (`Visual`) and the enemy's body and nose by that.
+  - The roots are not moved, so no gameplay position changes: ground points, ranges, the agents and the shot origins are all unchanged.
+  - The muzzles sit in the model's hands, so they come down with it, and every effect still starts at the barrel end. All shot-effect tests pass.
+  - The builder reports "floor: the NavMesh lies 0.083 m over it".
+- **Measured** (`click-shoot-captures/feet-before.txt` and `feet-after.txt`):
+  - Idle toe joints: 0.116 / 0.144 m before, 0.035 / 0.060 m after. The clip's own lowest are 0.032 / 0.059.
+  - Run foot contact, lowest toe: 0.145 m before, 0.062 m after.
+  - Enemy body bottom: 0.083 before, 0.000 after.
+- **Captures:** `feet-before-idle.png`, `feet-before-run-contact.png` and `feet-before-enemy.png`, and the same three "after". Before, the boots hang over their shadows; after, the soles are on the floor at idle and at run contact.
+
+
+**3. The shooting gait from the bought clips.**
+- **The file:** `Assets/Game/Art/Player/Outrider/Outrider_ShootGaits.fbx`, copied from `blender-work/meshy-clips-2026-11-18/Outrider_RunShoot_WalkBackShoot.fbx`. The builder imports it Generic, with cameras and lights off, and bakes both clips for his rig like the idle and the run: `Baked/Outrider_grip_ShootRun.anim` and `Baked/Outrider_grip_ShootBack.anim`.
+- **Clip names after import:** `Run_and_Shoot` (frames 0–20, 0.667 s) and `Walk_Backward_While_Shooting_inplace` (frames 0–38, 1.267 s). They are renamed to the states `ShootRun` and `ShootBack`, both looping.
+- **The creeping walk is removed:** its state, its bake and its baked file are gone. Its take is still in `Outrider_Actions.fbx`, unused.
+- **Measured on his rig, in a preview scene:**
+  - **Run and Shoot** has root motion: the hips travel 1.50 m in 0.667 s (2.25 m/s), while a planted foot creeps forward 0.1 to 0.3 m/s. The hips hold takes the travel out, so the feet pass under the body at about 2.1 m/s (`ShootRunClipSpeed` 2.1).
+    - Over her moving-shot speeds (3 to 6 m/s) it plays at 1.4 to 2.9 times. In the captures it ran at 1.43 times at the slowest and 2.7 times just before the run takes over.
+    - **The 10 to 20 times problem is gone.**
+  - **Walk Backward While Shooting** is in place; a planted foot slides at 0.76 to 0.93 m/s (`ShootBackClipSpeed` 0.85).
+    - **It cannot honestly carry 3 m/s:** that is 3.5 times (a 1.27 s cycle in 0.36 s), and up to 7 times at the moment the shot starts, when she is still near full speed. The gait clamp is now 8 times.
+    - It would look right at about 1 to 1.3 m/s, a share of about 0.2.
+    - What saves it: it only plays while the body is turned, which is the shot itself, about 0.25 s; then the body turns back to her path and the forward gait takes over. So it is a quick backward shuffle for a moment, which reads better than the glide, but not as a backward run.
+- **The rule for forward, backward and sideways** is in `PoseRule.Pick`, which now takes a "moving backward" flag. `CharacterAnimation` sets the flag when her velocity points more against where the body faces than with it (dot product below 0).
+  - In the shooting gait, backward gives `ShootBack` and anything else gives `ShootRun`.
+  - **Sideways** (body square to the path) has no clip of its own: it gets whichever side of 90 degrees the lean is on. At exactly square, it is the forward Run and Shoot, the clip that fits her speed better.
+  - During a hit stop the flag keeps its last value, as the speed does.
+- **The shooting gait now also plays when the body is turned to a target behind** (it used to be the run there). It ends when her speed is back up, as before. The cross-fades (`ShootGaitFade`) cover run, forward and backward gait. Chained shots, including clicks in rhythm, stay in the gait.
+- **Tests:**
+  - `OnTheMove_TheLegsShowTheShootingGait_ThenTheRunAgain` (forward, now on Run and Shoot);
+  - new `OnTheMove_ATargetBehind_ShowsTheBackwardGait_ThenTheRun` (the pose, her velocity against the facing, the Animator in `ShootBack` at the right rate, then back to the run);
+  - `Animation_BothShootingGaitsAreBakedForThisRig` (replaces the single-clip test);
+  - `OnTheMove_ChainedShots_StayInTheShootingGait`;
+  - rule test `MovingBackwardWhileSlowedByAShot_ShowsTheBackwardGait`.
+  - **Planted bug:** the backward check never true. Caught by the target-behind test ("Expected: ShootBack, But was: ShootMove").
+- **Seen** (`shoot-gait-captures/round2/`): `moveshot-ahead-01..08`, `moveshot-45-01..08`, `behind-01..08` and `chain3-01..08`. Each frame has the game camera, a close game-angle view and a side view, plus a `.txt` per sequence with pose, Animator state and playback rate.
+  - **Forward and 45 degrees:** it reads as running and shooting, crouched and leaning in, with long strides. The upper-body twist, both pistols on the target and the recoil all work on top. It is much better than the creeping walk.
+  - **Target behind:** the body faces the target with the legs in the backward walk for the shot, then turns back into the forward gait. It reads better than the glide, but the backward steps are fast.
+  - **Chain of three:** in the forward gait all the way, at 1.4 to 1.8 times.
+  - **Not verified:** whether the feet slide in motion. The rates follow the measured clip speeds, but stills cannot show sliding, and the forward clip's own feet creep a little.
+
+**Tests overall:** rules 100 of 100. PlayMode 111 of 112, with the one inconclusive as before (`Animation_TheShotGoesOffAtTheClipsFiringMoment`).
+
+**Tests changed for click to shoot:**
+- `AttackMove_NearA/B_ShootsARepeatedly_WithoutWalking` → `..._ShootsAOnce/BOnce_WithoutWalking_ThenStands`: one hit, order done, no repeat in two shot times, no walking.
+- `AttackMove_ClickNearTheFartherDummy_ShootsThatOne_FromNearA/B`: one hit on the clicked dummy, then the order is None.
+- `AttackMove_TargetOutOfRange_WalksUntilInRange_ThenShoots`: now also checks no second shot and that she stands.
+- `AttackMove_WhenTheClickedDummyDies_GoesOnWithTheNearest` → split in two:
+  - `AttackMove_WhenTheClickedDummyDiesBeforeTheShot_TheNearestGetsTheOneShot`;
+  - `AttackMove_KillingTheClickedDummy_EndsTheOrder_TheNextOneIsLeftAlone`.
+- `AttackTarget_ShootsOnlyTheChosenTarget`: one hit, then the order is None.
+- `Input_HeldRightClickOnADummy_AttacksIt_AtTheNormalRate` → `Input_HeldRightClickOnADummy_ShootsOnce_HoldingDoesNotRepeat`: three shot times held gives one shot; let go and press again gives a second.
+- `Standing_AnAttack_IsAsBefore_TheOrderTakesOverAndRepeats` → `Standing_AnAttack_FiresOnce_AndSheStands`.
+- `FireRate_..._AFasterPairOne` → `FireRate_..._AFasterPairToo_ButNotSooner`: a second click early in the first shot's cycle now gives a second shot, exactly a cycle later, and no third.
+- `TwoShotsInARow_ComeFromDifferentHands`: gives a second click.
+- `Recoil_...`: clicks whenever none is waiting, five clicks for the four shots it measures.
+- `CuttingTheRecoveryShort_DoesNotRaiseTheFireRate`: comment only.
+
+**New tests:**
+- In `ClickToShootTests`:
+  - one command is one shot, and a second needs a second command;
+  - clicking every frame fires once per cycle, never sooner;
+  - a click early in the shot is the next shot, a cycle later;
+  - ten clicks in one cycle give one waiting shot;
+  - a newer click replaces the waiting one;
+  - a waiting shot is dropped by a move order, by a dash and by a skill;
+  - on the move, a waiting shot is dropped by a move order;
+  - on the move, holding the move button keeps a waiting shot.
+- `Input_LeftClicksInRhythm_EveryClickIsAShot`.
+- Seven rule tests for `ShotCommands` and `PendingOne`.
+
+**Planted bugs for click to shoot,** one at a time and removed again:
+
+| Planted bug | Caught by |
+|---|---|
+| The repeat is back (the order is not done when its shot goes off) | `Standing_OneCommandIsOneShot_...` and `Standing_AnAttack_FiresOnce_AndSheStands` (3 shots, not 1) |
+| Two waiting shots kept (commands counted up to the shot going and two more) | `TenClicksInOneCycle_GiveOneWaitingShot` (3, not 2), `ANewerClick_ReplacesTheWaitingOne_...`, rule test `TenCommandsDuringOneShot_AreOneWaitingCommand` |
+| A click in the first part of the cycle is lost (a command during an unanswered one is not counted) | `AClickEarlyInTheShot_IsNotLost_...` (1 shot, not 2), two rule tests |
+| Holding the right button repeats | `Input_HeldRightClickOnADummy_ShootsOnce_HoldingDoesNotRepeat` (3 shots, not 1) |
+
 ## Decisions waiting for Kristian
 
 The ten behaviours under "How the pieces behave" in the slice file are my choices, and so are the three new skills, the gauge's numbers and the enemy's. The ones most likely to matter in the hand:
@@ -327,7 +553,7 @@ The ten behaviours under "How the pieces behave" in the slice file are my choice
 ## State for the play session
 
 - The Editor is open on `Assets/Game/Scenes/ControlRoom.unity`, Play mode stopped, no compile errors.
-- Controls: right-click moves, or attacks what is under the cursor. Left-click (or A, then left-click) is attack-move. Space dashes. Skills: Q Quick Shot, W Powder Keg, E Fan Fire (hold), R Long Shot (charge), S Scatter Blast, D Heavy Volley (cast), F Backstep, G Triple Tap. Z spends a full focus gauge.
+- Controls: right-click moves (held, it follows the cursor), or shoots what is under the cursor once. Left-click (or A, then left-click) is attack-move. One click, one shot: there is no auto-attack. Space dashes. Skills: Q Quick Shot, W Powder Keg, E Fan Fire (hold), R Long Shot (charge), S Scatter Blast, D Heavy Volley (cast), F Backstep, G Triple Tap. Z spends a full focus gauge.
 - The enemy is the tall purple shape far to the right and down from the start, at (15, -10). It stands still until you come within 9 m or hurt it. Its red outlines show where it will hit.
-- To tune: `Assets/Game/Settings/Skills.asset` (skills and the gauge), `Assets/Game/Settings/Enemy.asset` (the enemy), `Assets/Game/Settings/ShotFx.asset` (how the shots look) and `Assets/Game/Settings/PostProcessing.asset` (the bloom; untick Bloom there to turn it off), in the Inspector while playing.
+- To tune: `Assets/Game/Settings/Skills.asset` (skills and the gauge), `Assets/Game/Settings/Enemy.asset` (the enemy), `Assets/Game/Settings/ShotFx.asset` (how the shots look, and the recoil) and `Assets/Game/Settings/PostProcessing.asset` (the bloom; untick Bloom there to turn it off), in the Inspector while playing.
 - Nothing is committed on `g4/kit`.

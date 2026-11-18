@@ -26,7 +26,7 @@ namespace Roguelike
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
 
             _text.Clear();
-            _text.AppendLine("RMB move or attack  |  LMB (or A, LMB) attack-move  |  Space dash  |  QWER SDFG skills  |  Z focus");
+            _text.AppendLine("RMB move, or shoot a target  |  LMB (or A, LMB) attack-move: one click, one shot  |  Space dash  |  QWER SDFG skills  |  Z focus");
             int lines = 2;
             if (_player != null)
             {
