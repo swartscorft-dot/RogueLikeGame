@@ -406,11 +406,16 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _a.HitsTaken >= 1, 3f);
             float firstHit = Time.time;
 
-            // Step away and order the attack again at once: the fastest a player could try to shoot.
+            // Step away and order the attack again every frame: the fastest a player could try to shoot.
+            // (On the move, an attack command that comes too early lapses as a buffered press does, so it is
+            // repeated here as a player hammering the button would.)
             _player.MoveTo(_player.Position + Vector3.back);
             yield return null;
-            _player.AttackTarget(_a);
-            yield return Until(() => _a.HitsTaken >= 2, 3f);
+            yield return Until(() =>
+            {
+                if (_a.HitsTaken < 2) _player.AttackTarget(_a);
+                return _a.HitsTaken >= 2;
+            }, 3f);
 
             Assert.That(_a.HitsTaken, Is.EqualTo(2));
             Assert.That(Time.time - firstHit, Is.GreaterThanOrEqualTo(ShotSeconds - 0.03f),
@@ -622,7 +627,7 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator Input_Esc_CancelsTheAim_AndALeftClickAloneDoesNothing()
+        public IEnumerator Input_Esc_CancelsTheAim_WithoutOrderingAnything()
         {
             UseFakeInput();
             _idle = new InputFrame { CursorScreen = ScreenOf(_player.Position + new Vector3(0f, 0f, -3f)) };
@@ -631,9 +636,48 @@ namespace Roguelike.PlayModeTests
             yield return Feed(new InputFrame { CursorScreen = _idle.CursorScreen, CancelPressed = true });
             Assert.That(_driver.IsAimingAttackMove, Is.False);
             Assert.That(_driver.RangeRing.IsVisible, Is.False);
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "Esc orders nothing");
+        }
+
+        [UnityTest]
+        public IEnumerator Input_ALeftClickWithoutA_OrdersAttackMoveAtTheCursor()
+        {
+            UseFakeInput();
+            _player.Teleport(new Vector3(0f, 0f, -12f)); // nothing in range here
+            yield return null;
+            yield return null;
+            Vector3 point = _player.Position + new Vector3(-3f, 0f, 2f);
+            _idle = new InputFrame { CursorScreen = ScreenOf(point) };
 
             yield return Feed(new InputFrame { CursorScreen = _idle.CursorScreen, ConfirmPressed = true });
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "a left-click without A orders nothing");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.AttackMove), "a left-click alone is an attack-move");
+            Assert.That(_driver.IsAimingAttackMove, Is.False, "with no aim left behind");
+            Assert.That(_driver.RangeRing.IsVisible, Is.False);
+            yield return Until(() => _player.Order == OrderKind.None, 3f);
+            Assert.That(FlatDistance(_player.Position, point), Is.LessThan(0.3f), "to the point clicked");
+        }
+
+        [UnityTest]
+        public IEnumerator Input_ALeftClickNearATargetInRange_WhileWalking_IsAShotOnTheMove()
+        {
+            UseFakeInput();
+            _player.Teleport(new Vector3(-6f, 0f, 0f));
+            yield return null;
+            var destination = new Vector3(10f, 0f, 0f);
+            _player.MoveTo(destination);
+            yield return Until(() => _player.Position.x >= -1f, 4f);
+            // On the ground beside A: not under the cursor, but near enough the click for the attack-move to pick A.
+            Vector3 beside = _a.transform.position + new Vector3(0f, 0f, 1.5f);
+            Assume.That(Targeting.Gap(new GroundPoint(beside.x, beside.z), _a.GroundPosition, _a.Radius),
+                        Is.GreaterThan(Placeholders.CursorPickSlack), "the cursor is not on A");
+            _idle = default;
+
+            _frames.Enqueue(new InputFrame { CursorScreen = ScreenOf(beside), ConfirmPressed = true });
+            yield return Until(() => _frames.Count == 0, 1f);
+            Assert.That(_player.IsShootingOnTheMove, Is.True, "a shot on the move");
+            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "the move goes on");
+            yield return Until(() => _a.HitsTaken >= 1, 2f);
+            Assert.That(_a.HitsTaken, Is.EqualTo(1));
         }
 
         [UnityTest]
@@ -750,6 +794,44 @@ namespace Roguelike.PlayModeTests
             _player.Stop();
             yield return Until(() => view.AimWeight <= 0f, 2f);
             Assert.That(view.AimWeight, Is.EqualTo(0f), "and go down again when the shooting stops");
+        }
+
+        [UnityTest]
+        public IEnumerator Animation_ThePistolsSitInTheHands_StandingRunningAndShooting()
+        {
+            CharacterAnimation view = RiggedView();
+            Assume.That(view.RightWeapon != null && view.LeftWeapon != null, Is.True, "this model holds a pistol in each hand");
+            yield return null;
+            yield return null;
+
+            // With grip settings the pistols are where the settings say. Without, they are where the model
+            // had them when the scene was built. Either way they must stay there, in every pose.
+            float rightReach = Vector3.Distance(view.RightWeapon.position, view.RightHand.position);
+            float leftReach = Vector3.Distance(view.LeftWeapon.position, view.LeftHand.position);
+            if (view.Grip != null)
+            {
+                float set = new Vector3(view.Grip.Forward, view.Grip.Up, view.Grip.Outward).magnitude;
+                Assert.That(rightReach, Is.EqualTo(set).Within(0.01f), "right pistol, as the grip settings say");
+                Assert.That(leftReach, Is.EqualTo(set).Within(0.01f), "left pistol, as the grip settings say");
+            }
+            Assert.That(rightReach, Is.InRange(0.03f, 0.35f), "the right pistol is at the hand");
+            Assert.That(leftReach, Is.InRange(0.03f, 0.35f), "the left pistol is at the hand");
+            System.Action<string> check = when =>
+            {
+                Assert.That(Vector3.Distance(view.RightWeapon.position, view.RightHand.position), Is.EqualTo(rightReach).Within(0.01f), "right pistol, " + when);
+                Assert.That(Vector3.Distance(view.LeftWeapon.position, view.LeftHand.position), Is.EqualTo(leftReach).Within(0.01f), "left pistol, " + when);
+            };
+
+            _player.MoveTo(new Vector3(-6f, 0f, -5f));
+            yield return new WaitForSeconds(0.4f);
+            check("running");
+
+            _player.Teleport(NearA);
+            yield return null;
+            _player.AttackTarget(_a);
+            yield return Until(() => view.AimWeight >= 1f, 2f);
+            yield return null;
+            check("shooting");
         }
 
         [UnityTest]

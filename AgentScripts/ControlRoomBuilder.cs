@@ -3,7 +3,7 @@
 // Rebuilds Assets/Game/Scenes/ControlRoom.unity from nothing on every run, so the result does not
 // depend on what the scene looked like before. Returns a hierarchy dump for comparison between runs.
 //
-// The feel, skill and enemy settings assets are created only when they are missing.
+// The feel, skill, enemy, grip and shot-effect settings assets are created only when they are missing.
 // They hold Kristian's tuning and are never overwritten. An older skill asset gets the skills it lacks.
 using System.Globalization;
 using System.Linq;
@@ -16,6 +16,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 public static class ControlRoomBuilder
 {
@@ -28,11 +29,34 @@ public static class ControlRoomBuilder
     const string SettingsPath = SettingsDir + "/FeelSettings.asset";
     const string SkillsPath = SettingsDir + "/Skills.asset";
     const string EnemyPath = SettingsDir + "/Enemy.asset";
+    const string GripPath = SettingsDir + "/Grip.asset";
+    const string ShotFxPath = SettingsDir + "/ShotFx.asset";
+    const string PostProcessingPath = SettingsDir + "/PostProcessing.asset";
+    // The bullets' settings of 2026-11-18, replaced the same day by the shot effects. Never tuned; removed when found.
+    const string OldBulletsPath = SettingsDir + "/Bullets.asset";
     const string PlayerArtDir = Root + "/Art/Player";
 
     // The player figure Kristian made in Meshy on 2026-11-17 (the Outrider), rigged through Meshy, and her weapons.
     const string RigDir = PlayerArtDir + "/Outrider";
+    const string BakedDir = RigDir + "/Baked";      // clips baked for Kristian's rig by BakeForRig
     const string RiggedModelPath = RigDir + "/Outrider_Rigged.fbx";
+    // Kristian's version of the same rigged figure, edited in Blender: a hand closed around a pistol.
+    // The closed hand is a shape key at full weight, not baked into the mesh. The pistol he left in the hand
+    // shows how the hand holds it.
+    const string ClosedHandModelPath = RigDir + "/Rigged_lukket.fbx";
+    // The same file with the right hand closed too (made in Blender on 2026-11-18 by mirroring the left hand's shape key).
+    const string BothHandsClosedModelPath = RigDir + "/Rigged_lukket_begge.fbx";
+    // Kristian's own rig (2026-11-18): the same mesh, his bone placement, finger bones, and both hands closed
+    // around the pistols in the rest pose. The Meshy clips are retargeted onto it through Humanoid avatars.
+    const string OwnRigModelPath = RigDir + "/Outrider_grip.fbx";
+    // Which figure the builder uses: the first of these that is there. Drop a line to stop using that file.
+    static readonly string[] PlayerModelPreference =
+    {
+        OwnRigModelPath,
+        BothHandsClosedModelPath,
+        ClosedHandModelPath,
+        RiggedModelPath,
+    };
     const string RunClipPath = RigDir + "/Outrider_Run.fbx";
     const string ActionClipsPath = RigDir + "/Outrider_Actions.fbx";   // Idle 1, and a long-gun stance kept for the shotgun
     const string ControllerPath = RigDir + "/Outrider.controller";
@@ -59,8 +83,6 @@ public static class ControlRoomBuilder
         Material floorMat = MaterialAsset("Floor", new Color(0.45f, 0.45f, 0.47f), unlit: false);
         Material playerMat = MaterialAsset("Player", new Color(0.15f, 0.45f, 0.95f), unlit: false);
         Material dummyMat = MaterialAsset("Dummy", new Color(0.85f, 0.2f, 0.15f), unlit: false);
-        Material basicShotMat = MaterialAsset("BasicShot", new Color(1f, 0.95f, 0.6f), unlit: true);
-        Material skillMat = MaterialAsset("Skill", new Color(1f, 0.6f, 0.1f), unlit: true);
         Material ringMat = MaterialAsset("RangeRing", new Color(0.95f, 0.9f, 0.2f), unlit: true);
         Material aimMat = MaterialAsset("SkillAim", new Color(1f, 0.45f, 0.1f), unlit: true);
         Material enemyMat = MaterialAsset("Enemy", new Color(0.4f, 0.12f, 0.45f), unlit: false);
@@ -96,6 +118,22 @@ public static class ControlRoomBuilder
             enemyCreated = true;
         }
 
+        // Its script is gone, so it cannot be loaded; it is found by its file.
+        bool oldBulletsRemoved = System.IO.File.Exists(OldBulletsPath) && AssetDatabase.DeleteAsset(OldBulletsPath);
+
+        bool shotFxCreated = false;
+        var shotFx = AssetDatabase.LoadAssetAtPath<ShotFxSettings>(ShotFxPath);
+        if (shotFx == null)
+        {
+            shotFx = ScriptableObject.CreateInstance<ShotFxSettings>();
+            AssetDatabase.CreateAsset(shotFx, ShotFxPath);
+            shotFxCreated = true;
+        }
+        bool shotFxExtended = shotFx.EnsureLooks(skills.Skills.Where(s => s != null).Select(s => s.Name));
+        if (shotFxExtended) EditorUtility.SetDirty(shotFx);
+        Material shotFxMat = ShotFxMaterial();
+        VolumeProfile postProcessing = PostProcessingProfile(out bool postProcessingCreated);
+
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         // Light
@@ -116,7 +154,9 @@ public static class ControlRoomBuilder
 
         // Player: the rigged Outrider with her weapons if she is there, else a grey-box capsule.
         // Either way the root stays 1 m above the ground, so control, camera and tests do not depend on the visual.
-        GameObject riggedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(RiggedModelPath);
+        string riggedPath = PlayerModelPreference.FirstOrDefault(System.IO.File.Exists) ?? RiggedModelPath;
+        WithoutCamerasAndLights(riggedPath);
+        GameObject riggedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(riggedPath);
         GameObject player;
         string playerVisual;
         CharacterAnimation animation = null;
@@ -124,7 +164,7 @@ public static class ControlRoomBuilder
         {
             player = new GameObject("Player");
             player.transform.position = new Vector3(0f, 1f, 0f);
-            playerVisual = "player visual: " + RiggedModelPath + "\n" + AttachRiggedModel(player, riggedAsset, out animation);
+            playerVisual = "player visual: " + riggedPath + "\n" + AttachRiggedModel(player, riggedAsset, riggedPath, out animation);
         }
         else
         {
@@ -150,8 +190,16 @@ public static class ControlRoomBuilder
         var character = player.AddComponent<PlayerCharacter>();
         character.Settings = settings;
         character.SkillSet = skills;
-        character.BasicShotMaterial = basicShotMat;
-        character.SkillMaterial = skillMat;
+        character.ShotLooks = shotFx;
+        character.ShotFxMaterial = shotFxMat;
+        if (animation != null)
+        {
+            // Shots start at the barrel ends. Without the figure there are no muzzles, and they start at the character.
+            character.RightMuzzle = Muzzle(animation.RightWeapon);
+            character.LeftMuzzle = Muzzle(animation.LeftWeapon);
+        }
+        playerVisual += "  muzzles: " + (character.RightMuzzle != null ? "right" : "no right") + ", "
+                      + (character.LeftMuzzle != null ? "left" : "no left") + "\n";
         var playerHealth = player.AddComponent<PlayerHealth>();
         var driver = player.AddComponent<PlayerInputDriver>();
         if (animation != null) animation.Player = character;
@@ -197,6 +245,18 @@ public static class ControlRoomBuilder
         Quaternion camRotation = Quaternion.Euler(settings.Values.CameraPitch, 0f, 0f);
         camGo.transform.SetPositionAndRotation(-(camRotation * Vector3.forward) * settings.Values.CameraDistance, camRotation);
         cam.fieldOfView = settings.Values.FieldOfView;
+        cam.allowHDR = true;
+
+        // Bloom, so that the shot effects glow. Only what is drawn brighter than white passes its threshold,
+        // which in this scene is the effects (see ShotFxSettings.CoreGlow); the rest of the picture is as before.
+        // To turn it off: untick Bloom in Settings/PostProcessing.asset, or the Volume on "PostProcessing".
+        var cameraData = camGo.AddComponent<UniversalAdditionalCameraData>();
+        cameraData.renderPostProcessing = true;
+        cameraData.antialiasing = AntialiasingMode.None;
+        var volume = new GameObject("PostProcessing").AddComponent<Volume>();
+        volume.isGlobal = true;
+        volume.priority = 1f;
+        volume.sharedProfile = postProcessing;
 
         // Debug readout
         new GameObject("DebugReadout").AddComponent<DebugReadout>();
@@ -231,7 +291,10 @@ public static class ControlRoomBuilder
 
         return (settingsCreated ? "settings: created\n" : "settings: kept\n")
              + (skillsCreated ? "skills: created\n" : skillsExtended ? "skills: kept, missing ones added\n" : "skills: kept\n")
-             + (enemyCreated ? "enemy: created\n" : "enemy: kept\n") + playerVisual + Dump();
+             + (enemyCreated ? "enemy: created\n" : "enemy: kept\n")
+             + (shotFxCreated ? "shot effects: created\n" : shotFxExtended ? "shot effects: kept, missing looks added\n" : "shot effects: kept\n")
+             + (oldBulletsRemoved ? "old bullet settings: removed\n" : "")
+             + (postProcessingCreated ? "post-processing profile: created\n" : "post-processing profile: kept\n") + playerVisual + Dump();
     }
 
     /// <summary>
@@ -266,6 +329,92 @@ public static class ControlRoomBuilder
     }
 
     /// <summary>
+    /// A "Muzzle" child of a weapon holder at the barrel end: at the farthest point of the mesh along the
+    /// holder's +X (the barrel), across from the middle of the front face (the vertices within 2% of the
+    /// weapon's length of that point).
+    /// </summary>
+    static Transform Muzzle(Transform holder)
+    {
+        if (holder == null) return null;
+        float front = float.NegativeInfinity, back = float.PositiveInfinity;
+        var points = new System.Collections.Generic.List<Vector3>();
+        foreach (MeshFilter filter in holder.GetComponentsInChildren<MeshFilter>())
+        {
+            if (filter.sharedMesh == null) continue;
+            foreach (Vector3 v in filter.sharedMesh.vertices)
+            {
+                Vector3 local = holder.InverseTransformPoint(filter.transform.TransformPoint(v));
+                points.Add(local);
+                front = Mathf.Max(front, local.x);
+                back = Mathf.Min(back, local.x);
+            }
+        }
+        if (points.Count == 0) return null;
+
+        float slack = (front - back) * 0.02f;
+        Vector3 sum = Vector3.zero;
+        int n = 0;
+        foreach (Vector3 p in points)
+        {
+            if (p.x < front - slack) continue;
+            sum += p;
+            n++;
+        }
+        Vector3 face = sum / n;
+
+        var muzzle = new GameObject("Muzzle").transform;
+        muzzle.SetParent(holder, false);
+        muzzle.localPosition = new Vector3(front, face.y, face.z);
+        return muzzle;
+    }
+
+    /// <summary>Turns off the import of cameras and lights for a model file. A Blender export often carries both.</summary>
+    static void WithoutCamerasAndLights(string modelPath)
+    {
+        var importer = AssetImporter.GetAtPath(modelPath) as ModelImporter;
+        if (importer == null || (!importer.importCameras && !importer.importLights)) return;
+        importer.importCameras = false;
+        importer.importLights = false;
+        importer.SaveAndReimport();
+    }
+
+    /// <summary>
+    /// Two pistols placed as the one in the model file lies: one where it is, in the hand it is nearest to, and
+    /// one mirrored into the other hand (the figure is the same left and right). They are made as long as it is.
+    /// The pistol mesh has its barrel along its own +X and its top along its own +Z.
+    /// </summary>
+    static void PistolsAsPlaced(Transform placed, Transform visual, Transform rightHand, Transform leftHand,
+                                StringBuilder report, out Transform rightPistol, out Transform leftPistol)
+    {
+        Mesh mesh = placed.GetComponent<MeshFilter>().sharedMesh;
+        Vector3 centre = visual.InverseTransformPoint(placed.TransformPoint(mesh.bounds.center));
+        Vector3 barrel = visual.InverseTransformDirection(placed.TransformDirection(Vector3.right)).normalized;
+        Vector3 top = visual.InverseTransformDirection(placed.TransformDirection(Vector3.forward)).normalized;
+        Vector3 size = Vector3.Scale(mesh.bounds.size, placed.lossyScale);
+        float length = Mathf.Max(size.x, size.y, size.z);
+        bool inLeftHand = Vector3.Distance(placed.TransformPoint(mesh.bounds.center), leftHand.position)
+                       <= Vector3.Distance(placed.TransformPoint(mesh.bounds.center), rightHand.position);
+
+        Transform Place(string name, Transform hand, bool mirrored)
+        {
+            Transform holder = WeaponHolder(name, PistolModelPath, "DesertEagle", length, report);
+            if (holder == null) return null;
+            Vector3 flip = mirrored ? new Vector3(-1f, 1f, 1f) : Vector3.one;
+            Vector3 b = visual.TransformDirection(Vector3.Scale(barrel, flip));
+            Vector3 t = visual.TransformDirection(Vector3.Scale(top, flip));
+            holder.SetPositionAndRotation(visual.TransformPoint(Vector3.Scale(centre, flip)),
+                                          Quaternion.LookRotation(Vector3.Cross(b, t), t));
+            holder.SetParent(hand, true);
+            return holder;
+        }
+
+        leftPistol = Place("Pistol_L", leftHand, mirrored: !inLeftHand);
+        rightPistol = Place("Pistol_R", rightHand, mirrored: inLeftHand);
+        report.AppendFormat(CultureInfo.InvariantCulture, "  grip: taken from the pistol placed in the {0} hand in the model file, mirrored for the other\n",
+                            inLeftHand ? "left" : "right");
+    }
+
+    /// <summary>
     /// A pistol in a hand. The barrel lies along the forearm and the top of the gun faces forward while the
     /// arm hangs, which is how a pistol sits in a lowered hand; raised, it points where the arm points.
     /// The grip is put in the palm, a little past the wrist.
@@ -290,12 +439,28 @@ public static class ControlRoomBuilder
     /// Puts the rigged model under the player as "Visual", with an Animator and the component that drives it.
     /// The rig's origin is between its feet, so it stands on the player's ground point as it is.
     /// </summary>
-    static string AttachRiggedModel(GameObject player, GameObject riggedAsset, out CharacterAnimation animation)
+    static string AttachRiggedModel(GameObject player, GameObject riggedAsset, string riggedPath, out CharacterAnimation animation)
     {
+        // The clips were made for the Meshy rig and write its bones' local transforms. The Meshy-rigged files play
+        // them as they are. Kristian's rig places and turns those bones differently, so for his rig each clip is
+        // baked into a clip of its own (BakeForRig): every body bone turns from his rest exactly as the Meshy bone
+        // turns from its rest. Everything is Generic; there are no avatars.
+        bool ownRig = riggedPath == OwnRigModelPath;
+        string rigReport = "  generic: " + MakeGeneric(RunClipPath) + ", " + MakeGeneric(ActionClipsPath)
+                         + (ownRig ? ", " + MakeGeneric(riggedPath) : "") + "\n";
+        riggedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(riggedPath);
         ConfigureClips(RunClipPath, ("running", CharacterAnimation.RunState, true));
         ConfigureClips(ActionClipsPath, ("Idle_02", CharacterAnimation.IdleState, true));
         AnimationClip idle = Clip(ActionClipsPath, CharacterAnimation.IdleState);
         AnimationClip run = Clip(RunClipPath, CharacterAnimation.RunState);
+        if (ownRig)
+        {
+            EnsureFolder(RigDir, "Baked");
+            idle = BakeForRig(RiggedModelPath, idle, riggedPath, BakedDir + "/Outrider_grip_Idle.anim");
+            run = BakeForRig(RiggedModelPath, run, riggedPath, BakedDir + "/Outrider_grip_Run.anim");
+            rigReport += string.Format(CultureInfo.InvariantCulture, "  clips baked for this rig from {0}: idle {1} keys, run {2} keys\n",
+                                       System.IO.Path.GetFileName(RiggedModelPath), KeyCount(idle), KeyCount(run));
+        }
 
         var visual = (GameObject)PrefabUtility.InstantiatePrefab(riggedAsset);
         visual.name = "Visual";
@@ -303,15 +468,28 @@ public static class ControlRoomBuilder
         visual.transform.localPosition = new Vector3(0f, -player.transform.position.y, 0f);
         visual.transform.localRotation = Quaternion.Euler(0f, PlayerModelYaw, 0f);
 
-        Renderer[] renderers = visual.GetComponentsInChildren<Renderer>();
-        string look = ApplyLook(renderers, RiggedModelPath, "Outrider");
         var report = new StringBuilder();
-
-        // The weapons hang on the bones while the figure still stands in the pose it was rigged in.
         Transform[] bones = visual.GetComponentsInChildren<Transform>();
         Transform Bone(string name) => bones.FirstOrDefault(t => t.name == name);
-        Transform rightPistol = PistolInHand("Pistol_R", Bone("RightForeArm"), Bone("RightHand"), report);
-        Transform leftPistol = PistolInHand("Pistol_L", Bone("LeftForeArm"), Bone("LeftHand"), report);
+
+        // A loose, unskinned mesh in the model file is a pistol that was left in a hand in Blender.
+        // Where it lies is how the hand was shaped to hold it, so that is the grip, mirrored for the other hand.
+        Transform placed = bones.FirstOrDefault(t => t != visual.transform && t.GetComponent<MeshFilter>() != null);
+        Transform rightPistol, leftPistol;
+        if (placed != null && Bone("RightHand") != null && Bone("LeftHand") != null)
+        {
+            PistolsAsPlaced(placed, visual.transform, Bone("RightHand"), Bone("LeftHand"), report, out rightPistol, out leftPistol);
+            placed.gameObject.SetActive(false);
+        }
+        else
+        {
+            rightPistol = PistolInHand("Pistol_R", Bone("RightForeArm"), Bone("RightHand"), report);
+            leftPistol = PistolInHand("Pistol_L", Bone("LeftForeArm"), Bone("LeftHand"), report);
+        }
+
+        Renderer[] renderers = visual.GetComponentsInChildren<SkinnedMeshRenderer>();
+        string look = ApplyLook(renderers, riggedPath, "Outrider");
+
         Transform shotgun = WeaponHolder("Shotgun_Back", ShotgunModelPath, "Shotgun", ShotgunLength, report);
         if (shotgun != null)
         {
@@ -323,6 +501,7 @@ public static class ControlRoomBuilder
         // The body's stance while shooting is the idle; the dash shows the run. See the constants at the top.
         Animator animator = visual.GetComponent<Animator>();
         if (animator == null) animator = visual.AddComponent<Animator>();
+        animator.avatar = null;
         animator.runtimeAnimatorController = BuildController(idle, run, idle, run);
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -330,6 +509,9 @@ public static class ControlRoomBuilder
         animation = visual.AddComponent<CharacterAnimation>();
         animation.Animator = animator;
         animation.Hips = Bone("Hips");
+        animation.Spine = new[] { Bone("Spine02"), Bone("Spine01"), Bone("Spine") }.Where(b => b != null).ToArray();
+        animation.Neck = Bone("neck");
+        animation.Head = Bone("Head");
         animation.ShootFireTime = 0f;
         animation.ShootHoldEnd = 0f;
         animation.DashClipStart = 0f;
@@ -345,11 +527,159 @@ public static class ControlRoomBuilder
         animation.LeftHand = Bone("LeftHand");
         animation.LeftWeapon = leftPistol;
 
+        // With no pistol placed in the model file, where the pistols sit is tuned in an asset, like the feel
+        // values. It is never overwritten. With one placed, the model decides and the asset is not used.
+        if (placed == null)
+        {
+            var grip = AssetDatabase.LoadAssetAtPath<GripSettings>(GripPath);
+            if (grip == null)
+            {
+                grip = ScriptableObject.CreateInstance<GripSettings>();
+                AssetDatabase.CreateAsset(grip, GripPath);
+            }
+            animation.Grip = grip;
+        }
+
         string Length(AnimationClip c) => c != null ? c.length.ToString("0.00", CultureInfo.InvariantCulture) + " s" : "MISSING";
         return string.Format(CultureInfo.InvariantCulture, "  {0} triangles, {1} bones, {2}\n  clips: idle {3}, run {4}\n",
                    TriangleCount(renderers.Where(r => r is SkinnedMeshRenderer).ToArray()),
                    renderers.OfType<SkinnedMeshRenderer>().Sum(r => r.bones.Length), look, Length(idle), Length(run))
-             + report;
+             + rigReport + report;
+    }
+
+
+    /// <summary>
+    /// The body bones of the Outrider, by their Meshy names, which Kristian's rig keeps. These are the bones a
+    /// baked clip moves. The fingers, "headfront" and the end bones are left out on purpose: they keep their
+    /// rest pose, which in his rig is the hand closed around the pistol.
+    /// </summary>
+    static readonly string[] BodyBones =
+    {
+        "Hips", "Spine02", "Spine01", "Spine", "neck", "Head",
+        "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "RightShoulder", "RightArm", "RightForeArm", "RightHand",
+        "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase",
+    };
+
+    /// <summary>
+    /// Carries a clip made for one rig over to another rig of the same mesh, and saves it as a clip asset of its own
+    /// (kept at its path so its identity stays across runs). Both models are posed in a preview scene, so the open
+    /// scene is not touched. At every frame of the clip: each body bone of the target turns, in the figure's own
+    /// space, from its rest exactly as the same bone of the source turns from its rest; and the hips move as the
+    /// source's hips move from their rest. The other bones of the target get no curves and keep their rest.
+    /// Because the mesh is the same mesh, the skin then moves as it did on the source rig, up to the small
+    /// differences in where the two rigs put their joints.
+    /// </summary>
+    static AnimationClip BakeForRig(string sourceModelPath, AnimationClip source, string targetModelPath, string outPath)
+    {
+        if (source == null) return null;
+        UnityEngine.SceneManagement.Scene scene = EditorSceneManager.NewPreviewScene();
+        var clip = new AnimationClip { name = System.IO.Path.GetFileNameWithoutExtension(outPath), frameRate = source.frameRate };
+        try
+        {
+            GameObject Spawn(string path)
+            {
+                var go = (GameObject)Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(path));
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
+                go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                return go;
+            }
+            GameObject from = Spawn(sourceModelPath), to = Spawn(targetModelPath);
+            Transform[] fromAll = from.GetComponentsInChildren<Transform>(true), toAll = to.GetComponentsInChildren<Transform>(true);
+            // Parents first, so a bone's parent is already posed when the bone is.
+            var pairs = BodyBones
+                .Select(n => (src: fromAll.FirstOrDefault(t => t.name == n), dst: toAll.FirstOrDefault(t => t.name == n)))
+                .Where(p => p.src != null && p.dst != null)
+                .OrderBy(p => Depth(p.dst))
+                .ToArray();
+            Quaternion[] srcRest = pairs.Select(p => Quaternion.Inverse(from.transform.rotation) * p.src.rotation).ToArray();
+            Quaternion[] dstRest = pairs.Select(p => Quaternion.Inverse(to.transform.rotation) * p.dst.rotation).ToArray();
+            Vector3[] srcRestPos = pairs.Select(p => from.transform.InverseTransformPoint(p.src.position)).ToArray();
+            Vector3[] dstRestPos = pairs.Select(p => to.transform.InverseTransformPoint(p.dst.position)).ToArray();
+
+            int frames = Mathf.Max(2, Mathf.RoundToInt(source.length * source.frameRate) + 1);
+            var rot = pairs.Select(_ => new[] { new AnimationCurve(), new AnimationCurve(), new AnimationCurve(), new AnimationCurve() }).ToArray();
+            var pos = new[] { new AnimationCurve(), new AnimationCurve(), new AnimationCurve() };
+            var last = new Quaternion[pairs.Length];
+            for (int f = 0; f < frames; f++)
+            {
+                float t = Mathf.Min(source.length, f / source.frameRate);
+                source.SampleAnimation(from, t);
+                for (int i = 0; i < pairs.Length; i++)
+                {
+                    Quaternion now = Quaternion.Inverse(from.transform.rotation) * pairs[i].src.rotation;
+                    pairs[i].dst.rotation = to.transform.rotation * (now * Quaternion.Inverse(srcRest[i]) * dstRest[i]);
+                    if (pairs[i].src.name == "Hips")
+                    {
+                        Vector3 moved = from.transform.InverseTransformPoint(pairs[i].src.position) - srcRestPos[i];
+                        pairs[i].dst.position = to.transform.TransformPoint(dstRestPos[i] + moved);
+                        Vector3 lp = pairs[i].dst.localPosition;
+                        pos[0].AddKey(t, lp.x); pos[1].AddKey(t, lp.y); pos[2].AddKey(t, lp.z);
+                    }
+                    Quaternion q = pairs[i].dst.localRotation;
+                    if (f > 0 && Quaternion.Dot(q, last[i]) < 0f) q = new Quaternion(-q.x, -q.y, -q.z, -q.w);
+                    last[i] = q;
+                    rot[i][0].AddKey(t, q.x); rot[i][1].AddKey(t, q.y); rot[i][2].AddKey(t, q.z); rot[i][3].AddKey(t, q.w);
+                }
+            }
+            for (int i = 0; i < pairs.Length; i++)
+            {
+                string path = AnimationUtility.CalculateTransformPath(pairs[i].dst, to.transform);
+                string[] props = { "m_LocalRotation.x", "m_LocalRotation.y", "m_LocalRotation.z", "m_LocalRotation.w" };
+                for (int c = 0; c < 4; c++) clip.SetCurve(path, typeof(Transform), props[c], rot[i][c]);
+                if (pairs[i].dst.name == "Hips")
+                {
+                    clip.SetCurve(path, typeof(Transform), "m_LocalPosition.x", pos[0]);
+                    clip.SetCurve(path, typeof(Transform), "m_LocalPosition.y", pos[1]);
+                    clip.SetCurve(path, typeof(Transform), "m_LocalPosition.z", pos[2]);
+                }
+            }
+            clip.EnsureQuaternionContinuity();
+            AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(source);
+            AnimationUtility.SetAnimationClipSettings(clip, new AnimationClipSettings
+            {
+                loopTime = settings.loopTime, loopBlend = settings.loopBlend, startTime = 0f, stopTime = source.length,
+            });
+        }
+        finally
+        {
+            EditorSceneManager.ClosePreviewScene(scene);
+        }
+
+        var existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(outPath);
+        if (existing != null)
+        {
+            EditorUtility.CopySerialized(clip, existing);
+            existing.name = clip.name;
+            EditorUtility.SetDirty(existing);
+            Object.DestroyImmediate(clip);
+            return existing;
+        }
+        AssetDatabase.CreateAsset(clip, outPath);
+        return clip;
+    }
+
+    static int Depth(Transform t)
+    {
+        int d = 0;
+        for (; t.parent != null; t = t.parent) d++;
+        return d;
+    }
+
+    static int KeyCount(AnimationClip clip) =>
+        clip == null ? 0 : AnimationUtility.GetCurveBindings(clip).Sum(b => AnimationUtility.GetEditorCurve(clip, b).length);
+
+    /// <summary>Imports a model file as Generic without an avatar, as the Meshy files were. Reimports only when needed.</summary>
+    static string MakeGeneric(string path)
+    {
+        var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+        if (importer == null) return System.IO.Path.GetFileName(path) + " missing";
+        if (importer.animationType != ModelImporterAnimationType.Generic || importer.avatarSetup != ModelImporterAvatarSetup.NoAvatar)
+        {
+            importer.animationType = ModelImporterAnimationType.Generic;
+            importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
+            importer.SaveAndReimport();
+        }
+        return System.IO.Path.GetFileName(path) + " generic";
     }
 
     /// <summary>Names the clips of a model file and sets which of them loop. Each rule: part of the take name, clip name, loop.</summary>
@@ -669,6 +999,73 @@ public static class ControlRoomBuilder
             EditorUtility.SetDirty(mat);
         }
         return mat;
+    }
+
+    /// <summary>
+    /// The material of the shot effects: URP's unlit particle shader, opaque, drawn from both sides, white, so
+    /// each effect shows the colours of its vertices as they are. Flat colour with hard edges, no glow.
+    /// </summary>
+    static Material ShotFxMaterial()
+    {
+        string path = $"{MaterialDir}/ShotFx.mat";
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (mat == null)
+        {
+            mat = new Material(shader);
+            AssetDatabase.CreateAsset(mat, path);
+        }
+        if (shader != null && mat.shader != shader) mat.shader = shader;
+        mat.SetFloat("_Surface", 0f);
+        mat.SetFloat("_Cull", 0f);
+        mat.SetColor("_BaseColor", Color.white);
+        mat.renderQueue = (int)RenderQueue.Geometry;
+        EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
+    /// <summary>
+    /// The scene's post-processing: a profile with Bloom, created when missing and never overwritten, so
+    /// Kristian's tuning of it is kept. Threshold 1.2: only colours brighter than white pass, and the lit
+    /// floor, dummies and figure stay below it. Intensity and scatter are start values, guesses.
+    ///
+    /// The render pipeline asset (PC_RPAsset) carries a volume profile of its own from the URP template,
+    /// SampleSceneProfile, with Neutral tonemapping, a vignette and a weak bloom. It was never seen while the
+    /// camera had post-processing off; now it would darken the bright reds and the corners. This profile
+    /// overrides those back to nothing, so the picture is as before apart from the glow. The pipeline asset
+    /// itself is left as it is.
+    /// </summary>
+    static VolumeProfile PostProcessingProfile(out bool created)
+    {
+        var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(PostProcessingPath);
+        created = profile == null;
+        if (created)
+        {
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            AssetDatabase.CreateAsset(profile, PostProcessingPath);
+        }
+        if (!profile.Has<Bloom>())
+        {
+            Bloom bloom = AddTo<Bloom>(profile);
+            bloom.threshold.Override(1.2f);
+            bloom.intensity.Override(2f);
+            bloom.scatter.Override(0.65f);
+            bloom.highQualityFiltering.Override(true);
+            bloom.tint.Override(Color.white);
+            bloom.dirtIntensity.Override(0f);
+        }
+        if (!profile.Has<Tonemapping>()) AddTo<Tonemapping>(profile).mode.Override(TonemappingMode.None);
+        if (!profile.Has<Vignette>()) AddTo<Vignette>(profile).intensity.Override(0f);
+        return profile;
+    }
+
+    static T AddTo<T>(VolumeProfile profile) where T : VolumeComponent
+    {
+        T component = profile.Add<T>(true);
+        component.name = typeof(T).Name;
+        AssetDatabase.AddObjectToAsset(component, profile);
+        EditorUtility.SetDirty(profile);
+        return component;
     }
 
     static void EnsureFolder(string parent, string child)

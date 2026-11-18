@@ -27,9 +27,10 @@ namespace Roguelike
     /// The frame normally comes from the mouse and keyboard; tests set <see cref="InputSource"/> to feed their own.
     ///
     /// Right-click (held) on the ground moves and follows the cursor; on a target it attacks that target.
-    /// A starts aiming an attack-move and shows the range ring;
-    /// left-click confirms it (on a target: attack that target; on the ground: attack-move there,
-    /// going for the target nearest the click), right-click or Esc cancels it. Space dashes toward the cursor.
+    /// Left-click is an attack-move at the cursor (on a target: attack that target; on the ground: attack-move there,
+    /// going for the target nearest the click). A first shows the range ring while aiming it;
+    /// left-click then confirms it as above,
+    /// and right-click or Esc cancels the aim. Space dashes toward the cursor.
     /// Q W E R and S D F G are the skill keys: the press, the release and the cursor all reach the character.
     /// Z spends a full focus gauge. A dead character takes no input.
     /// </summary>
@@ -101,7 +102,8 @@ namespace Roguelike
 
             if (input.AttackMovePressed) SetAiming(true);
             if (IsAimingAttackMove && input.CancelPressed) SetAiming(false);
-            if (IsAimingAttackMove && input.ConfirmPressed)
+            // Left-click is the attack-move at the cursor, with or without A first ("smart cast", Kristian 2026-11-18).
+            if (input.ConfirmPressed)
             {
                 Damageable target = TargetUnder(cursor);
                 if (target != null) _player.AttackTarget(target);

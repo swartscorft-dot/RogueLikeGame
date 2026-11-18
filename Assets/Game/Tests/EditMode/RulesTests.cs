@@ -28,7 +28,79 @@ namespace Roguelike.Rules.Tests
             Assert.That(feel.BasicShotRecovery, Is.EqualTo(0.25f));
             Assert.That(feel.BasicAttackRange, Is.EqualTo(6f));
             Assert.That(feel.AttackMoveClickRadius, Is.EqualTo(2f));
+            Assert.That(feel.ShotFrontAngle, Is.EqualTo(60f));
+            Assert.That(feel.MovingShotSpeedShare, Is.EqualTo(0.5f));
+            Assert.That(feel.MovingShotRecovery, Is.EqualTo(0.2f));
             Assert.That(feel.HitStop, Is.EqualTo(0.05f));
+        }
+    }
+
+    public class UpperBodyAimTests
+    {
+        static readonly GroundPoint Ahead = new GroundPoint(0f, 1f);
+
+        [Test]
+        public void TheTwistIsMeasuredClockwise_RightIsPositive()
+        {
+            Assert.That(UpperBodyAim.TwistAngle(Ahead, new GroundPoint(1f, 1f)), Is.EqualTo(45f).Within(1e-3f));
+            Assert.That(UpperBodyAim.TwistAngle(Ahead, new GroundPoint(-1f, 1f)), Is.EqualTo(-45f).Within(1e-3f));
+            Assert.That(UpperBodyAim.TwistAngle(Ahead, new GroundPoint(0f, 5f)), Is.EqualTo(0f).Within(1e-3f));
+            Assert.That(Mathf180(UpperBodyAim.TwistAngle(Ahead, new GroundPoint(0f, -1f))), Is.EqualTo(180f).Within(1e-3f));
+        }
+
+        [Test]
+        public void ATargetWithinTheFrontAngle_DoesNotTurnTheBody()
+        {
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(1f, 1f), 60f), Is.False, "45 degrees right");
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(-1f, 1f), 60f), Is.False, "45 degrees left");
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(0f, 3f), 60f), Is.False, "straight ahead");
+        }
+
+        [Test]
+        public void ATargetOutsideTheFrontAngle_TurnsTheBody()
+        {
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(1f, 0f), 60f), Is.True, "90 degrees right");
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(-1f, 0.2f), 60f), Is.True, "79 degrees left");
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(0f, -1f), 60f), Is.True, "behind");
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(1f, 1f), 30f), Is.True, "45 degrees with a 30 degree angle");
+        }
+
+        [Test]
+        public void ATargetOnTheCharacter_NeverTurnsIt()
+        {
+            Assert.That(UpperBodyAim.BodyMustTurn(Ahead, new GroundPoint(0f, 0f), 60f), Is.False);
+        }
+
+        static float Mathf180(float a) => System.Math.Abs(a);
+    }
+
+    public class MovingShotTests
+    {
+        [Test]
+        public void WhileTheShotWindsUp_TheSpeedIsTheSlowShare()
+        {
+            Assert.That(MovingShot.SpeedShare(true, -1f, 0.5f, 0.2f), Is.EqualTo(0.5f));
+        }
+
+        [Test]
+        public void AfterTheShot_TheSpeedComesBackInAStraightLine_AndIsFullAfterTheRecovery()
+        {
+            Assert.That(MovingShot.SpeedShare(false, 0f, 0.5f, 0.2f), Is.EqualTo(0.5f).Within(1e-5f));
+            Assert.That(MovingShot.SpeedShare(false, 0.1f, 0.5f, 0.2f), Is.EqualTo(0.75f).Within(1e-5f));
+            Assert.That(MovingShot.SpeedShare(false, 0.2f, 0.5f, 0.2f), Is.EqualTo(1f));
+            Assert.That(MovingShot.SpeedShare(false, 3f, 0.5f, 0.2f), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void WithoutAMovingShot_TheSpeedIsFull()
+        {
+            Assert.That(MovingShot.SpeedShare(false, -1f, 0.5f, 0.2f), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void NoRecoveryTime_MeansFullSpeedTheMomentTheShotGoesOff()
+        {
+            Assert.That(MovingShot.SpeedShare(false, 0f, 0.5f, 0f), Is.EqualTo(1f));
         }
     }
 

@@ -19,8 +19,9 @@ namespace Roguelike
     /// - The hips are held over the character, so a clip that travels (a roll) does not leave it.
     ///
     /// If the arm bones are set, the Shoot pose is finished in code: both arms are straightened toward the
-    /// point the character faces, and both weapons are turned to point there. No clip in the library holds
-    /// a pistol in each hand, and this way the guns always point where the shot goes.
+    /// point the character faces, and each hand is turned so that the weapon in it points there. The hand
+    /// keeps hold of its weapon exactly as it was placed. No clip in the library holds a pistol in each hand,
+    /// and this way the guns always point where the shot goes.
     /// </summary>
     public sealed class CharacterAnimation : MonoBehaviour
     {
@@ -61,10 +62,22 @@ namespace Roguelike
         public Transform LeftForeArm;
         public Transform LeftHand;
         public Transform LeftWeapon;
+        [Tooltip("Where a pistol sits in a hand. Read every frame, so it can be tuned while playing. Optional.")]
+        public GripSettings Grip;
         [Tooltip("Seconds to raise the arms into the aim, and to lower them again.")]
         public float AimBlend = 0.08f;
-        [Tooltip("Metres ahead of the character that the arms point at. Shorter makes them converge more.")]
+        [Tooltip("Metres toward the target that the arms point at. Shorter makes them converge more.")]
         public float AimDistance = 6f;
+
+        [Header("Turning the upper body toward the target (optional)")]
+        [Tooltip("The spine bones from the hips up. A target to the side is aimed at by turning these a share each, and the arms do the rest.")]
+        public Transform[] Spine;
+        public Transform Neck;
+        public Transform Head;
+        [Tooltip("The share of the turn toward the target that the spine takes, spread evenly over its bones; the arms take the rest. The neck and head turn on to face the target.")]
+        [Range(0f, 1f)] public float TorsoShare = 0.6f;
+        [Tooltip("The upper body never turns more than this many degrees from the legs.")]
+        public float MaxTwist = 90f;
 
         static readonly int s_Idle = Animator.StringToHash(IdleState);
         static readonly int s_Run = Animator.StringToHash(RunState);
@@ -79,9 +92,13 @@ namespace Roguelike
         float _aimWeight;
         Quaternion _rightWeaponRest = Quaternion.identity;
         Quaternion _leftWeaponRest = Quaternion.identity;
+        Vector3 _aimDirection = Vector3.forward;
 
         /// <summary>0 with the arms as the clip has them, 1 with both arms and weapons pointed at the target.</summary>
         public float AimWeight => _aimWeight;
+
+        /// <summary>Degrees the upper body is turned from the legs this frame, clockwise seen from above.</summary>
+        public float Twist { get; private set; }
 
         public CharacterPose Pose { get; private set; }
 
@@ -121,7 +138,9 @@ namespace Roguelike
             _seenActions = Player.ActionsStarted;
             if (newDash) _dashPoseUntil = now + feel.DashDuration + DashRecovery;
 
-            CharacterPose pose = PoseRule.Pick(Player.IsDashing, Player.Action != ActionKind.None, now < _dashPoseUntil, Player.Speed);
+            // A shot on the move keeps the legs running: it is shown as the run with the arms aimed on top.
+            bool acting = Player.Action != ActionKind.None && !Player.IsShootingOnTheMove;
+            CharacterPose pose = PoseRule.Pick(Player.IsDashing, acting, now < _dashPoseUntil, Player.Speed);
             // A Shoot clip with a firing moment starts over for every shot; one without is just a stance and plays on.
             bool restart = (pose == CharacterPose.Dash && newDash)
                         || (pose == CharacterPose.Shoot && newAction && ShootFireTime > 0f);
@@ -190,21 +209,75 @@ namespace Roguelike
                 Hips.position = root.TransformPoint(local);
             }
 
-            float wanted = Pose == CharacterPose.Shoot ? 1f : 0f;
+            bool aiming = Pose == CharacterPose.Shoot || Player.IsShootingOnTheMove;
+            float wanted = aiming ? 1f : 0f;
             _aimWeight = AimBlend > 0f ? Mathf.MoveTowards(_aimWeight, wanted, Time.deltaTime / AimBlend) : wanted;
+
+            // Where to aim: at the shot's target or the skill's aim point while acting; while the arms come down
+            // again, the last such direction, so they do not swing round on the way.
+            Vector3 body = Flat(Player.transform.forward).normalized;
+            if (Player.Action != ActionKind.None)
+            {
+                Vector3 toAim = Flat(Player.AimPoint - Player.transform.position);
+                _aimDirection = toAim.sqrMagnitude > 1e-4f ? toAim.normalized : body;
+            }
+            else if (_aimWeight <= 0f) _aimDirection = body;
 
             // The weapons are not animated, so they keep what was set last frame: start from how they are held.
             if (RightWeapon != null) RightWeapon.localRotation = _rightWeaponRest;
             if (LeftWeapon != null) LeftWeapon.localRotation = _leftWeaponRest;
-            if (_aimWeight <= 0f) return;
+            Twist = 0f;
+            if (_aimWeight > 0f)
+            {
+                TurnUpperBody(Vector3.SignedAngle(body, _aimDirection, Vector3.up));
+                Vector3 ahead = Player.transform.position + _aimDirection * AimDistance;
+                AimArm(RightArm, RightForeArm, RightHand, RightWeapon, _rightWeaponRest, ahead);
+                AimArm(LeftArm, LeftForeArm, LeftHand, LeftWeapon, _leftWeaponRest, ahead);
+            }
 
-            Vector3 ahead = Player.transform.position + Flat(Player.transform.forward).normalized * AimDistance;
-            AimArm(RightArm, RightForeArm, RightHand, RightWeapon, ahead);
-            AimArm(LeftArm, LeftForeArm, LeftHand, LeftWeapon, ahead);
+            // Last, with the hands and the weapons turned as they will be shown: seat each weapon in its hand.
+            SeatInHand(RightWeapon, RightHand, outwardSign: -1f);
+            SeatInHand(LeftWeapon, LeftHand, outwardSign: 1f);
         }
 
-        /// <summary>Straightens one arm toward a point ahead, level with its shoulder, and turns its weapon to point there.</summary>
-        void AimArm(Transform upper, Transform fore, Transform hand, Transform weapon, Vector3 ahead)
+        /// <summary>
+        /// Puts the middle of the weapon where the grip settings say, measured from the wrist in the weapon's
+        /// own directions: +X along the barrel, +Y toward its top. Its +Z is to the character's left when it
+        /// points ahead, so "away from the body" is -Z for the right hand and +Z for the left.
+        /// </summary>
+        void SeatInHand(Transform weapon, Transform hand, float outwardSign)
+        {
+            if (Grip == null || weapon == null || hand == null) return;
+            weapon.position = hand.position + weapon.rotation * new Vector3(Grip.Forward, Grip.Up, Grip.Outward * outwardSign);
+        }
+
+        /// <summary>
+        /// Turns the upper body about the vertical toward a target <paramref name="degrees"/> to the side of where
+        /// the legs face: the spine bones each a share of <see cref="TorsoShare"/>, so the turn is spread up the back
+        /// instead of hinging at the waist, then the neck and the head the rest of the way, so the head faces the
+        /// target. The arms, aimed after this, make up what the spine leaves. Blended in and out with the aim.
+        /// </summary>
+        void TurnUpperBody(float degrees)
+        {
+            float turn = Mathf.Clamp(degrees, -MaxTwist, MaxTwist) * _aimWeight;
+            Twist = turn;
+            if (Mathf.Abs(turn) < 0.01f) return;
+            int spineBones = 0;
+            if (Spine != null) foreach (Transform bone in Spine) if (bone != null) spineBones++;
+            float torso = spineBones > 0 ? TorsoShare : 0f;
+            if (spineBones > 0)
+                foreach (Transform bone in Spine)
+                    if (bone != null) bone.rotation = Quaternion.AngleAxis(turn * torso / spineBones, Vector3.up) * bone.rotation;
+            float rest = turn * (1f - torso);
+            if (Neck != null) Neck.rotation = Quaternion.AngleAxis(rest * 0.4f, Vector3.up) * Neck.rotation;
+            if (Head != null) Head.rotation = Quaternion.AngleAxis(rest * (Neck != null ? 0.6f : 1f), Vector3.up) * Head.rotation;
+        }
+
+        /// <summary>
+        /// Straightens one arm toward a point ahead, level with its shoulder, and turns the hand so that the
+        /// weapon in it points there with its top up. The weapon stays in the hand as it was placed.
+        /// </summary>
+        void AimArm(Transform upper, Transform fore, Transform hand, Transform weapon, Quaternion weaponInHand, Vector3 ahead)
         {
             if (upper == null || fore == null || hand == null) return;
             Vector3 dir = new Vector3(ahead.x, upper.position.y, ahead.z) - upper.position;
@@ -217,9 +290,9 @@ namespace Roguelike
                 Quaternion.FromToRotation(hand.position - fore.position, dir) * fore.rotation, _aimWeight);
 
             if (weapon == null) return;
-            // The weapon's +X along the aim and its +Y up.
-            Quaternion aimed = Quaternion.LookRotation(Vector3.Cross(dir, Vector3.up), Vector3.up);
-            weapon.rotation = Quaternion.Slerp(weapon.rotation, aimed, _aimWeight);
+            // The weapon's +X along the aim and its +Y up; the hand is wherever it has to be to hold it so.
+            Quaternion aimedWeapon = Quaternion.LookRotation(Vector3.Cross(dir, Vector3.up), Vector3.up);
+            hand.rotation = Quaternion.Slerp(hand.rotation, aimedWeapon * Quaternion.Inverse(weaponInHand), _aimWeight);
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

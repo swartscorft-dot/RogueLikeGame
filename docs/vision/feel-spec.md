@@ -13,7 +13,7 @@ Values marked "guess" are starting points to tune from. Double or halve; do not 
 | Time to full speed | s | 0 | 0-0.1 | guess | own choice |
 | Turn time | s | 0 | 0-0.1 | guess | own choice |
 | Move input | - | right-click, held click follows cursor | - | decided | Kristian 2026-11-16 |
-| Attack-move | - | A shows basic-attack range, left-click confirms | - | decided | Kristian 2026-11-16 |
+| Attack-move | - | left-click at the cursor; A first shows the basic-attack range, left-click confirms | - | decided | Kristian 2026-11-16; left-click alone ("smart cast") Kristian 2026-11-18 |
 | Dash cooldown | s | 10 | 6-10 | documented | Lost Ark, Sharpshooter (ProGameGuides) |
 | Dash distance | m | 6 | 4-8 | guess | own choice |
 | Dash duration | s | 0.2 | 0.15-0.3 | guess | own choice |
@@ -27,6 +27,10 @@ Values marked "guess" are starting points to tune from. Double or halve; do not 
 | Basic attack range | m | 6 | 4-8 | guess | added in G2 by the agent, sized to what the camera shows |
 | Attack-move target | - | the target nearest the click; nearest the character when none is near the click | - | decided | Kristian 2026-11-17 |
 | Attack-move click radius | m | 2 | 1-4 | guess | added in G2 by the agent; how near the click a target must be to count as "near the click" |
+| Shot front angle | degrees | 60 | 30-90 | guess | added 2026-11-18 by the agent: a basic shot at a target within this angle to either side of where the body faces turns only the upper body; beyond it the whole body turns (Kristian 2026-11-18) |
+| Attack command while walking | - | a target in basic-attack range is shot once on the move; the move goes on | - | decided | Kristian 2026-11-18: "she slows down and shoots before she speeds up again"; one shot per command |
+| Shot on the move: speed | share of run speed | 0.5 | 0.3-0.8 | guess | added 2026-11-18 by the agent |
+| Shot on the move: back to full speed | s after the shot | 0.2 | 0.1-0.4 | guess | added 2026-11-18 by the agent |
 | Hit-stop on hit | s | 0.05 | 0-0.1 | guess | own choice |
 | Back attack | - | 90 degree arc, +5% damage, +10% crit | - | documented | Lost Ark (VULKK) |
 | Head attack | - | 90 degree arc, +20% damage, +10% stagger | - | documented | Lost Ark (VULKK) |

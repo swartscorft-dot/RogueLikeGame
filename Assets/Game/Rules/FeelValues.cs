@@ -38,6 +38,11 @@ namespace Roguelike.Rules
         public float BasicAttackRange = 6f;       // m
         public float AttackMoveClickRadius = 2f;  // m, from the click to a target's edge
 
+        // Aiming and shooting on the move (basic shot only)
+        public float ShotFrontAngle = 60f;        // degrees to each side of the facing: a target within it turns only the upper body
+        public float MovingShotSpeedShare = 0.5f; // share of run speed while a shot on the move winds up
+        public float MovingShotRecovery = 0.2f;   // s from the shot going off to full speed again
+
         // Hits
         public float HitStop = 0.05f;             // s
     }
