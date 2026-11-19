@@ -57,11 +57,11 @@ Settled by the agent while building, 2026-11-19, and open in the same way:
 - **A Holding skill lets her go at the release** (or at its longest hold), a Charge skill at its shot.
 - **When the arm hold starts, the arms go from the shot's aim to the live cursor without smoothing.** A small snap if the cursor moved during the shot.
 
-## Found in review, not fixed
+## Found in review, fixed the same day
 
 An independent review of the change on 2026-11-19 found one fault in the W A S D work, older than this decision:
 
-- **A move key pressed during a standing shot's wind-up makes her start at full speed and then slow down.** The shot becomes a shot on the move and eases down from full speed, although she was standing: 0, then 6, then 3, then back to 6 m/s. It should ease from the speed she has. The slide in this decision reads her real speed; the shot on the move does not. No test checks it.
+- **A move key pressed during a standing shot's wind-up made her start at full speed and then slow down.** The shot became a shot on the move and eased down from full speed, although she was standing: 0, then 6, then 3, then back to 6 m/s. Fixed in 7b9f7b7: the ease now starts from the speed she has, zero from a stand. Two PlayMode tests in `MovingShotStartTests` check every frame against the curve. Kristian has not played the fix yet.
 
 ## Measured in tests (default values, run speed 6 m/s)
 
