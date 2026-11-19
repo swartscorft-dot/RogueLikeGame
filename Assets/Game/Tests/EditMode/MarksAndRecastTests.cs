@@ -91,13 +91,14 @@ namespace Roguelike.Rules.Tests
             Assert.That(count.Hit(4, false), Is.True);
         }
 
+        /// <summary>Changed deliberately 2026-11-19 after Kristian played: marks build a little slower, 5 basic shot hits a mark (was 4).</summary>
         [Test]
         public void TheKitsStartValues()
         {
             var kit = new KitValues();
             Assert.That(kit.MaxMarks, Is.EqualTo(5));
             Assert.That(kit.MarkLifetime, Is.EqualTo(6f));
-            Assert.That(kit.BasicShotsPerMark, Is.EqualTo(4));
+            Assert.That(kit.BasicShotsPerMark, Is.EqualTo(5));
             Assert.That(kit.StartWithAllSkills, Is.False);
             Assert.That(kit.CleanShare, Is.EqualTo(1f / 3f).Within(1e-6f));
             Assert.That(kit.CleanDamage, Is.EqualTo(1.5f));
@@ -112,6 +113,47 @@ namespace Roguelike.Rules.Tests
             Assert.That(skills.Where(s => s.Lock == SkillLock.Light).Select(s => s.Name), Is.EquivalentTo(new[] { "Quick Shot", "Triple Tap" }));
             Assert.That(skills.Where(MarkRules.IsSpender).Select(s => s.Name), Is.EquivalentTo(new[] { "Scatter Blast", "Heavy Volley" }));
             Assert.That(skills.Where(s => s.MarksAdded > 0 && MarkRules.IsSpender(s)), Is.Empty, "a spender adds no marks");
+        }
+
+        // ---------------- Backstep's clean spend (amended 2026-11-19 after Kristian played) ----------------
+
+        [Test]
+        public void TheStartValues_BackstepIsTwoPresses_ThatOpenWithTheHop_AndScatterBlastIsBackSooner()
+        {
+            SkillDefinition[] skills = SkillDefaults.Create();
+            SkillDefinition step = skills.Single(s => s.Name == "Backstep");
+            Assert.That(step.RecastCount, Is.EqualTo(2));
+            Assert.That(step.RecastWindow, Is.EqualTo(0.6f));
+            Assert.That(step.OpeningMove, Is.True);
+            Assert.That(step.CleanMarkDamageBonus, Is.EqualTo(0.5f));
+            Assert.That(step.MoveDistance, Is.EqualTo(-5f), "the hop as before");
+            Assert.That(step.MarksAdded, Is.EqualTo(1), "an ordinary shot still marks");
+            Assert.That(skills.Single(s => s.Name == "Scatter Blast").Cooldown, Is.EqualTo(6f), "8 s before");
+            Assert.That(skills.Where(s => s.Name != "Backstep").Select(s => s.CleanMarkDamageBonus), Is.All.EqualTo(0f), "no other skill has a clean spend");
+            Assert.That(skills.Where(s => s.Name != "Backstep").Select(s => s.OpeningMove), Is.All.False, "nor an opening move");
+            Assert.That(skills.Single(s => s.Name == "Triple Tap").CleanTapMarks, Is.EqualTo(2), "Triple Tap's clean tap as it was");
+        }
+
+        [Test]
+        public void ACleanSpend_TakesTheMarks_ForItsOwnBonusPerMark_OnlyOnACleanPress()
+        {
+            var step = new SkillDefinition { Damage = 80, MarksAdded = 1, CleanMarkDamageBonus = 0.5f };
+            Assert.That(MarkRules.IsSpender(step), Is.False, "not a spender by itself");
+            Assert.That(MarkRules.Spends(step, clean: false), Is.False, "an ordinary press spends nothing");
+            Assert.That(MarkRules.Spends(step, clean: true), Is.True, "a clean press spends");
+            Assert.That(MarkRules.BonusPerMark(step, clean: true), Is.EqualTo(0.5f));
+            Assert.That(MarkRules.IsCleanTap(step, clean: true), Is.False, "and is no clean tap: no clean damage on top");
+            Assert.That(MarkRules.SpenderDamage(step.Damage, 5, MarkRules.BonusPerMark(step, true)), Is.EqualTo(280), "+50 % a mark: +250 % at five");
+            Assert.That(MarkRules.SpenderDamage(step.Damage, 2, MarkRules.BonusPerMark(step, true)), Is.EqualTo(160));
+            Assert.That(MarkRules.SpenderDamage(step.Damage, 0, MarkRules.BonusPerMark(step, true)), Is.EqualTo(80), "no marks: the base damage");
+
+            var tap = new SkillDefinition { Damage = 70, MarksAdded = 1, CleanTapMarks = 2 };
+            Assert.That(MarkRules.Spends(tap, clean: true), Is.False, "Triple Tap's clean press stays a clean tap");
+            Assert.That(MarkRules.IsCleanTap(tap, clean: true), Is.True);
+            Assert.That(MarkRules.IsCleanTap(tap, clean: false), Is.False);
+            var blast = new SkillDefinition { Damage = 220, MarkDamageBonus = 0.25f };
+            Assert.That(MarkRules.Spends(blast, clean: false), Is.True, "a spender spends on every hit");
+            Assert.That(MarkRules.BonusPerMark(blast, clean: false), Is.EqualTo(0.25f));
         }
     }
 
@@ -225,6 +267,63 @@ namespace Roguelike.Rules.Tests
             chain.ShotWentOff(0f);
             Assert.That(chain.WindowLeft(0f), Is.EqualTo(1f).Within(1e-5f));
             Assert.That(chain.WindowLeft(0.3f), Is.EqualTo(0.5f).Within(1e-5f));
+        }
+
+        /// <summary>
+        /// Amended 2026-11-19 (Backstep): a chain that opens with a move. The first press is the move and fires nothing;
+        /// its window opens when the move ends; the second press is the last, and may be clean.
+        /// </summary>
+        [Test]
+        public void AChainThatOpensWithAMove_TheFirstPressFiresNothing_TheSecondIsTheShot()
+        {
+            var chain = new RecastChain();
+            chain.Start(6, 2, Window, openingMove: true);
+            Assert.That(chain.Slot, Is.EqualTo(6));
+            Assert.That(chain.IsOpeningMove, Is.True, "the first press is the move");
+            Assert.That(chain.ShotsFired, Is.EqualTo(0), "and fires nothing");
+            Assert.That(chain.Judge(6, 0.1f, Share, true), Is.EqualTo(RecastPress.Early), "during the move: no window yet");
+            chain.ShotWentOff(0.2f); // the hop ends: the window runs to 0.8; its clean part from 0.6
+            Assert.That(chain.IsWindowOpen(0.2f), Is.True);
+            Assert.That(chain.NextIsLast, Is.True, "the next press is the last");
+            Assert.That(chain.IsComplete, Is.False, "the move is no shot: the chain waits");
+            Assert.That(chain.Judge(6, 0.3f, Share, true), Is.EqualTo(RecastPress.Shot), "early in the window: an ordinary shot");
+            Assert.That(chain.Judge(6, 0.65f, Share, true), Is.EqualTo(RecastPress.Clean), "in the last third: clean");
+            Assert.That(chain.Judge(6, 0.85f, Share, true), Is.EqualTo(RecastPress.None), "after the window: nothing");
+            chain.Recast();
+            Assert.That(chain.IsOpeningMove, Is.False, "the second press is the shot");
+            Assert.That(chain.ShotsFired, Is.EqualTo(1));
+            chain.ShotWentOff(0.85f);
+            Assert.That(chain.IsComplete, Is.True);
+            Assert.That(chain.End(), Is.EqualTo(2), "two presses");
+        }
+
+        [Test]
+        public void AChainThatOpensWithAMove_WithNoSecondPress_EndsWithNoShot()
+        {
+            var chain = new RecastChain();
+            chain.Start(6, 2, Window, openingMove: true);
+            chain.ShotWentOff(0.2f);
+            Assert.That(chain.Expired(0.79f), Is.False);
+            Assert.That(chain.Expired(0.81f), Is.True, "the window ran out");
+            Assert.That(chain.ShotsFired, Is.EqualTo(0));
+            Assert.That(chain.End(), Is.EqualTo(1), "one press: the move");
+        }
+
+        [Test]
+        public void AnOpeningMove_OnASkillWithACountOfOne_IsAnOrdinaryUse()
+        {
+            var chain = new RecastChain();
+            chain.Start(6, 1, Window, openingMove: true);
+            Assert.That(chain.Slot, Is.EqualTo(-1));
+            Assert.That(chain.IsOpeningMove, Is.False, "no chain, no opening move: its one press fires");
+        }
+
+        [Test]
+        public void ACleanPress_IsForSkillsWithACleanTapOrACleanSpend()
+        {
+            Assert.That(RecastChain.HasCleanPress(new SkillDefinition { CleanTapMarks = 2 }), Is.True);
+            Assert.That(RecastChain.HasCleanPress(new SkillDefinition { CleanMarkDamageBonus = 0.5f }), Is.True);
+            Assert.That(RecastChain.HasCleanPress(new SkillDefinition()), Is.False);
         }
 
         [Test]

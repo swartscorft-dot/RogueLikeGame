@@ -45,6 +45,19 @@ namespace Roguelike
         /// <summary>Raised after a hit that removed health, with the amount removed.</summary>
         public event Action<int> Damaged;
 
+        /// <summary>
+        /// Its stagger bar, or null for a target without one (work order 008: the guard has one). With a bar, hits take
+        /// stagger off it, and while it is dazed every hit deals more (<see cref="StaggerBar"/>).
+        /// </summary>
+        public StaggerBar Stagger { get; set; }
+        /// <summary>Raised when a hit took stagger off its bar: the points taken and the points left.</summary>
+        public event Action<float, float> StaggerTaken;
+        /// <summary>Raised when its bar was emptied and the daze began.</summary>
+        public event Action Dazed;
+        /// <summary>Raised when the daze ended and the bar was full again.</summary>
+        public event Action DazeEnded;
+        public bool IsDazed => Stagger != null && Stagger.IsDazed(Time.time);
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -60,17 +73,34 @@ namespace Roguelike
         {
             int fallen = _marks.TakeFallenOff(Time.time);
             if (fallen > 0) MarksLost?.Invoke(this, fallen, MarkLoss.FellOff);
+            if (Stagger != null && Stagger.Tick(Time.time)) DazeEnded?.Invoke();
         }
 
-        /// <summary>Applies damage and returns the amount actually removed. A hit that kills it takes its marks with it.</summary>
-        public int TakeHit(int damage)
+        /// <summary>
+        /// Applies damage and returns the amount actually removed. A hit that kills it takes its marks with it. With a
+        /// stagger bar, the damage is raised while it is dazed, and a hit that leaves it alive takes
+        /// <paramref name="stagger"/> off the bar.
+        /// </summary>
+        public int TakeHit(int damage, float stagger = 0f)
         {
+            float now = Time.time;
+            if (Stagger != null)
+            {
+                if (Stagger.Tick(now)) DazeEnded?.Invoke();
+                damage = Stagger.Scale(damage, now);
+            }
             int applied = _health.TakeDamage(damage);
             if (applied > 0)
             {
                 HitsTaken++;
                 Damaged?.Invoke(applied);
                 if (_health.IsDead) ClearMarks(MarkLoss.Died);
+            }
+            if (applied > 0 && !_health.IsDead && Stagger != null && stagger > 0f)
+            {
+                float taken = Stagger.Take(stagger, now, out bool dazed);
+                if (taken > 0f) StaggerTaken?.Invoke(taken, Stagger.Current);
+                if (dazed) Dazed?.Invoke();
             }
             return applied;
         }
@@ -98,14 +128,16 @@ namespace Roguelike
         {
             _health.Reset();
             ClearMarks(MarkLoss.Reset);
+            Stagger?.Reset();
         }
 
-        /// <summary>Gives it a new maximum and fills it to that.</summary>
+        /// <summary>Gives it a new maximum and fills it to that, and its stagger bar too.</summary>
         public void SetMaxHealth(int max)
         {
             MaxHealth = max;
             _health = new Health(max);
             ClearMarks(MarkLoss.Reset);
+            Stagger?.Reset();
         }
     }
 }

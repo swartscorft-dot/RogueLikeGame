@@ -83,9 +83,29 @@ namespace Roguelike.Rules
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
 
+    /// <summary>
+    /// One skill's part of the kit's numbers: its spender hits, its recast chains and its clean presses. Since
+    /// 2026-11-19 two skills spend marks (Scatter Blast, and Backstep on a clean press) and two are recast (Triple Tap,
+    /// Backstep), so the summary gives them a line each.
+    /// </summary>
+    public sealed class KitSkillRow
+    {
+        public string Name;
+        public bool CleanSpend;            // its clean press spends the marks (the log's kit says so)
+        public int SpenderHits;
+        public float MarksPerSpenderHit = float.NaN;
+        public int SpenderHitsAtFive;
+        public readonly SortedDictionary<int, int> ChainsByLength = new SortedDictionary<int, int>(); // presses, opening move included
+        public int LastPresses;
+        public int CleanPresses;
+    }
+
     /// <summary>The kit of decision 0005 (2026-11-19) over the whole session: marks, recast chains, where focus came from.</summary>
     public sealed class KitStats
     {
+        /// <summary>The skills that spent marks, ended a chain or pressed a last press, in slot order.</summary>
+        public readonly List<KitSkillRow> Skills = new List<KitSkillRow>();
+        public KitSkillRow Skill(string name) => Skills.FirstOrDefault(r => r.Name == name);
         public int MarksAdded;
         public int SpenderHits;            // spender hits that landed on a target, with or without marks
         public float MarksPerSpenderHit = float.NaN;
@@ -125,6 +145,29 @@ namespace Roguelike.Rules
         public int LevelRoomsEntered;
         public ScopeStats Session;
         public ScopeStats InFights;
+
+        // The kinds of enemy (work order 008), whole session.
+        /// <summary>A row per kind of enemy met (woke, struck, died or was hit), in the order first met.</summary>
+        public readonly List<EnemyKindRow> EnemyKinds = new List<EnemyKindRow>();
+        /// <summary>Guards hit at least once, and of them those dazed at least once.</summary>
+        public int GuardsHit;
+        public int GuardsDazed;
+        public int Dazes;
+        /// <summary>From a guard's first hit taken to its first daze, the mean over the guards dazed; NaN with none.</summary>
+        public float FirstHitToDazeMean = float.NaN;
+        /// <summary>Damage dealt to guards, and of it the part dealt while the guard was dazed.</summary>
+        public int GuardDamage;
+        public int GuardDamageWhileDazed;
+    }
+
+    /// <summary>One kind of enemy in a session: its kills, and the damage it did her, by attack.</summary>
+    public sealed class EnemyKindRow
+    {
+        public string Kind;
+        public int Kills;
+        public int DamageTaken;
+        /// <summary>Damage it did her, by the attack's name, in the order the attacks first landed.</summary>
+        public readonly List<KeyValuePair<string, int>> DamageByAttack = new List<KeyValuePair<string, int>>();
     }
 
     /// <summary>
@@ -132,8 +175,9 @@ namespace Roguelike.Rules
     /// plain text in aligned columns. The same numbers come out of a log file read back
     /// (<see cref="WriteFromLog"/>), so a summary can be recomputed later, or after the summary itself changes.
     ///
-    /// A fight runs from the enemy waking until it dies, she dies, or it gives up and goes home; a session that ends
-    /// in a fight ends that fight. Tempo counts actions that started something (a skill, a basic shot, a dash), at the
+    /// A fight runs from an enemy waking until no enemy is awake (each has died, given up and gone home, or been
+    /// removed) or she dies; a session that ends in a fight ends that fight. With one enemy that is as before work
+    /// order 008. Tempo counts actions that started something (a skill, a basic shot, a dash), at the
     /// moment they started, so a buffered press or a waiting click counts when it fires. The second tempo counts every
     /// press of a skill key, a click and a dash key, whatever became of it.
     /// </summary>
@@ -166,14 +210,25 @@ namespace Roguelike.Rules
             double length = Math.Max(0d, end != null ? end.T : events.Count > 0 ? events[events.Count - 1].T : 0d);
             stats.Length = (float)length;
 
-            // The fights.
+            // The fights: one starts when an enemy wakes and none was awake, and lasts until none is awake (each has died,
+            // given up or been removed) or she dies. An enemy is told apart by its id; a log from before work order 008
+            // has none, and then they all count as one enemy, as they did.
             double fightStart = -1d;
+            var awake = new HashSet<int>();
             foreach (SessionEvent e in events)
             {
-                if (e.Type == SessionEventTypes.EnemyWake && fightStart < 0d) fightStart = e.T;
-                else if (fightStart >= 0d && (e.Type == SessionEventTypes.EnemyDeath || e.Type == SessionEventTypes.PlayerDeath
-                                              || e.Type == SessionEventTypes.EnemyGaveUp))
+                int id = e.EnemyId ?? -1;
+                if (e.Type == SessionEventTypes.EnemyWake)
                 {
+                    if (awake.Count == 0) fightStart = e.T;
+                    awake.Add(id);
+                }
+                else if (awake.Count > 0 && (e.Type == SessionEventTypes.EnemyDeath || e.Type == SessionEventTypes.EnemyGaveUp
+                                              || e.Type == SessionEventTypes.PlayerDeath))
+                {
+                    if (e.Type == SessionEventTypes.PlayerDeath) awake.Clear();
+                    else awake.Remove(id);
+                    if (awake.Count > 0) continue;
                     stats.FightSpans.Add(new KeyValuePair<double, double>(fightStart, e.T));
                     fightStart = -1d;
                 }
@@ -181,6 +236,7 @@ namespace Roguelike.Rules
             if (fightStart >= 0d) stats.FightSpans.Add(new KeyValuePair<double, double>(fightStart, Math.Max(fightStart, length)));
             stats.Fights = stats.FightSpans.Count;
             stats.Kills = events.Count(e => e.Type == SessionEventTypes.EnemyDeath);
+            ComputeEnemyKinds(events, stats);
             stats.Deaths = events.Count(e => e.Type == SessionEventTypes.PlayerDeath);
 
             // The generated levels: the last one built, and the rooms of it she entered.
@@ -204,12 +260,77 @@ namespace Roguelike.Rules
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
             stats.InFights = ComputeScope("In fights", events, stats.FightSpans, kit);
-            stats.Kit = ComputeKit(events, start);
+            stats.Kit = ComputeKit(events, start, kit);
             return stats;
         }
 
-        /// <summary>The kit's numbers (decision 0005), over the whole session.</summary>
-        static KitStats ComputeKit(List<SessionEvent> events, SessionEvent start)
+        /// <summary>
+        /// The kinds of enemy (work order 008), whole session: kills and damage done to her by kind and attack, and for
+        /// guards the time from the first hit each took to its first daze and the share of their damage dealt while dazed.
+        /// A log from before has no kinds: its enemies count as "enemy".
+        /// </summary>
+        static void ComputeEnemyKinds(List<SessionEvent> events, SessionStats stats)
+        {
+            EnemyKindRow Row(string kind)
+            {
+                kind = string.IsNullOrEmpty(kind) ? SessionWords.Enemy : kind;
+                EnemyKindRow row = stats.EnemyKinds.FirstOrDefault(r => r.Kind == kind);
+                if (row == null) stats.EnemyKinds.Add(row = new EnemyKindRow { Kind = kind });
+                return row;
+            }
+
+            const string Guard = "guard";
+            var firstHit = new Dictionary<int, double>();
+            var firstDaze = new Dictionary<int, double>();
+            var dazedSince = new Dictionary<int, double>(); // the guards dazed now
+            foreach (SessionEvent e in events)
+            {
+                switch (e.Type)
+                {
+                    case SessionEventTypes.EnemyWake:
+                        Row(e.Enemy);
+                        break;
+                    case SessionEventTypes.EnemyDeath:
+                        Row(e.Enemy).Kills++;
+                        if (e.EnemyId.HasValue) dazedSince.Remove(e.EnemyId.Value);
+                        break;
+                    case SessionEventTypes.EnemyStrike when e.Result == SessionWords.Landed && e.Damage > 0:
+                    {
+                        EnemyKindRow row = Row(e.Enemy);
+                        row.DamageTaken += e.Damage.Value;
+                        string attack = e.Name ?? "?";
+                        int at = row.DamageByAttack.FindIndex(p => p.Key == attack);
+                        if (at < 0) row.DamageByAttack.Add(new KeyValuePair<string, int>(attack, e.Damage.Value));
+                        else row.DamageByAttack[at] = new KeyValuePair<string, int>(attack, row.DamageByAttack[at].Value + e.Damage.Value);
+                        break;
+                    }
+                    case SessionEventTypes.Hit when e.Enemy == Guard && e.EnemyId.HasValue:
+                    {
+                        int id = e.EnemyId.Value;
+                        if (!firstHit.ContainsKey(id)) firstHit[id] = e.T;
+                        int damage = e.Damage ?? 0;
+                        stats.GuardDamage += damage;
+                        if (dazedSince.ContainsKey(id)) stats.GuardDamageWhileDazed += damage;
+                        break;
+                    }
+                    case SessionEventTypes.EnemyDazed when e.EnemyId.HasValue:
+                        stats.Dazes++;
+                        dazedSince[e.EnemyId.Value] = e.T;
+                        if (!firstDaze.ContainsKey(e.EnemyId.Value)) firstDaze[e.EnemyId.Value] = e.T;
+                        break;
+                    case SessionEventTypes.DazeEnded when e.EnemyId.HasValue:
+                        dazedSince.Remove(e.EnemyId.Value);
+                        break;
+                }
+            }
+            stats.GuardsHit = firstHit.Count;
+            List<double> spans = firstDaze.Where(d => firstHit.ContainsKey(d.Key)).Select(d => d.Value - firstHit[d.Key]).ToList();
+            stats.GuardsDazed = spans.Count;
+            if (spans.Count > 0) stats.FirstHitToDazeMean = (float)spans.Average();
+        }
+
+        /// <summary>The kit's numbers (decision 0005), over the whole session, in all and per skill.</summary>
+        static KitStats ComputeKit(List<SessionEvent> events, SessionEvent start, Kit kit)
         {
             var k = new KitStats();
             int cap = 5;
@@ -217,6 +338,27 @@ namespace Roguelike.Rules
             var chainCounts = new Dictionary<string, int>();
             foreach (SessionEvent e in events.Where(e => e.Type == SessionEventTypes.Skill))
                 if (int.TryParse(e.ExtraValue("recast_count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)) chainCounts[e.Name] = n;
+
+            // A row per skill, made when the skill first shows up in the kit's events; put in slot order at the end.
+            var rows = new Dictionary<string, KitSkillRow>();
+            var made = new List<KitSkillRow>(); // in the order they were made
+            var takenBySkill = new Dictionary<string, List<int>>();
+            KitSkillRow Row(string name)
+            {
+                name = name ?? "?";
+                if (!rows.TryGetValue(name, out KitSkillRow row))
+                {
+                    row = new KitSkillRow
+                    {
+                        Name = name,
+                        CleanSpend = kit.Skills.FirstOrDefault(s => s.Name == name)?.ExtraValue("clean_mark_bonus") != null,
+                    };
+                    rows[name] = row;
+                    made.Add(row);
+                    takenBySkill[name] = new List<int>();
+                }
+                return row;
+            }
 
             var taken = new List<int>();
             foreach (SessionEvent e in events)
@@ -228,24 +370,43 @@ namespace Roguelike.Rules
                         k.MarksAdded += int.TryParse(e.ExtraValue("added"), NumberStyles.Integer, CultureInfo.InvariantCulture, out added) ? added : 1;
                         break;
                     case SessionEventTypes.MarksSpent:
-                        taken.Add(e.Marks ?? 0);
-                        if ((e.Marks ?? 0) >= cap) k.SpenderHitsAtFive++;
+                    {
+                        int marks = e.Marks ?? 0;
+                        taken.Add(marks);
+                        KitSkillRow row = Row(e.Name);
+                        takenBySkill[row.Name].Add(marks);
+                        if (marks >= cap)
+                        {
+                            k.SpenderHitsAtFive++;
+                            row.SpenderHitsAtFive++;
+                        }
                         k.FocusFromMarks += e.Focus ?? 0f;
                         break;
+                    }
                     case SessionEventTypes.MarksLost:
                         if (e.Result == SessionWords.FellOff) k.MarksFellOff += e.Marks ?? 0;
                         else k.MarksLostOtherwise += e.Marks ?? 0;
                         break;
                     case SessionEventTypes.ChainEnd:
+                    {
                         int shots = e.Shot ?? 0;
                         k.ChainsByLength[shots] = k.ChainsByLength.TryGetValue(shots, out int had) ? had + 1 : 1;
+                        SortedDictionary<int, int> mine = Row(e.Name).ChainsByLength;
+                        mine[shots] = mine.TryGetValue(shots, out int hadMine) ? hadMine + 1 : 1;
                         break;
+                    }
                     case SessionEventTypes.RecastPress:
                         // The last press of its chain (the kit at the start says how long a chain is).
                         if (chainCounts.TryGetValue(e.Name ?? "", out int count) && e.Shot == count)
                         {
+                            KitSkillRow row = Row(e.Name);
                             k.LastPresses++;
-                            if (e.Clean == true) k.CleanPresses++;
+                            row.LastPresses++;
+                            if (e.Clean == true)
+                            {
+                                k.CleanPresses++;
+                                row.CleanPresses++;
+                            }
                         }
                         k.FocusFromCleanTaps += e.Focus ?? 0f;
                         break;
@@ -262,6 +423,16 @@ namespace Roguelike.Rules
             }
             k.SpenderHits = taken.Count;
             if (taken.Count > 0) k.MarksPerSpenderHit = (float)taken.Average();
+            foreach (KitSkillRow row in made)
+            {
+                List<int> mine = takenBySkill[row.Name];
+                row.SpenderHits = mine.Count;
+                if (mine.Count > 0) row.MarksPerSpenderHit = (float)mine.Average();
+            }
+            // Slot order as the log's kit gives it; a skill missing from it goes last, in the order it first showed up.
+            List<string> order = kit.Skills.Select(s => s.Name).ToList();
+            int Place(KitSkillRow r) => order.IndexOf(r.Name) is int i && i >= 0 ? i : int.MaxValue;
+            k.Skills.AddRange(made.Select((r, i) => (r, i)).OrderBy(x => Place(x.r)).ThenBy(x => x.i).Select(x => x.r));
             return k;
         }
 
@@ -592,10 +763,18 @@ namespace Roguelike.Rules
             KitStats k = stats.Kit ?? new KitStats();
             var m = new Table("Marks and recasts, whole session", "");
             m.Add("Marks added / fell off unused / lost to a death or reset", k.MarksAdded + " / " + k.MarksFellOff + " / " + k.MarksLostOtherwise);
-            m.Add("Spender hits: marks taken, mean / at the cap", k.SpenderHits == 0 ? "-" : Num(k.MarksPerSpenderHit, 1) + " / " + Share(k.SpenderHitsAtFive, k.SpenderHits));
-            m.Add("Recast chains by length", k.ChainsByLength.Count == 0 ? "-" : string.Join("   ", k.ChainsByLength.Select(p => p.Key + ": " + p.Value)));
-            m.Add("Last presses that were clean", k.LastPresses == 0 ? "-" : k.CleanPresses + " of " + k.LastPresses + " (" + Share(k.CleanPresses, k.LastPresses) + ")");
-            m.Add("Focus from marks / clean taps / damage", Num(k.FocusFromMarks, 0) + " / " + Num(k.FocusFromCleanTaps, 0) + " / " + Num(k.FocusFromDamage, 0));
+            // Since 2026-11-19 two skills spend marks and two are recast: a line each, under the line for them all.
+            // Chains are not added up across skills: Triple Tap's are three presses long, Backstep's two.
+            m.Add("Spender hits: hits, marks taken mean / at the cap", k.SpenderHits == 0 ? "-" : SpenderCell(k.SpenderHits, k.MarksPerSpenderHit, k.SpenderHitsAtFive));
+            foreach (KitSkillRow r in k.Skills.Where(x => x.SpenderHits > 0))
+                m.Add("  " + r.Name + (r.CleanSpend ? " (clean presses)" : ""), SpenderCell(r.SpenderHits, r.MarksPerSpenderHit, r.SpenderHitsAtFive));
+            m.Add("Recast chains by length in presses", k.ChainsByLength.Count == 0 ? "-" : "");
+            foreach (KitSkillRow r in k.Skills.Where(x => x.ChainsByLength.Count > 0))
+                m.Add("  " + r.Name, string.Join("   ", r.ChainsByLength.Select(p => p.Key + ": " + p.Value)));
+            m.Add("Last presses that were clean", k.LastPresses == 0 ? "-" : CleanCell(k.CleanPresses, k.LastPresses));
+            foreach (KitSkillRow r in k.Skills.Where(x => x.LastPresses > 0))
+                m.Add("  " + r.Name, CleanCell(r.CleanPresses, r.LastPresses));
+            m.Add("Focus from marks / clean presses / damage", Num(k.FocusFromMarks, 0) + " / " + Num(k.FocusFromCleanTaps, 0) + " / " + Num(k.FocusFromDamage, 0));
             m.Add("Focus spends that cut cooldowns", Int(k.CooldownCuts));
             m.Add("Presses on an empty slot", Int(k.NotEquippedPresses));
             m.Write(sb);
@@ -624,6 +803,29 @@ namespace Roguelike.Rules
             d.Add("Dashes / that avoided a strike", a.Dashes + " / " + Share(a.DashesThatAvoided, a.Dashes),
                   fights ? f.Dashes + " / " + Share(f.DashesThatAvoided, f.Dashes) : "-");
             d.Write(sb);
+
+            // The kinds of enemy (work order 008): a line per kind, under it a line per attack that hurt her.
+            if (stats.EnemyKinds.Count > 0)
+            {
+                sb.AppendLine();
+                var k2 = new Table("Enemies by kind, whole session", "Kills", "Damage to her");
+                foreach (EnemyKindRow r in stats.EnemyKinds)
+                {
+                    k2.Add(r.Kind, Int(r.Kills), Int(r.DamageTaken));
+                    foreach (KeyValuePair<string, int> byAttack in r.DamageByAttack) k2.Add("  " + byAttack.Key, "", Int(byAttack.Value));
+                }
+                k2.Write(sb);
+            }
+            if (stats.GuardsHit > 0)
+            {
+                sb.AppendLine();
+                var gd = new Table("Guards, whole session", "");
+                gd.Add("Hit / dazed / dazes", stats.GuardsHit + " / " + stats.GuardsDazed + " / " + stats.Dazes);
+                gd.Add("First hit to first daze, mean", Seconds(stats.FirstHitToDazeMean));
+                gd.Add("Damage dealt while dazed", stats.GuardDamageWhileDazed + " of " + stats.GuardDamage + " ("
+                       + (stats.GuardDamage > 0 ? Percent(stats.GuardDamageWhileDazed / (float)stats.GuardDamage) : "-") + ")");
+                gd.Write(sb);
+            }
             return sb.ToString();
         }
 
@@ -681,6 +883,8 @@ namespace Roguelike.Rules
         static string Seconds(float v) => float.IsNaN(v) ? "-" : v.ToString("0.00", CultureInfo.InvariantCulture) + " s";
         static string Percent(float share) => float.IsNaN(share) ? "-" : (share * 100f).ToString("0", CultureInfo.InvariantCulture) + "%";
         static string Share(int part, int whole) => whole > 0 ? Percent(part / (float)whole) : "-";
+        static string SpenderCell(int hits, float mean, int atCap) => Int(hits) + ", " + Num(mean, 1) + " / " + Share(atCap, hits);
+        static string CleanCell(int clean, int last) => clean + " of " + last + " (" + Share(clean, last) + ")";
 
         /// <summary>m:ss.s, or s.s s under a minute.</summary>
         public static string Duration(float seconds)

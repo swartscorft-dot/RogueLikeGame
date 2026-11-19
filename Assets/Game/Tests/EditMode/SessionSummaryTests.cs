@@ -309,6 +309,76 @@ namespace Roguelike.Rules.Tests
             Assert.That(SessionSummary.Compute(events).Session.MovingShare, Is.EqualTo(0.5f).Within(1e-4f));
         }
 
+        // ---------------- The kit: two recast skills, two spenders (amended 2026-11-19) ----------------
+
+        [Test]
+        public void Kit_ChainsCleanPressesAndSpenderHits_ArePerSkill_TripleTapAndBackstep()
+        {
+            const string Blast = "Scatter Blast", Step = "Backstep", Tap = "Triple Tap";
+            var start = E(0, SessionEventTypes.SessionStart);
+            start.AddExtra("kit.MaxMarks", "5");
+            SessionEvent blastKit = Kit(4, Blast, "Normal", 6f);
+            blastKit.AddExtra("mark_bonus", "0.25");
+            SessionEvent stepKit = Kit(6, Step, "Normal", 10f);
+            stepKit.AddExtra("recast_count", "2");
+            stepKit.AddExtra("opening_move", "true");
+            stepKit.AddExtra("clean_mark_bonus", "0.5");
+            SessionEvent tapKit = Kit(7, Tap, "Normal", 5f);
+            tapKit.AddExtra("recast_count", "3");
+            SessionEvent Recast(double t, string name, int shot, bool clean) =>
+                new SessionEvent(t, SessionEventTypes.RecastPress, name) { Shot = shot, Clean = clean, Focus = clean ? 5f : (float?)null };
+            SessionEvent ChainEnd(double t, string name, int presses, bool early) =>
+                new SessionEvent(t, SessionEventTypes.ChainEnd, name) { Shot = presses, Result = early ? SessionWords.Early : SessionWords.Complete };
+            SessionEvent Spent(double t, string name, int marks) =>
+                new SessionEvent(t, SessionEventTypes.MarksSpent, name) { Marks = marks, Damage = 100, Focus = marks * 5f };
+
+            var events = new List<SessionEvent>
+            {
+                start, blastKit, stepKit, tapKit,
+                // Triple Tap: one chain of three, the last press clean.
+                SkillStart(1, Tap), Recast(1.5, Tap, 2, false), SkillStart(1.5, Tap), Recast(2.2, Tap, 3, true), SkillStart(2.2, Tap), ChainEnd(2.4, Tap, 3, false),
+                // Backstep: the hop and no second press; then the hop and a clean shot that took five marks; then an early shot.
+                SkillStart(3, Step), ChainEnd(3.8, Step, 1, true),
+                SkillStart(13, Step), Recast(13.6, Step, 2, true), SkillStart(13.6, Step), Spent(13.8, Step, 5), ChainEnd(13.8, Step, 2, false),
+                SkillStart(23, Step), Recast(23.3, Step, 2, false), SkillStart(23.3, Step), ChainEnd(23.5, Step, 2, false),
+                // Scatter Blast: two hits, three and five marks.
+                SkillStart(5, Blast), Spent(5.2, Blast, 3), SkillStart(12, Blast), Spent(12.2, Blast, 5),
+                End(30),
+            };
+
+            KitStats k = SessionSummary.Compute(events).Kit;
+
+            Assert.That(k.Skills.Select(r => r.Name), Is.EqualTo(new[] { Blast, Step, Tap }), "in slot order");
+            KitSkillRow tap = k.Skill(Tap), step = k.Skill(Step), blast = k.Skill(Blast);
+            Assert.That(tap.ChainsByLength.Select(p => p.Key + ":" + p.Value), Is.EqualTo(new[] { "3:1" }));
+            Assert.That(step.ChainsByLength.Select(p => p.Key + ":" + p.Value), Is.EqualTo(new[] { "1:1", "2:2" }), "one hop alone, two hops and a shot");
+            Assert.That(tap.LastPresses, Is.EqualTo(1));
+            Assert.That(tap.CleanPresses, Is.EqualTo(1));
+            Assert.That(step.LastPresses, Is.EqualTo(2), "the second press is Backstep's last");
+            Assert.That(step.CleanPresses, Is.EqualTo(1));
+            Assert.That(step.SpenderHits, Is.EqualTo(1));
+            Assert.That(step.MarksPerSpenderHit, Is.EqualTo(5f));
+            Assert.That(step.SpenderHitsAtFive, Is.EqualTo(1));
+            Assert.That(step.CleanSpend, Is.True);
+            Assert.That(blast.SpenderHits, Is.EqualTo(2));
+            Assert.That(blast.MarksPerSpenderHit, Is.EqualTo(4f));
+            Assert.That(blast.SpenderHitsAtFive, Is.EqualTo(1));
+            Assert.That(blast.CleanSpend, Is.False);
+            Assert.That(k.SpenderHits, Is.EqualTo(3), "in all");
+            Assert.That(k.LastPresses, Is.EqualTo(3));
+            Assert.That(k.CleanPresses, Is.EqualTo(2));
+            Assert.That(k.FocusFromMarks, Is.EqualTo(65f).Within(1e-4f));
+            Assert.That(k.FocusFromCleanTaps, Is.EqualTo(10f).Within(1e-4f), "both clean presses");
+
+            string text = SessionSummary.Format(SessionSummary.Compute(events));
+            TestContext.Out.WriteLine(text);
+            Assert.That(text, Does.Contain("  Backstep (clean presses)"));
+            Assert.That(text, Does.Match(@"\n  Backstep +1: 1   2: 2\r?\n"), "Backstep's chains on a line of their own");
+            Assert.That(text, Does.Match(@"\n  Triple Tap +3: 1\r?\n"));
+            Assert.That(text, Does.Match(@"\n  Backstep +1 of 2 \(50%\)\r?\n"));
+            Assert.That(text, Does.Match(@"\n  Scatter Blast +2, 4\.0 / 50%\r?\n"));
+        }
+
         // ---------------- The log ----------------
 
         [Test]

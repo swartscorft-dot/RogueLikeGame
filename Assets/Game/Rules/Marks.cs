@@ -11,10 +11,10 @@ namespace Roguelike.Rules
     {
         public int MaxMarks = 5;               // marks a target can carry at once
         public float MarkLifetime = 6f;        // s after the last mark was added that they all fall off
-        public int BasicShotsPerMark = 4;      // every this many basic shot hits, the hit that completes the count marks its target
+        public int BasicShotsPerMark = 5;      // every this many basic shot hits, the hit that completes the count marks its target (4 until 2026-11-19)
         public bool StartWithAllSkills = false; // all eight skills equipped from the start, for trying the ones that wait
         public float CleanShare = 1f / 3f;     // the last share of the final recast window in which a press is clean
-        public float CleanDamage = 1.5f;       // a clean tap deals this times the damage
+        public float CleanDamage = 1.5f;       // a clean tap deals this times the damage (not a clean spend: that has its bonus per mark)
     }
 
     /// <summary>
@@ -85,6 +85,32 @@ namespace Roguelike.Rules
 
         /// <summary>True for a skill that spends marks: it has a bonus per mark.</summary>
         public static bool IsSpender(SkillDefinition skill) => skill != null && skill.MarkDamageBonus > 0f;
+
+        /// <summary>
+        /// True when a clean last press of this skill spends the marks instead of being a clean tap: it has a clean bonus
+        /// per mark (Backstep; decision 0005, amended 2026-11-19 after Kristian played).
+        /// </summary>
+        public static bool HasCleanSpend(SkillDefinition skill) => skill != null && skill.CleanMarkDamageBonus > 0f;
+
+        /// <summary>
+        /// True when a hit of this skill takes the marks: every hit of a spender, and the hit of a clean press of a
+        /// skill with a clean spend. <paramref name="clean"/>: the shot came from a clean press.
+        /// </summary>
+        public static bool Spends(SkillDefinition skill, bool clean) => IsSpender(skill) || (clean && HasCleanSpend(skill));
+
+        /// <summary>
+        /// The bonus per mark taken that a hit of this skill deals: the clean spend's for a clean press of a skill that
+        /// has one, else the spender's own. 0 for a hit that spends nothing.
+        /// </summary>
+        public static float BonusPerMark(SkillDefinition skill, bool clean)
+        {
+            if (skill == null) return 0f;
+            if (clean && HasCleanSpend(skill)) return skill.CleanMarkDamageBonus;
+            return Math.Max(0f, skill.MarkDamageBonus);
+        }
+
+        /// <summary>True when a clean press of this skill is a clean tap: it has one and no clean spend takes its place.</summary>
+        public static bool IsCleanTap(SkillDefinition skill, bool clean) => clean && !HasCleanSpend(skill);
     }
 
     /// <summary>

@@ -8,8 +8,9 @@ namespace Roguelike.Rules
     /// A level drawn as characters, for logs, test failures and reports. North is up, as on the screen. Each cell is
     /// two characters across and two lines down, so walls get characters of their own: walls are '|' and '-' with '+'
     /// at their corners, a door is a gap in a wall, a room shows the letter of its kind (S start, C combat, R reward,
-    /// B boss) and its place in the run in its north-west corner, the player's start is '@' and an enemy point '.'.
-    /// The first line says the seed, the version and the size.
+    /// B boss) and its place in the run in its north-west corner, the player's start is '@' and an enemy point the
+    /// small letter of what stands there (work order 008, <see cref="EnemyKinds.Letter"/>): b brute, s swarmer, p a pack
+    /// of swarmers, h shooter, g guard. The first line says the seed, the version and the size.
     /// </summary>
     public static class LevelMap
     {
@@ -66,7 +67,7 @@ namespace Roguelike.Rules
             foreach (LevelRoom room in level.Rooms)
             {
                 if (room.PlayerStart.HasValue) Point(room.PlayerStart.Value, '@');
-                foreach (LevelPoint p in room.EnemyPoints) Point(p, '.');
+                for (int i = 0; i < room.EnemyPoints.Count; i++) Point(room.EnemyPoints[i], room.GroupAt(i).Letter);
             }
 
             var sb = new StringBuilder();

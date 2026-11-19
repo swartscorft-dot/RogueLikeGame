@@ -8,6 +8,8 @@ namespace Roguelike.Rules
         Circle,
         /// <summary>A strip from the enemy toward where the player stood when the windup began: Length long, 2 * HalfWidth wide.</summary>
         Line,
+        /// <summary>A wedge from the enemy toward where the player stood when the windup began: Length long, Angle degrees wide in all.</summary>
+        Cone,
     }
 
     /// <summary>One attack of an enemy: when it is used, how long its telegraph shows, and what it hits.</summary>
@@ -24,9 +26,13 @@ namespace Roguelike.Rules
         public float Radius = 3f;        // m, Circle
         public float Length = 12f;       // m, Line
         public float HalfWidth = 1.2f;   // m, Line
+        public float Angle = 90f;        // degrees in all, Cone
     }
 
-    /// <summary>The numbers of the one enemy of G4. They live in the enemy settings asset.</summary>
+    /// <summary>
+    /// The numbers every kind of enemy has. The brute's live in the enemy settings asset; since work order 008 the
+    /// other kinds carry theirs inside their own values class (<see cref="SwarmerValues"/> and the others).
+    /// </summary>
     [Serializable]
     public sealed class EnemyValues
     {
@@ -107,7 +113,11 @@ namespace Roguelike.Rules
         /// </summary>
         /// <param name="distance">Metres between the enemy and the player.</param>
         /// <param name="provoked">The enemy has been hurt since it last stood at home.</param>
-        public bool Step(float now, float distance, bool playerAlive, bool provoked, EnemyValues values)
+        /// <param name="mayAttack">
+        /// False holds it in the chase even when an attack fits the distance: a shooter that cannot see her, or one
+        /// that is backing off. The brute passes true.
+        /// </param>
+        public bool Step(float now, float distance, bool playerAlive, bool provoked, EnemyValues values, bool mayAttack = true)
         {
             switch (State)
             {
@@ -123,7 +133,7 @@ namespace Roguelike.Rules
                         Enter(EnemyState.Idle, now);
                         return false;
                     }
-                    EnemyAttackDefinition fit = AttackFor(distance, values);
+                    EnemyAttackDefinition fit = mayAttack ? AttackFor(distance, values) : null;
                     if (fit != null)
                     {
                         Attack = fit;
@@ -143,6 +153,17 @@ namespace Roguelike.Rules
                     return false;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Drops the attack being wound up or recovered from, with no strike, and goes back to the chase: a daze does
+        /// this (<see cref="StaggerBar"/>). Nothing when it stands at home.
+        /// </summary>
+        public void Cancel(float now)
+        {
+            if (State == EnemyState.Idle) return;
+            Attack = null;
+            Enter(EnemyState.Chase, now);
         }
 
         void Enter(EnemyState state, float now)
@@ -168,9 +189,19 @@ namespace Roguelike.Rules
         public static bool Hits(EnemyAttackDefinition attack, GroundPoint origin, GroundPoint aim,
                                 GroundPoint target, float targetRadius)
         {
-            return attack.Shape == EnemyAttackShape.Circle
-                ? SkillRules.InCircle(origin, attack.Radius, target, targetRadius)
-                : LineShot.Hits(origin, aim, attack.Length, attack.HalfWidth, target, targetRadius);
+            return Hits(attack, origin, aim, target, targetRadius, attack.Length);
+        }
+
+        /// <summary>As above, with a line or a cone <paramref name="length"/> long: a shot cut short by a wall.</summary>
+        public static bool Hits(EnemyAttackDefinition attack, GroundPoint origin, GroundPoint aim,
+                                GroundPoint target, float targetRadius, float length)
+        {
+            switch (attack.Shape)
+            {
+                case EnemyAttackShape.Circle: return SkillRules.InCircle(origin, attack.Radius, target, targetRadius);
+                case EnemyAttackShape.Cone: return SkillRules.InCone(origin, aim, length, attack.Angle, target, targetRadius);
+                default: return LineShot.Hits(origin, aim, length, attack.HalfWidth, target, targetRadius);
+            }
         }
     }
 }

@@ -80,6 +80,12 @@ namespace Roguelike.PlayModeTests
                 Assert.That(have.RecastCount, Is.EqualTo(want.RecastCount), n + "RecastCount");
                 Assert.That(have.RecastWindow, Is.EqualTo(want.RecastWindow), n + "RecastWindow");
                 Assert.That(have.CleanTapMarks, Is.EqualTo(want.CleanTapMarks), n + "CleanTapMarks");
+                // Amended 2026-11-19: Backstep's two presses and its clean spend.
+                Assert.That(have.MoveDistance, Is.EqualTo(want.MoveDistance), n + "MoveDistance");
+                Assert.That(have.OpeningMove, Is.EqualTo(want.OpeningMove), n + "OpeningMove");
+                Assert.That(have.CleanMarkDamageBonus, Is.EqualTo(want.CleanMarkDamageBonus), n + "CleanMarkDamageBonus");
+                // Work order 008: what it takes off a stagger bar.
+                Assert.That(have.Stagger, Is.EqualTo(want.Stagger), n + "Stagger");
             }
             IdentityValues id = asset.Identity, idStart = new IdentityValues();
             Assert.That(id.MaxFocus, Is.EqualTo(idStart.MaxFocus), "MaxFocus");
@@ -129,11 +135,15 @@ namespace Roguelike.PlayModeTests
 
         // ---------------- Marks ----------------
 
+        /// <summary>
+        /// Changed deliberately 2026-11-19 after Kristian played: the basic shot marks every fifth hit (it was every
+        /// fourth, and the test was named for it and assumed 4). The steps are the same, read from the settings.
+        /// </summary>
         [UnityTest]
-        public IEnumerator Builders_MarkTheTarget_AndTheBasicShotEveryFourthHit_AndThePipsShowThem()
+        public IEnumerator Builders_MarkTheTarget_AndTheBasicShotEveryFifthHit_AndThePipsShowThem()
         {
             KitValues kit = _player.Kit;
-            Assume.That(kit.BasicShotsPerMark, Is.EqualTo(4));
+            Assume.That(kit.BasicShotsPerMark, Is.EqualTo(5));
             _player.Teleport(NearA);
             yield return null;
 
@@ -308,6 +318,131 @@ namespace Roguelike.PlayModeTests
             _player.Stop();
         }
 
+        // ---------------- Backstep: two presses, the second a clean spend (amended 2026-11-19 after Kristian played) ----------------
+
+        [UnityTest]
+        public IEnumerator Backstep_OnePress_SheHops_NoShotIsFired_AndTheCooldownRunsFromThatPress()
+        {
+            SkillDefinition step = _player.Skills[Backstep];
+            Assume.That(step.RecastCount, Is.EqualTo(2));
+            Assume.That(step.OpeningMove, Is.True);
+            Assume.That(step.MoveDistance, Is.LessThan(-1f), "it moves backward");
+            _player.Teleport(NearA);
+            yield return null;
+            Vector3 from = _player.Position;
+            Vector3 toA = Flat(_a.transform.position - from);
+            int fired = _player.SkillShotsFired;
+            float pressedAt = Time.time;
+
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            Assert.That(_player.RecastSlot, Is.EqualTo(Backstep), "a chain of two");
+            Assert.That(_player.IsRecastWindowOpen, Is.False, "no window while she hops");
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            float openedAt = Time.time;
+            Vector3 moved = Flat(_player.Position - from);
+            Debug.Log($"[0005] Backstep's hop: {moved.magnitude:0.00} m, window open {openedAt - pressedAt:0.000} s after the press");
+            Assert.That(_player.IsRecastWindowOpen, Is.True, "the window opens when the hop has ended");
+            Assert.That(openedAt - pressedAt, Is.EqualTo(step.Startup).Within(0.05f), "at the end of the hop");
+            Assert.That(moved.magnitude, Is.EqualTo(-step.MoveDistance).Within(0.3f), "the hop as before: its move distance");
+            Assert.That(Vector3.Dot(moved.normalized, toA.normalized), Is.LessThan(-0.98f), "straight away from the aim");
+            Assert.That(_player.SkillShotsFired, Is.EqualTo(fired), "the hop fires nothing");
+            Assert.That(_a.HitsTaken, Is.EqualTo(0));
+            Assert.That(_player.RecastCleanShare, Is.EqualTo(_player.Kit.CleanShare).Within(1e-5f), "the window has its clean part");
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.None), "she is free in the window");
+            Assert.That(_player.IsLocked, Is.False);
+            Vector3 hopEnd = _player.Position;
+            _player.Steer(Vector3.right);
+            yield return null;
+            Assert.That(_player.IsMoving, Is.True, "and the move keys work at once");
+            yield return new WaitForSeconds(0.1f);
+            Assert.That(Vector3.Dot(Flat(_player.Position - hopEnd), Vector3.right), Is.GreaterThan(0.1f), "she walks in the window");
+            _player.Stop();
+
+            yield return Until(() => _player.RecastSlot == -1, 2f);
+            Assert.That(_player.RecastSlot, Is.EqualTo(-1), "no second press: the skill is over");
+            Assert.That(Time.time - openedAt, Is.EqualTo(step.RecastWindow).Within(0.05f), "when the window ran out");
+            yield return new WaitForSeconds(0.3f);
+            Assert.That(_player.SkillShotsFired, Is.EqualTo(fired), "no shot, ever");
+            Assert.That(Lost(_a), Is.EqualTo(0));
+            Assert.That(_player.SkillCooldownRemaining(Backstep), Is.EqualTo(step.Cooldown - (Time.time - pressedAt)).Within(0.02f),
+                        "the cooldown counts from the first press");
+        }
+
+        [UnityTest]
+        public IEnumerator Backstep_ASecondPressEarlyInTheWindow_IsAnOrdinaryShot_ThatAddsOneMark_AndTakesNone()
+        {
+            SkillDefinition step = _player.Skills[Backstep];
+            KitValues kit = _player.Kit;
+            IdentityValues id = _player.Identity;
+            _player.Teleport(NearA);
+            yield return null;
+            _a.AddMarks(2, kit.MaxMarks, kit.MarkLifetime);
+            Assume.That(_a.MarkCount, Is.EqualTo(2));
+            float focusBefore = _player.Focus;
+
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            Assume.That(_player.RecastWindowLeft, Is.GreaterThan(_player.RecastCleanShare), "early: not in the clean part");
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
+            yield return Until(() => _a.HitsTaken >= 1, 2f);
+            yield return Until(() => _player.Action == ActionKind.None, 2f);
+
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "one shot");
+            Assert.That(Lost(_a), Is.EqualTo(step.Damage), "the ordinary damage");
+            Assert.That(_a.MarkCount, Is.EqualTo(2 + step.MarksAdded), "one mark added, none taken");
+            Assert.That(_player.Focus - focusBefore, Is.EqualTo(step.Damage * id.FocusPerDamage).Within(1e-3f), "only the trickle from the damage");
+            Assert.That(_player.RecastSlot, Is.EqualTo(-1), "the chain is over");
+        }
+
+        [UnityTest]
+        public IEnumerator Backstep_ASecondPressInTheCleanPart_TakesFiveMarks_ForTheCleanBonus_AndFillsFocus()
+        {
+            SkillDefinition step = _player.Skills[Backstep];
+            KitValues kit = _player.Kit;
+            IdentityValues id = _player.Identity;
+            Assume.That(step.CleanMarkDamageBonus, Is.GreaterThan(0f));
+            _player.Teleport(NearA);
+            yield return null;
+            _a.AddMarks(5, kit.MaxMarks, kit.MarkLifetime);
+            Assume.That(_a.MarkCount, Is.EqualTo(5));
+            float focusBefore = _player.Focus;
+
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            yield return Until(() => _player.RecastWindowLeft <= kit.CleanShare * 0.5f, 2f);
+            Assume.That(_player.IsRecastWindowOpen, Is.True, "still in the window");
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the clean press");
+            yield return Until(() => _a.HitsTaken >= 1, 2f);
+            yield return Until(() => _player.Action == ActionKind.None, 2f);
+
+            int want = Mathf.RoundToInt(step.Damage * (1f + step.CleanMarkDamageBonus * 5));
+            Debug.Log($"[0005] Backstep's shot: {step.Damage} ordinary, {want} clean at five marks");
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "one shot");
+            Assert.That(Lost(_a), Is.EqualTo(want), "the base damage times (1 + bonus times 5)");
+            Assert.That(_a.MarkCount, Is.EqualTo(0), "the marks are gone");
+            Assert.That(_player.Focus - focusBefore,
+                        Is.EqualTo(5 * id.FocusPerMarkSpent + id.FocusPerCleanTap + want * id.FocusPerDamage).Within(1e-3f),
+                        "focus for five marks spent, the clean press and the trickle from the damage");
+            Assert.That(_player.RecastSlot, Is.EqualTo(-1), "the chain is over");
+        }
+
+        [UnityTest]
+        public IEnumerator Backstep_ASecondPressAfterTheWindow_GivesNothing()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            int fired = _player.SkillShotsFired;
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            yield return Until(() => _player.RecastSlot == -1, 2f);
+            Assert.That(_player.RecastSlot, Is.EqualTo(-1), "the window ran out and the chain is over");
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Rejected), "a late press: the cooldown runs");
+            yield return new WaitForSeconds(0.4f);
+            Assert.That(_player.SkillShotsFired, Is.EqualTo(fired), "no shot");
+            Assert.That(_a.HitsTaken, Is.EqualTo(0));
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
+        }
+
         // ---------------- Focus ----------------
 
         [UnityTest]
@@ -344,50 +479,86 @@ namespace Roguelike.PlayModeTests
 
         /// <summary>
         /// The start four used on cooldown, at Dummy_A from up close, with a basic shot whenever nothing else may start,
-        /// for three Scatter Blasts after the first. Logs the marks on the target at each blast, what the blast dealt
-        /// against what it deals with none, and when the focus gauge was first full. Backstep steps her 5 m away, out of
-        /// Scatter Blast's reach, so she is put back where she stood after each one. The dummy is given a health it
-        /// cannot lose in the time, so it never dies and drops its marks. Nothing is spent: the gauge fills once.
+        /// for three Scatter Blasts after the first. Logs the marks on the target when Scatter Blast comes off cooldown
+        /// and at each blast, what the blast dealt against what it deals with none, how long after each blast the target
+        /// is back at five marks, each Backstep shot, and when the focus gauge was first full. Backstep hops her 5 m
+        /// away, out of Scatter Blast's reach; she shoots from there and is put back where she stood after the chain.
+        /// The dummy is given a health it cannot lose in the time, so it never dies and drops its marks. Focus is never
+        /// spent: the gauge fills once.
+        /// Changed deliberately 2026-11-19 after Kristian played: Backstep is two presses, the second early in its window
+        /// here (the ordinary shot that adds a mark, as its one press did before), and the rotation reads the new values
+        /// (five basic shot hits a mark, Scatter Blast 6 s). The second test is the same with every second press of
+        /// Backstep clean: the hard way, which spends the marks.
         /// </summary>
         [UnityTest]
-        public IEnumerator Measure_TheStartFourOnCooldown_MarksAtEachBlast_AndTheTimeToFillFocus()
+        public IEnumerator Measure_TheStartFourOnCooldown_MarksAtEachBlast_AndTheTimeToFillFocus() => MeasureStartFour(cleanBackstep: false);
+
+        [UnityTest]
+        public IEnumerator Measure_TheStartFourOnCooldown_WithEveryBackstepClean() => MeasureStartFour(cleanBackstep: true);
+
+        IEnumerator MeasureStartFour(bool cleanBackstep)
         {
             _player.EquipStartSkills();
             _a.SetMaxHealth(1000000);
             _player.Teleport(NearA);
             yield return null;
-            SkillDefinition blast = _player.Skills[Scatter];
+            SkillDefinition blast = _player.Skills[Scatter], step = _player.Skills[Backstep];
             KitValues kit = _player.Kit;
             var marksAtBlast = new List<int>();
+            var marksWhenReady = new List<int>();  // when Scatter Blast came off cooldown
             var dealtAtBlast = new List<int>();
-            float start = Time.time, fullAt = float.NaN;
-            bool stepping = false;
+            var backAtFive = new List<string>();   // after each blast: how long until the target carried the cap again
+            var steps = new List<string>();        // each Backstep shot: the marks before it and what it dealt
+            var stepSpends = new List<KeyValuePair<int, int>>();
+            float start = Time.time, fullAt = float.NaN, lastBlastAt = float.NaN;
+            bool stepping = false, blastWasReady = true;
             float deadline = Time.realtimeSinceStartup + 90f;
             while ((marksAtBlast.Count < 4 || (float.IsNaN(fullAt) && Time.time - start < 40f)) && Time.realtimeSinceStartup < deadline)
             {
                 Vector3 at = _a.transform.position;
                 if (float.IsNaN(fullAt) && _player.IsFocusFull) fullAt = Time.time - start;
+                bool blastReady = _player.SkillCooldownRemaining(Scatter) <= 0f;
+                if (blastReady && !blastWasReady) marksWhenReady.Add(_a.MarkCount);
+                blastWasReady = blastReady;
+                if (!float.IsNaN(lastBlastAt) && _a.MarkCount >= kit.MaxMarks)
+                {
+                    backAtFive.Add($"{Time.time - lastBlastAt:0.0} s");
+                    lastBlastAt = float.NaN;
+                }
                 // Not Action None: a click always waits, so a basic shot is nearly always going.
-                if (stepping && _player.Action != ActionKind.Skill && !_player.IsDashing)
+                if (stepping && _player.RecastSlot != Backstep && _player.Action != ActionKind.Skill && !_player.IsDashing)
                 {
                     _player.Teleport(NearA);
                     stepping = false;
                 }
                 bool free = !_player.IsLocked && _player.SkillGateRemaining <= 0f;
-                if (_player.RecastSlot == Triple && _player.IsRecastWindowOpen
-                    && (_player.RecastCleanShare <= 0f || _player.RecastWindowLeft <= _player.RecastCleanShare * 0.5f))
+                bool inCleanPart = _player.RecastWindowLeft <= _player.RecastCleanShare * 0.5f;
+                if (_player.RecastSlot == Triple && _player.IsRecastWindowOpen && (_player.RecastCleanShare <= 0f || inCleanPart))
                     _player.PressSkill(Triple, at);
+                else if (_player.RecastSlot == Backstep && _player.IsRecastWindowOpen && (!cleanBackstep || inCleanPart))
+                {
+                    int marksBefore = _a.MarkCount, lostBefore = Lost(_a), firedBefore = _player.SkillShotsFired;
+                    _player.PressSkill(Backstep, at);
+                    yield return Until(() => _player.SkillShotsFired > firedBefore, 2f);
+                    int dealt = Lost(_a) - lostBefore;
+                    steps.Add($"{marksBefore} marks: {dealt}");
+                    if (cleanBackstep) stepSpends.Add(new KeyValuePair<int, int>(marksBefore, dealt));
+                    continue;
+                }
                 else if (free && _player.RecastSlot < 0)
                 {
-                    if (_player.SkillCooldownRemaining(Scatter) <= 0f)
+                    if (blastReady)
                     {
+                        if (!float.IsNaN(lastBlastAt)) backAtFive.Add("not before the next blast");
                         marksAtBlast.Add(_a.MarkCount);
-                        int before = _a.MaxHealth - _a.CurrentHealth, firedBefore = _player.SkillShotsFired;
+                        int before = Lost(_a), firedBefore = _player.SkillShotsFired;
                         float distance = Flat(at - _player.Position).magnitude;
                         IntentResult pressed = _player.PressSkill(Scatter, at);
                         yield return Until(() => _player.SkillShotsFired > firedBefore, 2f);
-                        int dealt = _a.MaxHealth - _a.CurrentHealth - before;
+                        int dealt = Lost(_a) - before;
                         dealtAtBlast.Add(dealt);
+                        lastBlastAt = Time.time;
+                        blastWasReady = false;
                         if (dealt <= 0)
                             Debug.Log($"[0005] a blast dealt nothing: {pressed}, {distance:0.00} m from A, A alive {_a.IsAlive}, health {_a.CurrentHealth}/{_a.MaxHealth}, "
                                     + $"fired {_player.SkillShotsFired - firedBefore}, marks now {_a.MarkCount}");
@@ -403,9 +574,24 @@ namespace Roguelike.PlayModeTests
             }
             Assert.That(marksAtBlast.Count, Is.GreaterThanOrEqualTo(4), "four blasts in the time");
             string blasts = string.Join(", ", marksAtBlast.Select((m, i) => $"{m} marks: {dealtAtBlast.ElementAtOrDefault(i)}"));
-            Debug.Log($"[0005] start four on cooldown: at each Scatter Blast {blasts} (with no marks {blast.Damage}); "
+            Debug.Log($"[0005] start four on cooldown, Backstep's second press {(cleanBackstep ? "clean" : "early")}: "
+                    + $"marks when Scatter Blast came off cooldown {string.Join(", ", marksWhenReady)}; "
+                    + $"at each Scatter Blast {blasts} (with no marks {blast.Damage}); "
+                    + $"back at {kit.MaxMarks} marks after each blast: {string.Join(", ", backAtFive)}; "
+                    + $"Backstep shots {string.Join(", ", steps)} (ordinary {step.Damage}, clean at five "
+                    + $"{MarkRules.SpenderDamage(step.Damage, 5, step.CleanMarkDamageBonus)}); "
                     + $"focus first full {fullAt:0.0} s after the start; marks fall off {kit.MarkLifetime} s after the last");
-            Assert.That(marksAtBlast.Skip(1).Min(), Is.GreaterThanOrEqualTo(3), "the rotation builds marks for the blast");
+            Assert.That(steps.Count, Is.GreaterThanOrEqualTo(1), "Backstep fired its shot at least once");
+            if (cleanBackstep)
+            {
+                foreach (KeyValuePair<int, int> spend in stepSpends)
+                    Assert.That(spend.Value, Is.EqualTo(MarkRules.SpenderDamage(step.Damage, spend.Key, step.CleanMarkDamageBonus)),
+                                $"a clean Backstep on {spend.Key} marks");
+            }
+            else
+            {
+                Assert.That(marksAtBlast.Skip(1).Min(), Is.GreaterThanOrEqualTo(3), "the rotation builds marks for the blast");
+            }
         }
 
         // ---------------- Helpers ----------------

@@ -51,6 +51,30 @@ namespace Roguelike.Rules
         public override string ToString() => string.Format(CultureInfo.InvariantCulture, "({0:R},{1:R})", X, Y);
     }
 
+    /// <summary>
+    /// What stands at one enemy point (work order 008): a kind, and how many. More than one is a pack, which only
+    /// swarmers come in: they stand around the point.
+    /// </summary>
+    [Serializable]
+    public sealed class EnemyGroup
+    {
+        public EnemyKind Kind;
+        public int Count = 1;
+
+        public EnemyGroup() { }
+
+        public EnemyGroup(EnemyKind kind, int count = 1)
+        {
+            Kind = kind;
+            Count = count;
+        }
+
+        public bool IsPack => Count > 1;
+        public EnemyGroup Copy() => new EnemyGroup(Kind, Count);
+        public char Letter => EnemyKinds.Letter(Kind, Count);
+        public override string ToString() => EnemyKinds.Word(Kind) + (Count > 1 ? " x" + Count.ToString(CultureInfo.InvariantCulture) : "");
+    }
+
     /// <summary>One room: its kind, its cells and its place in the order of the run, and what stands in it.</summary>
     public sealed class LevelRoom
     {
@@ -61,6 +85,11 @@ namespace Roguelike.Rules
         /// <summary>Where the player starts. Only in the start room.</summary>
         public LevelPoint? PlayerStart;
         public readonly List<LevelPoint> EnemyPoints = new List<LevelPoint>();
+        /// <summary>What stands at each enemy point, in the same order as <see cref="EnemyPoints"/> (work order 008).</summary>
+        public readonly List<EnemyGroup> EnemyGroups = new List<EnemyGroup>();
+
+        /// <summary>What stands at enemy point <paramref name="i"/>; a single brute when the room says nothing (a hand-made layout).</summary>
+        public EnemyGroup GroupAt(int i) => i >= 0 && i < EnemyGroups.Count && EnemyGroups[i] != null ? EnemyGroups[i] : new EnemyGroup(EnemyKind.Brute);
 
         /// <summary>The letter for its kind on a map.</summary>
         public char Letter => KindLetter(Kind);
@@ -185,7 +214,7 @@ namespace Roguelike.Rules
             {
                 sb.Append(r.Order).Append(' ').Append(r.Kind).Append(' ').Append(r.Rect);
                 if (r.PlayerStart.HasValue) sb.Append(" start ").Append(r.PlayerStart.Value);
-                foreach (LevelPoint p in r.EnemyPoints) sb.Append(" enemy ").Append(p);
+                for (int i = 0; i < r.EnemyPoints.Count; i++) sb.Append(" enemy ").Append(r.EnemyPoints[i]).Append(' ').Append(r.GroupAt(i));
                 sb.Append('\n');
             }
             foreach (LevelDoor d in Doors)

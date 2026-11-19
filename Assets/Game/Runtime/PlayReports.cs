@@ -1,3 +1,5 @@
+using Roguelike.Rules;
+
 namespace Roguelike
 {
     /// <summary>What a <see cref="PlayerReport"/> tells.</summary>
@@ -59,13 +61,19 @@ namespace Roguelike
         public float DashCut;
     }
 
-    public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died }
+    /// <summary>
+    /// What an enemy reports. Removed: it was taken out of the game alive (its level or the practice spawns went), and
+    /// counts as giving up. StaggerTaken, Dazed and DazeEnded come from its stagger bar (work order 008).
+    /// </summary>
+    public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded }
 
     public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect }
 
     /// <summary>
-    /// Something the enemy did, as <see cref="EnemyBrute.Reported"/> tells it. For the play session recorder; nothing
-    /// in the game listens. Attack is the attack's name for AttackStarted and Struck.
+    /// Something an enemy did, as <see cref="Enemy.Reported"/> tells it. For the play session recorder; nothing
+    /// in the game listens. Attack is the attack's name for AttackStarted and Struck. Since work order 008 every report
+    /// says which enemy it is (<see cref="Id"/>, unique in the run of the game) and its kind; Stagger and StaggerLeft
+    /// are the points taken off its bar and the points left, for StaggerTaken.
     /// </summary>
     public struct EnemyReport
     {
@@ -73,5 +81,9 @@ namespace Roguelike
         public string Attack;
         public StrikeOutcome Outcome;
         public int Damage;
+        public int Id;
+        public EnemyKind EnemyKind;
+        public float Stagger;
+        public float StaggerLeft;
     }
 }
