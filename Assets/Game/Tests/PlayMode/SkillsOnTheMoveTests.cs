@@ -193,27 +193,58 @@ namespace Roguelike.PlayModeTests
             Assert.That(startedAt, Is.LessThanOrEqualTo(gate + 2f * maxDt + 0.001f), "and at once when it did");
         }
 
+        // ---------------- A skill key pressed in the free recovery (0004, amended 2026-11-19) ----------------
+
         /// <summary>
-        /// A skill press made early in a free recovery is stale by the time the recovery ends. It must not cancel a shot
-        /// winding up across that moment: the shot goes off, and the stale press is dropped without starting anything.
+        /// A skill key pressed early in a free recovery, earlier than the buffer time before its end: it waits, and the
+        /// skill starts when the recovery ends, not before. Under the old rule this press was dropped as stale.
         /// </summary>
         [UnityTest]
-        public IEnumerator FreeRecovery_AStaleSkillPress_NeitherCancelsAShotWindingUpAtTheGate_NorStarts()
+        public IEnumerator FreeRecovery_ASkillPressedEarlyInIt_StartsWhenItEnds_AndNotBefore()
         {
             Assume.That(_feel.SkillRecoveryFree, Is.True);
             SkillDefinition quick = _player.Skills[Quick];
-            Assume.That(quick.Recovery, Is.GreaterThan(_feel.InputBuffer + 0.06f), "room for a press to go stale inside the recovery");
+            Assume.That(quick.Recovery, Is.GreaterThan(_feel.InputBuffer + 0.06f), "room for a press earlier than the buffer time");
+            _player.Teleport(StandAt);
+            yield return null;
+            Vector3 aim = StandAt + Vector3.back * 6f;
+            float pressedAt = Time.time;
+            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Started));
+            float gate = pressedAt + quick.Startup + quick.Recovery;
+            yield return Until(() => _player.FreeRecoverySlot == Quick, 2f);
+            Assert.That(_player.PressSkill(Volley, aim), Is.EqualTo(IntentResult.Buffered), "the next skill waits");
+            float early = gate - Time.time;
+            Assume.That(early, Is.GreaterThan(_feel.InputBuffer + 0.02f), "pressed earlier than the buffer time before the end");
+            Debug.Log($"[0004] a skill pressed {early:0.000} s before the end of Quick Shot's free recovery");
+            yield return StartedAt(Volley, gate);
+        }
+
+        /// <summary>
+        /// A skill key pressed while she is visibly committed, earlier than the buffer time before the last hit, is
+        /// dropped as before. It waits through the free recovery without holding anything back, and when it is dropped
+        /// at the recovery's end it must not cancel a shot winding up across that moment: the shot goes off, and the
+        /// press starts nothing. (Before 2026-11-19 this test pressed early in the free recovery, which now fires.)
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FreeRecovery_ASkillPressedEarlierThanTheBufferTimeBeforeTheLastHit_IsDropped_AndCancelsNoShotAtTheGate()
+        {
+            Assume.That(_feel.SkillRecoveryFree, Is.True);
+            SkillDefinition volley = _player.Skills[Volley];
+            Assume.That(volley.Startup, Is.GreaterThan(_feel.InputBuffer + 0.1f), "a cast long enough to press early in it");
+            Assume.That(volley.Recovery, Is.GreaterThan(_feel.BasicShotStartup + 0.05f), "room for a click in the recovery");
             _player.Teleport(StandAt);
             yield return null;
             Vector3 aim = StandAt + Vector3.back * 6f;
             int shots = _player.BasicShotsFired;
             float pressedAt = Time.time;
-            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Started));
-            float gate = pressedAt + quick.Startup + quick.Recovery;
-            yield return Until(() => _player.FreeRecoverySlot == Quick, 2f);
-            Assert.That(_player.PressSkill(Volley, aim), Is.EqualTo(IntentResult.Buffered), "pressed early: stale by the gate");
-            float bufferedAt = Time.time;
-            Assume.That(gate - bufferedAt, Is.GreaterThan(_feel.InputBuffer + 0.02f));
+            Assert.That(_player.PressSkill(Volley, aim), Is.EqualTo(IntentResult.Started));
+            float lastHit = pressedAt + volley.Startup, gate = lastHit + volley.Recovery;
+            yield return null;
+            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Buffered), "pressed in the cast");
+            Assume.That(lastHit - Time.time, Is.GreaterThan(_feel.InputBuffer + 0.02f), "earlier than the buffer time before the last hit");
+
+            yield return Until(() => _player.FreeRecoverySlot == Volley, 2f);
+            Assert.That(_player.HasBufferedPress, Is.True, "it waits through the free recovery");
 
             // A shot that is still winding up when the recovery ends.
             yield return Until(() => Time.time >= gate - _feel.BasicShotStartup * 0.5f, 2f);
@@ -224,9 +255,139 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.BasicShotsFired > shots, 1f);
             Assert.That(_player.BasicShotsFired - shots, Is.EqualTo(1), "the shot went off");
             yield return new WaitForSeconds(0.2f);
-            Assert.That(_player.Action, Is.Not.EqualTo(ActionKind.Skill), "the stale press started nothing");
+            Assert.That(_player.Action, Is.Not.EqualTo(ActionKind.Skill), "the early press started nothing");
             Assert.That(_player.HasBufferedPress, Is.False, "and is gone");
+            Assert.That(_player.SkillCooldownRemaining(Quick), Is.EqualTo(0f), "Quick Shot was never used");
+        }
+
+        /// <summary>A skill key pressed within the buffer time before the last hit fires when the free recovery ends.</summary>
+        [UnityTest]
+        public IEnumerator FreeRecovery_ASkillPressedJustBeforeTheLastHit_StartsWhenTheRecoveryEnds()
+        {
+            Assume.That(_feel.SkillRecoveryFree, Is.True);
+            SkillDefinition volley = _player.Skills[Volley];
+            Assume.That(volley.Startup, Is.GreaterThan(_feel.InputBuffer), "a cast longer than the buffer time");
+            _player.Teleport(StandAt);
+            yield return null;
+            Vector3 aim = StandAt + Vector3.back * 6f;
+            float pressedAt = Time.time;
+            Assert.That(_player.PressSkill(Volley, aim), Is.EqualTo(IntentResult.Started));
+            float lastHit = pressedAt + volley.Startup, gate = lastHit + volley.Recovery;
+            yield return Until(() => Time.time >= lastHit - _feel.InputBuffer * 0.5f, 2f);
+            Assume.That(_player.SkillPhase, Is.EqualTo(SkillPhase.Startup), "still in the cast");
+            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Buffered));
+            yield return Until(() => _player.FreeRecoverySlot == Volley, 1f);
+            Assert.That(_player.FreeRecoverySlot, Is.EqualTo(Volley), "Heavy Volley let her go");
+            Assert.That(_player.HasBufferedPress, Is.True, "and the press waits through its free recovery");
+            yield return StartedAt(Quick, gate);
+        }
+
+        /// <summary>With the free recovery off the old lock and the old freshness rule hold: an early press is dropped.</summary>
+        [UnityTest]
+        public IEnumerator SwitchOff_ASkillPressedEarlyInTheRecovery_IsDropped()
+        {
+            OwnFeel(f => f.SkillRecoveryFree = false);
+            SkillDefinition quick = _player.Skills[Quick];
+            Assume.That(quick.Recovery, Is.GreaterThan(_feel.InputBuffer + 0.06f), "room for a press earlier than the buffer time");
+            _player.Teleport(StandAt);
+            yield return null;
+            Vector3 aim = StandAt + Vector3.back * 6f;
+            float pressedAt = Time.time;
+            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Started));
+            float end = pressedAt + quick.Startup + quick.Recovery;
+            yield return Until(() => _player.SkillPhase == SkillPhase.Recovery, 2f);
+            Assert.That(_player.IsLocked, Is.True, "the recovery locks");
+            Assert.That(_player.PressSkill(Volley, aim), Is.EqualTo(IntentResult.Buffered));
+            Assume.That(end - Time.time, Is.GreaterThan(_feel.InputBuffer + 0.02f), "earlier than the buffer time before the end");
+
+            bool started = false;
+            float deadline = Time.realtimeSinceStartup + 3f;
+            while (Time.time < end + 0.3f && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+                if (_player.ActiveSkillSlot == Volley) started = true;
+            }
+            Assert.That(started, Is.False, "the early press is dropped, as before");
+            Assert.That(_player.HasBufferedPress, Is.False);
             Assert.That(_player.SkillCooldownRemaining(Volley), Is.EqualTo(0f), "Heavy Volley was never used");
+        }
+
+        /// <summary>
+        /// While a skill press waits out a free recovery, a click still shoots and a move key still moves her; the
+        /// skill then starts at the recovery's end.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FreeRecovery_WhileASkillPressWaits_AClickShoots_AndAMoveKeyMovesHer()
+        {
+            Assume.That(_feel.SkillRecoveryFree, Is.True);
+            SkillDefinition quick = _player.Skills[Quick];
+            Assume.That(quick.Recovery, Is.GreaterThan(_feel.BasicShotStartup + _feel.BasicShotActive + 0.05f), "room for a shot to go off");
+            _player.Teleport(StandAt);
+            yield return null;
+            Vector3 aim = StandAt + Vector3.back * 6f;
+            int shots = _player.BasicShotsFired;
+            float pressedAt = Time.time;
+            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Started));
+            float gate = pressedAt + quick.Startup + quick.Recovery;
+            yield return Until(() => _player.FreeRecoverySlot == Quick, 2f);
+            Assert.That(_player.PressSkill(Volley, aim), Is.EqualTo(IntentResult.Buffered));
+
+            _player.Steer(Vector3.right);
+            _player.Shoot(aim);
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.BasicShot), "the click shoots at once");
+            Vector3 from = _player.Position;
+            float fastest = 0f;
+            float deadline = Time.realtimeSinceStartup + 2f;
+            while (Time.time < gate - 0.01f && _player.Action != ActionKind.Skill && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+                fastest = Mathf.Max(fastest, _player.Speed);
+            }
+            Assume.That(_player.Action, Is.Not.EqualTo(ActionKind.Skill), "measured before the skill started");
+            Vector3 moved = Flat(_player.Position - from);
+            Debug.Log($"[0004] while a skill press waited: {_player.BasicShotsFired - shots} shot(s), moved {moved.magnitude:0.00} m, fastest {fastest:0.00} m/s");
+            Assert.That(_player.BasicShotsFired - shots, Is.EqualTo(1), "the shot went off while the press waited");
+            Assert.That(Vector3.Dot(moved, Vector3.right), Is.GreaterThan(0.1f), "she moved the held way");
+            Assert.That(_player.HasBufferedPress, Is.True, "the press still waits");
+            yield return StartedAt(Volley, gate);
+            _player.Stop();
+        }
+
+        /// <summary>
+        /// Keys are rolled: the next skill's key goes down before the last one's comes up. While a Charge skill waits
+        /// out a free recovery, the key of the skill before it going up must not count as its own release: it starts
+        /// charging and keeps charging. Before 2026-11-19 any skill key going up marked the waiting press as released,
+        /// and the Charge skill fired at once with no charge.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FreeRecovery_WhileAChargeSkillWaits_TheEarlierSkillsKeyGoingUp_DoesNotReleaseIt()
+        {
+            const int Long = 3;
+            Assume.That(_feel.SkillRecoveryFree, Is.True);
+            SkillDefinition quick = _player.Skills[Quick];
+            SkillDefinition longShot = _player.Skills[Long];
+            Assume.That(longShot.Input, Is.EqualTo(SkillInput.Charge));
+            Assume.That(longShot.ChargeTime, Is.GreaterThan(0.3f), "room to see it still charging");
+            _player.Teleport(StandAt);
+            yield return null;
+            Vector3 aim = StandAt + Vector3.back * 6f;
+            float pressedAt = Time.time;
+            Assert.That(_player.PressSkill(Quick, aim), Is.EqualTo(IntentResult.Started));
+            float gate = pressedAt + quick.Startup + quick.Recovery;
+            yield return Until(() => _player.FreeRecoverySlot == Quick, 2f);
+            int fired = _player.SkillShotsFired;
+            Assert.That(_player.PressSkill(Long, aim), Is.EqualTo(IntentResult.Buffered), "the charge skill waits");
+            _player.ReleaseSkill(Quick); // the first key comes up while the second is held
+            yield return StartedAt(Long, gate);
+            // Held: well past its startup it is still the skill in use, still charging, and has not fired.
+            yield return new WaitForSeconds(longShot.Startup + longShot.ChargeTime * 0.5f);
+            Assert.That(_player.ActiveSkillSlot, Is.EqualTo(Long), "still held");
+            Assert.That(_player.SkillCharge, Is.GreaterThan(0.2f), "and charging");
+            Assert.That(_player.SkillShotsFired, Is.EqualTo(fired), "it has not fired");
+            _player.ReleaseSkill(Long);
+            yield return Until(() => _player.SkillShotsFired > fired, 2f);
+            Assert.That(_player.SkillShotsFired, Is.EqualTo(fired + 1), "its own key going up fires it");
+            yield return Until(() => !_player.IsLocked, 2f);
         }
 
         /// <summary>
@@ -277,7 +438,7 @@ namespace Roguelike.PlayModeTests
 
         /// <summary>Runs along +X at full speed, presses a skill aimed ahead, and records every frame for a while.</summary>
         IEnumerator RunAndPress(int slot, Vector3 aimOffset, float seconds, List<Sample> samples, Action<Vector3, float> pressed,
-                                Vector3? steerAfter = null)
+                                Vector3? steerAfter = null, Action<float> beforeFrame = null)
         {
             _player.Teleport(RunFrom);
             yield return null;
@@ -293,6 +454,7 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + seconds + 3f;
             while (Time.time < t0 + seconds && Time.realtimeSinceStartup < deadline)
             {
+                beforeFrame?.Invoke(Time.time - t0);
                 yield return null;
                 samples.Add(new Sample { T = Time.time - t0, Speed = _player.Speed, Position = _player.Position, Velocity = _player.Velocity });
             }
@@ -339,28 +501,48 @@ namespace Roguelike.PlayModeTests
             Assert.That(backAt, Is.LessThan(quick.Startup + _feel.SkillSpeedRecovery + 0.1f));
         }
 
-        [UnityTest]
-        public IEnumerator Slide_HeavyVolley_StopsByTheSlowdown_AndStandsUntilItsHit_TheKeysDoNotSteerIt()
+        /// <summary>
+        /// Heavy Volley pressed at a run, with the move key turned to the side after the press. Changed deliberately on
+        /// 2026-11-19 (0004 amended: the move keys steer the slide): with <see cref="FeelValues.SlideSteering"/> off it
+        /// checks the old rule, that the key does not steer; on, that the slide turns the held way at once. Either way
+        /// the speed follows the slide's curve frame by frame, she stands after the same time and the same distance,
+        /// and she stands until the hit.
+        /// </summary>
+        [UnityTest] public IEnumerator Slide_HeavyVolley_StopsByTheSlowdown_AndStandsUntilItsHit_SteeringOff_TheKeysDoNotSteerIt() => VolleySlide(steering: false);
+        [UnityTest] public IEnumerator Slide_HeavyVolley_SteeredToTheSide_TurnsAtOnce_AtTheCurvesSpeed_AndStandsAsBefore() => VolleySlide(steering: true);
+
+        IEnumerator VolleySlide(bool steering)
         {
+            if (!steering) OwnFeel(f => f.SlideSteering = false);
+            Assume.That(_feel.SlideSteering, Is.EqualTo(steering));
             SkillDefinition volley = _player.Skills[Volley];
             Assume.That(volley.Startup, Is.GreaterThan(_feel.SkillSlowdown + 0.2f), "a long cast");
             var samples = new List<Sample>();
             Vector3 from = default;
             int hitsBefore = _player.SkillShotsFired;
-            // The move key is turned to the side after the press: the slide must not follow it.
+            // The move key is turned to the side after the press: the slide follows it only with steering on.
             yield return RunAndPress(Volley, Vector3.right * 8f, volley.Startup + 0.02f, samples, (p, t) => from = p, steerAfter: Vector3.forward);
             Assert.That(_player.SkillShotsFired - hitsBefore, Is.EqualTo(1), "the cast fired");
+            Vector3 way = steering ? Vector3.forward : Vector3.right;
+            Vector3 across = steering ? Vector3.right : Vector3.forward;
 
-            float stoppedAt = float.NaN, movedAfterStop = 0f, maxFall = 0f, worstSideways = 0f, biggestStep = 0f;
+            float stoppedAt = float.NaN, movedAfterStop = 0f, maxFall = 0f, worstSideways = 0f, biggestStep = 0f, worstDeviation = 0f;
             float before = _feel.RunSpeed, beforeT = 0f;
             Vector3 stopPos = default;
-            foreach (Sample s in samples)
+            for (int i = 0; i < samples.Count; i++)
             {
+                Sample s = samples[i];
                 if (s.T >= volley.Startup) break;
                 float dt = Mathf.Max(s.T - beforeT, 1e-4f);
                 maxFall = Mathf.Max(maxFall, (before - s.Speed) / dt);
                 biggestStep = Mathf.Max(biggestStep, before - s.Speed - SteepestFall() * dt);
-                if (s.Velocity.sqrMagnitude > 0.01f) worstSideways = Mathf.Max(worstSideways, Mathf.Abs(Vector3.Dot(s.Velocity.normalized, Vector3.forward)));
+                worstDeviation = Mathf.Max(worstDeviation,
+                    Mathf.Abs(s.Speed - _feel.RunSpeed * SkillSlide.SlideShare(_player.SlideStartShare, s.T, _feel.SkillSlowdown)));
+                if (s.Velocity.sqrMagnitude > 0.01f && i >= (steering ? FirstTurnedSample : 0))
+                {
+                    worstSideways = Mathf.Max(worstSideways, Mathf.Abs(Vector3.Dot(s.Velocity.normalized, across)));
+                    Assert.That(Vector3.Dot(s.Velocity, way), Is.GreaterThan(0f), $"sliding the {(steering ? "held" : "run")} way at {s.T:0.000} s");
+                }
                 // Standing counts from well under the limit checked afterwards: at very short frames (no window) the
                 // speed wavers by a few mm/s from frame to frame, and a first sample just under 0.05 could be followed
                 // by one just over it.
@@ -369,17 +551,108 @@ namespace Roguelike.PlayModeTests
                 before = s.Speed;
                 beforeT = s.T;
             }
-            float slid = Flat(stopPos - from).magnitude;
+            Vector3 slidBy = Flat(stopPos - from);
+            float slid = Vector3.Dot(slidBy, way);
             float predicted = SkillSlide.SlideDistance(_player.SlideStartShare, 10f, _feel.SkillSlowdown, _feel.RunSpeed);
-            Debug.Log($"[0004] Heavy Volley from {_player.SlideStartShare * _feel.RunSpeed:0.00} m/s: standing {stoppedAt:0.000} s after the press, "
-                    + $"slid {slid:0.00} m (curve {predicted:0.00}), steepest fall {maxFall:0.0} m/s per s");
+            Debug.Log($"[0004] Heavy Volley from {_player.SlideStartShare * _feel.RunSpeed:0.00} m/s, steering {(steering ? "on, key to the side" : "off")}: "
+                    + $"standing {stoppedAt:0.000} s after the press, slid {slid:0.00} m the {(steering ? "held" : "run")} way and {Vector3.Dot(slidBy, across):0.00} m across "
+                    + $"(curve {predicted:0.00}), ends at {slidBy.x:+0.00;-0.00} m along the run and {slidBy.z:+0.00;-0.00} m to the side of the press, "
+                    + $"speed off the curve by at most {worstDeviation:0.000} m/s, steepest fall {maxFall:0.0} m/s per s");
             Assert.That(stoppedAt, Is.Not.NaN, "she comes to a stand");
             Assert.That(stoppedAt, Is.EqualTo(_feel.SkillSlowdown * _player.SlideStartShare).Within(0.06f), "by about the slowdown");
+            Assert.That(worstDeviation, Is.LessThan(0.4f), "the speed follows the slide, frame by frame");
             Assert.That(biggestStep, Is.LessThan(0.2f), "falling frame by frame, never more in a frame than the curve allows (m/s beyond it)");
             Assert.That(movedAfterStop, Is.LessThan(0.05f), "and stands until the hit");
             Assert.That(slid, Is.EqualTo(predicted).Within(0.15f), "the distance the curve predicts");
-            Assert.That(Vector3.Dot(Flat(stopPos - from).normalized, Vector3.right), Is.GreaterThan(0.99f), "along the way she was running");
-            Assert.That(worstSideways, Is.LessThan(0.05f), "the move key turned to the side did not steer the slide");
+            if (steering)
+            {
+                Assert.That(Mathf.Abs(Vector3.Dot(slidBy, across)), Is.LessThan(0.15f), "nothing along the run after the press");
+                Assert.That(worstSideways, Is.LessThan(0.05f), "the held way in every frame the agent reports it (FirstTurnedSample): steered at once");
+            }
+            else
+            {
+                Assert.That(Vector3.Dot(slidBy.normalized, Vector3.right), Is.GreaterThan(0.99f), "along the way she was running");
+                Assert.That(worstSideways, Is.LessThan(0.05f), "the move key turned to the side did not steer the slide");
+            }
+            _player.Stop();
+        }
+
+        /// <summary>
+        /// Quick Shot pressed at a run, the key turned straight back after the press: the slide turns round at the
+        /// speed it has and does not brake her; the speed follows the curve to the hit. With the key to the side, the
+        /// same to the side. (One skill per test: Quick Shot's cooldown is longer than a test.)
+        /// </summary>
+        [UnityTest] public IEnumerator Slide_QuickShot_SteeredBack_TurnsRoundAtTheSpeedItHas_TheOppositeKeyDoesNotBrake() => QuickSteered(Vector3.left);
+        [UnityTest] public IEnumerator Slide_QuickShot_SteeredToTheSide_SlidesThatWay_AtTheCurvesSpeed() => QuickSteered(Vector3.forward);
+
+        IEnumerator QuickSteered(Vector3 steer)
+        {
+            Assume.That(_feel.SlideSteering, Is.True);
+            SkillDefinition quick = _player.Skills[Quick];
+            Assume.That(_feel.SkillSlowdown, Is.GreaterThan(quick.Startup), "a short skill: it ends before she could stop");
+            {
+                var samples = new List<Sample>();
+                Vector3 from = default;
+                yield return RunAndPress(Quick, Vector3.right * 8f, quick.Startup, samples, (p, t) => from = p, steerAfter: steer);
+                float worstDeviation = 0f, worstOffWay = 0f;
+                Vector3 atHit = from;
+                for (int i = 0; i < samples.Count; i++)
+                {
+                    Sample s = samples[i];
+                    if (s.T > quick.Startup) break;
+                    worstDeviation = Mathf.Max(worstDeviation,
+                        Mathf.Abs(s.Speed - _feel.RunSpeed * SkillSlide.SlideShare(_player.SlideStartShare, s.T, _feel.SkillSlowdown)));
+                    if (s.Velocity.sqrMagnitude > 0.01f && i >= FirstTurnedSample) worstOffWay = Mathf.Max(worstOffWay, 1f - Vector3.Dot(s.Velocity.normalized, steer));
+                    atHit = s.Position;
+                }
+                _player.Stop();
+                Vector3 slidBy = Flat(atHit - from);
+                float predicted = SkillSlide.SlideDistance(_player.SlideStartShare, quick.Startup, _feel.SkillSlowdown, _feel.RunSpeed);
+                string name = steer == Vector3.left ? "key turned back" : "key to the side";
+                Debug.Log($"[0004] Quick Shot from {_player.SlideStartShare * _feel.RunSpeed:0.00} m/s, {name}: at its hit {slidBy.x:+0.00;-0.00} m along the run "
+                        + $"and {slidBy.z:+0.00;-0.00} m to the side of the press (unsteered: {predicted:+0.00} m along the run), "
+                        + $"speed off the curve by at most {worstDeviation:0.000} m/s");
+                Assert.That(worstDeviation, Is.LessThan(0.4f), name + ": the speed follows the slide, frame by frame");
+                Assert.That(worstOffWay, Is.LessThan(0.01f), name + ": the held way in every frame the agent reports it (FirstTurnedSample)");
+                Assert.That(Vector3.Dot(slidBy, steer), Is.EqualTo(predicted).Within(0.2f), name + ": the curve's distance, the held way");
+                yield return Until(() => _player.Action == ActionKind.None, 2f);
+            }
+        }
+
+        /// <summary>A steered slide whose key is let go keeps the way it last slid, at the curve's speed, to a stand.</summary>
+        [UnityTest]
+        public IEnumerator Slide_Steered_ThenTheKeyLetGo_KeepsItsWay()
+        {
+            Assume.That(_feel.SlideSteering, Is.True);
+            SkillDefinition volley = _player.Skills[Volley];
+            Assume.That(volley.Startup, Is.GreaterThan(_feel.SkillSlowdown + 0.2f), "a long cast");
+            const float LetGoAt = 0.08f;
+            Assume.That(LetGoAt, Is.LessThan(_feel.SkillSlowdown * 0.5f), "let go well before the stand");
+            var samples = new List<Sample>();
+            Vector3 from = default;
+            yield return RunAndPress(Volley, Vector3.right * 8f, _feel.SkillSlowdown + 0.15f, samples, (p, t) => from = p, steerAfter: Vector3.forward,
+                                     beforeFrame: t => { if (t >= LetGoAt) _player.Steer(Vector3.zero); });
+            float worstOffWay = 0f, worstDeviation = 0f, stoppedAt = float.NaN;
+            int afterLetGo = 0;
+            for (int i = 0; i < samples.Count; i++)
+            {
+                Sample s = samples[i];
+                worstDeviation = Mathf.Max(worstDeviation,
+                    Mathf.Abs(s.Speed - _feel.RunSpeed * SkillSlide.SlideShare(_player.SlideStartShare, s.T, _feel.SkillSlowdown)));
+                if (s.Velocity.sqrMagnitude > 0.01f && i >= FirstTurnedSample)
+                {
+                    worstOffWay = Mathf.Max(worstOffWay, 1f - Vector3.Dot(s.Velocity.normalized, Vector3.forward));
+                    if (s.T > LetGoAt) afterLetGo++;
+                }
+                if (float.IsNaN(stoppedAt) && s.Speed < 0.01f) stoppedAt = s.T;
+            }
+            Vector3 slidBy = Flat(_player.Position - from);
+            Debug.Log($"[0004] Heavy Volley steered to the side, key let go at {LetGoAt} s: {afterLetGo} sliding frames after it, "
+                    + $"standing {stoppedAt:0.000} s after the press, {slidBy.x:+0.00;-0.00} m along the run and {slidBy.z:+0.00;-0.00} m to the side");
+            Assert.That(afterLetGo, Is.GreaterThan(0), "she still slid after the key was let go");
+            Assert.That(worstOffWay, Is.LessThan(0.01f), "the way she last slid, to the stand");
+            Assert.That(worstDeviation, Is.LessThan(0.4f), "at the curve's speed");
+            Assert.That(stoppedAt, Is.EqualTo(_feel.SkillSlowdown * _player.SlideStartShare).Within(0.06f), "standing after the same time");
             _player.Stop();
         }
 
@@ -447,6 +720,13 @@ namespace Roguelike.PlayModeTests
             }
         }
 
+        /// <summary>
+        /// The first sample whose velocity shows a turn made at the press. The character turns in the first frame after
+        /// it, as free movement does (her position moves the new way in that frame), but the NavMesh agent reports the
+        /// velocity it had before for that one frame: measured 2026-11-19, identical for free movement and the slide.
+        /// </summary>
+        const int FirstTurnedSample = 1;
+
         /// <summary>The steepest fall of the slide from full speed, m/s per s: a smoothstep is steepest half way, at 1.5 times the average.</summary>
         float SteepestFall() => 1.5f * _feel.RunSpeed / _feel.SkillSlowdown;
 
@@ -491,6 +771,40 @@ namespace Roguelike.PlayModeTests
                 Assert.That(standingShoot, Is.True, $"{skill.Name}: the Shoot stance once standing");
                 yield return Until(() => _player.Action == ActionKind.None, 2f);
             }
+        }
+
+        /// <summary>
+        /// The gait follows the way she actually slides, frame by frame (CharacterAnimation reads her velocity against
+        /// the body's facing): a slide aimed ahead and steered back behind her shows the backward shooting gait.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Pose_ASlideSteeredBehindHer_ShowsTheBackwardGait()
+        {
+            Assume.That(_view != null, Is.True, "a rigged model");
+            Assume.That(_feel.SlideSteering, Is.True);
+            var poses = new List<(float t, float speed, CharacterPose pose)>();
+            _player.Teleport(RunFrom);
+            yield return null;
+            _player.Steer(Vector3.right);
+            yield return new WaitForSeconds(0.35f);
+            float t0 = Time.time;
+            Assert.That(_player.PressSkill(Volley, _player.Position + Vector3.right * 8f), Is.EqualTo(IntentResult.Started)); // she faces ahead
+            _player.Steer(Vector3.left);
+            float deadline = Time.realtimeSinceStartup + 2f;
+            while (_player.IsSkillSliding && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+                poses.Add((Time.time - t0, _player.Speed, _view.Pose));
+            }
+            _player.Stop();
+            bool sawBack = false, wrong = false;
+            foreach (var p in poses)
+            {
+                if (p.speed <= PoseRule.MoveThreshold || p.t <= 0.05f) continue;
+                if (p.pose == CharacterPose.ShootBack) sawBack = true; else wrong = true;
+            }
+            Assert.That(sawBack, Is.True, "the backward shooting gait while she slides behind her");
+            Assert.That(wrong, Is.False, "and no other pose while sliding");
         }
 
         // ---------------- The arms held up ----------------

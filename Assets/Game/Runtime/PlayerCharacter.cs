@@ -44,14 +44,16 @@ namespace Roguelike
     /// - A skill commits her until its last hit (the end of the hold for a Holding skill). With
     ///   <see cref="FeelValues.SkillRecoveryFree"/> on, the recovery after it no longer holds back the basic shot or the
     ///   move keys: the skill ends there for everything but the next skill, which waits until the recovery would have
-    ///   ended (a press in that time goes through the input buffer, as during a lock). During that free recovery
+    ///   ended (a press in that time goes through the input buffer and fires when the recovery ends, however early in
+    ///   it: amended 2026-11-19, <see cref="SkillGate"/>). During that free recovery
     ///   <see cref="Action"/> is None (or BasicShot), <see cref="IsLocked"/> is false, <see cref="ActiveSkill"/> is null,
     ///   <see cref="ActiveSkillSlot"/> -1 and <see cref="SkillPhase"/> None; <see cref="FreeRecoverySlot"/> and
     ///   <see cref="SkillGateRemaining"/> say which skill's recovery runs and for how long. A dash ends it, as a dash
     ///   cancels a skill. Off, the whole recovery locks as before.
-    /// - A skill pressed on the move slides her to a stand along the way she was moving (<see cref="SkillSlide"/>), from
-    ///   the speed she had; the move keys do not steer it. When the skill lets her go the speed she may move at eases
-    ///   back up. A skill that moves her itself (Backstep) does neither, and a dash ends both at once.
+    /// - A skill pressed on the move slides her to a stand (<see cref="SkillSlide"/>), from the speed she had, along the
+    ///   way she was moving. The move keys steer it (amended 2026-11-19, <see cref="FeelValues.SlideSteering"/>): the
+    ///   direction follows the held key, the speed still follows the slide. When the skill lets her go the speed she
+    ///   may move at eases back up. A skill that moves her itself (Backstep) does neither, and a dash ends both at once.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
@@ -82,6 +84,7 @@ namespace Roguelike
             public PressKind Kind;
             public Vector3 Point;
             public int Slot; // which skill, for a skill press
+            public float At; // when it was pressed
         }
 
         readonly FeelValues _fallbackFeel = new FeelValues();
@@ -135,10 +138,11 @@ namespace Roguelike
         // Skills on the move (decision 0004).
         float _skillGateUntil = float.NegativeInfinity; // a free recovery: no new skill before this
         int _gateSlot = -1;                             // whose recovery it is
+        float _gateLetGoAt;                             // when that skill let her go: its last hit, or the end of the hold
         bool _sliding;          // the skill in use slides her to a stand
         float _slideFrom;       // the share of run speed she had at the press
         float _slideStartedAt;
-        Vector3 _slideDir;      // the way she was moving at the press, flat and of length 1
+        Vector3 _slideDir;      // the way she slides: at the press the way she was moving, then the held way; flat, of length 1
         bool _rising;           // let go by a skill: the speed she may move at eases back up
         float _riseFrom;
         float _riseStartedAt;
@@ -354,12 +358,17 @@ namespace Roguelike
 
         /// <summary>
         /// The key of a skill went up. Ends a Holding skill and fires a Charge skill.
-        /// If that press is still waiting in the buffer, the skill starts as already released.
+        /// If that skill's press is still waiting in the buffer, the skill starts as already released.
         /// </summary>
         public void ReleaseSkill(int slot)
         {
             if (_actionKind == ActionKind.Skill && _castSlot == slot) _cast.Release(Time.time);
-            else if (_buffer.HasItem) _bufferedSkillReleased = true;
+            // Only the waiting skill's own key: the key of the skill before it going up says nothing about this one.
+            // A press can wait out a whole free recovery now, and keys are rolled: the next goes down before the last
+            // comes up. Before 2026-11-19 any skill key going up did this, and a Charge skill that waited fired at
+            // once with no charge.
+            else if (_buffer.TryPeek(out Press waiting) && waiting.Kind == PressKind.Skill && waiting.Slot == slot)
+                _bufferedSkillReleased = true;
         }
 
         /// <summary>
@@ -512,9 +521,12 @@ namespace Roguelike
                 // Committed until the last hit. With the free recovery, that is where the skill lets her go; the next
                 // skill still waits until the recovery would have ended. Without it, the recovery locks as before.
                 if (feel.SkillRecoveryFree ? _cast.IsCommitted(now) : _cast.IsRunning(now)) return;
-                if (_cast.IsRunning(now))
+                if (feel.SkillRecoveryFree)
                 {
+                    // Set even when a long frame has already carried her past the recovery's end: a press that waited
+                    // is then judged from the moment the skill let her go, as at any other gate (SkillGate).
                     _skillGateUntil = _cast.RecoveryEndsAt;
+                    _gateLetGoAt = _cast.RecoveryEndsAt - skill.Recovery;
                     _gateSlot = _castSlot;
                 }
                 LetGo(skill, now);
@@ -530,8 +542,9 @@ namespace Roguelike
                 StartBasicShot(feel, onTheMove: IsMoving);
                 return;
             }
-            if (pressReady && _buffer.TryTake(now, feel.InputBuffer, out Press press))
+            if (pressReady && _buffer.TryPeek(out Press press))
             {
+                _buffer.Clear(); // PressReady has judged it good
                 if (press.Kind == PressKind.Skill)
                 {
                     StartSkill(press.Slot, press.Point);
@@ -610,21 +623,31 @@ namespace Roguelike
 
         /// <summary>
         /// True when the buffer holds a press that may start now and will: a dash at once, a skill once no free
-        /// recovery holds it back, and either only while it is still fresh. A press that is due but no longer fresh is
-        /// dropped here, so it never cancels or holds back anything (a shot winding up, a waiting click, the move keys).
+        /// recovery holds it back, and either only while it is still good. A press is good while it is no older than
+        /// the buffer time; a skill press that waited out a free recovery is good if it was made no earlier than the
+        /// buffer time before the skill let her go, however long ago that was (<see cref="SkillGate"/>, decision 0004
+        /// amended 2026-11-19). A press that is due but not good is dropped here, so it never cancels or holds back
+        /// anything (a shot winding up, a waiting click, the move keys).
         /// </summary>
         bool PressReady(float now)
         {
             if (!_buffer.TryPeek(out Press waiting)) return false;
             if (waiting.Kind == PressKind.Skill && now < _skillGateUntil) return false; // waits out a free recovery
-            if (_buffer.IsFresh(now, Feel.InputBuffer)) return true;
-            _buffer.Clear(); // too old: dropped, as taking it would have dropped it
+            FeelValues feel = Feel;
+            // A gate is set only by a free recovery, and a new skill, a dash or a teleport clears it.
+            bool afterFreeRecovery = waiting.Kind == PressKind.Skill && feel.SkillRecoveryFree
+                                     && _skillGateUntil != float.NegativeInfinity;
+            if (SkillGate.PressStillGood(waiting.At, now, feel.InputBuffer, afterFreeRecovery, _gateLetGoAt)) return true;
+            _buffer.Clear(); // not good: dropped
             return false;
         }
 
         /// <summary>
-        /// One frame of a skill's slide: along the way she was moving at the press, at the share of run speed the
-        /// slide allows now (ApplyMovementFeel has set it), on the NavMesh. At a stand the slide is over.
+        /// One frame of a skill's slide, at the share of run speed the slide allows now (ApplyMovementFeel has set it),
+        /// on the NavMesh. At a stand the slide is over. The way is the held move direction, changed at once as free
+        /// movement does; with no move key held, the way she last slid (decision 0004, amended 2026-11-19: Kristian
+        /// ruled that the move keys steer the slide). Steering never changes the speed: an opposite key turns the slide
+        /// round at the speed it has. With <see cref="FeelValues.SlideSteering"/> off, the way she was moving at the press.
         /// </summary>
         void Slide(FeelValues feel, float now)
         {
@@ -634,6 +657,7 @@ namespace Roguelike
                 Halt();
                 return;
             }
+            if (feel.SlideSteering && _moveInput != Vector3.zero) _slideDir = _moveInput;
             MoveAlong(_slideDir, _agent.speed);
         }
 
@@ -724,7 +748,7 @@ namespace Roguelike
 
         IntentResult BufferPress(PressKind kind, Vector3 point, int slot = -1)
         {
-            _buffer.Store(new Press { Kind = kind, Point = point, Slot = slot }, Time.time);
+            _buffer.Store(new Press { Kind = kind, Point = point, Slot = slot, At = Time.time }, Time.time);
             return IntentResult.Buffered;
         }
 
