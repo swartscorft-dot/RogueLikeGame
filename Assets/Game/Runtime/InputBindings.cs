@@ -81,11 +81,14 @@ namespace Roguelike
         [Tooltip("Slot 1 is the first skill in Skills.asset (Quick Shot), slot 2 the second, and so on.")]
         public InputBinding[] Skills = DefaultSkills();
 
-        /// <summary>Q 1 2 3 4 R F and the right mouse button: Quick Shot, Powder Keg, Fan Fire, Long Shot, Scatter Blast, Heavy Volley, Backstep, Triple Tap.</summary>
+        /// <summary>
+        /// Q 1 2 3 R 4 F and the right mouse button: Quick Shot, Powder Keg, Fan Fire, Long Shot, Scatter Blast, Heavy Volley,
+        /// Backstep, Triple Tap. The four a run starts with sit on Q, R, F and the right button (decision 0005, 2026-11-19).
+        /// </summary>
         public static InputBinding[] DefaultSkills() => new[]
         {
             new InputBinding(Key.Q), new InputBinding(Key.Digit1), new InputBinding(Key.Digit2), new InputBinding(Key.Digit3),
-            new InputBinding(Key.Digit4), new InputBinding(Key.R), new InputBinding(Key.F), new InputBinding(BindingSource.RightMouse),
+            new InputBinding(Key.R), new InputBinding(Key.Digit4), new InputBinding(Key.F), new InputBinding(BindingSource.RightMouse),
         };
 
         /// <summary>The label of a skill slot's binding, or "" for a slot with none.</summary>

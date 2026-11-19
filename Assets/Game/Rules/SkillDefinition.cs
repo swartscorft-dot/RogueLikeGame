@@ -62,12 +62,40 @@ namespace Roguelike.Rules
         public float TickInterval = 0.15f; // s between hits, Holding
         public float ChargeTime = 1f;      // s to full charge, Charge
         public float MinChargeDamage = 0.3f; // share of Damage dealt with no charge at all, Charge
+
+        // The kit (decision 0005, 2026-11-19)
+        public bool StartEquipped = false; // on the bar from the start of a run; the others are filled in later
+        public SkillLock Lock = SkillLock.Committed;
+        public int MarksAdded = 0;         // builder: marks added per hit, on each target it hits
+        public float MarkInterval = 0f;    // s: a target gains marks from one use at most this often. 0: every hit
+        public float MarkDamageBonus = 0f; // spender, above 0: takes all marks off each target it hits, this much more damage per mark
+        public int RecastCount = 1;        // presses of the key, one shot each. 1: no recast
+        public float RecastWindow = 0.6f;  // s after a shot has gone off in which the next press fires the next shot
+        public int CleanTapMarks = 0;      // marks the last press adds when it is clean. 0: no clean tap
+    }
+
+    /// <summary>
+    /// How a skill holds her (decision 0005, 2026-11-19, Kristian: "the light skills may be cut short by moving; only
+    /// the heavy ones lock her").
+    /// </summary>
+    public enum SkillLock
+    {
+        /// <summary>Decision 0004: committed until the last hit; a press on the move slides her to a stand.</summary>
+        Committed,
+        /// <summary>
+        /// The skill does not stop, slow, slide or turn her more than a basic shot does; the move keys work all through
+        /// it. Nothing else starts while it runs, and a dash still cancels it.
+        /// </summary>
+        Light,
     }
 
     /// <summary>
     /// The eight skills of the first class, in key order: Q W E R, S D F G.
     /// The first five came in G3, one per input type. Scatter Blast, Backstep and Triple Tap came in G4.
     /// See docs/slices/g3-skills.md and docs/slices/g4-kit.md.
+    /// Decision 0005 (2026-11-19) made them a kit: the pistols set up (marks), the shotgun cashes in. A run starts with
+    /// Quick Shot, Scatter Blast, Backstep and Triple Tap; the other four wait for later and have their new cooldowns
+    /// and mark roles ready.
     /// </summary>
     public static class SkillDefaults
     {
@@ -76,18 +104,20 @@ namespace Roguelike.Rules
             new SkillDefinition
             {
                 Name = "Quick Shot", Input = SkillInput.Normal, Shape = SkillShape.Line,
-                Cooldown = 4f, Damage = 100, Startup = 0.15f, Recovery = 0.3f, Range = 12f, HalfWidth = 0.3f,
+                Cooldown = 3f, Damage = 100, Startup = 0.15f, Recovery = 0.1f, Range = 12f, HalfWidth = 0.3f,
+                StartEquipped = true, Lock = SkillLock.Light, MarksAdded = 1,
             },
             new SkillDefinition
             {
                 Name = "Powder Keg", Input = SkillInput.Point, Shape = SkillShape.Circle,
-                Cooldown = 8f, Damage = 180, Startup = 0.5f, Recovery = 0.2f, Range = 8f, Radius = 2.5f,
+                Cooldown = 14f, Damage = 180, Startup = 0.5f, Recovery = 0.2f, Range = 8f, Radius = 2.5f,
             },
             new SkillDefinition
             {
                 Name = "Fan Fire", Input = SkillInput.Holding, Shape = SkillShape.Cone,
-                Cooldown = 10f, Damage = 30, Startup = 0.2f, Recovery = 0.3f, Range = 7f, Angle = 50f,
+                Cooldown = 16f, Damage = 30, Startup = 0.2f, Recovery = 0.3f, Range = 7f, Angle = 50f,
                 HoldMax = 2f, TickInterval = 0.15f,
+                MarksAdded = 1, MarkInterval = 1f,
             },
             new SkillDefinition
             {
@@ -98,24 +128,30 @@ namespace Roguelike.Rules
             new SkillDefinition
             {
                 Name = "Scatter Blast", Input = SkillInput.Normal, Shape = SkillShape.Cone,
-                Cooldown = 9f, Damage = 220, Startup = 0.2f, Recovery = 0.35f, Range = 5f, Angle = 70f,
+                Cooldown = 8f, Damage = 220, Startup = 0.2f, Recovery = 0.35f, Range = 5f, Angle = 70f,
+                StartEquipped = true, MarkDamageBonus = 0.25f,
             },
             new SkillDefinition
             {
                 Name = "Heavy Volley", Input = SkillInput.Casting, Shape = SkillShape.Line,
-                Cooldown = 16f, Damage = 400, Startup = 1f, Recovery = 0.5f, Range = 14f, HalfWidth = 1f,
+                Cooldown = 24f, Damage = 400, Startup = 1f, Recovery = 0.5f, Range = 14f, HalfWidth = 1f,
+                MarkDamageBonus = 0.4f,
             },
             new SkillDefinition
             {
                 Name = "Backstep", Input = SkillInput.Normal, Shape = SkillShape.Line,
-                Cooldown = 12f, Damage = 80, Startup = 0.2f, Recovery = 0.2f, Range = 10f, HalfWidth = 0.4f,
+                Cooldown = 10f, Damage = 80, Startup = 0.2f, Recovery = 0.2f, Range = 10f, HalfWidth = 0.4f,
                 MoveDistance = -5f,
+                StartEquipped = true, MarksAdded = 1,
             },
             new SkillDefinition
             {
+                // Three presses, one shot each (decision 0005); the burst of three it was before is gone.
                 Name = "Triple Tap", Input = SkillInput.Normal, Shape = SkillShape.Line,
-                Cooldown = 7f, Damage = 70, Startup = 0.15f, Recovery = 0.3f, Range = 12f, HalfWidth = 0.3f,
-                HitCount = 3, HitInterval = 0.12f,
+                Cooldown = 5f, Damage = 70, Startup = 0.15f, Recovery = 0.1f, Range = 12f, HalfWidth = 0.3f,
+                HitCount = 1, HitInterval = 0.12f,
+                StartEquipped = true, Lock = SkillLock.Light, MarksAdded = 1,
+                RecastCount = 3, RecastWindow = 0.6f, CleanTapMarks = 2,
             },
         };
     }

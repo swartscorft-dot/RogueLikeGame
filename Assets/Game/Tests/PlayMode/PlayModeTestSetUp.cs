@@ -1,5 +1,8 @@
 using NUnit.Framework;
+using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace Roguelike.PlayModeTests
 {
@@ -19,6 +22,10 @@ namespace Roguelike.PlayModeTests
     /// The real mouse and keyboard still steer no test: every test class sets
     /// <see cref="PlayerInputDriver.ReadRealDevices"/> to false before it loads the scene, and the tests that read
     /// devices read their own virtual ones.
+    ///
+    /// A run starts with four skills equipped (decision 0005, 2026-11-19). The tests were written for all eight, so every
+    /// scene that loads during the run has all eight equipped on its character, through <see cref="PlayerCharacter.EquipSkill"/>,
+    /// before its first frame. A test about the start four puts them back with <see cref="PlayerCharacter.EquipStartSkills"/>.
     /// </summary>
     [SetUpFixture]
     public class PlayModeTestSetUp
@@ -26,6 +33,18 @@ namespace Roguelike.PlayModeTests
         InputSettings _settings;
         InputSettings.BackgroundBehavior _backgroundBefore;
         InputSettings.EditorInputBehaviorInPlayMode _editorBefore;
+
+        [OneTimeSetUp]
+        public void EquipEverySkillOnLoad() => SceneManager.sceneLoaded += EquipEverySkill;
+
+        [OneTimeTearDown]
+        public void StopEquipping() => SceneManager.sceneLoaded -= EquipEverySkill;
+
+        static void EquipEverySkill(Scene scene, LoadSceneMode mode)
+        {
+            foreach (PlayerCharacter player in Object.FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None))
+                for (int slot = 0; slot < player.Skills.Count; slot++) player.EquipSkill(slot);
+        }
 
         [OneTimeSetUp]
         public void InputRegardlessOfFocus()

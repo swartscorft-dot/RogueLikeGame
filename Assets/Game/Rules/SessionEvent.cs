@@ -30,6 +30,14 @@ namespace Roguelike.Rules
         public const string FocusSpent = "focus_spent";
         public const string EmpoweredEnd = "empowered_end";
 
+        // The kit (decision 0005, 2026-11-19).
+        public const string MarkAdd = "mark_add";             // marks put on a target: name is what added them, marks the count after, added how many
+        public const string MarksSpent = "marks_spent";       // a spender's hit took a target's marks: marks taken, damage of that hit, focus gained from them
+        public const string MarksLost = "marks_lost";         // marks lost unused: result says how (fell off, died, reset)
+        public const string RecastPress = "recast_press";     // a press that fired the next shot of a chain: shot is which, clean whether it was
+        public const string ChainEnd = "chain_end";           // a recast chain ended: shot is how many it fired, result complete or early
+        public const string CooldownCut = "cooldown_cut";     // spending focus cut the running cooldowns: cut.<name> is the seconds cut
+
         public const string EnemyWake = "enemy_wake";
         public const string EnemyAttack = "enemy_attack";     // the enemy started an attack's windup: name is the attack
         public const string EnemyStrike = "enemy_strike";     // the strike: landed, out of the area, the dash, or no effect
@@ -66,6 +74,13 @@ namespace Roguelike.Rules
 
         public const string Dummy = "dummy";                  // what a hit landed on
         public const string Enemy = "enemy";
+
+        public const string NotEquipped = "not equipped";     // why a skill press was rejected: the slot holds no skill yet
+        public const string FellOff = "fell off";             // how marks were lost
+        public const string Died = "died";
+        public const string Reset = "reset";
+        public const string Complete = "complete";            // how a recast chain ended
+        public const string Early = "early";
     }
 
     /// <summary>
@@ -91,6 +106,10 @@ namespace Roguelike.Rules
         public float? Charge;        // 0 to 1, the charge a Charge skill fired with
         public float? Cooldown;      // s, a skill of the kit
         public string Input;         // the input type of a skill of the kit
+        public int? Marks;           // marks: the count after (mark_add), taken (marks_spent), lost (marks_lost)
+        public int? Shot;            // which shot of a recast chain (recast_press), how many it fired (chain_end)
+        public bool? Clean;          // a recast press in the clean part of its window
+        public float? Focus;         // focus gained: from the damage of a hit, from the marks taken, from a clean tap
         /// <summary>Anything else, in the order written: the session's date, commit and tuning. Values are kept as text.</summary>
         public List<KeyValuePair<string, string>> Extra;
 
@@ -146,6 +165,10 @@ namespace Roguelike.Rules
             WriteNumber(sb, "charge", Charge);
             WriteNumber(sb, "cooldown", Cooldown);
             WriteString(sb, "input", Input);
+            if (Marks.HasValue) sb.Append(",\"marks\":").Append(Marks.Value.ToString(CultureInfo.InvariantCulture));
+            if (Shot.HasValue) sb.Append(",\"shot\":").Append(Shot.Value.ToString(CultureInfo.InvariantCulture));
+            WriteBool(sb, "clean", Clean);
+            WriteNumber(sb, "focus", Focus);
             if (Extra != null)
                 foreach (KeyValuePair<string, string> pair in Extra) WriteString(sb, pair.Key, pair.Value);
             sb.Append('}');
@@ -251,6 +274,10 @@ namespace Roguelike.Rules
                 case "charge": Charge = (float)ParseDouble(value); break;
                 case "cooldown": Cooldown = (float)ParseDouble(value); break;
                 case "input": Input = value; break;
+                case "marks": Marks = (int)ParseDouble(value); break;
+                case "shot": Shot = (int)ParseDouble(value); break;
+                case "clean": Clean = value == "true"; break;
+                case "focus": Focus = (float)ParseDouble(value); break;
                 default: AddExtra(key, value); break;
             }
         }

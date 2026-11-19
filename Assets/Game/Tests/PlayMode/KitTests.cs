@@ -105,22 +105,31 @@ namespace Roguelike.PlayModeTests
             Assert.That(Lost(_a), Is.EqualTo(skill.Damage), "and the shot landed where it was aimed");
         }
 
+        /// <summary>
+        /// Changed deliberately for decision 0005 (2026-11-19): Triple Tap was a burst of three hits a hit interval apart;
+        /// it is now three presses, one hit each, the next press in the window its shot opens. Pressed early in each
+        /// window (not clean), three ordinary hits. KitCoreTests check the clean tap, the late press and the cooldown.
+        /// </summary>
         [UnityTest]
-        public IEnumerator TripleTap_HitsThreeTimesInABurst()
+        public IEnumerator TripleTap_ThreePresses_HitThreeTimes()
         {
             SkillDefinition skill = Skill(Triple);
-            Assume.That(skill.HitCount, Is.EqualTo(3));
+            Assume.That(skill.RecastCount, Is.EqualTo(3));
 
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _a.HitsTaken >= 1, 3f);
-            float firstHit = Time.time;
-            yield return Until(() => _a.HitsTaken >= 3, 3f);
-            float lastHit = Time.time;
+            Assert.That(_a.HitsTaken, Is.EqualTo(1), "one press, one hit");
+            for (int press = 2; press <= 3; press++)
+            {
+                yield return Until(() => _player.IsRecastWindowOpen, 2f);
+                Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "press " + press);
+                yield return Until(() => _a.HitsTaken >= press, 2f);
+            }
             yield return Until(() => _player.Action == ActionKind.None, 3f);
 
             Assert.That(_a.HitsTaken, Is.EqualTo(3));
             Assert.That(Lost(_a), Is.EqualTo(3 * skill.Damage));
-            Assert.That(lastHit - firstHit, Is.EqualTo(2f * skill.HitInterval).Within(0.06f), "the hits are a hit interval apart");
+            Assert.That(_player.RecastSlot, Is.EqualTo(-1), "the chain is over");
         }
 
         // ---------------- The focus gauge ----------------
@@ -140,8 +149,12 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.IsEmpowered, Is.False);
         }
 
+        /// <summary>
+        /// Renamed for decision 0005 (2026-11-19): the empowered mode no longer deals more by default (its multiplier is
+        /// 1). Still checked: the damage follows the multiplier in the settings, and no focus is gained.
+        /// </summary>
         [UnityTest]
-        public IEnumerator Empowered_SkillsAndShotsDealMore_AndNoFocusIsGained()
+        public IEnumerator Empowered_DamageFollowsItsMultiplier_AndNoFocusIsGained()
         {
             SkillDefinition skill = Skill(Quick);
             IdentityValues identity = _player.Identity;
@@ -158,7 +171,7 @@ namespace Roguelike.PlayModeTests
             _player.PressSkill(Quick, _a.transform.position);
             yield return Until(() => _player.Action == ActionKind.None, 3f);
             int skillDamage = Mathf.RoundToInt(skill.Damage * identity.EmpoweredDamage);
-            Assert.That(Lost(_a), Is.EqualTo(skillDamage), "the skill deals more");
+            Assert.That(Lost(_a), Is.EqualTo(skillDamage), "the skill deals the multiplier's damage");
 
             _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 2, 3f);

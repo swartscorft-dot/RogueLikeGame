@@ -294,13 +294,14 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Buffer_ASkillPressedLateInAnothersRecovery_FiresWhenItEnds()
         {
-            SkillDefinition first = Skill(Quick);
+            // Powder Keg since decision 0005 (2026-11-19): Quick Shot's recovery became too short to press in.
+            SkillDefinition first = Skill(Keg);
             Assume.That(first.Recovery, Is.GreaterThan(_feel.InputBuffer * 0.5f + 0.03f));
 
-            Assert.That(_player.PressSkill(Quick, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            Assert.That(_player.PressSkill(Keg, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return new WaitForSeconds(first.Startup + first.Recovery - _feel.InputBuffer * 0.5f);
             // Decision 0004: with the free recovery the first skill is over for everything but the next skill.
-            Assume.That(_player.ActiveSkillSlot == Quick || _player.FreeRecoverySlot == Quick, Is.True, "the press lands in the first skill's recovery");
+            Assume.That(_player.ActiveSkillSlot == Keg || _player.FreeRecoverySlot == Keg, Is.True, "the press lands in the first skill's recovery");
 
             Assert.That(_player.PressSkill(Volley, _a.transform.position), Is.EqualTo(IntentResult.Buffered));
             yield return Until(() => _player.ActiveSkillSlot == Volley, 1f);
@@ -310,11 +311,12 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Buffer_AChargeSkillReleasedWhileItWaits_FiresWithNoCharge()
         {
-            SkillDefinition first = Skill(Quick);
+            // Powder Keg, on B, since decision 0005 (2026-11-19): Quick Shot's recovery became too short to press in.
+            SkillDefinition first = Skill(Keg);
             SkillDefinition charge = Skill(Long);
             Assume.That(first.Recovery, Is.GreaterThan(_feel.InputBuffer * 0.5f + 0.03f));
 
-            Assert.That(_player.PressSkill(Quick, _b.transform.position), Is.EqualTo(IntentResult.Started));
+            Assert.That(_player.PressSkill(Keg, _b.transform.position), Is.EqualTo(IntentResult.Started));
             yield return new WaitForSeconds(first.Startup + first.Recovery - _feel.InputBuffer * 0.5f);
             Assert.That(_player.PressSkill(Long, _a.transform.position), Is.EqualTo(IntentResult.Buffered));
             _player.ReleaseSkill(Long);

@@ -83,9 +83,29 @@ namespace Roguelike.Rules
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
 
+    /// <summary>The kit of decision 0005 (2026-11-19) over the whole session: marks, recast chains, where focus came from.</summary>
+    public sealed class KitStats
+    {
+        public int MarksAdded;
+        public int SpenderHits;            // spender hits that landed on a target, with or without marks
+        public float MarksPerSpenderHit = float.NaN;
+        public int SpenderHitsAtFive;      // hits that took the full cap (the highest count the log's kit allows)
+        public int MarksFellOff;           // marks that fell off unused
+        public int MarksLostOtherwise;     // marks on a target that died or was reset
+        public readonly SortedDictionary<int, int> ChainsByLength = new SortedDictionary<int, int>();
+        public int LastPresses;            // presses that fired the last shot of a chain
+        public int CleanPresses;
+        public float FocusFromMarks;
+        public float FocusFromCleanTaps;
+        public float FocusFromDamage;
+        public int CooldownCuts;
+        public int NotEquippedPresses;
+    }
+
     /// <summary>All the numbers of one play session.</summary>
     public sealed class SessionStats
     {
+        public KitStats Kit = new KitStats();
         public string Date = "";
         public string Commit = "";
         public string Branch = "";
@@ -161,7 +181,65 @@ namespace Roguelike.Rules
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
             stats.InFights = ComputeScope("In fights", events, stats.FightSpans, kit);
+            stats.Kit = ComputeKit(events, start);
             return stats;
+        }
+
+        /// <summary>The kit's numbers (decision 0005), over the whole session.</summary>
+        static KitStats ComputeKit(List<SessionEvent> events, SessionEvent start)
+        {
+            var k = new KitStats();
+            int cap = 5;
+            if (start != null && int.TryParse(start.ExtraValue("kit.MaxMarks"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int c)) cap = c;
+            var chainCounts = new Dictionary<string, int>();
+            foreach (SessionEvent e in events.Where(e => e.Type == SessionEventTypes.Skill))
+                if (int.TryParse(e.ExtraValue("recast_count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)) chainCounts[e.Name] = n;
+
+            var taken = new List<int>();
+            foreach (SessionEvent e in events)
+            {
+                switch (e.Type)
+                {
+                    case SessionEventTypes.MarkAdd:
+                        int added;
+                        k.MarksAdded += int.TryParse(e.ExtraValue("added"), NumberStyles.Integer, CultureInfo.InvariantCulture, out added) ? added : 1;
+                        break;
+                    case SessionEventTypes.MarksSpent:
+                        taken.Add(e.Marks ?? 0);
+                        if ((e.Marks ?? 0) >= cap) k.SpenderHitsAtFive++;
+                        k.FocusFromMarks += e.Focus ?? 0f;
+                        break;
+                    case SessionEventTypes.MarksLost:
+                        if (e.Result == SessionWords.FellOff) k.MarksFellOff += e.Marks ?? 0;
+                        else k.MarksLostOtherwise += e.Marks ?? 0;
+                        break;
+                    case SessionEventTypes.ChainEnd:
+                        int shots = e.Shot ?? 0;
+                        k.ChainsByLength[shots] = k.ChainsByLength.TryGetValue(shots, out int had) ? had + 1 : 1;
+                        break;
+                    case SessionEventTypes.RecastPress:
+                        // The last press of its chain (the kit at the start says how long a chain is).
+                        if (chainCounts.TryGetValue(e.Name ?? "", out int count) && e.Shot == count)
+                        {
+                            k.LastPresses++;
+                            if (e.Clean == true) k.CleanPresses++;
+                        }
+                        k.FocusFromCleanTaps += e.Focus ?? 0f;
+                        break;
+                    case SessionEventTypes.Hit:
+                        k.FocusFromDamage += e.Focus ?? 0f;
+                        break;
+                    case SessionEventTypes.CooldownCut:
+                        k.CooldownCuts++;
+                        break;
+                    case SessionEventTypes.SkillPress:
+                        if (e.Reason == SessionWords.NotEquipped) k.NotEquippedPresses++;
+                        break;
+                }
+            }
+            k.SpenderHits = taken.Count;
+            if (taken.Count > 0) k.MarksPerSpenderHit = (float)taken.Average();
+            return k;
         }
 
         /// <summary>The kit as the log's start describes it: the skills in slot order, and the timing values the summary needs.</summary>
@@ -250,8 +328,14 @@ namespace Roguelike.Rules
                     Misses = events.Count(e => e.Type == SessionEventTypes.SkillFired && e.Name == name && e.Hit != true),
                 };
                 FillDamageAndUse(row, events, spans, s.TotalDamage);
+                // A recast shot starts the skill again but spends no cooldown (decision 0005): the cooldown use counts
+                // only the first press of each chain.
+                int recasts = events.Count(e => e.Type == SessionEventTypes.RecastPress && e.Name == name);
+                if (recasts > 0 && row.Started > 0 && !float.IsNaN(row.CooldownUse))
+                    row.CooldownUse *= Math.Max(0, row.Started - recasts) / (float)row.Started;
                 s.Rows.Add(row);
-                if (row.Started == 0) s.NeverUsed.Add(name);
+                // A skill that was not on the bar could not be used: it is not counted as never used.
+                if (row.Started == 0 && skill.ExtraValue("equipped") != "false") s.NeverUsed.Add(name);
             }
             var shot = new ActionRow
             {
@@ -476,6 +560,19 @@ namespace Roguelike.Rules
             g.Add("Seconds full before spent, mean", Seconds(a.FullBeforeSpentMean), fights ? Seconds(f.FullBeforeSpentMean) : "-");
             g.Add("Damage while empowered", a.EmpoweredDamage.ToString(CultureInfo.InvariantCulture), fights ? f.EmpoweredDamage.ToString(CultureInfo.InvariantCulture) : "-");
             g.Write(sb);
+            sb.AppendLine();
+
+            // The kit of decision 0005, whole session.
+            KitStats k = stats.Kit ?? new KitStats();
+            var m = new Table("Marks and recasts, whole session", "");
+            m.Add("Marks added / fell off unused / lost to a death or reset", k.MarksAdded + " / " + k.MarksFellOff + " / " + k.MarksLostOtherwise);
+            m.Add("Spender hits: marks taken, mean / at the cap", k.SpenderHits == 0 ? "-" : Num(k.MarksPerSpenderHit, 1) + " / " + Share(k.SpenderHitsAtFive, k.SpenderHits));
+            m.Add("Recast chains by length", k.ChainsByLength.Count == 0 ? "-" : string.Join("   ", k.ChainsByLength.Select(p => p.Key + ": " + p.Value)));
+            m.Add("Last presses that were clean", k.LastPresses == 0 ? "-" : k.CleanPresses + " of " + k.LastPresses + " (" + Share(k.CleanPresses, k.LastPresses) + ")");
+            m.Add("Focus from marks / clean taps / damage", Num(k.FocusFromMarks, 0) + " / " + Num(k.FocusFromCleanTaps, 0) + " / " + Num(k.FocusFromDamage, 0));
+            m.Add("Focus spends that cut cooldowns", Int(k.CooldownCuts));
+            m.Add("Presses on an empty slot", Int(k.NotEquippedPresses));
+            m.Write(sb);
             sb.AppendLine();
 
             if (a.Holds.Count > 0)

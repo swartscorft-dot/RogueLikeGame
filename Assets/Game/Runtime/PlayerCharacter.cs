@@ -54,6 +54,22 @@ namespace Roguelike
     ///   way she was moving. The move keys steer it (amended 2026-11-19, <see cref="FeelValues.SlideSteering"/>): the
     ///   direction follows the held key, the speed still follows the slide. When the skill lets her go the speed she
     ///   may move at eases back up. A skill that moves her itself (Backstep) does neither, and a dash ends both at once.
+    ///
+    /// The kit (decision 0005, 2026-11-19: the pistols set up and the shotgun cashes in):
+    /// - Marks. Builders (<see cref="SkillDefinition.MarksAdded"/>) put marks on each target they hit, and every
+    ///   <see cref="KitValues.BasicShotsPerMark"/>-th basic shot hit marks the target it hit. A spender
+    ///   (<see cref="SkillDefinition.MarkDamageBonus"/>) takes all marks off each target it hits and deals that share
+    ///   more per mark. The marks live on the target (<see cref="Damageable"/>) and show over it (<see cref="MarkPips"/>).
+    /// - Equipped slots. A run starts with the skills marked <see cref="SkillDefinition.StartEquipped"/>; a press on
+    ///   any other slot is rejected until <see cref="EquipSkill"/> fills it (or <see cref="KitValues.StartWithAllSkills"/>).
+    /// - Light skills (<see cref="SkillLock.Light"/>) do not lock her: no stop, slow or slide, the move keys work all
+    ///   through, and the body turns no more than for a basic shot. Nothing else starts while one runs, and a dash
+    ///   cancels it. Committed skills keep the rules of decision 0004 above.
+    /// - Recast skills (<see cref="SkillDefinition.RecastCount"/>, Triple Tap): one shot per press, the next press in
+    ///   the window that opens when a shot has gone off (<see cref="RecastChain"/>); the last one clean in the window's
+    ///   last share. A dash or another skill ends the chain; the cooldown runs from the first press.
+    /// - Focus fills from spent marks, clean taps and a trickle of damage; spending it cuts every running cooldown and,
+    ///   for its window, makes every basic shot hit mark.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
@@ -104,6 +120,13 @@ namespace Roguelike
         readonly IdentityValues _fallbackIdentity = new IdentityValues();
         readonly ShotLook _fallbackBasicLook = ShotFxDefaults.Basic();
         readonly Dictionary<string, ShotLook> _fallbackLooks = new Dictionary<string, ShotLook>();
+        // The kit (decision 0005).
+        readonly KitValues _fallbackKit = new KitValues();
+        readonly BasicShotMarks _basicMarks = new BasicShotMarks();
+        readonly RecastChain _chain = new RecastChain();
+        readonly List<bool> _equipped = new List<bool>();
+        readonly Dictionary<Damageable, float> _markedAt = new Dictionary<Damageable, float>(); // by the skill in use, for its mark interval
+        bool _castClean; // the shot of the skill in use is a clean tap
 
         NavMeshAgent _agent;
 
@@ -158,8 +181,10 @@ namespace Roguelike
 
         /// <summary>The direction the input holds now: flat, of length 1, or zero when no move key is held.</summary>
         public Vector3 MoveInput => _moveInput;
-        /// <summary>True while a move key is held and she is free to move: not dashing and not in a skill.</summary>
-        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && _actionKind != ActionKind.Skill;
+        /// <summary>True while a move key is held and she is free to move: not dashing and not in a skill, or in a light one.</summary>
+        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && (_actionKind != ActionKind.Skill || IsInLightSkill);
+        /// <summary>True while a light skill runs (decision 0005): she moves under it as under a basic shot.</summary>
+        public bool IsInLightSkill => _actionKind == ActionKind.Skill && _cast.Skill != null && _cast.Skill.Lock == SkillLock.Light;
         /// <summary>True once the cursor has been reported; <see cref="LookPoint"/> is then where it is on the ground.</summary>
         public bool HasLookPoint => _cursorKnown;
         public Vector3 LookPoint => _cursorPoint;
@@ -228,6 +253,49 @@ namespace Roguelike
         /// <summary>For the bar, 0 to 1: how full the gauge is, or while empowered how much of the mode is left.</summary>
         public float FocusBarFill => _focus.BarFill(Time.time, Identity);
         public bool IsDashing => _dashing;
+
+        // ---------------- The kit (decision 0005) ----------------
+
+        public KitValues Kit => SkillSet != null && SkillSet.Kit != null ? SkillSet.Kit : _fallbackKit;
+
+        /// <summary>True when the slot holds a skill she can use: one she started the run with, or was given since.</summary>
+        public bool IsEquipped(int slot)
+        {
+            if (slot < 0 || slot >= Skills.Count) return false;
+            if (Kit.StartWithAllSkills) return true;
+            while (_equipped.Count <= slot) _equipped.Add(Skills[_equipped.Count].StartEquipped);
+            return _equipped[slot];
+        }
+
+        /// <summary>Puts the slot's skill on the bar: its key works from now on. For tests and for the rewards to come.</summary>
+        public void EquipSkill(int slot)
+        {
+            if (slot < 0 || slot >= Skills.Count) return;
+            IsEquipped(slot);
+            _equipped[slot] = true;
+        }
+
+        /// <summary>Back to the skills a run starts with. For tests and tools.</summary>
+        public void EquipStartSkills() => _equipped.Clear();
+
+        /// <summary>Basic shot hits counted toward the next mark.</summary>
+        public int BasicShotsTowardMark => _basicMarks.Counted;
+        /// <summary>The slot whose recast chain waits for its next press, or -1.</summary>
+        public int RecastSlot => _chain.Slot;
+        /// <summary>Shots of the recast chain pressed so far.</summary>
+        public int RecastShots => _chain.Slot >= 0 ? _chain.Shots : 0;
+        /// <summary>True while the window for the next press of a recast chain is open.</summary>
+        public bool IsRecastWindowOpen => _chain.IsWindowOpen(Time.time);
+        /// <summary>For a bar, 1 to 0: how much of the open recast window is left.</summary>
+        public float RecastWindowLeft => _chain.WindowLeft(Time.time);
+        /// <summary>
+        /// The share of the open window, at its end, in which the next press is clean; 0 when the next press cannot be
+        /// clean (not the last, or the skill has no clean tap).
+        /// </summary>
+        public float RecastCleanShare =>
+            _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && Skills[_chain.Slot].CleanTapMarks > 0
+                ? Mathf.Clamp01(Kit.CleanShare) : 0f;
+
         /// <summary>
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
         /// neither does a free recovery (decision 0004), which holds back only the next skill (<see cref="SkillGateRemaining"/>).
@@ -390,6 +458,28 @@ namespace Roguelike
         public IntentResult PressSkill(int slot, Vector3 point)
         {
             if (slot < 0 || slot >= Skills.Count) return SkillPressed(slot, IntentResult.Rejected, 0f);
+            if (!IsEquipped(slot))
+            {
+                Report(new PlayerReport { Kind = PlayerReportKind.SkillPressed, Slot = slot, Result = IntentResult.Rejected, NotEquipped = true });
+                return IntentResult.Rejected;
+            }
+            // A recast (decision 0005): inside the window it fires the next shot at once, whatever the cooldown; before
+            // the shot it follows has gone off it waits like any press during a skill.
+            ExpireChain(Time.time);
+            RecastPress recast = _chain.Judge(slot, Time.time, Kit.CleanShare, Skills[slot].CleanTapMarks > 0);
+            if (recast == RecastPress.Shot || recast == RecastPress.Clean)
+            {
+                _shotCursor = point;
+                SkillPressed(slot, IntentResult.Started, 0f);
+                Recast(slot, point, recast == RecastPress.Clean);
+                return IntentResult.Started;
+            }
+            if (recast == RecastPress.Early)
+            {
+                _shotCursor = point;
+                _bufferedSkillReleased = false;
+                return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
+            }
             if (!CooldownFor(slot).IsReady(Time.time))
                 return SkillPressed(slot, IntentResult.Rejected, CooldownFor(slot).Remaining(Time.time));
             _shotCursor = point; // a press comes with the cursor: the arms held up after the skill follow it from here
@@ -409,6 +499,63 @@ namespace Roguelike
         {
             Report(new PlayerReport { Kind = PlayerReportKind.SkillPressed, Slot = slot, Result = result, CooldownLeft = cooldownLeft });
             return result;
+        }
+
+        /// <summary>
+        /// The next shot of a recast chain: the shot before it is over (it went off; its recovery, if it is still in
+        /// it, is cut), and this one starts at once with the skill's startup. A clean tap gains its focus here.
+        /// </summary>
+        void Recast(int slot, Vector3 point, bool clean)
+        {
+            float now = Time.time;
+            _chain.Recast();
+            float focus = clean ? _focus.Add(Identity.FocusPerCleanTap, Identity, now) : 0f;
+            Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus });
+            if (_actionKind == ActionKind.Skill)
+            {
+                ReportSkillEnded(SkillEnding.RanOut, now);
+                _cast.Cancel();
+                EndAction();
+            }
+            StartSkill(slot, point, recast: true);
+            _castClean = clean;
+        }
+
+        /// <summary>Ends a recast chain whose window has run out.</summary>
+        void ExpireChain(float now)
+        {
+            if (_chain.Expired(now)) EndChain();
+        }
+
+        /// <summary>Ends the recast chain, if one runs, and reports how many shots it fired.</summary>
+        void EndChain()
+        {
+            if (_chain.Slot < 0) return;
+            int slot = _chain.Slot, count = _chain.Count;
+            int shots = _chain.End();
+            Report(new PlayerReport { Kind = PlayerReportKind.ChainEnded, Slot = slot, Shot = shots, Early = shots < count });
+        }
+
+        /// <summary>
+        /// A skill press that waited in the buffer may start now: a recast whose window has opened, or an ordinary start.
+        /// A press that is neither any more (its chain ran out and the skill is cooling down) is dropped.
+        /// </summary>
+        bool StartWaitingSkill(Press press, float now)
+        {
+            ExpireChain(now);
+            RecastPress recast = _chain.Judge(press.Slot, now, Kit.CleanShare, Skills[press.Slot].CleanTapMarks > 0);
+            if (recast == RecastPress.Shot || recast == RecastPress.Clean)
+            {
+                Recast(press.Slot, press.Point, recast == RecastPress.Clean);
+                return true;
+            }
+            if (recast == RecastPress.None && CooldownFor(press.Slot).IsReady(now))
+            {
+                StartSkill(press.Slot, press.Point);
+                return true;
+            }
+            Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = press.Slot });
+            return false;
         }
 
         /// <summary>
@@ -446,8 +593,18 @@ namespace Roguelike
         /// </summary>
         public IntentResult ActivateIdentity()
         {
-            IntentResult result = _focus.TryActivate(Time.time, Identity) ? IntentResult.Started : IntentResult.Rejected;
+            float now = Time.time;
+            IntentResult result = _focus.TryActivate(now, Identity) ? IntentResult.Started : IntentResult.Rejected;
             Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result });
+            if (result == IntentResult.Started)
+            {
+                // Decision 0005: every running cooldown, the dash's too, is cut by a share of what it has left.
+                float share = Identity.CooldownCut;
+                var cuts = new float[Skills.Count];
+                for (int slot = 0; slot < cuts.Length; slot++) cuts[slot] = CooldownFor(slot).Cut(now, share);
+                float dashCut = _dash.CutCooldown(now, share);
+                Report(new PlayerReport { Kind = PlayerReportKind.CooldownsCut, Cuts = cuts, DashCut = dashCut });
+            }
             return result;
         }
 
@@ -481,6 +638,7 @@ namespace Roguelike
             _rising = false;
             _skillGateUntil = float.NegativeInfinity;
             _moveInput = Vector3.zero;
+            EndChain();
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
         }
@@ -492,6 +650,7 @@ namespace Roguelike
             FeelValues feel = Feel;
             float now = Time.time;
             ApplyMovementFeel(feel);
+            ExpireChain(now);
 
             if (_dashing)
             {
@@ -565,20 +724,35 @@ namespace Roguelike
                         _castMoved = moved;
                     }
                 }
+                bool light = skill.Lock == SkillLock.Light;
                 // A skill that is held or charged follows the cursor until the key goes up.
                 if (_hasCursor && _cast.Phase(now) == SkillPhase.Channel)
                 {
                     _aimPoint = _cursorPoint;
-                    if (feel.FaceCursorOnCast) Face(Flat(_aimPoint - transform.position));
+                    if (feel.FaceCursorOnCast && !light) Face(Flat(_aimPoint - transform.position));
                 }
 
                 // Pressed on the move, she slides to a stand along the way she was moving (decision 0004).
                 if (_sliding) Slide(feel, now);
+                // A light skill (decision 0005): she moves the held way under it, as under a basic shot, and the body
+                // faces as for a basic shot.
+                if (light)
+                {
+                    Walk();
+                    UpdateFacing(feel);
+                }
 
                 float charge = _cast.Charge(now);
                 bool landed = false;
-                for (int hits = _cast.TakeHits(now); hits > 0; hits--) landed |= ResolveSkillHit(skill, charge);
+                int fired = _cast.TakeHits(now);
+                for (int hits = fired; hits > 0; hits--) landed |= ResolveSkillHit(skill, charge);
                 if (landed) HitStop.Trigger(feel.HitStop);
+                // A shot of a recast chain went off: the window for the next press opens, or the chain is complete.
+                if (fired > 0 && _chain.Slot == _castSlot)
+                {
+                    _chain.ShotWentOff(now);
+                    if (_chain.IsComplete) EndChain();
+                }
                 // Committed until the last hit. With the free recovery, that is where the skill lets her go; the next
                 // skill still waits until the recovery would have ended. Without it, the recovery locks as before.
                 if (feel.SkillRecoveryFree ? _cast.IsCommitted(now) : _cast.IsRunning(now)) return;
@@ -609,10 +783,13 @@ namespace Roguelike
                 _buffer.Clear(); // PressReady has judged it good
                 if (press.Kind == PressKind.Skill)
                 {
-                    StartSkill(press.Slot, press.Point);
-                    if (_bufferedSkillReleased) _cast.Release(now);
-                    return;
+                    if (StartWaitingSkill(press, now))
+                    {
+                        if (_bufferedSkillReleased) _cast.Release(now);
+                        return;
+                    }
                 }
+                else
                 if (StartDash(press.Point)) return;
             }
 
@@ -730,6 +907,12 @@ namespace Roguelike
         /// </summary>
         void LetGo(SkillDefinition skill, float now)
         {
+            // A light skill never held her back, so there is nothing to ease back up from (decision 0005).
+            if (skill != null && skill.Lock == SkillLock.Light)
+            {
+                _sliding = false;
+                return;
+            }
             float share = _sliding ? SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, Feel.SkillSlowdown) : 0f;
             _sliding = false;
             _rising = skill == null || skill.MoveDistance == 0f;
@@ -799,6 +982,7 @@ namespace Roguelike
             _sliding = false;
             _rising = false;
             _skillGateUntil = float.NegativeInfinity;
+            EndChain(); // and a recast chain (decision 0005)
             _dashFrom = transform.position;
             _dashTo = _dashFrom + dir * feel.DashDistance;
             _dashing = true;
@@ -842,47 +1026,70 @@ namespace Roguelike
             Report(new PlayerReport { Kind = PlayerReportKind.ShotStarted, Moving = onTheMove });
         }
 
-        void StartSkill(int slot, Vector3 point)
+        /// <summary>
+        /// Starts a skill. A recast (decision 0005) starts the next shot of the chain: no cooldown, and the chain goes on;
+        /// any other start ends a chain that runs and begins this skill's own.
+        /// </summary>
+        void StartSkill(int slot, Vector3 point, bool recast = false)
         {
             SkillDefinition skill = Skills[slot];
+            bool light = skill.Lock == SkillLock.Light;
+            FeelValues feel = Feel;
             DropWaitingClick(); // a skill drops a waiting click
-            _shotFacing.End(turnBack: false); // and ends the backpedal at once: the skill faces the cursor
             _action.Cancel(); // a skill may start during a basic shot, and ends it
             _movingShot = false;
             _shotTurnsBody = false;
             _easing = false; // a skill ends the slow of a shot on the move at once
-            // The slide (decision 0004): from the speed she actually has, along the way she actually moves. During a
-            // hit stop the agent reads standing, so the last frame in which time ran is used.
-            FeelValues feel = Feel;
-            Vector3 velocity = Flat(Time.timeScale > 0f ? _agent.velocity : _lastVelocity);
-            float share = feel.RunSpeed > 0f ? Mathf.Clamp01(velocity.magnitude / feel.RunSpeed) : 0f;
-            _rising = false;
             _skillGateUntil = float.NegativeInfinity; // the recovery it waited for is over
-            _sliding = skill.MoveDistance == 0f && feel.SkillSlowdown > 0f && share > 0.01f;
-            if (_sliding)
+            _aimPoint = point;
+            if (light)
             {
-                _slideFrom = share;
-                _slideStartedAt = Time.time;
-                _slideDir = velocity / velocity.magnitude;
+                // A light skill (decision 0005) turns the body as a basic shot does: only for an aim outside the front
+                // angle, held turned while she backpedals; within it the upper body aims. No stop, no slide.
+                _sliding = false;
+                _slideFrom = 0f;
+                _shotFacing.ShotStarted(BodyMustTurnToward(Flat(point - transform.position), feel), Time.time, feel.ShotTurnHold);
             }
             else
             {
-                _slideFrom = 0f;
-                Halt();
+                _shotFacing.End(turnBack: false); // a committed skill ends the backpedal at once: it faces the cursor
+                // The slide (decision 0004): from the speed she actually has, along the way she actually moves. During a
+                // hit stop the agent reads standing, so the last frame in which time ran is used.
+                Vector3 velocity = Flat(Time.timeScale > 0f ? _agent.velocity : _lastVelocity);
+                float share = feel.RunSpeed > 0f ? Mathf.Clamp01(velocity.magnitude / feel.RunSpeed) : 0f;
+                _rising = false;
+                _sliding = skill.MoveDistance == 0f && feel.SkillSlowdown > 0f && share > 0.01f;
+                if (_sliding)
+                {
+                    _slideFrom = share;
+                    _slideStartedAt = Time.time;
+                    _slideDir = velocity / velocity.magnitude;
+                }
+                else
+                {
+                    _slideFrom = 0f;
+                    Halt();
+                }
             }
-            _aimPoint = point;
             _castSlot = slot;
             _hasCursor = false; // follow only a cursor that is reported after this skill started, never a stale one
             _castMoved = 0f;
             Vector3 toAim = Flat(point - transform.position);
             _castMoveDir = toAim.sqrMagnitude > 1e-6f ? toAim.normalized : Flat(transform.forward).normalized;
-            if (Feel.FaceCursorOnCast) Face(Flat(point - transform.position));
+            if (feel.FaceCursorOnCast && !light) Face(Flat(point - transform.position));
 
             _actionKind = ActionKind.Skill;
             ActionsStarted++;
             ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : skill.Startup;
             _cast.Start(skill, Time.time);
-            CooldownFor(slot).Start(Time.time, skill.Cooldown);
+            _markedAt.Clear();
+            _castClean = false;
+            if (!recast)
+            {
+                EndChain(); // another skill starting ends a chain (decision 0005)
+                _chain.Start(slot, skill.RecastCount, skill.RecastWindow);
+                CooldownFor(slot).Start(Time.time, skill.Cooldown);
+            }
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
         }
 
@@ -928,12 +1135,43 @@ namespace Roguelike
             SpawnStreak(look, muzzle, end, 1f);
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
-            int applied = Deal(hit, Placeholders.BasicShotDamage);
+            int applied = Deal(hit, Placeholders.BasicShotDamage, out float focus);
             if (applied <= 0) return ShotFired(false);
-            ReportHit(-1, hit, applied, empowered);
+            ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);
             BasicShotHits++;
+            // Every few hits, whatever the target, the hit that completes the count marks the target it hit; in the
+            // focus window every hit does (decision 0005).
+            if (_basicMarks.Hit(Kit.BasicShotsPerMark, empowered)) AddMarks(hit, 1, -1);
             return ShotFired(true);
+        }
+
+        /// <summary>Puts marks on a target, shows them over it and reports it. <paramref name="slot"/> is -1 for the basic shot.</summary>
+        void AddMarks(Damageable target, int marks, int slot)
+        {
+            if (marks <= 0 || target == null || !target.IsAlive) return;
+            KitValues kit = Kit;
+            int after = target.AddMarks(marks, kit.MaxMarks, kit.MarkLifetime);
+            MarkPips pips = MarkPips.For(target, ShotFxMaterial);
+            if (pips != null) pips.Max = kit.MaxMarks;
+            Report(new PlayerReport { Kind = PlayerReportKind.MarkAdded, Slot = slot, Target = target, Marks = marks, MarksAfter = after });
+        }
+
+        /// <summary>
+        /// The marks a builder's hit adds to a target: the skill's, or for a clean tap the clean tap's. A skill with a
+        /// mark interval marks a target at most that often in one use (Fan Fire: once a second, not every tick).
+        /// </summary>
+        void MarkFromSkill(SkillDefinition skill, Damageable target)
+        {
+            int marks = _castClean ? skill.CleanTapMarks : skill.MarksAdded;
+            if (marks <= 0) return;
+            if (skill.MarkInterval > 0f)
+            {
+                float now = Time.time;
+                if (_markedAt.TryGetValue(target, out float at) && now - at < skill.MarkInterval - 1e-4f) return;
+                _markedAt[target] = now;
+            }
+            AddMarks(target, marks, _castSlot);
         }
 
         /// <summary>Reports a basic shot that went off, and whether it hit; returns that.</summary>
@@ -944,18 +1182,18 @@ namespace Roguelike
         }
 
         /// <summary>Reports damage she dealt: by a skill's slot, or -1 for the basic shot.</summary>
-        void ReportHit(int slot, Damageable target, int damage, bool empowered) =>
-            Report(new PlayerReport { Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered });
+        void ReportHit(int slot, Damageable target, int damage, bool empowered, float focus) =>
+            Report(new PlayerReport { Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered, Focus = focus });
 
         /// <summary>
-        /// Deals damage to a target: more while empowered, and what was dealt fills the focus gauge.
-        /// Returns the amount actually removed.
+        /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005), and what
+        /// was dealt trickles into the focus gauge. Returns the amount actually removed, and the focus gained.
         /// </summary>
-        int Deal(Damageable target, int damage)
+        int Deal(Damageable target, int damage, out float focus)
         {
             IdentityValues identity = Identity;
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity));
-            _focus.AddDamage(applied, identity, Time.time);
+            focus = _focus.AddDamage(applied, identity, Time.time);
             return applied;
         }
 
@@ -974,19 +1212,34 @@ namespace Roguelike
             PlaySound(look); // once per hit of a burst, per tick of a hold, per landing
 
             int damage = SkillRules.Damage(skill, charge);
+            if (_castClean) damage = Mathf.RoundToInt(damage * Kit.CleanDamage); // a clean tap (decision 0005)
+            bool spender = MarkRules.IsSpender(skill);
             bool landed = false;
             IReadOnlyList<Damageable> all = Damageable.All;
             for (int i = 0; i < all.Count; i++)
             {
                 Damageable d = all[i];
                 if (!SkillRules.Hits(skill, origin, aim, d.GroundPosition, d.Radius)) continue;
+                if (!d.IsAlive) continue;
                 bool empowered = IsEmpowered;
-                int applied = Deal(d, damage);
+                // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005).
+                int taken = spender ? d.TakeMarks() : 0;
+                int dealt = spender ? MarkRules.SpenderDamage(damage, taken, skill.MarkDamageBonus) : damage;
+                int applied = Deal(d, dealt, out float focus);
+                if (spender)
+                {
+                    float markFocus = _focus.Add(taken * Identity.FocusPerMarkSpent, Identity, Time.time);
+                    Report(new PlayerReport
+                    {
+                        Kind = PlayerReportKind.MarksSpent, Slot = _castSlot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
+                    });
+                }
                 if (applied <= 0) continue;
-                ReportHit(_castSlot, d, applied, empowered);
+                ReportHit(_castSlot, d, applied, empowered, focus);
                 SpawnHit(look, d, shotPoint);
                 SkillShotHits++;
                 landed = true;
+                if (!spender) MarkFromSkill(skill, d);
             }
             Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = landed, Charge = charge });
             return landed;

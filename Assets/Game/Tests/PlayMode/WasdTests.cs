@@ -255,9 +255,12 @@ namespace Roguelike.PlayModeTests
             Assert.That(bindings.SkillLabel(0), Is.EqualTo("Q"));
             Assert.That(bindings.SkillLabel(1), Is.EqualTo("1"));
             Assert.That(bindings.SkillLabel(7), Is.EqualTo("RMB"));
+            // Decision 0005 (2026-11-19): Scatter Blast (slot 5) on R and Heavy Volley (slot 6) on 4, so the start four sit on Q R F RMB.
+            Assert.That(bindings.SkillLabel(4), Is.EqualTo("R"));
+            Assert.That(bindings.SkillLabel(5), Is.EqualTo("4"));
             string help = bindings.HelpLine();
             StringAssert.Contains("WASD move", help);
-            StringAssert.Contains("Q 1 2 3 4 R F RMB skills", help);
+            StringAssert.Contains("Q 1 2 3 R 4 F RMB skills", help);
         }
 
         // ---------------- Movement and actions ----------------

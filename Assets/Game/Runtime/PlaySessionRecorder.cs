@@ -248,6 +248,7 @@ namespace Roguelike
             _nextSample = Time.time;
             _nextFlush = Time.unscaledTime + FlushSeconds;
             player.Reported += OnPlayer;
+            Damageable.MarksLost += OnMarksLost;
             if (_health != null)
             {
                 _health.Damaged += OnDamaged;
@@ -271,6 +272,7 @@ namespace Roguelike
         void Detach()
         {
             if (_player != null) _player.Reported -= OnPlayer;
+            Damageable.MarksLost -= OnMarksLost;
             if (_health != null)
             {
                 _health.Damaged -= OnDamaged;
@@ -314,6 +316,7 @@ namespace Roguelike
             start.AddExtra("editor", Application.isEditor ? "true" : "false");
             AddFields(start, "feel.", player.Feel);
             AddFields(start, "identity.", player.Identity);
+            AddFields(start, "kit.", player.Kit);
             EnemyBrute enemy = _enemies.Count > 0 ? _enemies[0] : null;
             if (enemy != null)
             {
@@ -339,6 +342,12 @@ namespace Roguelike
                 if (s.Input == SkillInput.Holding || s.Input == SkillInput.Charge) e.AddExtra("hold_max", Text(s.HoldMax));
                 if (s.Input == SkillInput.Holding) e.AddExtra("tick_interval", Text(s.TickInterval));
                 if (s.Input == SkillInput.Charge) e.AddExtra("charge_time", Text(s.ChargeTime));
+                // The kit (decision 0005).
+                e.AddExtra("equipped", player.IsEquipped(slot) ? "true" : "false");
+                e.AddExtra("lock", s.Lock.ToString());
+                if (s.MarksAdded > 0) e.AddExtra("marks_added", s.MarksAdded.ToString(CultureInfo.InvariantCulture));
+                if (s.MarkDamageBonus > 0f) e.AddExtra("mark_bonus", Text(s.MarkDamageBonus));
+                if (s.RecastCount > 1) e.AddExtra("recast_count", s.RecastCount.ToString(CultureInfo.InvariantCulture));
                 Add(e);
             }
         }
@@ -510,9 +519,47 @@ namespace Roguelike
                         var e = new SessionEvent(t, SessionEventTypes.SkillPress, SkillName(r.Slot)) { Slot = r.Slot, Result = Word(r.Result) };
                         if (r.Result == IntentResult.Rejected)
                         {
-                            e.Reason = r.CooldownLeft > 0f ? SessionWords.Cooldown : "no such skill";
+                            e.Reason = r.NotEquipped ? SessionWords.NotEquipped : r.CooldownLeft > 0f ? SessionWords.Cooldown : "no such skill";
                             if (r.CooldownLeft > 0f) e.CooldownLeft = r.CooldownLeft;
                         }
+                        Add(e);
+                        break;
+                    }
+                    case PlayerReportKind.MarkAdded:
+                    {
+                        var e = new SessionEvent(t, SessionEventTypes.MarkAdd, r.Slot >= 0 ? SkillName(r.Slot) : SessionWords.BasicShot)
+                        {
+                            Slot = r.Slot >= 0 ? r.Slot : (int?)null, Target = TargetKind(r.Target), Marks = r.MarksAfter,
+                        };
+                        e.AddExtra("added", r.Marks.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case PlayerReportKind.MarksSpent:
+                        Add(new SessionEvent(t, SessionEventTypes.MarksSpent, SkillName(r.Slot))
+                        {
+                            Slot = r.Slot, Target = TargetKind(r.Target), Marks = r.Marks, Damage = r.Damage, Focus = r.Focus,
+                        });
+                        break;
+                    case PlayerReportKind.RecastPressed:
+                        Add(new SessionEvent(t, SessionEventTypes.RecastPress, SkillName(r.Slot))
+                        {
+                            Slot = r.Slot, Shot = r.Shot, Clean = r.Clean, Focus = r.Clean ? r.Focus : (float?)null,
+                        });
+                        break;
+                    case PlayerReportKind.ChainEnded:
+                        Add(new SessionEvent(t, SessionEventTypes.ChainEnd, SkillName(r.Slot))
+                        {
+                            Slot = r.Slot, Shot = r.Shot, Result = r.Early ? SessionWords.Early : SessionWords.Complete,
+                        });
+                        break;
+                    case PlayerReportKind.CooldownsCut:
+                    {
+                        var e = new SessionEvent(t, SessionEventTypes.CooldownCut);
+                        if (r.Cuts != null)
+                            for (int slot = 0; slot < r.Cuts.Length; slot++)
+                                if (r.Cuts[slot] > 0f) e.AddExtra("cut." + SkillName(slot), Text(r.Cuts[slot]));
+                        if (r.DashCut > 0f) e.AddExtra("cut." + SessionWords.Dash, Text(r.DashCut));
                         Add(e);
                         break;
                     }
@@ -584,6 +631,7 @@ namespace Roguelike
                         {
                             Slot = r.Slot >= 0 ? r.Slot : (int?)null,
                             Damage = r.Damage, Target = TargetKind(r.Target), Empowered = r.Empowered,
+                            Focus = r.Focus > 0f ? r.Focus : (float?)null,
                         });
                         break;
                     case PlayerReportKind.FocusPressed:
@@ -634,6 +682,21 @@ namespace Roguelike
             {
                 Fail(e);
             }
+        }
+
+        /// <summary>Marks lost unused, on any target (decision 0005).</summary>
+        void OnMarksLost(Damageable target, int marks, MarkLoss why)
+        {
+            if (!_recording) return;
+            try
+            {
+                Add(new SessionEvent(Now(), SessionEventTypes.MarksLost)
+                {
+                    Target = TargetKind(target), Marks = marks,
+                    Result = why == MarkLoss.FellOff ? SessionWords.FellOff : why == MarkLoss.Died ? SessionWords.Died : SessionWords.Reset,
+                });
+            }
+            catch (Exception e) { Fail(e); }
         }
 
         void OnDamaged(int amount)

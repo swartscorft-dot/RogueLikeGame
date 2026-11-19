@@ -15,6 +15,16 @@ namespace Roguelike.Rules
 
         public float CooldownRemaining(float now) => now >= _readyAt ? 0f : _readyAt - now;
 
+        /// <summary>Cuts a running cooldown by a share of what is left, as <see cref="Cooldown.Cut"/> does. Returns the seconds cut.</summary>
+        public float CutCooldown(float now, float share)
+        {
+            float left = CooldownRemaining(now);
+            if (left <= 0f) return 0f;
+            float cut = left * (share < 0f ? 0f : share > 1f ? 1f : share);
+            _readyAt -= cut;
+            return cut;
+        }
+
         public bool TryStart(float now, FeelValues feel)
         {
             if (!CanStart(now)) return false;

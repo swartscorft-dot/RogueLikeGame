@@ -28,6 +28,10 @@ namespace Roguelike
         static readonly Color s_Focus = new Color(0.25f, 0.6f, 1f, 1f);
         static readonly Color s_Empowered = new Color(1f, 0.9f, 0.3f, 1f);
         static readonly Color s_DarkText = new Color(0.1f, 0.1f, 0.1f, 1f);
+        static readonly Color s_Empty = new Color(1f, 1f, 1f, 0.18f);
+        static readonly Color s_CleanZone = new Color(0.3f, 1f, 0.45f, 0.55f);
+        static readonly Color s_Clean = new Color(0.4f, 1f, 0.5f, 1f);
+        const float RecastBarHeight = 9f;
 
         public PlayerCharacter Player;
         public PlayerHealth Health;
@@ -65,13 +69,24 @@ namespace Roguelike
 
             for (int slot = 0; slot < count; slot++)
             {
+                var box = new Rect(left + slot * (BoxWidth + Gap), top, BoxWidth, BoxHeight);
+                string key = bindings != null ? bindings.SkillLabel(slot) : "";
+                // A slot with no skill yet (decision 0005) is an empty, dim box with its key.
+                if (!Player.IsEquipped(slot))
+                {
+                    GUI.color = s_Empty;
+                    GUI.Box(box, key + "\nempty", _box);
+                    continue;
+                }
                 float cooldown = Player.SkillCooldownRemaining(slot);
+                bool chain = slot == Player.RecastSlot;
                 string state = slot == active ? Player.SkillPhase.ToString()
+                    : chain && Player.IsRecastWindowOpen ? string.Format(s_Inv, "tap {0} / {1}", Player.RecastShots + 1, skills[slot].RecastCount)
                     : slot == recovering ? "Recovery (free)"
                     : cooldown > 0f ? string.Format(s_Inv, "{0:0.0} s", cooldown) : "ready";
-                GUI.color = slot == active || slot == recovering ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
-                GUI.Box(new Rect(left + slot * (BoxWidth + Gap), top, BoxWidth, BoxHeight),
-                        (bindings != null ? bindings.SkillLabel(slot) : "") + "  " + skills[slot].Name + "\n" + state, _box);
+                GUI.color = slot == active || slot == recovering || chain ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
+                GUI.Box(box, key + "  " + skills[slot].Name + "\n" + state, _box);
+                if (chain && Player.IsRecastWindowOpen) RecastBar(new Rect(box.x + 4f, box.yMax - RecastBarHeight - 3f, box.width - 8f, RecastBarHeight));
             }
 
             // Health to the left, focus to the right.
@@ -101,6 +116,29 @@ namespace Roguelike
 
             GUI.color = before;
             GUI.matrix = matrixBefore;
+        }
+
+        /// <summary>
+        /// The recast window over its skill's box (decision 0005): a bar that runs out from right to left. For the
+        /// last press, its clean part is marked at the left end, where the bar runs out: press while the bar's end is
+        /// inside the bright zone. The bar turns the clean colour once it is there.
+        /// </summary>
+        void RecastBar(Rect rect)
+        {
+            float left = Player.RecastWindowLeft;
+            float clean = Player.RecastCleanShare;
+            GUI.color = s_Back;
+            GUI.DrawTexture(rect, Texture2D.whiteTexture);
+            if (clean > 0f)
+            {
+                GUI.color = s_CleanZone;
+                GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width * clean, rect.height), Texture2D.whiteTexture);
+            }
+            bool inClean = clean > 0f && left <= clean;
+            GUI.color = inClean ? s_Clean : s_InUse;
+            float inset = clean > 0f ? 2f : 0f; // the bar is drawn thinner over the zone, so the zone shows round it
+            GUI.DrawTexture(new Rect(rect.x, rect.y + inset, rect.width * Mathf.Clamp01(left), rect.height - 2f * inset), Texture2D.whiteTexture);
+            GUI.color = s_Ready;
         }
 
         void Bar(Rect rect, float fill, Color color, string text) => Bar(rect, fill, color, text, s_Ready);

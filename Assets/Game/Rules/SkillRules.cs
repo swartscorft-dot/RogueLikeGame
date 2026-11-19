@@ -10,6 +10,19 @@ namespace Roguelike.Rules
         public bool IsReady(float now) => now >= _readyAt;
         public float Remaining(float now) => now >= _readyAt ? 0f : _readyAt - now;
         public void Start(float now, float seconds) => _readyAt = now + Math.Max(0f, seconds);
+
+        /// <summary>
+        /// Cuts a running cooldown by a share of what is left: 0.4 leaves 3 s of 5 s (decision 0005, 2026-11-19: what
+        /// spending focus does). Returns the seconds cut; a ready cooldown is left alone and returns 0.
+        /// </summary>
+        public float Cut(float now, float share)
+        {
+            float left = Remaining(now);
+            if (left <= 0f) return 0f;
+            float cut = left * Math.Max(0f, Math.Min(1f, share));
+            _readyAt -= cut;
+            return cut;
+        }
     }
 
     /// <summary>What a skill hits and how hard. Targets are circles on the ground; a touched edge counts.</summary>

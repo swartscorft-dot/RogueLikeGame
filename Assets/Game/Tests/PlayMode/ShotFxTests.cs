@@ -352,6 +352,13 @@ namespace Roguelike.PlayModeTests
         public IEnumerator EachHitOfABurst_HasItsOwnStreak_FromTheHandsInTurn()
         {
             AssumePistols();
+            // Decision 0005 (2026-11-19) made Triple Tap three presses, so no skill of the kit fires a burst any more; the
+            // burst stays for skills that use it. Checked on Triple Tap as the burst of three it was, on a copy of the
+            // skill settings, so the asset itself is never touched.
+            SkillSettings copy = Object.Instantiate(_player.SkillSet);
+            copy.Skills[Triple].HitCount = 3;
+            copy.Skills[Triple].RecastCount = 1;
+            _player.SkillSet = copy;
             SkillDefinition skill = _player.Skills[Triple];
             Assume.That(skill.HitCount, Is.EqualTo(3));
             Assume.That(skill.HalfWidth * 2f, Is.LessThan(2f * PlayerCharacter.LineStreakSpacing), "a narrow line");
