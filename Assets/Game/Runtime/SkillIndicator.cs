@@ -44,8 +44,9 @@ namespace Roguelike
             switch (skill.Shape)
             {
                 case SkillShape.Circle:
-                    GroundPoint c = SkillRules.CircleCenter(skill, Player.GroundPosition,
-                                                            new GroundPoint(Player.AimPoint.x, Player.AimPoint.z));
+                    // Where it will land: short of cover in its way (Kristian, 2026-11-19).
+                    GroundPoint c = CoverRules.CircleCenter(skill, Player.GroundPosition,
+                                                            new GroundPoint(Player.AimPoint.x, Player.AimPoint.z), Player.CoverQuery);
                     GroundOutline.Circle(_line, new Vector3(c.X, 0f, c.Z), skill.Radius, HeightAboveGround);
                     break;
                 case SkillShape.Cone:

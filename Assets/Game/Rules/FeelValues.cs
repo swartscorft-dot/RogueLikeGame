@@ -38,6 +38,9 @@ namespace Roguelike.Rules
         public float BasicShotRange = 10f;        // m, how far a basic shot toward the cursor reaches (decision 0002)
         public float BasicShotHalfWidth = 0.5f;   // m, half the width of its line: it hits the first target the line touches
 
+        // Cover
+        public bool CoverStopsShots = true;       // walls and tall props stop her shots and skills, and the shooter's line (Kristian 2026-11-19); off, her shots pass through as before
+
         // Aiming and shooting on the move (basic shot only)
         public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)
         public float ShotTurnTime = 0.2f;         // s for a half turn of the body to a shot aimed outside the front angle, and back to the run after

@@ -152,6 +152,9 @@ namespace Roguelike.Rules
         public float FloorSpacing = 3f;        // from an open-floor prop to any other prop
         public float BossMiddleClear = 8f;     // round the boss room's middle, nothing
 
+        // Cover (Kristian, 2026-11-19: shots are stopped by walls and pillars)
+        public float CoverHeight = 1.2f;       // a prop at least this tall stops her shots (altar, grave marker, pillars, statue); she shoots over a lower one
+
         // Combat rooms
         public int CombatFewest = 4;           // props in the smallest combat room
         public int CombatMost = 8;             // props in the largest

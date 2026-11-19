@@ -43,12 +43,38 @@ namespace Roguelike.Rules
         }
 
         /// <summary>
+        /// <see cref="Hits(GroundPoint, GroundPoint, float, float, GroundPoint, float)"/> for a shot that cover may stop
+        /// <paramref name="stopAt"/> metres along its centre line (<see cref="CoverRules.LineStop"/>; Kristian,
+        /// 2026-11-19). Not stopped (<paramref name="stopAt"/> at or past the range), it is the shot as before. Stopped,
+        /// it is the line up to that point, cut square there: it reaches a target only if the target's near side lies
+        /// before the stop point, so nothing past the cover is hit, however wide the line.
+        /// </summary>
+        public static bool Hits(GroundPoint origin, GroundPoint aim, float range, float halfWidth,
+                                GroundPoint target, float targetRadius, float stopAt)
+        {
+            if (stopAt >= range) return Hits(origin, aim, range, halfWidth, target, targetRadius);
+            float stop = stopAt < 0f ? 0f : stopAt;
+            if (!Hits(origin, aim, stop, halfWidth, target, targetRadius)) return false;
+            GroundPoint toAim = aim - origin;
+            GroundPoint dir = toAim * (1f / toAim.Length);
+            return (target - origin).Dot(dir) - targetRadius <= stop;
+        }
+
+        /// <summary>
         /// The first living target a straight shot touches, as <see cref="Hits"/> measures touching: the one whose
         /// centre lies nearest along the line. Index into <paramref name="targets"/>, or -1 for a miss. The shot
         /// stops at that target: it does not pierce. On a tie the first in the list wins.
         /// </summary>
         public static int FirstHit(GroundPoint origin, GroundPoint aim, float range, float halfWidth,
-                                   IReadOnlyList<TargetInfo> targets)
+                                   IReadOnlyList<TargetInfo> targets) =>
+            FirstHit(origin, aim, range, halfWidth, targets, float.PositiveInfinity);
+
+        /// <summary>
+        /// <see cref="FirstHit(GroundPoint, GroundPoint, float, float, IReadOnlyList{TargetInfo})"/> for a shot that cover
+        /// stops <paramref name="stopAt"/> metres along its line: a target past the cover is not hit (Kristian, 2026-11-19).
+        /// </summary>
+        public static int FirstHit(GroundPoint origin, GroundPoint aim, float range, float halfWidth,
+                                   IReadOnlyList<TargetInfo> targets, float stopAt)
         {
             GroundPoint toAim = aim - origin;
             float aimLength = toAim.Length;
@@ -60,7 +86,7 @@ namespace Roguelike.Rules
             for (int i = 0; i < targets.Count; i++)
             {
                 TargetInfo t = targets[i];
-                if (!t.Alive || !Hits(origin, aim, range, halfWidth, t.Position, t.Radius)) continue;
+                if (!t.Alive || !Hits(origin, aim, range, halfWidth, t.Position, t.Radius, stopAt)) continue;
                 float along = (t.Position - origin).Dot(dir);
                 if (along < bestAlong)
                 {
