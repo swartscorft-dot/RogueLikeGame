@@ -466,7 +466,11 @@ namespace Roguelike
                     {
                         _movingShot = true;
                         ShotsOnTheMove++;
-                        StartEasing(feel);
+                        // From the speed she actually has, as a skill's slide does: from the stand of a standing shot,
+                        // zero. The limit ApplyMovementFeel set at the top of this frame was for a stand with no slow, so
+                        // it is set again from the curve before she moves.
+                        StartEasing(feel, Mathf.Min(CurrentSpeedShare(feel), ActualSpeedShare(feel)));
+                        _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
                         Walk();
                         UpdateFacing(feel);
                         return;
@@ -1037,12 +1041,25 @@ namespace Roguelike
         }
 
         /// <summary>Starts the ease around a shot on the move: down from the speed she has now (full, or wherever a chained shot left it).</summary>
-        void StartEasing(FeelValues feel)
+        void StartEasing(FeelValues feel) => StartEasing(feel, CurrentSpeedShare(feel));
+
+        /// <summary>Starts the ease around a shot on the move from a given share of run speed.</summary>
+        void StartEasing(FeelValues feel, float fromShare)
         {
-            _easeFrom = CurrentSpeedShare(feel);
+            _easeFrom = fromShare;
             _easeStartedAt = Time.time;
             _easeFiredAfter = _actionKind == ActionKind.BasicShot && _action.HitResolved ? 0f : -1f;
             _easing = true;
+        }
+
+        /// <summary>
+        /// The share of run speed she actually moves at, 0 to 1. During a hit stop the agent reads standing, so the last
+        /// frame in which time ran is used, as for a skill's slide.
+        /// </summary>
+        float ActualSpeedShare(FeelValues feel)
+        {
+            Vector3 velocity = Flat(Time.timeScale > 0f ? _agent.velocity : _lastVelocity);
+            return feel.RunSpeed > 0f ? Mathf.Clamp01(velocity.magnitude / feel.RunSpeed) : 0f;
         }
 
         void SpawnFlash(Look look, Vector3 muzzle, Vector3 direction)
