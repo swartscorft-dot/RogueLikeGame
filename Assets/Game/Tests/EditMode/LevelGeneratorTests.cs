@@ -186,43 +186,43 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 2 makes (work order 008: the enemy points show their kinds; the
-        // rooms and doors are those of version 1). A change that changes them must raise LevelGenerator.Version and
-        // paste the new maps here, on purpose.
+        // These maps are what the generator of version 3 makes (work order 009: the props show as their characters; the
+        // rooms, doors and enemy points are those of version 2, and the rooms and doors those of version 1). A change
+        // that changes them must raise LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["22222229"] = @"seed 22222229  version 2  11 rooms  92 x 88 m
+            ["22222229"] = @"seed 22222229  version 3  11 rooms  92 x 88 m
                                     +-+-+-+
                                     |R8   |
-            +-+-+-+   +-+-+-+       +     +
+            +-+-+-+   +-+-+-+       + *$* +
             |R4   |   |R6   |       |     |
-            +     +   +     +       +     +
+            + *$* +   + *$* +       +     +
             |     |   |     |       |     |
             +     +   +     +     +-+-+ +-+-+-+
-            |     |   |     |     |C7         |
+            |     |   |     |     |C7        *|
             +-+ +-+-+-+-+ +-+-+-+-+     h     +
-            |C3       |C5         |           |
+            |C3      ~|C5        *|           |
     +-+-+-+-+  b      +       h   +           +
-    |S0     |b             b      |           |
-    +       +         +           +           +
+    |S0     |b             b      |   &       |
+    +       +         +           +          =+
     |       |         |                       |
     +   @   +         +           +      p    +
-    |       |         |           |           |
+    |       | &       |   =       |*          |
     +       +         +     h     +-+-+-+ +-+-+
-    |       |         |           |C9         |
+    | *    *|*        |*         =|C9         |
 +-+-+-+-+ +-+-+-+ +-+-+-+-+-+-+-+-+           +
-|R2   |C1           |             |g          |
-+     +             +             +   s       +
-|                   |             |           |
-+     +           p +             +s          +
+|R2   |C1   #      *|             |g        = |
++ *   +             +             +   s  :    +
+| $           :     |             |    %      |
++ *   +           p +             +s          +
 |     |             |             |           |
-+-+-+-+             +             +           +
++-+-+-+            =+             +           +
       |             |             |           |
-      +             +             +           +
-      |             |             |           |
+      +             +             +~          +
+      |~           *|             |*         *|
       +-+-+-+-+-+-+-+         +-+-+-+-+-+-+ +-+
                               |B10            |
-                              +               +
+                              + #           # +
                               |               |
                               +               +
                               |               |
@@ -234,60 +234,60 @@ namespace Roguelike.Rules.Tests
                               |               |
                               +               +
                               |               |
-                              +               +
-                              |               |
+                              + #           # +
+                              |      &A&      |
                               +-+-+-+-+-+-+-+-+
 ",
-            ["WALKTHRU"] = @"seed WALKTHRU  version 2  11 rooms  96 x 92 m
+            ["WALKTHRU"] = @"seed WALKTHRU  version 3  11 rooms  96 x 92 m
           +-+-+-+-+-+-+-+-+-+-+
-          |S0     |C1         |
-          +       +           +
+          |S0     |C1        *|
+          +      *+           +
           |       |           |
           +   @   +           +
           |                   |
           +       +           +
-          |       |           |
-          +-+-+-+-+           +
+          |      *|           |
+          +-+-+-+-+       %   +
                   |           |
-      +-+-+-+-+-+-+         p +
-      |C4         |           |
+      +-+-+-+-+-+-+  &  %   p +
+      |C4    ~ !  |!          |
       +           +-+-+-+-+ +-+-+
       |     b     |C2           |
-+-+-+-+          h+             +-+-+-+
++-+-+-+      %   h+     =       +-+-+-+
 |R5   |           |             |R3   |
-+     +           +  b          +     +
-|                 |                   |
-+     +     h     +             +     +
-|     |                         |     |
-+-+-+-+           +             +-+-+-+-+-+-+-+-+
-      |           |  b          |B10            |
-      +           +-+-+-+-+-+-+-+               +
-      |           |             |               |
++ *   +           +  b          +   * +
+| $               |                 $ |
++ *   +     h     +             +   * +
+|     |        %     #          |     |
++-+-+-+           +        %    +-+-+-+-+-+-+-+-+
+      |           |* b          |B10            |
+      +    :      +-+-+-+-+-+-+-+ #           # +
+      |          *|             |               |
       +-+-+-+-+ +-+             +               +
       |C6         |             |               |
       +           +             +               +
-      |           |             |               |
-      +  h  p     +             +       g       +
-      |           |             |               |
-      +           +-+-+-+-+-+-+-+               +
-      |           |C8           |               |
+      |           |             |              &|
+      +  h  p     +             +       g      A+
+      |           |             |              &|
+      + =         +-+-+-+-+-+-+-+               +
+      |        :  |C8          *|               |
       +           +     s  g    +               +
-      |                                         |
-      +           +             +               +
-      |           |      s      |               |
+      |       #                                 |
+      +           +     #       + #           # +
+      |*  !       |      s      |               |
       +-+-+-+-+ +-+             +-+-+-+-+-+-+-+-+
-            |R7   |             |
-            +     +             +
+            |R7   |         #   |
+            +     +     :       +
             |     |             |
-            +     +-+-+-+-+ +-+-+
+            + *$* +-+-+-+-+ +-+-+
             |     |     |R9   |
             +-+-+-+     +     +
                         |     |
-                        +     +
+                        + *$* +
                         |     |
                         +-+-+-+
 ",
-            ["RUNNER42"] = @"seed RUNNER42  version 2  11 rooms  76 x 96 m
+            ["RUNNER42"] = @"seed RUNNER42  version 3  11 rooms  76 x 96 m
                     +-+-+-+-+
                     |S0     |
                     +       +
@@ -295,46 +295,46 @@ namespace Roguelike.Rules.Tests
                     +   @   +
                     |       |
 +-+-+-+-+-+-+-+-+   +       +
-|B10            |   |       |
-+               +-+-+-+ +-+-+
-|               |C1       |
+|B10   &A&      |   |*    * |
++ #           # +-+-+-+ +-+-+
+|               |C1      *|
 +               +         +-+-+-+-+-+-+
 |               |         |R2   |R4   |
-+               +         +     +     +
-|               |     p         |     |
-+       g       +         +     +     +
++               +         +   * + *$* +
+|               |  :  p       $ |     |
++       g       +         +   * +     +
 |               |         |     |     |
 +               +         +-+-+-+-+ +-+
 |               |         |C3         |
-+               +         +           +
-|               |                     |
-+               +         +           +
-|               |         |           |
-+-+-+-+-+-+-+ +-+-+-+-+-+-+           +
-          |C8         |   |           |
-          +           +   +           +
++               +!     =  +           +
+|               |              :      |
++ #           # +         +           +
+|               |   =     |           |
++-+-+-+-+-+-+ +-+-+-+-+-+-+          u+
+          |C8       ~*|   |  #        |
+          +    =      +   +        %  +
           |s     g    |   |    b     b|
     +-+-+-+           +   +           +
-    |R9   |           |   |           |
-    +     +           + +-+-+-+ +-+-+-+
-    |                 | |C5       |
-    +     +           + +         +
-    |     |       s   | |         |
+    |R9   |           |   |          *|
+    + *   +           + +-+-+-+ +-+-+-+
+    | $          #    | |C5       |
+    + *   +           + +         +
+    |     |       s  *| |         |
     +-+-+-+-+ +-+-+-+-+-+         +
-          |C7           |         |
+          |C7   u   =   |       # |
           +             +h b      +
-          |             |         |
+          |     %       |         |
           +        p    +         +
-          |              h        |
+          |          %   h        |
           +             +         +
-          |             |         |
+          |             |  # &    |
           +             +         +
-          |             |         |
+          |             |*        |
           +   h         +-+-+-+ +-+
-          |             |   |R6   |
+          |*     ~     *|   |R6   |
           +-+-+-+-+-+-+-+   +     +
                             |     |
-                            +     +
+                            + *$* +
                             |     |
                             +-+-+-+
 ",
@@ -346,7 +346,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(2), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(3), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(Make(seed));
             TestContext.WriteLine("GOLDEN " + seedText + "\n" + map);
             Assert.That(map, Is.EqualTo(Golden[seedText].Replace("\r\n", "\n")), "map of seed " + seedText + "\n" + map);

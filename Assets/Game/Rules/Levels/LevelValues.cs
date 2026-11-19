@@ -127,6 +127,46 @@ namespace Roguelike.Rules
         public int BossHealth = 9000;          // the boss room's enemy, whatever its kind
         public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers; under WallClearance
 
+        // Props (work order 009)
+        public bool Props = true;              // off: levels are generated and built without props
+
         public LevelPlan Plan = new LevelPlan();
+        public PropValues PropRules = new PropValues();
+    }
+
+    /// <summary>
+    /// Where a level's props go and the rules every prop keeps (work order 009). Data, so it can be changed; all first
+    /// guesses. Lengths are in metres, measured from a prop's footprint (<see cref="PropSize.Crypt"/>).
+    /// </summary>
+    [Serializable]
+    public sealed class PropValues
+    {
+        // Rules every prop keeps
+        public float WallClearance = 0.5f;     // from a wall, for every prop but those that stand at a wall
+        public float AtWallGap = 0.1f;         // between a wall and the back of a prop that stands at it
+        public float AtWallMost = 0.5f;        // the farthest a prop that stands at a wall may be from it
+        public float FromDoor = 3f;            // from a door's opening
+        public float LaneWidth = 3f;           // a clear lane this wide from every door of a room to every other, and to its middle
+        public float LaneGrid = 0.5f;          // the grid the lane is checked on
+        public float FromPoints = 2f;          // from the player's start and from every enemy point
+        public float FloorSpacing = 3f;        // from an open-floor prop to any other prop
+        public float BossMiddleClear = 8f;     // round the boss room's middle, nothing
+
+        // Combat rooms
+        public int CombatFewest = 4;           // props in the smallest combat room
+        public int CombatMost = 8;             // props in the largest
+        public int CornerBraziers = 2;         // braziers, each in a corner drawn from the four
+        public float WallShare = 0.35f;        // of the rest, the share along the walls; the others in the open floor
+        public float PlaceStep = 0.5f;         // between the places tried for a prop
+        public int LaneTriesPerProp = 24;      // places a prop may try that pass every other rule, before it is left out
+        public PropModel[] FloorModels = { PropModel.Pillar, PropModel.PillarBroken, PropModel.Sarcophagus, PropModel.Rubble, PropModel.Statue };
+        public PropModel[] WallModels = { PropModel.GraveMarker, PropModel.Urns, PropModel.BonePile };
+
+        // Set pieces
+        public float SetSearch = 3f;           // how far from its wanted place a set piece may move to keep the rules
+        public float ChestBack = 1.5f;         // how far past the reward room's middle, seen from its door, the chest stands: the middle stays walkable
+        public float BesideGap = 0.6f;         // between the reward room's chest and each brazier beside it
+        public float StatueGap = 0.8f;         // between the boss room's altar and each statue beside it
+        public float BossPillarInset = 3.5f;   // from both walls of a corner to the middle of the boss room's pillar there
     }
 }

@@ -87,6 +87,10 @@ namespace Roguelike.Rules
         public readonly List<LevelPoint> EnemyPoints = new List<LevelPoint>();
         /// <summary>What stands at each enemy point, in the same order as <see cref="EnemyPoints"/> (work order 008).</summary>
         public readonly List<EnemyGroup> EnemyGroups = new List<EnemyGroup>();
+        /// <summary>The props that stand in it (work order 009), in the order they were placed.</summary>
+        public readonly List<LevelProp> Props = new List<LevelProp>();
+        /// <summary>The generator's notes, not part of the level: how many props it meant to put here, and how many of those it left out with a place refused by the clear lane.</summary>
+        public int PropsWanted, PropsLeftOutByLane;
 
         /// <summary>What stands at enemy point <paramref name="i"/>; a single brute when the room says nothing (a hand-made layout).</summary>
         public EnemyGroup GroupAt(int i) => i >= 0 && i < EnemyGroups.Count && EnemyGroups[i] != null ? EnemyGroups[i] : new EnemyGroup(EnemyKind.Brute);
@@ -204,8 +208,11 @@ namespace Roguelike.Rules
             return sb.ToString();
         }
 
-        /// <summary>Every field, as text: two levels with the same text are the same level, field for field.</summary>
-        public string Describe()
+        /// <summary>
+        /// Every field, as text: two levels with the same text are the same level, field for field. Without
+        /// <paramref name="props"/> it leaves the props out (work order 009), for comparing the rest.
+        /// </summary>
+        public string Describe(bool props = true)
         {
             var sb = new StringBuilder();
             sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) version {2} grid {3} cell {4:R} attempt {5}\n",
@@ -216,6 +223,8 @@ namespace Roguelike.Rules
                 if (r.PlayerStart.HasValue) sb.Append(" start ").Append(r.PlayerStart.Value);
                 for (int i = 0; i < r.EnemyPoints.Count; i++) sb.Append(" enemy ").Append(r.EnemyPoints[i]).Append(' ').Append(r.GroupAt(i));
                 sb.Append('\n');
+                if (props)
+                    foreach (LevelProp p in r.Props) sb.Append("  prop ").Append(p).Append('\n');
             }
             foreach (LevelDoor d in Doors)
                 sb.AppendFormat(CultureInfo.InvariantCulture, "door {0}-{1} {2} line {3} from {4} width {5}\n",

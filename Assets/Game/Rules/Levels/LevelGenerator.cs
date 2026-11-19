@@ -30,23 +30,30 @@ namespace Roguelike.Rules
     ///
     /// Version 2 (work order 008) gave each enemy point a kind of enemy. Only the contents changed: the layout stream
     /// is as it was, so old seeds keep their rooms and doors.
+    ///
+    /// Props (their own stream, "props"; work order 009, version 3): after the contents, the props of every room
+    /// (<see cref="PropPlacer"/>), unless <see cref="LevelValues.Props"/> is off. The layout and contents streams are
+    /// as they were, and the props stage never makes an attempt fail (a prop with no place is left out), so old seeds
+    /// keep their rooms, doors and enemy points.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
+        public const string PropsStage = "props";
 
         // The sides of a room, as the ways a path can step.
         const int North = 0, East = 1, South = 2, West = 3;
 
         /// <summary>
         /// The level of this seed. <paramref name="contentsWarmUp"/> throws away that many draws at the start of the
-        /// contents stage; it is there for the test that shows a change to one stage leaves the others alone.
+        /// contents stage, and <paramref name="propsWarmUp"/> of the props stage; they are there for the tests that show
+        /// a change to one stage leaves the others alone.
         /// </summary>
-        public static LevelLayout Generate(ulong seed, LevelValues values = null, int contentsWarmUp = 0)
+        public static LevelLayout Generate(ulong seed, LevelValues values = null, int contentsWarmUp = 0, int propsWarmUp = 0)
         {
             values = values ?? new LevelValues();
             List<string> faults = null;
@@ -63,7 +70,16 @@ namespace Roguelike.Rules
                 PlaceContents(level, contents, values);
 
                 faults = LevelValidator.Validate(level, values);
+                if (faults.Count > 0) continue;
+                if (!values.Props) return level;
+
+                // The props never send the generator to another attempt: that would change the rooms of an old seed.
+                LevelRandom props = LevelRandom.Stream(seed, PropsStage, attempt);
+                for (int i = 0; i < propsWarmUp; i++) props.NextBits();
+                PropPlacer.Place(level, props, values);
+                faults = LevelValidator.Validate(level, values);
                 if (faults.Count == 0) return level;
+                throw new InvalidOperationException("The props of seed " + LevelSeed.ToText(seed) + " break a rule: " + string.Join("; ", faults));
             }
             throw new InvalidOperationException("No valid level for seed " + LevelSeed.ToText(seed) + " in " + values.Attempts + " attempts"
                                                 + (faults != null ? ": " + string.Join("; ", faults) : ""));
