@@ -349,6 +349,11 @@ namespace Roguelike
                 if (s.MarksAdded > 0) e.AddExtra("marks_added", s.MarksAdded.ToString(CultureInfo.InvariantCulture));
                 if (s.MarkDamageBonus > 0f) e.AddExtra("mark_bonus", Text(s.MarkDamageBonus));
                 if (s.RecastCount > 1) e.AddExtra("recast_count", s.RecastCount.ToString(CultureInfo.InvariantCulture));
+                // Amended 2026-11-19: a chain may open with a move that fires nothing (Backstep's hop: its first press
+                // is a skill start and end with no shot), and its clean press may spend the marks instead of a clean tap.
+                if (s.RecastCount > 1 && s.OpeningMove) e.AddExtra("opening_move", "true");
+                if (s.RecastCount > 1 && s.CleanTapMarks > 0) e.AddExtra("clean_tap_marks", s.CleanTapMarks.ToString(CultureInfo.InvariantCulture));
+                if (s.RecastCount > 1 && s.CleanMarkDamageBonus > 0f) e.AddExtra("clean_mark_bonus", Text(s.CleanMarkDamageBonus));
                 Add(e);
             }
         }
@@ -440,7 +445,12 @@ namespace Roguelike
 
         // ---------------- Events ----------------
 
-        double Now() => Time.time - _startTime;
+        /// <summary>
+        /// Seconds since the session started, to the millisecond the log holds (<see cref="SessionEvent.AppendJson"/>):
+        /// the summary written at the end and one recomputed from the log then see the very same times. Kept to the
+        /// microsecond before 2026-11-19, a rate near a rounding edge could come out 0.1 apart in the two.
+        /// </summary>
+        double Now() => double.Parse(((double)(Time.time - _startTime)).ToString("0.000", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 
         void Add(SessionEvent e)
         {

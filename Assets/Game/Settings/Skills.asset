@@ -39,6 +39,8 @@ MonoBehaviour:
     RecastCount: 1
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   - Name: Powder Keg
     Input: 1
     Shape: 1
@@ -65,6 +67,8 @@ MonoBehaviour:
     RecastCount: 1
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   - Name: Fan Fire
     Input: 2
     Shape: 2
@@ -91,6 +95,8 @@ MonoBehaviour:
     RecastCount: 1
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   - Name: Long Shot
     Input: 3
     Shape: 0
@@ -117,10 +123,12 @@ MonoBehaviour:
     RecastCount: 1
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   - Name: Scatter Blast
     Input: 0
     Shape: 2
-    Cooldown: 8
+    Cooldown: 6
     Damage: 220
     Startup: 0.2
     Recovery: 0.35
@@ -143,6 +151,8 @@ MonoBehaviour:
     RecastCount: 1
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   - Name: Heavy Volley
     Input: 4
     Shape: 0
@@ -169,6 +179,8 @@ MonoBehaviour:
     RecastCount: 1
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   - Name: Backstep
     Input: 0
     Shape: 0
@@ -192,9 +204,11 @@ MonoBehaviour:
     MarksAdded: 1
     MarkInterval: 0
     MarkDamageBonus: 0
-    RecastCount: 1
+    RecastCount: 2
     RecastWindow: 0.6
     CleanTapMarks: 0
+    OpeningMove: 1
+    CleanMarkDamageBonus: 0.5
   - Name: Triple Tap
     Input: 0
     Shape: 0
@@ -221,6 +235,8 @@ MonoBehaviour:
     RecastCount: 3
     RecastWindow: 0.6
     CleanTapMarks: 2
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
   Identity:
     MaxFocus: 100
     FocusPerDamage: 0.005
@@ -232,7 +248,7 @@ MonoBehaviour:
   Kit:
     MaxMarks: 5
     MarkLifetime: 6
-    BasicShotsPerMark: 4
+    BasicShotsPerMark: 5
     StartWithAllSkills: 0
     CleanShare: 0.33333334
     CleanDamage: 1.5

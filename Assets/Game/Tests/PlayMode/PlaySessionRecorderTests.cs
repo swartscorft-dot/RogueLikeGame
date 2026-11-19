@@ -309,6 +309,78 @@ namespace Roguelike.PlayModeTests
             StringAssert.Contains("Marks and recasts", SessionSummary.Format(stats));
         }
 
+        /// <summary>
+        /// Amended 2026-11-19 after Kristian played: Backstep's two presses (the hop fires nothing, the second press is the
+        /// shot) and its clean spend, in the log and in the summary's lines for each recast skill and each spender.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Records_BackstepsTwoPresses_AndItsCleanSpend()
+        {
+            const int Backstep = 6;
+            SkillDefinition step = _player.Skills[Backstep];
+            KitValues kitValues = _player.Kit;
+            Assume.That(step.RecastCount, Is.EqualTo(2));
+            _player.EquipStartSkills();
+            _recorder = PlaySessionRecorder.StartRecording(_folder);
+            _player.Teleport(NearA);
+            yield return null;
+            _a.AddMarks(5, kitValues.MaxMarks, kitValues.MarkLifetime);
+            Assume.That(_a.MarkCount, Is.EqualTo(5));
+
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the hop");
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            yield return Until(() => _player.RecastWindowLeft <= kitValues.CleanShare * 0.5f, 2f);
+            Assume.That(_player.IsRecastWindowOpen, Is.True);
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the clean shot");
+            yield return Until(() => _player.Action == ActionKind.None && _player.RecastSlot == -1, 2f);
+            Assume.That(_a.MarkCount, Is.EqualTo(0), "the marks were spent");
+
+            string log = _recorder.LogPath;
+            _recorder.StopRecording();
+            _recorder = null;
+
+            List<SessionEvent> events = SessionSummary.ReadLog(log);
+            SessionEvent kit = events.Single(e => e.Type == SessionEventTypes.Skill && e.Name == step.Name);
+            Assert.That(kit.ExtraValue("recast_count"), Is.EqualTo("2"));
+            Assert.That(kit.ExtraValue("opening_move"), Is.EqualTo("true"));
+            Assert.That(kit.ExtraValue("clean_mark_bonus"), Is.EqualTo("0.5"));
+            List<SessionEvent> mine(string type) => Of(events, type).Where(e => e.Name == step.Name).ToList();
+            Assert.That(mine(SessionEventTypes.SkillPress).Select(e => e.Result), Is.EqualTo(new[] { SessionWords.Started, SessionWords.Started }), "two presses");
+            Assert.That(mine(SessionEventTypes.SkillStart).Count, Is.EqualTo(2), "the hop and the shot");
+            Assert.That(mine(SessionEventTypes.SkillEnd).Select(e => e.Hit), Is.EqualTo(new bool?[] { false, true }), "the hop fired nothing; the shot did");
+            Assert.That(mine(SessionEventTypes.SkillFired).Single().Hit, Is.True, "one shot");
+            SessionEvent recast = mine(SessionEventTypes.RecastPress).Single();
+            Assert.That(recast.Shot, Is.EqualTo(2));
+            Assert.That(recast.Clean, Is.True);
+            Assert.That(recast.Focus, Is.EqualTo(_player.Identity.FocusPerCleanTap).Within(1e-4f));
+            int want = MarkRules.SpenderDamage(step.Damage, 5, step.CleanMarkDamageBonus);
+            SessionEvent spent = mine(SessionEventTypes.MarksSpent).Single();
+            Assert.That(spent.Marks, Is.EqualTo(5));
+            Assert.That(spent.Damage, Is.EqualTo(want));
+            Assert.That(spent.Focus, Is.EqualTo(5 * _player.Identity.FocusPerMarkSpent).Within(1e-4f));
+            Assert.That(mine(SessionEventTypes.MarkAdd), Is.Empty, "a clean shot adds no mark");
+            SessionEvent chain = mine(SessionEventTypes.ChainEnd).Single();
+            Assert.That(chain.Shot, Is.EqualTo(2));
+            Assert.That(chain.Result, Is.EqualTo(SessionWords.Complete));
+
+            SessionStats stats = SessionSummary.Compute(events);
+            KitSkillRow row = stats.Kit.Skill(step.Name);
+            Assert.That(row, Is.Not.Null);
+            Assert.That(row.ChainsByLength[2], Is.EqualTo(1));
+            Assert.That(row.LastPresses, Is.EqualTo(1));
+            Assert.That(row.CleanPresses, Is.EqualTo(1));
+            Assert.That(row.SpenderHits, Is.EqualTo(1));
+            Assert.That(row.MarksPerSpenderHit, Is.EqualTo(5f));
+            Assert.That(row.CleanSpend, Is.True);
+            ActionRow actions = stats.Session.Row(step.Name);
+            Assert.That(actions.Started, Is.EqualTo(2));
+            Assert.That(actions.Hits, Is.EqualTo(1));
+            Assert.That(actions.Damage, Is.EqualTo(want));
+            string summary = SessionSummary.Format(stats);
+            TestContext.Out.WriteLine(summary);
+            StringAssert.Contains("  Backstep (clean presses)", summary);
+        }
+
         [UnityTest]
         public IEnumerator AFolderItCannotWrite_StopsTheRecording_SaysSoOnce_AndTheGameGoesOn()
         {

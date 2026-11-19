@@ -21,8 +21,13 @@ namespace Roguelike.Rules
     /// of the same key inside it fires the next shot, up to <see cref="SkillDefinition.RecastCount"/> shots. After the
     /// last shot, or when a window runs out, the chain is over. The press that fires the last shot is clean when it
     /// falls in the last <see cref="KitValues.CleanShare"/> of its window and the skill has a clean tap
-    /// (<see cref="SkillDefinition.CleanTapMarks"/> above 0). A press after the window has run out is no shot: the
-    /// chain is over. Time is passed in, in seconds.
+    /// (<see cref="SkillDefinition.CleanTapMarks"/> above 0) or a clean spend (<see cref="SkillDefinition.CleanMarkDamageBonus"/>
+    /// above 0). A press after the window has run out is no shot: the chain is over. Time is passed in, in seconds.
+    ///
+    /// A chain may open with a move (<see cref="SkillDefinition.OpeningMove"/>; Backstep, amended 2026-11-19 after
+    /// Kristian played): the first press is a move that fires nothing, and its window opens when the move has ended,
+    /// as a shot's does when it has gone off. The presses still count from the first: Backstep's chain of two is the
+    /// hop and one shot. <see cref="IsOpeningMove"/> says the use in progress is that move.
     /// </summary>
     public sealed class RecastChain
     {
@@ -31,6 +36,7 @@ namespace Roguelike.Rules
         int _shots;
         float _window;
         float _openedAt = float.PositiveInfinity;
+        bool _openingMove;
 
         /// <summary>The slot whose chain runs, or -1. A chain that has run out still shows here until <see cref="Expired"/> or <see cref="End"/>.</summary>
         public int Slot => _slot;
@@ -42,19 +48,29 @@ namespace Roguelike.Rules
         /// <summary>True when the open window is for the last shot of the chain.</summary>
         public bool NextIsLast => _shots == _count - 1;
 
-        /// <summary>The first press of a skill. A skill with a count of 1 has no chain.</summary>
-        public void Start(int slot, int count, float window)
+        /// <summary>
+        /// The first press of a skill. A skill with a count of 1 has no chain (and so no opening move: its one press
+        /// is an ordinary use). <paramref name="openingMove"/>: the first press is a move that fires nothing.
+        /// </summary>
+        public void Start(int slot, int count, float window, bool openingMove = false)
         {
             _count = Math.Max(1, count);
             _slot = _count > 1 ? slot : -1;
             _shots = 1;
             _window = Math.Max(0f, window);
             _openedAt = float.PositiveInfinity;
+            _openingMove = openingMove && _slot >= 0;
         }
 
+        /// <summary>True while the chain is on its first press and that press is a move that fires nothing.</summary>
+        public bool IsOpeningMove => _slot >= 0 && _openingMove && _shots == 1;
+
+        /// <summary>The shots fired, or started, so far: the presses, less the opening move if the chain has one.</summary>
+        public int ShotsFired => _openingMove ? _shots - 1 : _shots;
+
         /// <summary>
-        /// The chain's current shot went off: the window for the next press opens now. Nothing after the last shot:
-        /// the chain is then <see cref="IsComplete"/>, and the caller ends it.
+        /// The chain's current shot went off, or its opening move ended: the window for the next press opens now.
+        /// Nothing after the last shot: the chain is then <see cref="IsComplete"/>, and the caller ends it.
         /// </summary>
         public void ShotWentOff(float now)
         {
@@ -76,6 +92,10 @@ namespace Roguelike.Rules
             bool last = _shots + 1 >= _count;
             return last && hasCleanTap && IsClean(now - _openedAt, _window, cleanShare) ? RecastPress.Clean : RecastPress.Shot;
         }
+
+        /// <summary>True when the last press of this skill's chain can be clean: it has a clean tap or a clean spend.</summary>
+        public static bool HasCleanPress(SkillDefinition skill) =>
+            skill != null && (skill.CleanTapMarks > 0 || skill.CleanMarkDamageBonus > 0f);
 
         /// <summary>True when a press this long after its window opened falls in the window's last share.</summary>
         public static bool IsClean(float sinceOpened, float window, float cleanShare)

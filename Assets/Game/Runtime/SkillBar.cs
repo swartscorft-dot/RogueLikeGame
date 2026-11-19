@@ -81,6 +81,7 @@ namespace Roguelike
                 float cooldown = Player.SkillCooldownRemaining(slot);
                 bool chain = slot == Player.RecastSlot;
                 string state = slot == active ? Player.SkillPhase.ToString()
+                    : chain && Player.IsRecastWindowOpen && skills[slot].OpeningMove ? "shoot" // Backstep after its hop (2026-11-19)
                     : chain && Player.IsRecastWindowOpen ? string.Format(s_Inv, "tap {0} / {1}", Player.RecastShots + 1, skills[slot].RecastCount)
                     : slot == recovering ? "Recovery (free)"
                     : cooldown > 0f ? string.Format(s_Inv, "{0:0.0} s", cooldown) : "ready";

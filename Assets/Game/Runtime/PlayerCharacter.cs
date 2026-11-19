@@ -68,6 +68,11 @@ namespace Roguelike
     /// - Recast skills (<see cref="SkillDefinition.RecastCount"/>, Triple Tap): one shot per press, the next press in
     ///   the window that opens when a shot has gone off (<see cref="RecastChain"/>); the last one clean in the window's
     ///   last share. A dash or another skill ends the chain; the cooldown runs from the first press.
+    /// - Backstep (amended 2026-11-19 after Kristian played: a second, harder way to spend marks) is a chain of two that
+    ///   opens with a move (<see cref="SkillDefinition.OpeningMove"/>): the first press is the hop and fires nothing;
+    ///   when it ends she is free and the window opens; the second press fires the shot at the cursor. A clean second
+    ///   press (<see cref="SkillDefinition.CleanMarkDamageBonus"/>) spends the marks of each target it hits, as a
+    ///   spender does; an earlier one is an ordinary shot that adds its mark. The shot itself does not move her.
     /// - Focus fills from spent marks, clean taps and a trickle of damage; spending it cuts every running cooldown and,
     ///   for its window, makes every basic shot hit mark.
     /// </summary>
@@ -126,7 +131,9 @@ namespace Roguelike
         readonly RecastChain _chain = new RecastChain();
         readonly List<bool> _equipped = new List<bool>();
         readonly Dictionary<Damageable, float> _markedAt = new Dictionary<Damageable, float>(); // by the skill in use, for its mark interval
-        bool _castClean; // the shot of the skill in use is a clean tap
+        bool _castClean; // the shot of the skill in use came from a clean press: a clean tap or a clean spend
+        bool _castMoves;   // the skill in use moves her over its startup (MoveDistance): not the shot after an opening move
+        bool _castOpening; // the skill in use is a chain's opening move: it fires nothing (Backstep's hop)
 
         NavMeshAgent _agent;
 
@@ -290,10 +297,10 @@ namespace Roguelike
         public float RecastWindowLeft => _chain.WindowLeft(Time.time);
         /// <summary>
         /// The share of the open window, at its end, in which the next press is clean; 0 when the next press cannot be
-        /// clean (not the last, or the skill has no clean tap).
+        /// clean (not the last, or the skill has neither a clean tap nor a clean spend).
         /// </summary>
         public float RecastCleanShare =>
-            _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && Skills[_chain.Slot].CleanTapMarks > 0
+            _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
                 ? Mathf.Clamp01(Kit.CleanShare) : 0f;
 
         /// <summary>
@@ -446,7 +453,7 @@ namespace Roguelike
             Report(new PlayerReport
             {
                 Kind = PlayerReportKind.SkillEnded, Slot = _castSlot, Ending = ending,
-                Held = _cast.HeldSeconds(now), Charge = _cast.Charge(now), Fired = _cast.HitsTaken > 0,
+                Held = _cast.HeldSeconds(now), Charge = _cast.Charge(now), Fired = _cast.HitsTaken > 0 && !_castOpening,
             });
         }
 
@@ -466,7 +473,7 @@ namespace Roguelike
             // A recast (decision 0005): inside the window it fires the next shot at once, whatever the cooldown; before
             // the shot it follows has gone off it waits like any press during a skill.
             ExpireChain(Time.time);
-            RecastPress recast = _chain.Judge(slot, Time.time, Kit.CleanShare, Skills[slot].CleanTapMarks > 0);
+            RecastPress recast = _chain.Judge(slot, Time.time, Kit.CleanShare, RecastChain.HasCleanPress(Skills[slot]));
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 _shotCursor = point;
@@ -543,7 +550,7 @@ namespace Roguelike
         bool StartWaitingSkill(Press press, float now)
         {
             ExpireChain(now);
-            RecastPress recast = _chain.Judge(press.Slot, now, Kit.CleanShare, Skills[press.Slot].CleanTapMarks > 0);
+            RecastPress recast = _chain.Judge(press.Slot, now, Kit.CleanShare, RecastChain.HasCleanPress(Skills[press.Slot]));
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 Recast(press.Slot, press.Point, recast == RecastPress.Clean);
@@ -715,7 +722,7 @@ namespace Roguelike
             {
                 SkillDefinition skill = _cast.Skill;
                 // A skill that moves the character does so over its startup, along the aim it was pressed with.
-                if (skill.MoveDistance != 0f)
+                if (_castMoves)
                 {
                     float moved = skill.MoveDistance * _cast.StartupProgress(now);
                     if (moved != _castMoved)
@@ -742,32 +749,47 @@ namespace Roguelike
                     UpdateFacing(feel);
                 }
 
-                float charge = _cast.Charge(now);
-                bool landed = false;
-                int fired = _cast.TakeHits(now);
-                for (int hits = fired; hits > 0; hits--) landed |= ResolveSkillHit(skill, charge);
-                if (landed) HitStop.Trigger(feel.HitStop);
-                // A shot of a recast chain went off: the window for the next press opens, or the chain is complete.
-                if (fired > 0 && _chain.Slot == _castSlot)
+                // An opening move (Backstep's hop, amended 2026-11-19): it fires nothing. When the move has ended (its
+                // startup is over: the moment its shot went off before) the window for the shot opens and she is free at
+                // once, with no recovery and nothing that holds back the next skill.
+                if (_castOpening)
                 {
+                    if (_cast.TakeHits(now) == 0) return;
                     _chain.ShotWentOff(now);
-                    if (_chain.IsComplete) EndChain();
+                    ReportSkillEnded(SkillEnding.RanOut, now);
+                    LetGo(skill, now);
+                    _cast.Cancel();
+                    EndAction();
                 }
-                // Committed until the last hit. With the free recovery, that is where the skill lets her go; the next
-                // skill still waits until the recovery would have ended. Without it, the recovery locks as before.
-                if (feel.SkillRecoveryFree ? _cast.IsCommitted(now) : _cast.IsRunning(now)) return;
-                if (feel.SkillRecoveryFree)
+                else
                 {
-                    // Set even when a long frame has already carried her past the recovery's end: a press that waited
-                    // is then judged from the moment the skill let her go, as at any other gate (SkillGate).
-                    _skillGateUntil = _cast.RecoveryEndsAt;
-                    _gateLetGoAt = _cast.RecoveryEndsAt - skill.Recovery;
-                    _gateSlot = _castSlot;
+                    float charge = _cast.Charge(now);
+                    bool landed = false;
+                    int fired = _cast.TakeHits(now);
+                    for (int hits = fired; hits > 0; hits--) landed |= ResolveSkillHit(skill, charge);
+                    if (landed) HitStop.Trigger(feel.HitStop);
+                    // A shot of a recast chain went off: the window for the next press opens, or the chain is complete.
+                    if (fired > 0 && _chain.Slot == _castSlot)
+                    {
+                        _chain.ShotWentOff(now);
+                        if (_chain.IsComplete) EndChain();
+                    }
+                    // Committed until the last hit. With the free recovery, that is where the skill lets her go; the next
+                    // skill still waits until the recovery would have ended. Without it, the recovery locks as before.
+                    if (feel.SkillRecoveryFree ? _cast.IsCommitted(now) : _cast.IsRunning(now)) return;
+                    if (feel.SkillRecoveryFree)
+                    {
+                        // Set even when a long frame has already carried her past the recovery's end: a press that waited
+                        // is then judged from the moment the skill let her go, as at any other gate (SkillGate).
+                        _skillGateUntil = _cast.RecoveryEndsAt;
+                        _gateLetGoAt = _cast.RecoveryEndsAt - skill.Recovery;
+                        _gateSlot = _castSlot;
+                    }
+                    ReportSkillEnded(SkillEnding.RanOut, now);
+                    LetGo(skill, now);
+                    _cast.Cancel();
+                    EndAction();
                 }
-                ReportSkillEnded(SkillEnding.RanOut, now);
-                LetGo(skill, now);
-                _cast.Cancel();
-                EndAction();
             }
 
             // Free from here on: first a buffered press that may start now, then a waiting click, then the order.
@@ -915,7 +937,7 @@ namespace Roguelike
             }
             float share = _sliding ? SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, Feel.SkillSlowdown) : 0f;
             _sliding = false;
-            _rising = skill == null || skill.MoveDistance == 0f;
+            _rising = skill == null || !_castMoves;
             _riseFrom = share;
             _riseStartedAt = now;
         }
@@ -1034,6 +1056,9 @@ namespace Roguelike
         {
             SkillDefinition skill = Skills[slot];
             bool light = skill.Lock == SkillLock.Light;
+            // A skill moves her over its startup, but the shot after an opening move does not: Backstep hops on its
+            // first press only (amended 2026-11-19).
+            bool moves = skill.MoveDistance != 0f && !(recast && skill.OpeningMove);
             FeelValues feel = Feel;
             DropWaitingClick(); // a skill drops a waiting click
             _action.Cancel(); // a skill may start during a basic shot, and ends it
@@ -1058,7 +1083,7 @@ namespace Roguelike
                 Vector3 velocity = Flat(Time.timeScale > 0f ? _agent.velocity : _lastVelocity);
                 float share = feel.RunSpeed > 0f ? Mathf.Clamp01(velocity.magnitude / feel.RunSpeed) : 0f;
                 _rising = false;
-                _sliding = skill.MoveDistance == 0f && feel.SkillSlowdown > 0f && share > 0.01f;
+                _sliding = !moves && feel.SkillSlowdown > 0f && share > 0.01f;
                 if (_sliding)
                 {
                     _slideFrom = share;
@@ -1084,12 +1109,14 @@ namespace Roguelike
             _cast.Start(skill, Time.time);
             _markedAt.Clear();
             _castClean = false;
+            _castMoves = moves;
             if (!recast)
             {
                 EndChain(); // another skill starting ends a chain (decision 0005)
-                _chain.Start(slot, skill.RecastCount, skill.RecastWindow);
+                _chain.Start(slot, skill.RecastCount, skill.RecastWindow, skill.OpeningMove);
                 CooldownFor(slot).Start(Time.time, skill.Cooldown);
             }
+            _castOpening = !recast && _chain.IsOpeningMove;
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
         }
 
@@ -1158,7 +1185,8 @@ namespace Roguelike
         }
 
         /// <summary>
-        /// The marks a builder's hit adds to a target: the skill's, or for a clean tap the clean tap's. A skill with a
+        /// The marks a builder's hit adds to a target: the skill's, or for a clean tap the clean tap's (a clean spend
+        /// takes the marks and never comes here). A skill with a
         /// mark interval marks a target at most that often in one use (Fan Fire: once a second, not every tick).
         /// </summary>
         void MarkFromSkill(SkillDefinition skill, Damageable target)
@@ -1212,8 +1240,11 @@ namespace Roguelike
             PlaySound(look); // once per hit of a burst, per tick of a hold, per landing
 
             int damage = SkillRules.Damage(skill, charge);
-            if (_castClean) damage = Mathf.RoundToInt(damage * Kit.CleanDamage); // a clean tap (decision 0005)
-            bool spender = MarkRules.IsSpender(skill);
+            // A clean tap (decision 0005) hits harder by itself; a clean spend (Backstep, amended 2026-11-19) instead
+            // takes the marks, as a spender does, for its own bonus per mark.
+            if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * Kit.CleanDamage);
+            bool spender = MarkRules.Spends(skill, _castClean);
+            float bonusPerMark = MarkRules.BonusPerMark(skill, _castClean);
             bool landed = false;
             IReadOnlyList<Damageable> all = Damageable.All;
             for (int i = 0; i < all.Count; i++)
@@ -1224,7 +1255,7 @@ namespace Roguelike
                 bool empowered = IsEmpowered;
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005).
                 int taken = spender ? d.TakeMarks() : 0;
-                int dealt = spender ? MarkRules.SpenderDamage(damage, taken, skill.MarkDamageBonus) : damage;
+                int dealt = spender ? MarkRules.SpenderDamage(damage, taken, bonusPerMark) : damage;
                 int applied = Deal(d, dealt, out float focus);
                 if (spender)
                 {

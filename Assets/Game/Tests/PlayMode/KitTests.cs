@@ -85,11 +85,18 @@ namespace Roguelike.PlayModeTests
             Assert.That(Lost(_b), Is.EqualTo(0));
         }
 
+        /// <summary>
+        /// Changed deliberately 2026-11-19 after Kristian played: Backstep was one press, the hop and then a shot along
+        /// the aim. It is now two: the first press is the hop and fires nothing; the second, in the window that opens
+        /// when the hop ends, fires the shot at the cursor. Here the second press comes early in the window (an
+        /// ordinary shot); KitCoreTests check the clean press, no second press and a late one.
+        /// </summary>
         [UnityTest]
-        public IEnumerator Backstep_MovesTheCharacterBack_AndShootsWhereItWasAimed()
+        public IEnumerator Backstep_MovesTheCharacterBack_AndTheSecondPressShootsWhereItIsAimed()
         {
             SkillDefinition skill = Skill(Backstep);
             Assume.That(skill.MoveDistance, Is.LessThan(-1f), "it moves backward");
+            Assume.That(skill.RecastCount, Is.EqualTo(2));
             _player.Teleport(NearA);
             yield return null;
             Vector3 from = _player.Position;
@@ -97,12 +104,18 @@ namespace Roguelike.PlayModeTests
             Assume.That(toA.magnitude - skill.MoveDistance, Is.LessThan(skill.Range), "A is still in range after the step back");
 
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            yield return Until(() => _player.IsRecastWindowOpen, 3f);
 
             Vector3 moved = Flat(_player.Position - from);
             Assert.That(moved.magnitude, Is.EqualTo(-skill.MoveDistance).Within(0.3f), "it moved its move distance");
             Assert.That(Vector3.Dot(moved.normalized, toA.normalized), Is.LessThan(-0.98f), "straight away from the aim");
-            Assert.That(Lost(_a), Is.EqualTo(skill.Damage), "and the shot landed where it was aimed");
+            Assert.That(Lost(_a), Is.EqualTo(0), "the hop fires nothing");
+
+            Vector3 hopEnd = _player.Position;
+            Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
+            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            Assert.That(Lost(_a), Is.EqualTo(skill.Damage), "the shot landed where it was aimed");
+            Assert.That(Flat(_player.Position - hopEnd).magnitude, Is.LessThan(0.05f), "the shot does not move her");
         }
 
         /// <summary>
