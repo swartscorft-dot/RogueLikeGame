@@ -15,7 +15,12 @@ namespace Roguelike
     /// <see cref="LevelValues.WallThickness"/> thick, centred on the edge. The camera looks north from the south
     /// (<see cref="CameraRig"/>), so a wall on a room's south side stands between the camera and that room's floor; it
     /// is built only <see cref="LevelValues.NearWallHeight"/> high. A NavMeshSurface on the root collects the floors and
-    /// walls by their colliders and is built once they are there. Then the enemies of each enemy point stand there, of
+    /// walls by their colliders, and the props' (work order 009: each prop of the description stands at its place on
+    /// the walls' layer with a box or capsule collider of its footprint and height, never lower than a little over the
+    /// agent's step, so a low prop is not a step to walk over), and is built once they are there.
+    /// The props treat shots and attacks as the walls do: the player's shots and skills and the enemies' strikes do
+    /// not look at walls; the shooter's sight and shot stop at any collider that is not a character, so at walls and
+    /// props alike. Then the enemies of each enemy point stand there, of
     /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed.
     ///
     /// Positions: the level's ground point (x, y) in metres is the world point (x, 0, y) moved so that the start
@@ -42,7 +47,15 @@ namespace Roguelike
         public int Floors { get; private set; }
         public int Walls { get; private set; }
         public int LowWalls { get; private set; }
+        /// <summary>The layer the walls are on (work order 009): the props are put on it too.</summary>
+        public int WallLayer { get; private set; }
+        /// <summary>The props built, in the order of the rooms and of each room's props.</summary>
+        public IReadOnlyList<PlacedProp> Props => _props;
+        /// <summary>The lowest a prop's collider is made, in metres: the NavMesh agent's step height and <see cref="LowPropMargin"/>.</summary>
+        public float LowestPropCollider { get; private set; }
+        public const float LowPropMargin = 0.25f;
 
+        readonly List<PlacedProp> _props = new List<PlacedProp>();
         readonly Dictionary<int, List<Enemy>> _enemiesByRoom = new Dictionary<int, List<Enemy>>();
         readonly List<Enemy> _enemies = new List<Enemy>();
         readonly List<PlacedGroup> _groups = new List<PlacedGroup>();
@@ -65,6 +78,7 @@ namespace Roguelike
 
             level.BuildFloors(baseMaterial);
             level.BuildWalls(baseMaterial);
+            level.BuildProps();
 
             level.Surface = root.AddComponent<NavMeshSurface>();
             level.Surface.collectObjects = CollectObjects.Children;
@@ -201,8 +215,46 @@ namespace Roguelike
             wall.transform.position = ToWorld(centre) + Vector3.up * (height * 0.5f);
             wall.transform.localScale = vertical ? new Vector3(t, height, along) : new Vector3(along, height, t);
             wall.GetComponent<Renderer>().sharedMaterial = material;
+            WallLayer = wall.layer;
             Walls++;
             if (low) LowWalls++;
+        }
+
+        // ---------------- Props (work order 009) ----------------
+
+        /// <summary>
+        /// Each prop of the description at its place, turned, under the root, on the walls' layer, with a collider of
+        /// its footprint and height (<see cref="PropFactory"/>): the NavMesh is built round it, she cannot walk through
+        /// it and enemies path round it. One material per model, made here and destroyed with the level.
+        /// </summary>
+        void BuildProps()
+        {
+            var materials = new Dictionary<PropModel, Material>();
+            // Low props block movement like the rest: their colliders stand over the height the agent steps up.
+            LowestPropCollider = NavMesh.GetSettingsByID(0).agentClimb + LowPropMargin;
+            foreach (LevelRoom room in Layout.Rooms)
+            {
+                for (int i = 0; i < room.Props.Count; i++)
+                {
+                    LevelProp prop = room.Props[i];
+                    if (!materials.TryGetValue(prop.Model, out Material m))
+                    {
+                        materials[prop.Model] = m = PropFactory.MakeMaterial(prop.Model);
+                        _materials.Add(m);
+                    }
+                    string name = "Prop_" + room.Letter + room.Order + "_" + i + "_" + prop.Model;
+                    GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
+                    _props.Add(new PlacedProp { Room = room, Prop = prop, Object = go });
+                }
+            }
+        }
+
+        /// <summary>A prop as built: its room, its description, and the object standing there.</summary>
+        public sealed class PlacedProp
+        {
+            public LevelRoom Room;
+            public LevelProp Prop;
+            public GameObject Object;
         }
 
         // ---------------- Enemies ----------------

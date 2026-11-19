@@ -88,7 +88,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.Walls, Is.GreaterThan(layout.Rooms.Count));
             Assert.That(level.LowWalls, Is.GreaterThan(0), "walls on the camera's side are low");
             Assert.That(level.LowWalls, Is.LessThan(level.Walls));
-            Assert.That(level.GetComponentsInChildren<Collider>().Length, Is.EqualTo(level.Floors + level.Walls), "floors and walls have colliders");
+            // Work order 009: and each prop has one.
+            Assert.That(level.GetComponentsInChildren<Collider>().Length, Is.EqualTo(level.Floors + level.Walls + level.Props.Count), "floors, walls and props have colliders");
 
             Assert.That(_levels.CurrentRoom, Is.Not.Null);
             Assert.That(_levels.CurrentRoom.Kind, Is.EqualTo(RoomKind.Start));

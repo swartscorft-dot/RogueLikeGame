@@ -19,6 +19,9 @@ namespace Roguelike.Rules
     /// and enemy point is inside its room and far enough from its walls and doors, a combat room's enemies far enough
     /// from the door she enters by and from each other. Since work order 008 also: every enemy point has a group, a
     /// room holds just the groups its plan gives it, only swarmers come in packs, and a pack fits inside its room.
+    /// Since work order 009 also the props: each is a model its kind of room may hold, with its model's footprint, and
+    /// keeps every rule of <see cref="PropRules"/>; no room holds more than its kind may; and every room keeps its
+    /// clear lane.
     /// </summary>
     public static class LevelValidator
     {
@@ -223,6 +226,31 @@ namespace Roguelike.Rules
                         if (p.DistanceTo(r.EnemyPoints[j]) < values.EnemySpacing - Slack)
                             faults.Add($"{Name(r)}'s enemies {i} and {j} are nearer each other than {values.EnemySpacing} m");
                 }
+            }
+
+            // The props (work order 009).
+            PropValues pv = values.PropRules;
+            foreach (LevelRoom r in rooms)
+            {
+                PropModel[] allowed = PropRules.ModelsFor(r.Kind, pv);
+                if (r.Props.Count > PropRules.MostIn(r.Kind, pv))
+                    faults.Add($"{Name(r)} has {r.Props.Count} props, a {r.Kind} room at most {PropRules.MostIn(r.Kind, pv)}");
+                for (int i = 0; i < r.Props.Count; i++)
+                {
+                    LevelProp p = r.Props[i];
+                    string label = $"{Name(r)}'s prop {i} ({p.Model} at {p.Position})";
+                    if (Array.IndexOf(allowed, p.Model) < 0) faults.Add($"{label} does not belong in a {r.Kind} room");
+                    LevelProp table = LevelProp.Make(p.Model, p.Position, p.Rotation, p.Place);
+                    if (p.Shape != table.Shape || p.Width != table.Width || p.Depth != table.Depth || p.Radius != table.Radius || p.Height != table.Height)
+                        faults.Add($"{label} has a footprint that is not its model's");
+                    var broken = new List<string>();
+                    PropRules.Fault(level, r, p, r.Props, pv, broken);
+                    foreach (string fault in broken) faults.Add(label + " " + fault);
+                }
+                var lane = new PropRules.Lane(level, r, pv);
+                foreach (LevelProp p in r.Props) lane.Block(p.Footprint);
+                if (!lane.Clear())
+                    faults.Add($"{Name(r)} has no clear lane {pv.LaneWidth} m wide from each door to each other" + (r.Kind == RoomKind.Reward ? "" : " and to its middle"));
             }
             return faults;
         }

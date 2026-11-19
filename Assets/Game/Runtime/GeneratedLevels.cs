@@ -207,9 +207,9 @@ namespace Roguelike
             CurrentRoom = null;
 
             player.Teleport(_level.PlayerStart);
-            Debug.Log(string.Format(s_Inv, "Generated level {0} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies{6}\n{7}",
+            Debug.Log(string.Format(s_Inv, "Generated level {0} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies, {6} props{7}\n{8}",
                                     layout.SeedText, layout.Seed, layout.Version, layout.Attempt, layout.Rooms.Count, _level.Enemies.Count,
-                                    template == null ? " (no enemy in the scene to copy)" : "", LevelMap.Draw(layout)));
+                                    _level.Props.Count, template == null ? " (no enemy in the scene to copy)" : "", LevelMap.Draw(layout)));
             PlaySessionRecorder.Current?.NoteLevelBuilt(layout.SeedText, layout.Version, layout.Rooms.Count);
             TrackRoom();
             return _level;
