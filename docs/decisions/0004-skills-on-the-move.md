@@ -57,11 +57,22 @@ Settled by the agent while building, 2026-11-19, and open in the same way:
 - **A Holding skill lets her go at the release** (or at its longest hold), a Charge skill at its shot.
 - **When the arm hold starts, the arms go from the shot's aim to the live cursor without smoothing.** A small snap if the cursor moved during the shot.
 
+## Kristian's rulings on four open points (2026-11-19, after more play)
+
+Asked the four questions below, he answered "ja til alt" (yes to all) and added to two of them.
+
+- **A skill key pressed early in a free recovery feels like a missed key: yes.** To be changed: a skill press made in the free recovery, or within the buffer time before the last hit, waits out the recovery and fires at its end. In work order 003, not built into this branch yet.
+- **Letting go of the move keys during a skill stops her at the last hit: fine as it is.**
+- **Long casts stopping her: nothing to change.** His words: "hun vil jo det etter hvert på 3 uansett" (she will end up doing that on the long ones anyway). The slide already brings her to a stand early in a long cast, so there is no per-skill dead stop.
+- **The move keys should steer the slide: yes.** To be changed: the held direction steers the slide, and the speed still follows the slowdown. In work order 003, not built into this branch yet. How it steers (the direction changes at once, an opposite key does not brake) is the producer's choice, not his.
+
+**For later, his idea, not built:** steering the slide is a little like counter-strafing, but there is no accuracy yet. "Det tenker jeg vi bør implementere senere, sånn at det lønner seg å stå stille for treffsikkerhet": accuracy should come later, so that it pays to stand still to hit. Also in `docs/parking-lot.md`.
+
 ## Found in review, fixed the same day
 
 An independent review of the change on 2026-11-19 found one fault in the W A S D work, older than this decision:
 
-- **A move key pressed during a standing shot's wind-up made her start at full speed and then slow down.** The shot became a shot on the move and eased down from full speed, although she was standing: 0, then 6, then 3, then back to 6 m/s. Fixed in 7b9f7b7: the ease now starts from the speed she has, zero from a stand. Two PlayMode tests in `MovingShotStartTests` check every frame against the curve. Kristian has not played the fix yet.
+- **A move key pressed during a standing shot's wind-up made her start at full speed and then slow down.** The shot became a shot on the move and eased down from full speed, although she was standing: 0, then 6, then 3, then back to 6 m/s. Fixed in 7b9f7b7: the ease now starts from the speed she has, zero from a stand. Two PlayMode tests in `MovingShotStartTests` check every frame against the curve. Kristian played the fix the same day: "bra test. det funker" (good test, it works).
 
 ## Measured in tests (default values, run speed 6 m/s)
 
