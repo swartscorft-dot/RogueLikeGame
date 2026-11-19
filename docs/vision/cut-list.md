@@ -2,7 +2,6 @@
 
 Deliberately not built before the demo is out. Ideas that come up go to docs/parking-lot.md.
 
-- Procedurally generated rooms
 - Gear and loot
 - Story, dialogue and cutscenes
 - A second class
@@ -11,3 +10,5 @@ Deliberately not built before the demo is out. Ideas that come up go to docs/par
 - Music and finished audio beyond placeholders
 - Controller support and translations
 - Steam integration before the demo milestone
+
+Taken off this list: procedurally generated rooms, on 2026-11-19 (decision 0007).
