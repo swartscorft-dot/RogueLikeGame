@@ -112,6 +112,32 @@ namespace Roguelike.Rules.Tests
             Assert.That(f.GapsOver2Seconds, Is.EqualTo(2.5f).Within(1e-4f));
         }
 
+        /// <summary>
+        /// Holding or casting a skill is not time doing nothing: the long gaps are counted on the time she was free,
+        /// from the moment the skill let her go. The rhythm (start to start) is unchanged.
+        /// </summary>
+        [Test]
+        public void Gaps_TheLongOnes_AreCountedFromWhereASkillLetHerGo()
+        {
+            var events = new List<SessionEvent>
+            {
+                // Held for 1.6 s, then a shot 0.2 s after it let her go: 1.8 s start to start, 0.2 s free.
+                SkillStart(1, Fan), new SessionEvent(2.6, SessionEventTypes.SkillEnd, Fan) { Held = 1.6f, Hit = true, Result = SessionWords.RanOut },
+                ShotStart(2.8),
+                // A quick skill that let her go at once, then nothing for 1.5 s: free for 1.4 s.
+                SkillStart(3.0, Quick), new SessionEvent(3.1, SessionEventTypes.SkillEnd, Quick) { Hit = true, Result = SessionWords.RanOut },
+                ShotStart(4.5),
+                End(5),
+            };
+
+            ScopeStats s = SessionSummary.Compute(events).Session;
+
+            // Gaps start to start: 1.8, 0.2, 1.5.
+            Assert.That(s.GapMedian, Is.EqualTo(1.5f).Within(1e-4f), "the rhythm still counts the hold");
+            Assert.That(s.GapsOver1, Is.EqualTo(1), "only the time after the quick skill was free for over a second");
+            Assert.That(s.GapsOver1Seconds, Is.EqualTo(1.4f).Within(1e-4f));
+        }
+
         [Test]
         public void Pairs_CountWhatFollowsWhat_MostCommonFirst()
         {

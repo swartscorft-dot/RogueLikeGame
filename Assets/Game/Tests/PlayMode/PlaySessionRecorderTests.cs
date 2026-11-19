@@ -255,6 +255,60 @@ namespace Roguelike.PlayModeTests
             Assert.That(stats.Session.Holds.Single(h => h.Name == _player.Skills[charge].Name).Uses, Is.EqualTo(1));
         }
 
+        /// <summary>Decision 0005: marks added and spent, a recast chain, a press on an empty slot and the cooldown cut.</summary>
+        [UnityTest]
+        public IEnumerator Records_TheKit_MarksAChainAnEmptySlotAndTheCut()
+        {
+            Damageable a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
+            const int Quick = 0, Keg = 1, Scatter = 4, Triple = 7;
+            _player.EquipStartSkills();
+            _recorder = PlaySessionRecorder.StartRecording(_folder);
+            _player.Teleport(new Vector3(2f, 0f, 1f));
+            yield return null;
+
+            Assert.That(_player.PressSkill(Keg, a.transform.position), Is.EqualTo(IntentResult.Rejected));
+            Assert.That(_player.PressSkill(Quick, a.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 2f);
+            Assert.That(_player.PressSkill(Triple, a.transform.position), Is.EqualTo(IntentResult.Started));
+            for (int press = 2; press <= 3; press++)
+            {
+                yield return Until(() => _player.IsRecastWindowOpen, 2f);
+                Assert.That(_player.PressSkill(Triple, a.transform.position), Is.EqualTo(IntentResult.Started));
+            }
+            yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 2f);
+            Assume.That(a.MarkCount, Is.EqualTo(4), "one from Quick Shot, three from Triple Tap");
+            Assert.That(_player.PressSkill(Scatter, a.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => _player.Action == ActionKind.None, 2f);
+            _player.FillFocus();
+            Assert.That(_player.ActivateIdentity(), Is.EqualTo(IntentResult.Started));
+            yield return null;
+
+            string log = _recorder.LogPath;
+            _recorder.StopRecording();
+            _recorder = null;
+
+            List<SessionEvent> events = SessionSummary.ReadLog(log);
+            Assert.That(Of(events, SessionEventTypes.SkillPress).Count(e => e.Reason == SessionWords.NotEquipped), Is.EqualTo(1), "the press on the empty slot");
+            Assert.That(Of(events, SessionEventTypes.MarkAdd).Last().Marks, Is.EqualTo(4), "the count after each mark");
+            SessionEvent spent = Of(events, SessionEventTypes.MarksSpent).Single();
+            Assert.That(spent.Marks, Is.EqualTo(4));
+            Assert.That(spent.Damage, Is.EqualTo(MarkRules.SpenderDamage(_player.Skills[Scatter].Damage, 4, _player.Skills[Scatter].MarkDamageBonus)));
+            Assert.That(Of(events, SessionEventTypes.RecastPress).Select(e => e.Shot), Is.EqualTo(new int?[] { 2, 3 }));
+            Assert.That(Of(events, SessionEventTypes.ChainEnd).Single().Result, Is.EqualTo(SessionWords.Complete));
+            SessionEvent cut = Of(events, SessionEventTypes.CooldownCut).Single();
+            Assert.That(cut.ExtraValue("cut." + _player.Skills[Scatter].Name), Is.Not.Null, "Scatter Blast's cooldown was cut");
+
+            SessionStats stats = SessionSummary.Compute(events);
+            Assert.That(stats.Kit.SpenderHits, Is.EqualTo(1));
+            Assert.That(stats.Kit.MarksPerSpenderHit, Is.EqualTo(4f));
+            Assert.That(stats.Kit.ChainsByLength[3], Is.EqualTo(1));
+            Assert.That(stats.Kit.LastPresses, Is.EqualTo(1));
+            Assert.That(stats.Kit.FocusFromMarks, Is.EqualTo(4 * _player.Identity.FocusPerMarkSpent).Within(1e-3f));
+            Assert.That(stats.Kit.NotEquippedPresses, Is.EqualTo(1));
+            Assert.That(stats.Session.NeverUsed, Does.Not.Contain(_player.Skills[Keg].Name), "a skill that was not on the bar is not 'never used'");
+            StringAssert.Contains("Marks and recasts", SessionSummary.Format(stats));
+        }
+
         [UnityTest]
         public IEnumerator AFolderItCannotWrite_StopsTheRecording_SaysSoOnce_AndTheGameGoesOn()
         {

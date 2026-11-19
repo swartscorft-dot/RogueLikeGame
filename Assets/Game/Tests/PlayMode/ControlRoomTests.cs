@@ -114,7 +114,10 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(_player.CastAt(aim), Is.EqualTo(IntentResult.Started));
             Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill));
-            if (_feel.FaceCursorOnCast)
+            // A committed skill turns her to the aim point. The first skill, Quick Shot, is light since decision 0005
+            // (2026-11-19): it aims at the point and turns the body only as a basic shot would (BackpedalTests).
+            Assert.That(Flat(_player.AimPoint - aim).magnitude, Is.LessThan(0.01f), "aimed at the point");
+            if (_feel.FaceCursorOnCast && _player.Skills[0].Lock == SkillLock.Committed)
             {
                 Vector3 want = Flat(aim - _player.Position).normalized;
                 Assert.That(Vector3.Dot(_player.transform.forward, want), Is.GreaterThan(0.99f), "faces the aim point");

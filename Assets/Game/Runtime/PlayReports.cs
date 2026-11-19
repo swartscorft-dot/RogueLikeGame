@@ -15,8 +15,14 @@ namespace Roguelike
         ShotFired,      // Landed
         DashPressed,    // Result, CooldownLeft (when the cooldown rejected it), AlreadyDashing
         DashStarted,
-        Hit,            // Slot (-1 for the basic shot), Target, Damage, Empowered
+        Hit,            // Slot (-1 for the basic shot), Target, Damage, Empowered, Focus (gained from the damage)
         FocusPressed,   // Result
+        // Decision 0005, the kit:
+        MarkAdded,      // Slot (-1 for the basic shot), Target, Marks (added), MarksAfter
+        MarksSpent,     // Slot, Target, Marks (taken), Damage (of that hit), Focus (gained from the marks)
+        RecastPressed,  // Slot, Shot (which shot of the chain: 2, 3), Clean, Focus (gained from a clean tap)
+        ChainEnded,     // Slot, Shot (shots it fired), Early (short of its count)
+        CooldownsCut,   // Cuts (seconds cut per skill slot), DashCut
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -42,6 +48,15 @@ namespace Roguelike
         public Damageable Target;
         public int Damage;
         public bool Empowered;
+        public bool NotEquipped;   // SkillPressed: rejected because the slot holds no skill yet
+        public int Marks;
+        public int MarksAfter;
+        public int Shot;
+        public bool Clean;
+        public bool Early;
+        public float Focus;
+        public float[] Cuts;
+        public float DashCut;
     }
 
     public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died }

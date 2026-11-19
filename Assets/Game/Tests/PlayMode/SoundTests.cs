@@ -107,7 +107,7 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator EachSkill_PlaysTheClipItsLookNames_OncePerBurstHitAndPerTick()
+        public IEnumerator EachSkill_PlaysTheClipItsLookNames_OncePerShotAndPerTick()
         {
             ShotLook triple = AssumeSound("Triple Tap"), fan = AssumeSound("Fan Fire"), keg = AssumeSound("Powder Keg");
             _player.Teleport(new Vector3(2f, 0f, 1f));
@@ -116,10 +116,17 @@ namespace Roguelike.PlayModeTests
             int fired = _player.SkillShotsFired;
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.Not.EqualTo(IntentResult.Rejected));
             _player.ReleaseSkill(Triple);
+            // Triple Tap is three presses since decision 0005 (2026-11-19), no longer a burst: one sound per shot of the chain.
+            for (int press = 2; press <= 3; press++)
+            {
+                yield return Until(() => _player.IsRecastWindowOpen, 2f);
+                Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "press " + press);
+                _player.ReleaseSkill(Triple);
+            }
             yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 3f); // and its free recovery (0004)
             int hits = _player.SkillShotsFired - fired;
-            Assume.That(hits, Is.GreaterThan(1), "a burst");
-            Assert.That(_played.Count, Is.EqualTo(hits), "one sound per hit of the burst");
+            Assert.That(hits, Is.EqualTo(3), "three shots");
+            Assert.That(_played.Count, Is.EqualTo(hits), "one sound per shot");
             foreach (ShotSoundRequest r in _played) Assert.That(r.Clip, Is.SameAs(triple.Sound));
 
             _played.Clear();

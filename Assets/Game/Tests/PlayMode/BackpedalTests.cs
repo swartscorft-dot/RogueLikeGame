@@ -174,11 +174,20 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ADash_EndsTheHoldAtOnce() => HoldEndedBy(() =>
             Assert.That(_player.DashToward(_player.Position + Vector3.right * 6f), Is.EqualTo(IntentResult.Started)), ShotFacing.Mode.Free);
 
+        /// <summary>
+        /// A committed skill ends the hold: it faces the cursor. Scatter Blast since decision 0005 (2026-11-19): Quick
+        /// Shot, used here before, became light and turns the body only as a basic shot does (the next test).
+        /// </summary>
         [UnityTest]
         public IEnumerator ASkill_EndsTheHoldAtOnce() => HoldEndedBy(() =>
-            Assert.That(_player.PressSkill(0, _player.Position + Vector3.forward * 6f), Is.Not.EqualTo(IntentResult.Rejected)), ShotFacing.Mode.Free);
+            Assert.That(_player.PressSkill(4, _player.Position + Vector3.forward * 6f), Is.Not.EqualTo(IntentResult.Rejected)), ShotFacing.Mode.Free, 4);
 
-        IEnumerator HoldEndedBy(Action takeOver, ShotFacing.Mode expected)
+        /// <summary>Decision 0005: a light skill aimed behind her, as a basic shot would be, keeps her held turned to its aim.</summary>
+        [UnityTest]
+        public IEnumerator ALightSkillAimedBehind_KeepsTheHold() => HoldEndedBy(() =>
+            Assert.That(_player.PressSkill(0, _player.Position + Vector3.left * 8f), Is.EqualTo(IntentResult.Started)), ShotFacing.Mode.Held, 0);
+
+        IEnumerator HoldEndedBy(Action takeOver, ShotFacing.Mode expected, int slot = 0)
         {
             yield return RunUntilX(-3f);
             _player.Shoot(_player.Position + Vector3.left * 8f);
@@ -186,7 +195,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(_player.FacingMode, Is.EqualTo(ShotFacing.Mode.Held));
             takeOver();
             Assert.That(_player.FacingMode, Is.EqualTo(expected));
-            _player.ReleaseSkill(0);
+            _player.ReleaseSkill(slot);
         }
 
         [UnityTest]

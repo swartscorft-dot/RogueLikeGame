@@ -16,10 +16,10 @@ MonoBehaviour:
   - Name: Quick Shot
     Input: 0
     Shape: 0
-    Cooldown: 4
+    Cooldown: 3
     Damage: 100
     Startup: 0.15
-    Recovery: 0.3
+    Recovery: 0.1
     HitCount: 1
     HitInterval: 0.1
     Range: 12
@@ -31,10 +31,18 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 1
+    Lock: 1
+    MarksAdded: 1
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Powder Keg
     Input: 1
     Shape: 1
-    Cooldown: 8
+    Cooldown: 14
     Damage: 180
     Startup: 0.5
     Recovery: 0.2
@@ -49,10 +57,18 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 0
+    MarksAdded: 0
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Fan Fire
     Input: 2
     Shape: 2
-    Cooldown: 10
+    Cooldown: 16
     Damage: 30
     Startup: 0.2
     Recovery: 0.3
@@ -67,6 +83,14 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 0
+    MarksAdded: 1
+    MarkInterval: 1
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Long Shot
     Input: 3
     Shape: 0
@@ -85,10 +109,18 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 0
+    MarksAdded: 0
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Scatter Blast
     Input: 0
     Shape: 2
-    Cooldown: 9
+    Cooldown: 8
     Damage: 220
     Startup: 0.2
     Recovery: 0.35
@@ -103,10 +135,18 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 1
+    Lock: 0
+    MarksAdded: 0
+    MarkInterval: 0
+    MarkDamageBonus: 0.25
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Heavy Volley
     Input: 4
     Shape: 0
-    Cooldown: 16
+    Cooldown: 24
     Damage: 400
     Startup: 1
     Recovery: 0.5
@@ -121,10 +161,18 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 0
+    MarksAdded: 0
+    MarkInterval: 0
+    MarkDamageBonus: 0.4
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Backstep
     Input: 0
     Shape: 0
-    Cooldown: 12
+    Cooldown: 10
     Damage: 80
     Startup: 0.2
     Recovery: 0.2
@@ -139,14 +187,22 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 1
+    Lock: 0
+    MarksAdded: 1
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
   - Name: Triple Tap
     Input: 0
     Shape: 0
-    Cooldown: 7
+    Cooldown: 5
     Damage: 70
     Startup: 0.15
-    Recovery: 0.3
-    HitCount: 3
+    Recovery: 0.1
+    HitCount: 1
     HitInterval: 0.12
     Range: 12
     HalfWidth: 0.3
@@ -157,8 +213,26 @@ MonoBehaviour:
     TickInterval: 0.15
     ChargeTime: 1
     MinChargeDamage: 0.3
+    StartEquipped: 1
+    Lock: 1
+    MarksAdded: 1
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 3
+    RecastWindow: 0.6
+    CleanTapMarks: 2
   Identity:
     MaxFocus: 100
-    FocusPerDamage: 0.05
-    EmpoweredDuration: 8
-    EmpoweredDamage: 1.5
+    FocusPerDamage: 0.005
+    EmpoweredDuration: 6
+    EmpoweredDamage: 1
+    FocusPerMarkSpent: 5
+    FocusPerCleanTap: 5
+    CooldownCut: 0.4
+  Kit:
+    MaxMarks: 5
+    MarkLifetime: 6
+    BasicShotsPerMark: 4
+    StartWithAllSkills: 0
+    CleanShare: 0.33333334
+    CleanDamage: 1.5

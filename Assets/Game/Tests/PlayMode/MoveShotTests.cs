@@ -193,7 +193,9 @@ namespace Roguelike.PlayModeTests
         {
             yield return RunUntilX(-1f);
             float running = _player.Speed;
-            Assert.That(_player.PressSkill(0, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            // A committed skill: Scatter Blast. Quick Shot, used here before decision 0005 (2026-11-19), is light and
+            // neither slides nor turns her (KitCoreTests).
+            Assert.That(_player.PressSkill(4, _a.transform.position), Is.EqualTo(IntentResult.Started));
             Assert.That(_player.IsLocked, Is.True, "a skill locks");
             Assert.That(_player.IsShootingOnTheMove, Is.False);
             yield return null;

@@ -7,14 +7,18 @@ namespace Roguelike.Rules
     public sealed class IdentityValues
     {
         public float MaxFocus = 100f;          // the gauge is full at this much focus
-        public float FocusPerDamage = 0.05f;   // focus gained per point of damage dealt
-        public float EmpoweredDuration = 8f;   // s the empowered mode lasts
-        public float EmpoweredDamage = 1.5f;   // damage is multiplied by this while empowered
+        public float FocusPerDamage = 0.005f;  // focus gained per point of damage dealt: a trickle (decision 0005)
+        public float EmpoweredDuration = 6f;   // s the empowered mode lasts: the window in which every basic shot hit marks
+        public float EmpoweredDamage = 1f;     // damage is multiplied by this while empowered (decision 0005: none extra)
+        public float FocusPerMarkSpent = 5f;   // focus gained per mark a spender takes
+        public float FocusPerCleanTap = 5f;    // focus gained per clean tap
+        public float CooldownCut = 0.4f;       // spending a full gauge cuts every running cooldown by this share of what is left
     }
 
     /// <summary>
-    /// The identity gauge of the first class: focus. Dealing damage fills it. When it is full it can be spent
-    /// on the empowered mode, in which every shot and skill deals more damage for a while.
+    /// The identity gauge of the first class: focus. Decision 0005 (2026-11-19): spent marks and clean taps fill it,
+    /// and damage a little. When it is full it can be spent on the empowered mode: every running cooldown is cut, and
+    /// for a while every basic shot hit marks (the cut and the marks are the character's; this is the gauge).
     /// No focus is gained while empowered. Time is passed in, in seconds.
     /// </summary>
     public sealed class FocusGauge
@@ -28,11 +32,17 @@ namespace Roguelike.Rules
         public float EmpoweredRemaining(float now) => now < _empoweredUntil ? _empoweredUntil - now : 0f;
         public bool IsFull(IdentityValues values) => _focus >= values.MaxFocus;
 
-        /// <summary>Focus for damage dealt. Nothing while empowered, and never more than a full gauge.</summary>
-        public void AddDamage(int damage, IdentityValues values, float now)
+        /// <summary>Focus for damage dealt. Nothing while empowered, and never more than a full gauge. Returns the focus gained.</summary>
+        public float AddDamage(int damage, IdentityValues values, float now) =>
+            damage <= 0 ? 0f : Add(damage * values.FocusPerDamage, values, now);
+
+        /// <summary>Focus from any source. Nothing while empowered, and never more than a full gauge. Returns the focus gained.</summary>
+        public float Add(float amount, IdentityValues values, float now)
         {
-            if (damage <= 0 || IsEmpowered(now)) return;
-            _focus = Math.Min(values.MaxFocus, _focus + damage * values.FocusPerDamage);
+            if (amount <= 0f || IsEmpowered(now)) return 0f;
+            float before = _focus;
+            _focus = Math.Min(values.MaxFocus, _focus + amount);
+            return _focus - before;
         }
 
         /// <summary>Spends a full gauge on the empowered mode. False, and nothing happens, if it is not full or already running.</summary>

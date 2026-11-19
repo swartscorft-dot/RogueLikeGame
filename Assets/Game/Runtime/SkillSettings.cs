@@ -14,12 +14,15 @@ namespace Roguelike
     {
         public SkillDefinition[] Skills = SkillDefaults.Create();
         public IdentityValues Identity = new IdentityValues();
+        [Tooltip("The kit as a whole: marks, the start skills, the clean tap (decision 0005).")]
+        public KitValues Kit = new KitValues();
 
         [ContextMenu("Reset to the start values")]
         void ResetToStartValues()
         {
             Skills = SkillDefaults.Create();
             Identity = new IdentityValues();
+            Kit = new KitValues();
         }
 
         /// <summary>
@@ -45,6 +48,11 @@ namespace Roguelike
             if (Identity == null)
             {
                 Identity = new IdentityValues();
+                changed = true;
+            }
+            if (Kit == null)
+            {
+                Kit = new KitValues();
                 changed = true;
             }
             if (changed) Skills = result.ToArray();

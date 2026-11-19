@@ -54,6 +54,7 @@ namespace Roguelike.Rules
 
         public float GapMedian = float.NaN;
         public float GapP90 = float.NaN;
+        // The long gaps: counted on the time she was free between two actions, after a skill had let her go.
         public int GapsOver1;
         public float GapsOver1Seconds;
         public int GapsOver2;
@@ -82,9 +83,29 @@ namespace Roguelike.Rules
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
 
+    /// <summary>The kit of decision 0005 (2026-11-19) over the whole session: marks, recast chains, where focus came from.</summary>
+    public sealed class KitStats
+    {
+        public int MarksAdded;
+        public int SpenderHits;            // spender hits that landed on a target, with or without marks
+        public float MarksPerSpenderHit = float.NaN;
+        public int SpenderHitsAtFive;      // hits that took the full cap (the highest count the log's kit allows)
+        public int MarksFellOff;           // marks that fell off unused
+        public int MarksLostOtherwise;     // marks on a target that died or was reset
+        public readonly SortedDictionary<int, int> ChainsByLength = new SortedDictionary<int, int>();
+        public int LastPresses;            // presses that fired the last shot of a chain
+        public int CleanPresses;
+        public float FocusFromMarks;
+        public float FocusFromCleanTaps;
+        public float FocusFromDamage;
+        public int CooldownCuts;
+        public int NotEquippedPresses;
+    }
+
     /// <summary>All the numbers of one play session.</summary>
     public sealed class SessionStats
     {
+        public KitStats Kit = new KitStats();
         public string Date = "";
         public string Commit = "";
         public string Branch = "";
@@ -97,6 +118,11 @@ namespace Roguelike.Rules
         /// <summary>Each fight as (start, end), in seconds since the session started.</summary>
         /// <remarks>Kept in the same type as the events' times, so an event in the fight's first or last millisecond is in it.</remarks>
         public readonly List<KeyValuePair<double, double>> FightSpans = new List<KeyValuePair<double, double>>();
+        /// <summary>Generated levels built in the session; the last one's seed, its rooms, and how many of them she entered.</summary>
+        public int LevelsBuilt;
+        public string LevelSeedText = "";
+        public int LevelRooms;
+        public int LevelRoomsEntered;
         public ScopeStats Session;
         public ScopeStats InFights;
     }
@@ -157,10 +183,86 @@ namespace Roguelike.Rules
             stats.Kills = events.Count(e => e.Type == SessionEventTypes.EnemyDeath);
             stats.Deaths = events.Count(e => e.Type == SessionEventTypes.PlayerDeath);
 
+            // The generated levels: the last one built, and the rooms of it she entered.
+            var entered = new HashSet<string>();
+            foreach (SessionEvent e in events)
+            {
+                if (e.Type == SessionEventTypes.LevelBuilt)
+                {
+                    stats.LevelsBuilt++;
+                    stats.LevelSeedText = e.Name ?? "";
+                    stats.LevelRooms = int.TryParse(e.ExtraValue("rooms"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rooms) ? rooms : 0;
+                    entered.Clear();
+                }
+                else if (e.Type == SessionEventTypes.RoomEntered && stats.LevelsBuilt > 0)
+                {
+                    entered.Add(e.ExtraValue("room") ?? "");
+                }
+            }
+            stats.LevelRoomsEntered = entered.Count;
+
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
             stats.InFights = ComputeScope("In fights", events, stats.FightSpans, kit);
+            stats.Kit = ComputeKit(events, start);
             return stats;
+        }
+
+        /// <summary>The kit's numbers (decision 0005), over the whole session.</summary>
+        static KitStats ComputeKit(List<SessionEvent> events, SessionEvent start)
+        {
+            var k = new KitStats();
+            int cap = 5;
+            if (start != null && int.TryParse(start.ExtraValue("kit.MaxMarks"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int c)) cap = c;
+            var chainCounts = new Dictionary<string, int>();
+            foreach (SessionEvent e in events.Where(e => e.Type == SessionEventTypes.Skill))
+                if (int.TryParse(e.ExtraValue("recast_count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)) chainCounts[e.Name] = n;
+
+            var taken = new List<int>();
+            foreach (SessionEvent e in events)
+            {
+                switch (e.Type)
+                {
+                    case SessionEventTypes.MarkAdd:
+                        int added;
+                        k.MarksAdded += int.TryParse(e.ExtraValue("added"), NumberStyles.Integer, CultureInfo.InvariantCulture, out added) ? added : 1;
+                        break;
+                    case SessionEventTypes.MarksSpent:
+                        taken.Add(e.Marks ?? 0);
+                        if ((e.Marks ?? 0) >= cap) k.SpenderHitsAtFive++;
+                        k.FocusFromMarks += e.Focus ?? 0f;
+                        break;
+                    case SessionEventTypes.MarksLost:
+                        if (e.Result == SessionWords.FellOff) k.MarksFellOff += e.Marks ?? 0;
+                        else k.MarksLostOtherwise += e.Marks ?? 0;
+                        break;
+                    case SessionEventTypes.ChainEnd:
+                        int shots = e.Shot ?? 0;
+                        k.ChainsByLength[shots] = k.ChainsByLength.TryGetValue(shots, out int had) ? had + 1 : 1;
+                        break;
+                    case SessionEventTypes.RecastPress:
+                        // The last press of its chain (the kit at the start says how long a chain is).
+                        if (chainCounts.TryGetValue(e.Name ?? "", out int count) && e.Shot == count)
+                        {
+                            k.LastPresses++;
+                            if (e.Clean == true) k.CleanPresses++;
+                        }
+                        k.FocusFromCleanTaps += e.Focus ?? 0f;
+                        break;
+                    case SessionEventTypes.Hit:
+                        k.FocusFromDamage += e.Focus ?? 0f;
+                        break;
+                    case SessionEventTypes.CooldownCut:
+                        k.CooldownCuts++;
+                        break;
+                    case SessionEventTypes.SkillPress:
+                        if (e.Reason == SessionWords.NotEquipped) k.NotEquippedPresses++;
+                        break;
+                }
+            }
+            k.SpenderHits = taken.Count;
+            if (taken.Count > 0) k.MarksPerSpenderHit = (float)taken.Average();
+            return k;
         }
 
         /// <summary>The kit as the log's start describes it: the skills in slot order, and the timing values the summary needs.</summary>
@@ -249,8 +351,14 @@ namespace Roguelike.Rules
                     Misses = events.Count(e => e.Type == SessionEventTypes.SkillFired && e.Name == name && e.Hit != true),
                 };
                 FillDamageAndUse(row, events, spans, s.TotalDamage);
+                // A recast shot starts the skill again but spends no cooldown (decision 0005): the cooldown use counts
+                // only the first press of each chain.
+                int recasts = events.Count(e => e.Type == SessionEventTypes.RecastPress && e.Name == name);
+                if (recasts > 0 && row.Started > 0 && !float.IsNaN(row.CooldownUse))
+                    row.CooldownUse *= Math.Max(0, row.Started - recasts) / (float)row.Started;
                 s.Rows.Add(row);
-                if (row.Started == 0) s.NeverUsed.Add(name);
+                // A skill that was not on the bar could not be used: it is not counted as never used.
+                if (row.Started == 0 && skill.ExtraValue("equipped") != "false") s.NeverUsed.Add(name);
             }
             var shot = new ActionRow
             {
@@ -275,18 +383,25 @@ namespace Roguelike.Rules
             FillDamageAndUse(dash, events, spans, s.TotalDamage);
             s.Rows.Add(dash);
 
-            // The gaps and the pairs, never across two spans.
+            // The gaps and the pairs, never across two spans. A gap is from one start to the next: the rhythm. The long
+            // ones are counted on the time she was free in it: a skill is busy until it lets her go, so holding Fan
+            // Fire or casting Heavy Volley is not time spent doing nothing.
             var gaps = new List<float>();
             var pairs = new Dictionary<string, int>();
             var pairOrder = new List<string>();
+            List<SessionEvent> skillEnds = all.Where(e => e.Type == SessionEventTypes.SkillEnd).ToList();
             foreach (List<KeyValuePair<float, string>> started in startedPerSpan)
             {
                 for (int i = 1; i < started.Count; i++)
                 {
-                    float gap = started[i].Key - started[i - 1].Key;
+                    float from = started[i - 1].Key, to = started[i].Key;
+                    float gap = to - from;
                     gaps.Add(gap);
-                    if (gap > 1f) { s.GapsOver1++; s.GapsOver1Seconds += gap; }
-                    if (gap > 2f) { s.GapsOver2++; s.GapsOver2Seconds += gap; }
+                    string earlier = started[i - 1].Value;
+                    SessionEvent end = skillEnds.FirstOrDefault(e => e.Name == earlier && e.T >= from - 1e-4 && e.T <= to + 1e-4);
+                    float free = end != null ? Math.Max(0f, to - (float)end.T) : gap;
+                    if (free > 1f) { s.GapsOver1++; s.GapsOver1Seconds += free; }
+                    if (free > 2f) { s.GapsOver2++; s.GapsOver2Seconds += free; }
                     string pair = started[i - 1].Value + " then " + started[i].Value;
                     if (!pairs.ContainsKey(pair)) { pairs[pair] = 0; pairOrder.Add(pair); }
                     pairs[pair]++;
@@ -429,6 +544,9 @@ namespace Roguelike.Rules
             sb.Append("Length ").Append(Duration(stats.Length)).Append("   fights ").Append(stats.Fights)
               .Append(" (").Append(Duration(f.Seconds)).Append(")   kills ").Append(stats.Kills)
               .Append("   deaths ").Append(stats.Deaths).AppendLine();
+            if (stats.LevelsBuilt > 0)
+                sb.Append("Generated level ").Append(Empty(stats.LevelSeedText)).Append("   rooms entered ").Append(stats.LevelRoomsEntered)
+                  .Append(" of ").Append(stats.LevelRooms).Append("   levels built ").Append(stats.LevelsBuilt).AppendLine();
             sb.AppendLine();
 
             var t = new Table("", "Session", "In fights");
@@ -439,8 +557,8 @@ namespace Roguelike.Rules
             t.Add("Actions started / presses", a.StartedActions + " / " + a.Presses, fights ? f.StartedActions + " / " + f.Presses : "-");
             t.Add("Gap between actions, median", Seconds(a.GapMedian), fights ? Seconds(f.GapMedian) : "-");
             t.Add("Gap between actions, 90th percentile", Seconds(a.GapP90), fights ? Seconds(f.GapP90) : "-");
-            t.Add("Gaps over 1 s: count, total", a.GapsOver1 + ", " + Seconds(a.GapsOver1Seconds), fights ? f.GapsOver1 + ", " + Seconds(f.GapsOver1Seconds) : "-");
-            t.Add("Gaps over 2 s: count, total", a.GapsOver2 + ", " + Seconds(a.GapsOver2Seconds), fights ? f.GapsOver2 + ", " + Seconds(f.GapsOver2Seconds) : "-");
+            t.Add("Free over 1 s: count, total", a.GapsOver1 + ", " + Seconds(a.GapsOver1Seconds), fights ? f.GapsOver1 + ", " + Seconds(f.GapsOver1Seconds) : "-");
+            t.Add("Free over 2 s: count, total", a.GapsOver2 + ", " + Seconds(a.GapsOver2Seconds), fights ? f.GapsOver2 + ", " + Seconds(f.GapsOver2Seconds) : "-");
             t.Add("Time on the move", Percent(a.MovingShare), fights ? Percent(f.MovingShare) : "-");
             t.Add("Damage dealt", a.TotalDamage.ToString(CultureInfo.InvariantCulture), fights ? f.TotalDamage.ToString(CultureInfo.InvariantCulture) : "-");
             t.Write(sb);
@@ -468,6 +586,19 @@ namespace Roguelike.Rules
             g.Add("Seconds full before spent, mean", Seconds(a.FullBeforeSpentMean), fights ? Seconds(f.FullBeforeSpentMean) : "-");
             g.Add("Damage while empowered", a.EmpoweredDamage.ToString(CultureInfo.InvariantCulture), fights ? f.EmpoweredDamage.ToString(CultureInfo.InvariantCulture) : "-");
             g.Write(sb);
+            sb.AppendLine();
+
+            // The kit of decision 0005, whole session.
+            KitStats k = stats.Kit ?? new KitStats();
+            var m = new Table("Marks and recasts, whole session", "");
+            m.Add("Marks added / fell off unused / lost to a death or reset", k.MarksAdded + " / " + k.MarksFellOff + " / " + k.MarksLostOtherwise);
+            m.Add("Spender hits: marks taken, mean / at the cap", k.SpenderHits == 0 ? "-" : Num(k.MarksPerSpenderHit, 1) + " / " + Share(k.SpenderHitsAtFive, k.SpenderHits));
+            m.Add("Recast chains by length", k.ChainsByLength.Count == 0 ? "-" : string.Join("   ", k.ChainsByLength.Select(p => p.Key + ": " + p.Value)));
+            m.Add("Last presses that were clean", k.LastPresses == 0 ? "-" : k.CleanPresses + " of " + k.LastPresses + " (" + Share(k.CleanPresses, k.LastPresses) + ")");
+            m.Add("Focus from marks / clean taps / damage", Num(k.FocusFromMarks, 0) + " / " + Num(k.FocusFromCleanTaps, 0) + " / " + Num(k.FocusFromDamage, 0));
+            m.Add("Focus spends that cut cooldowns", Int(k.CooldownCuts));
+            m.Add("Presses on an empty slot", Int(k.NotEquippedPresses));
+            m.Write(sb);
             sb.AppendLine();
 
             if (a.Holds.Count > 0)

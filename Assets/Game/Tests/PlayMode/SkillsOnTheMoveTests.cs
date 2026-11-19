@@ -118,6 +118,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator FreeRecovery_ASecondSkill_WaitsUntilTheRecoveryWouldHaveEnded()
         {
+            CommittedQuickShot();
             Assume.That(_feel.SkillRecoveryFree, Is.True);
             SkillDefinition quick = _player.Skills[Quick];
             Assume.That(quick.Recovery, Is.GreaterThan(0.12f));
@@ -142,6 +143,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator FreeRecovery_ASkillPressedDuringAShotFiredInIt_StillWaitsOutTheRecovery()
         {
+            CommittedQuickShot();
             Assume.That(_feel.SkillRecoveryFree, Is.True);
             SkillDefinition quick = _player.Skills[Quick];
             float cycle = _feel.BasicShotStartup + _feel.BasicShotActive + _feel.BasicShotRecovery;
@@ -202,6 +204,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator FreeRecovery_ASkillPressedEarlyInIt_StartsWhenItEnds_AndNotBefore()
         {
+            CommittedQuickShot();
             Assume.That(_feel.SkillRecoveryFree, Is.True);
             SkillDefinition quick = _player.Skills[Quick];
             Assume.That(quick.Recovery, Is.GreaterThan(_feel.InputBuffer + 0.06f), "room for a press earlier than the buffer time");
@@ -286,6 +289,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator SwitchOff_ASkillPressedEarlyInTheRecovery_IsDropped()
         {
+            CommittedQuickShot();
             OwnFeel(f => f.SkillRecoveryFree = false);
             SkillDefinition quick = _player.Skills[Quick];
             Assume.That(quick.Recovery, Is.GreaterThan(_feel.InputBuffer + 0.06f), "room for a press earlier than the buffer time");
@@ -319,6 +323,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator FreeRecovery_WhileASkillPressWaits_AClickShoots_AndAMoveKeyMovesHer()
         {
+            CommittedQuickShot();
             Assume.That(_feel.SkillRecoveryFree, Is.True);
             SkillDefinition quick = _player.Skills[Quick];
             Assume.That(quick.Recovery, Is.GreaterThan(_feel.BasicShotStartup + _feel.BasicShotActive + 0.05f), "room for a shot to go off");
@@ -463,6 +468,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Slide_QuickShot_OnlyDipsHerSpeed_AndShesBackAtRunSpeedAfter()
         {
+            CommittedQuickShot();
             SkillDefinition quick = _player.Skills[Quick];
             Assume.That(_feel.SkillSlowdown, Is.GreaterThan(quick.Startup), "a short skill: it ends before she could stop");
             var samples = new List<Sample>();
@@ -587,6 +593,7 @@ namespace Roguelike.PlayModeTests
 
         IEnumerator QuickSteered(Vector3 steer)
         {
+            CommittedQuickShot();
             Assume.That(_feel.SlideSteering, Is.True);
             SkillDefinition quick = _player.Skills[Quick];
             Assume.That(_feel.SkillSlowdown, Is.GreaterThan(quick.Startup), "a short skill: it ends before she could stop");
@@ -659,6 +666,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Slide_ASlowdownOfZero_StopsHerDead()
         {
+            CommittedQuickShot();
             OwnFeel(f => f.SkillSlowdown = 0f);
             var samples = new List<Sample>();
             yield return RunAndPress(Quick, Vector3.right * 8f, 0.1f, samples, (p, t) => { });
@@ -963,6 +971,20 @@ namespace Roguelike.PlayModeTests
             change(copy.Values);
             _player.Settings = copy;
             _feel = copy.Values;
+        }
+
+        /// <summary>
+        /// Decision 0005 (2026-11-19) made Quick Shot light: it no longer stops or slides her, and its recovery is 0.1 s.
+        /// The checks of decision 0004 that used it as the short committed skill keep it so: Quick Shot as it was before,
+        /// committed with a 0.3 s recovery, on a copy of the skill settings, so the asset itself is never touched.
+        /// </summary>
+        void CommittedQuickShot()
+        {
+            SkillSettings copy = Object.Instantiate(_player.SkillSet);
+            _copies.Add(copy);
+            copy.Skills[Quick].Lock = SkillLock.Committed;
+            copy.Skills[Quick].Recovery = 0.3f;
+            _player.SkillSet = copy;
         }
 
         /// <summary>Gives the driver a copy of the bindings with this dash direction.</summary>
