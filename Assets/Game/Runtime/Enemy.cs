@@ -22,6 +22,10 @@ namespace Roguelike
     /// An enemy whose <see cref="Damageable"/> has a stagger bar is dazed when the bar is emptied: it stops where it
     /// is, the attack it was winding up is dropped with no strike, and it takes no step of its brain until the daze
     /// ends. One made from code is tinted while dazed.
+    ///
+    /// Since work order 011 it wears its kind's model instead of the capsule, with <see cref="EnemyValues.UseModels"/>
+    /// on (<see cref="EnemyLook"/>): the clips follow what it does, and dead it plays its Death and lies there a moment
+    /// before it is gone. The model's body is what the daze tints and a hit flashes.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public abstract class Enemy : MonoBehaviour
@@ -71,6 +75,8 @@ namespace Roguelike
         [NonSerialized] public Color BodyColor = Color.white;
 
         protected readonly EnemyBrain _brain = new EnemyBrain();
+        EnemyLook _look;
+        bool _hiddenDead;
         protected Damageable _self;
         protected NavMeshAgent _agent;
         Renderer[] _renderers;
@@ -102,6 +108,10 @@ namespace Roguelike
         public int StrikesLanded { get; private set; }
         /// <summary>Where the current attack was aimed when its windup began.</summary>
         public Vector3 AimPoint => _aim;
+        /// <summary>Its model and the clips it plays (work order 011); null when it is the stand-in capsule.</summary>
+        public EnemyLook Look => _look;
+        /// <summary>The height of the top of its model's head, or a negative number when it has no model.</summary>
+        public float ModelHeight => _look != null ? (float)_look.Spec.Height : -1f;
 
         /// <summary>
         /// Tells what it does as it happens: it wakes, starts an attack, strikes (and how that went), gives up, dies,
@@ -125,6 +135,7 @@ namespace Roguelike
             _agent.updateRotation = false;
             _agent.angularSpeed = 0f;
             _agent.acceleration = 60f;
+            if (Values.UseModels) WearModel();
             _renderers = GetComponentsInChildren<Renderer>();
             _home = transform.position;
             _self.Damaged += OnDamaged;
@@ -167,6 +178,27 @@ namespace Roguelike
             }
             if (BodyRenderer != null && BodyRenderer.sharedMaterial != null && BodyRenderer.sharedMaterial.name.StartsWith(EnemyFactory.OwnMaterialPrefix, StringComparison.Ordinal))
                 Destroy(BodyRenderer.sharedMaterial);
+            _look?.Dispose();
+        }
+
+        /// <summary>
+        /// Puts its kind's model on it in place of the capsule (work order 011): the body the daze tints and the hit
+        /// flashes is then the model's. The capsule stays, switched off; without the model it is left as it was.
+        /// </summary>
+        void WearModel()
+        {
+            _look = EnemyLook.Dress(this);
+            if (_look == null) return;
+            // The capsule's own material, made for this enemy, is no longer shown.
+            if (BodyRenderer != null && BodyRenderer.sharedMaterial != null && BodyRenderer.sharedMaterial.name.StartsWith(EnemyFactory.OwnMaterialPrefix, StringComparison.Ordinal))
+                Destroy(BodyRenderer.sharedMaterial);
+            BodyRenderer = _look.Skin;
+            BodyColor = Color.white;
+            if (TryGetComponent(out HitFlash flash))
+            {
+                flash.Targets = _look.Renderers;
+                flash.FlashColor = EnemyLook.FlashColor;
+            }
         }
 
         void OnDamaged(int amount) => _provoked = true;
@@ -188,6 +220,13 @@ namespace Roguelike
         void OnDazeEnded() => Report(EnemyReportKind.DazeEnded);
 
         protected virtual void Update()
+        {
+            Act();
+            // The model shows what it did this frame (work order 011).
+            if (_look != null) _look.Tick(this, _agent.velocity, Time.time);
+        }
+
+        void Act()
         {
             EnemyValues values = Values;
             float now = Time.time;
@@ -285,6 +324,12 @@ namespace Roguelike
                 _brain.Reset();
                 Halt();
                 if (Telegraph != null) Telegraph.enabled = false;
+                _hiddenDead = false;
+            }
+            // The capsule is gone at once; a model plays its Death and lies there a moment first.
+            if (!_hiddenDead && now - _deadSince >= ShownDeadFor(values))
+            {
+                _hiddenDead = true;
                 SetVisible(false);
             }
             if (!ComesBack || now - _deadSince < values.RespawnDelay) return;
@@ -294,6 +339,14 @@ namespace Roguelike
             _agent.Warp(_home);
             _self.SetMaxHealth(StartHealth);
             SetVisible(true);
+        }
+
+        /// <summary>Seconds a dead enemy is still seen: none for the capsule; the Death and a moment lying for a model, until it comes back at the latest.</summary>
+        public float ShownDeadFor(EnemyValues values)
+        {
+            if (_look == null) return 0f;
+            float shown = _look.DeathSeconds + EnemyLook.LieSeconds;
+            return ComesBack ? Mathf.Min(shown, values.RespawnDelay) : shown;
         }
 
         void Strike(EnemyAttackDefinition attack)

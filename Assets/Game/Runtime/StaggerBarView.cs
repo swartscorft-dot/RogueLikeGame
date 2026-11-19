@@ -58,6 +58,8 @@ namespace Roguelike
                 if (float.IsNegativeInfinity(top)) top = 2f;
                 else top -= target.transform.position.y;
             }
+            // Over an enemy's model, its head (work order 011): a skinned mesh's box is not where its head is.
+            if (target.TryGetComponent(out Enemy enemy) && enemy.ModelHeight > 0f) top = enemy.ModelHeight;
 
             var go = new GameObject("StaggerBar");
             go.transform.SetParent(target.transform, false);

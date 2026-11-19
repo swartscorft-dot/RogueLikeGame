@@ -15,6 +15,11 @@ namespace Roguelike
     ///
     /// Every one is made where it will stand, so that is its home, and is told who the player is from the practice
     /// enemy it copies; without a practice enemy in the scene nothing is made.
+    ///
+    /// Since work order 011 each wears its kind's model over the capsule when the practice enemy's values have
+    /// <see cref="EnemyValues.UseModels"/> on (<see cref="EnemyLook"/>, put on by <see cref="Enemy"/> as it wakes): the
+    /// capsule is still made, and switched off. A brute copied from the practice enemy takes off the model it brought
+    /// along and puts on its own.
     /// </summary>
     public static class EnemyFactory
     {
@@ -137,6 +142,8 @@ namespace Roguelike
             enemy.StrikeMaterial = template.StrikeMaterial;
             enemy.BodyRenderer = bodyRenderer;
             enemy.BodyColor = color;
+            // The model or the capsule as the practice enemy has it (work order 011): put on in Awake, which follows.
+            enemy.Values.UseModels = template.Values.UseModels;
             go.SetActive(true);
 
             if (damageable.Stagger != null && template.Player != null)

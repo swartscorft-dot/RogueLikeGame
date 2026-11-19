@@ -1,8 +1,13 @@
+using System;
 using UnityEngine;
 
 namespace Roguelike
 {
-    /// <summary>Flashes a renderer white for a moment each time the Damageable on this object is hit.</summary>
+    /// <summary>
+    /// Flashes a renderer white for a moment each time the Damageable on this object is hit. An enemy's model
+    /// (work order 011) flashes all its meshes, set in <see cref="Targets"/>, with <see cref="FlashColor"/> brighter
+    /// than white: its colour multiplies the painted texture, so white alone would not show.
+    /// </summary>
     [RequireComponent(typeof(Damageable))]
     public sealed class HitFlash : MonoBehaviour
     {
@@ -10,6 +15,9 @@ namespace Roguelike
         static readonly int s_BaseColor = Shader.PropertyToID("_BaseColor");
 
         public Renderer Target;
+        /// <summary>When set, flashed instead of <see cref="Target"/>.</summary>
+        [NonSerialized] public Renderer[] Targets;
+        [NonSerialized] public Color FlashColor = Color.white;
 
         Damageable _damageable;
         MaterialPropertyBlock _flash;
@@ -22,7 +30,6 @@ namespace Roguelike
         {
             _damageable = GetComponent<Damageable>();
             _flash = new MaterialPropertyBlock();
-            _flash.SetColor(s_BaseColor, Color.white);
             _damageable.Damaged += OnDamaged;
         }
 
@@ -35,11 +42,18 @@ namespace Roguelike
 
         void Update()
         {
-            // The flash overrides the colour on this renderer only, so the shared material is never copied.
+            // The flash overrides the colour on these renderers only, so the shared material is never copied.
             bool flash = Time.time < _flashUntil;
-            if (flash == _flashing || Target == null) return;
+            if (flash == _flashing || (Target == null && Targets == null)) return;
             _flashing = flash;
-            Target.SetPropertyBlock(flash ? _flash : null);
+            _flash.SetColor(s_BaseColor, FlashColor);
+            if (Targets == null)
+            {
+                Target.SetPropertyBlock(flash ? _flash : null);
+                return;
+            }
+            foreach (Renderer r in Targets)
+                if (r != null) r.SetPropertyBlock(flash ? _flash : null);
         }
     }
 }
