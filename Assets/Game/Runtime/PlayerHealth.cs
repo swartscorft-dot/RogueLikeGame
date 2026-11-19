@@ -29,6 +29,9 @@ namespace Roguelike
         /// <summary>Raised after a hit that removed health, with the amount removed.</summary>
         public event Action<int> Damaged;
 
+        /// <summary>Raised when she dies, before she drops what she was doing. For the play session recorder.</summary>
+        public event Action Died;
+
         void Awake()
         {
             _health = new Health(MaxHealth);
@@ -56,6 +59,7 @@ namespace Roguelike
             {
                 Deaths++;
                 _deadSince = Time.time;
+                Died?.Invoke();
                 _player.Teleport(_player.Position); // drops the order, the skill and the buffered press
             }
             return applied;

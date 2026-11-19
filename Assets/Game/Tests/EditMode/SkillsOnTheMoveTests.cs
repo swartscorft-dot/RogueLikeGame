@@ -183,4 +183,49 @@ namespace Roguelike.Rules.Tests
             Assert.That(buffer.TryTake(1.2f, 0.15f, out _), Is.False, "and taking it then drops it, as IsFresh said");
         }
     }
+
+    /// <summary>Decision 0004, amended 2026-11-19: a skill key pressed in a free recovery is never dropped for being early.</summary>
+    public class SkillGateTests
+    {
+        const float Window = 0.15f;
+        // A skill let her go at 1.0 (its last hit); its free recovery of 0.5 ends at 1.5.
+        const float LetGo = 1f, Gate = 1.5f;
+
+        [Test]
+        public void AfterAFreeRecovery_AnyPressInIt_Fires_HoweverEarly()
+        {
+            Assert.That(SkillGate.PressStillGood(1.0f, Gate, Window, afterFreeRecovery: true, LetGo), Is.True, "at the moment she was let go");
+            Assert.That(SkillGate.PressStillGood(1.01f, Gate, Window, true, LetGo), Is.True, "early in the recovery");
+            Assert.That(SkillGate.PressStillGood(1.4f, Gate, Window, true, LetGo), Is.True, "late in it");
+        }
+
+        [Test]
+        public void AfterAFreeRecovery_APressJustBeforeTheLastHit_Fires_AnEarlierOneIsDropped()
+        {
+            Assert.That(SkillGate.EarliestGoodPress(LetGo, Window), Is.EqualTo(0.85f).Within(1e-6f));
+            Assert.That(SkillGate.PressStillGood(0.9f, Gate, Window, true, LetGo), Is.True, "within the buffer time before the last hit");
+            Assert.That(SkillGate.PressStillGood(0.85f, Gate, Window, true, LetGo), Is.True, "exactly the buffer time before it");
+            Assert.That(SkillGate.PressStillGood(0.84f, Gate, Window, true, LetGo), Is.False, "earlier: she was visibly committed");
+            Assert.That(SkillGate.PressStillGood(0.2f, Gate, Window, true, LetGo), Is.False);
+        }
+
+        [Test]
+        public void WithoutAFreeRecovery_ThePressMustBeFresh_AsBefore()
+        {
+            Assert.That(SkillGate.PressStillGood(1.4f, Gate, Window, afterFreeRecovery: false, LetGo), Is.True, "0.1 old");
+            Assert.That(SkillGate.PressStillGood(1.35f, Gate, Window, false, LetGo), Is.True, "just the window old");
+            Assert.That(SkillGate.PressStillGood(1.3f, Gate, Window, false, LetGo), Is.False, "older than the window");
+            Assert.That(SkillGate.PressStillGood(1.01f, Gate, Window, false, LetGo), Is.False, "early in the recovery: dropped as in the old lock");
+        }
+
+        [Test]
+        public void AFreshPress_IsAlwaysGood_AndAWindowOfZeroAcceptsOnlyFromTheLetGoOn()
+        {
+            // A recovery shorter than the window: a press before the last hit may still be fresh.
+            Assert.That(SkillGate.PressStillGood(0.9f, 1.02f, Window, true, LetGo), Is.True);
+            Assert.That(SkillGate.PressStillGood(0.99f, Gate, 0f, true, LetGo), Is.False, "no buffer time: not before the let go");
+            Assert.That(SkillGate.PressStillGood(1.0f, Gate, 0f, true, LetGo), Is.True);
+            Assert.That(SkillGate.EarliestGoodPress(LetGo, -1f), Is.EqualTo(LetGo), "a negative window counts as 0");
+        }
+    }
 }

@@ -51,6 +51,7 @@ namespace Roguelike.Rules
         // Skills on the move (decision 0004, the producer's guesses, on trial)
         public bool SkillRecoveryFree = true;     // after a skill's last hit the basic shot and the move keys are free; the next skill still waits out the recovery
         public float SkillSlowdown = 0.3f;        // s to slide from full run speed to a stand when a skill is pressed on the move (less from a lower speed); 0 is the old dead stop
+        public bool SlideSteering = true;         // the move keys turn a skill's slide the way they hold, at the speed the slide has (Kristian 2026-11-19); off, it keeps the way she ran
         public float SkillSpeedRecovery = 0.25f;  // s to ease back to full speed from a stand when a skill lets her go (less from a higher speed)
         public float AimHold = 0.3f;              // s the arms stay aimed at the cursor after a shot or a skill ends
 

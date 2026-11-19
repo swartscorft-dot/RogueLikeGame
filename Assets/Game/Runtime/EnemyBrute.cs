@@ -53,6 +53,15 @@ namespace Roguelike
         public int Strikes { get; private set; }
         public int StrikesLanded { get; private set; }
 
+        /// <summary>
+        /// Tells what it does as it happens: it wakes, starts an attack, strikes (and how that went), gives up, dies.
+        /// For the play session recorder; nothing in the game listens, and it changes nothing.
+        /// </summary>
+        public event System.Action<EnemyReport> Reported;
+
+        void Report(EnemyReportKind kind, EnemyAttackDefinition attack = null, StrikeOutcome outcome = StrikeOutcome.NoEffect, int damage = 0) =>
+            Reported?.Invoke(new EnemyReport { Kind = kind, Attack = attack?.Name, Outcome = outcome, Damage = damage });
+
         void Awake()
         {
             _self = GetComponent<Damageable>();
@@ -98,13 +107,19 @@ namespace Roguelike
             bool strike = _brain.Step(now, toPlayer.magnitude, playerAlive, _provoked, values);
             EnemyState state = _brain.State;
 
+            if (before == EnemyState.Idle && state != EnemyState.Idle) Report(EnemyReportKind.Woke);
             if (state == EnemyState.Windup && before != EnemyState.Windup)
             {
                 // The attack is aimed once, here. The player can leave the area until the strike.
                 _aim = Player.Position;
                 Face(toPlayer);
+                Report(EnemyReportKind.AttackStarted, _brain.Attack);
             }
-            if (state == EnemyState.Idle && before != EnemyState.Idle) _provoked = false;
+            if (state == EnemyState.Idle && before != EnemyState.Idle)
+            {
+                _provoked = false;
+                Report(EnemyReportKind.GaveUp);
+            }
             if (strike) Strike(_brain.Attack);
 
             switch (state)
@@ -129,6 +144,7 @@ namespace Roguelike
         {
             if (_deadSince < 0f)
             {
+                Report(EnemyReportKind.Died);
                 _deadSince = now;
                 _brain.Reset();
                 Halt();
@@ -151,8 +167,16 @@ namespace Roguelike
             GroundPoint aim = Ground(_aim);
             SpawnStrikeFx(attack);
 
-            if (!EnemyBrain.Hits(attack, origin, aim, Player.GroundPosition, Placeholders.PlayerRadius)) return;
-            if (PlayerHealth != null && PlayerHealth.TakeHit(attack.Damage) > 0) StrikesLanded++;
+            if (!EnemyBrain.Hits(attack, origin, aim, Player.GroundPosition, Placeholders.PlayerRadius))
+            {
+                Report(EnemyReportKind.Struck, attack, StrikeOutcome.OutOfArea);
+                return;
+            }
+            bool invulnerable = Player.IsInvulnerable; // read before the hit: the dash's i-frame is what TakeHit checks
+            int applied = PlayerHealth != null ? PlayerHealth.TakeHit(attack.Damage) : 0;
+            if (applied > 0) StrikesLanded++;
+            Report(EnemyReportKind.Struck, attack,
+                   applied > 0 ? StrikeOutcome.Landed : invulnerable ? StrikeOutcome.AvoidedByDash : StrikeOutcome.NoEffect, applied);
         }
 
         // ---------------- Walking ----------------

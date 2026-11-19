@@ -44,14 +44,16 @@ namespace Roguelike
     /// - A skill commits her until its last hit (the end of the hold for a Holding skill). With
     ///   <see cref="FeelValues.SkillRecoveryFree"/> on, the recovery after it no longer holds back the basic shot or the
     ///   move keys: the skill ends there for everything but the next skill, which waits until the recovery would have
-    ///   ended (a press in that time goes through the input buffer, as during a lock). During that free recovery
+    ///   ended (a press in that time goes through the input buffer and fires when the recovery ends, however early in
+    ///   it: amended 2026-11-19, <see cref="SkillGate"/>). During that free recovery
     ///   <see cref="Action"/> is None (or BasicShot), <see cref="IsLocked"/> is false, <see cref="ActiveSkill"/> is null,
     ///   <see cref="ActiveSkillSlot"/> -1 and <see cref="SkillPhase"/> None; <see cref="FreeRecoverySlot"/> and
     ///   <see cref="SkillGateRemaining"/> say which skill's recovery runs and for how long. A dash ends it, as a dash
     ///   cancels a skill. Off, the whole recovery locks as before.
-    /// - A skill pressed on the move slides her to a stand along the way she was moving (<see cref="SkillSlide"/>), from
-    ///   the speed she had; the move keys do not steer it. When the skill lets her go the speed she may move at eases
-    ///   back up. A skill that moves her itself (Backstep) does neither, and a dash ends both at once.
+    /// - A skill pressed on the move slides her to a stand (<see cref="SkillSlide"/>), from the speed she had, along the
+    ///   way she was moving. The move keys steer it (amended 2026-11-19, <see cref="FeelValues.SlideSteering"/>): the
+    ///   direction follows the held key, the speed still follows the slide. When the skill lets her go the speed she
+    ///   may move at eases back up. A skill that moves her itself (Backstep) does neither, and a dash ends both at once.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
@@ -82,6 +84,7 @@ namespace Roguelike
             public PressKind Kind;
             public Vector3 Point;
             public int Slot; // which skill, for a skill press
+            public float At; // when it was pressed
         }
 
         readonly FeelValues _fallbackFeel = new FeelValues();
@@ -135,10 +138,11 @@ namespace Roguelike
         // Skills on the move (decision 0004).
         float _skillGateUntil = float.NegativeInfinity; // a free recovery: no new skill before this
         int _gateSlot = -1;                             // whose recovery it is
+        float _gateLetGoAt;                             // when that skill let her go: its last hit, or the end of the hold
         bool _sliding;          // the skill in use slides her to a stand
         float _slideFrom;       // the share of run speed she had at the press
         float _slideStartedAt;
-        Vector3 _slideDir;      // the way she was moving at the press, flat and of length 1
+        Vector3 _slideDir;      // the way she slides: at the press the way she was moving, then the held way; flat, of length 1
         bool _rising;           // let go by a skill: the speed she may move at eases back up
         float _riseFrom;
         float _riseStartedAt;
@@ -267,6 +271,15 @@ namespace Roguelike
         public int SkillShotsFired { get; private set; }
         public int SkillShotHits { get; private set; }
 
+        /// <summary>
+        /// Tells what she did as it happens: what became of each press, each skill and shot that started, went off or
+        /// ended, each hit. For the play session recorder (<see cref="PlaySessionRecorder"/>); nothing in the game listens,
+        /// and it changes nothing.
+        /// </summary>
+        public event System.Action<PlayerReport> Reported;
+
+        void Report(PlayerReport report) => Reported?.Invoke(report);
+
         void Awake()
         {
             _agent = GetComponent<NavMeshAgent>();
@@ -297,7 +310,12 @@ namespace Roguelike
         public void Shoot(Vector3 point)
         {
             _shotCursor = point;
-            if (!_clicks.Click(Busy, Time.time, _nextShotAt)) return;
+            if (!_clicks.Click(Busy, Time.time, _nextShotAt))
+            {
+                Report(new PlayerReport { Kind = PlayerReportKind.ShotClicked, Result = IntentResult.Buffered });
+                return;
+            }
+            Report(new PlayerReport { Kind = PlayerReportKind.ShotClicked, Result = IntentResult.Started });
             StartBasicShot(Feel, onTheMove: IsMoving);
         }
 
@@ -317,19 +335,51 @@ namespace Roguelike
         /// </summary>
         public IntentResult DashToward(Vector3 point)
         {
-            if (_dashing || !_dash.CanStart(Time.time)) return IntentResult.Rejected;
+            if (_dashing || !_dash.CanStart(Time.time))
+                return DashPressed(IntentResult.Rejected, _dashing ? 0f : _dash.CooldownRemaining(Time.time));
 
-            _clicks.Clear(); // a dash drops a waiting click
+            DropWaitingClick(); // a dash drops a waiting click
             _shotFacing.End(turnBack: false); // and ends the backpedal at once: the dash faces its own way
             if (_actionKind != ActionKind.None)
             {
-                if (_actionKind == ActionKind.Skill && !Feel.DashCancelsSkill) return BufferPress(PressKind.Dash, point);
+                if (_actionKind == ActionKind.Skill && !Feel.DashCancelsSkill)
+                    return DashPressed(BufferPress(PressKind.Dash, point), 0f);
+                if (_actionKind == ActionKind.Skill) ReportSkillEnded(SkillEnding.CancelledByDash, Time.time);
                 _action.Cancel();
                 _cast.Cancel();
                 EndAction();
             }
             _easing = false; // a dash ends the slow of a shot on the move at once
-            return StartDash(point) ? IntentResult.Started : IntentResult.Rejected;
+            return DashPressed(StartDash(point) ? IntentResult.Started : IntentResult.Rejected, 0f);
+        }
+
+        /// <summary>Reports what became of a dash press, and returns it.</summary>
+        IntentResult DashPressed(IntentResult result, float cooldownLeft)
+        {
+            Report(new PlayerReport
+            {
+                Kind = PlayerReportKind.DashPressed, Result = result, CooldownLeft = cooldownLeft,
+                AlreadyDashing = result == IntentResult.Rejected && _dashing,
+            });
+            return result;
+        }
+
+        /// <summary>Drops a waiting click, as a dash or a skill does, and reports it if one was waiting.</summary>
+        void DropWaitingClick()
+        {
+            if (_clicks.Waiting) Report(new PlayerReport { Kind = PlayerReportKind.ShotDropped });
+            _clicks.Clear();
+        }
+
+        /// <summary>Reports that the skill in use ends now, and how. Called before the skill is cancelled or let go.</summary>
+        void ReportSkillEnded(SkillEnding ending, float now)
+        {
+            if (Reported == null || _cast.Skill == null) return;
+            Report(new PlayerReport
+            {
+                Kind = PlayerReportKind.SkillEnded, Slot = _castSlot, Ending = ending,
+                Held = _cast.HeldSeconds(now), Charge = _cast.Charge(now), Fired = _cast.HitsTaken > 0,
+            });
         }
 
         /// <summary>
@@ -339,27 +389,42 @@ namespace Roguelike
         /// </summary>
         public IntentResult PressSkill(int slot, Vector3 point)
         {
-            if (slot < 0 || slot >= Skills.Count) return IntentResult.Rejected;
-            if (!CooldownFor(slot).IsReady(Time.time)) return IntentResult.Rejected;
+            if (slot < 0 || slot >= Skills.Count) return SkillPressed(slot, IntentResult.Rejected, 0f);
+            if (!CooldownFor(slot).IsReady(Time.time))
+                return SkillPressed(slot, IntentResult.Rejected, CooldownFor(slot).Remaining(Time.time));
             _shotCursor = point; // a press comes with the cursor: the arms held up after the skill follow it from here
             // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer.
             if (IsLocked || Time.time < _skillGateUntil)
             {
                 _bufferedSkillReleased = false;
-                return BufferPress(PressKind.Skill, point, slot);
+                return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
             }
+            SkillPressed(slot, IntentResult.Started, 0f);
             StartSkill(slot, point);
             return IntentResult.Started;
         }
 
+        /// <summary>Reports what became of a skill press, and returns it.</summary>
+        IntentResult SkillPressed(int slot, IntentResult result, float cooldownLeft)
+        {
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillPressed, Slot = slot, Result = result, CooldownLeft = cooldownLeft });
+            return result;
+        }
+
         /// <summary>
         /// The key of a skill went up. Ends a Holding skill and fires a Charge skill.
-        /// If that press is still waiting in the buffer, the skill starts as already released.
+        /// If that skill's press is still waiting in the buffer, the skill starts as already released.
         /// </summary>
         public void ReleaseSkill(int slot)
         {
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillReleased, Slot = slot });
             if (_actionKind == ActionKind.Skill && _castSlot == slot) _cast.Release(Time.time);
-            else if (_buffer.HasItem) _bufferedSkillReleased = true;
+            // Only the waiting skill's own key: the key of the skill before it going up says nothing about this one.
+            // A press can wait out a whole free recovery now, and keys are rolled: the next goes down before the last
+            // comes up. Before 2026-11-19 any skill key going up did this, and a Charge skill that waited fired at
+            // once with no charge.
+            else if (_buffer.TryPeek(out Press waiting) && waiting.Kind == PressKind.Skill && waiting.Slot == slot)
+                _bufferedSkillReleased = true;
         }
 
         /// <summary>
@@ -379,8 +444,12 @@ namespace Roguelike
         /// Press: spend a full focus gauge on the empowered mode. It takes no time and locks nothing,
         /// so it can be pressed in the middle of a skill. Rejected unless the gauge is full.
         /// </summary>
-        public IntentResult ActivateIdentity() =>
-            _focus.TryActivate(Time.time, Identity) ? IntentResult.Started : IntentResult.Rejected;
+        public IntentResult ActivateIdentity()
+        {
+            IntentResult result = _focus.TryActivate(Time.time, Identity) ? IntentResult.Started : IntentResult.Rejected;
+            Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result });
+            return result;
+        }
 
         /// <summary>Fills the focus gauge. For tests and tools.</summary>
         public void FillFocus() => _focus.Fill(Identity);
@@ -396,6 +465,7 @@ namespace Roguelike
         /// <summary>Put the character somewhere else at once and clear what it was doing. For tests and tools.</summary>
         public void Teleport(Vector3 point)
         {
+            if (_actionKind == ActionKind.Skill) ReportSkillEnded(SkillEnding.Cancelled, Time.time);
             _action.Cancel();
             _cast.Cancel();
             EndAction();
@@ -512,11 +582,15 @@ namespace Roguelike
                 // Committed until the last hit. With the free recovery, that is where the skill lets her go; the next
                 // skill still waits until the recovery would have ended. Without it, the recovery locks as before.
                 if (feel.SkillRecoveryFree ? _cast.IsCommitted(now) : _cast.IsRunning(now)) return;
-                if (_cast.IsRunning(now))
+                if (feel.SkillRecoveryFree)
                 {
+                    // Set even when a long frame has already carried her past the recovery's end: a press that waited
+                    // is then judged from the moment the skill let her go, as at any other gate (SkillGate).
                     _skillGateUntil = _cast.RecoveryEndsAt;
+                    _gateLetGoAt = _cast.RecoveryEndsAt - skill.Recovery;
                     _gateSlot = _castSlot;
                 }
+                ReportSkillEnded(SkillEnding.RanOut, now);
                 LetGo(skill, now);
                 _cast.Cancel();
                 EndAction();
@@ -530,8 +604,9 @@ namespace Roguelike
                 StartBasicShot(feel, onTheMove: IsMoving);
                 return;
             }
-            if (pressReady && _buffer.TryTake(now, feel.InputBuffer, out Press press))
+            if (pressReady && _buffer.TryPeek(out Press press))
             {
+                _buffer.Clear(); // PressReady has judged it good
                 if (press.Kind == PressKind.Skill)
                 {
                     StartSkill(press.Slot, press.Point);
@@ -610,21 +685,32 @@ namespace Roguelike
 
         /// <summary>
         /// True when the buffer holds a press that may start now and will: a dash at once, a skill once no free
-        /// recovery holds it back, and either only while it is still fresh. A press that is due but no longer fresh is
-        /// dropped here, so it never cancels or holds back anything (a shot winding up, a waiting click, the move keys).
+        /// recovery holds it back, and either only while it is still good. A press is good while it is no older than
+        /// the buffer time; a skill press that waited out a free recovery is good if it was made no earlier than the
+        /// buffer time before the skill let her go, however long ago that was (<see cref="SkillGate"/>, decision 0004
+        /// amended 2026-11-19). A press that is due but not good is dropped here, so it never cancels or holds back
+        /// anything (a shot winding up, a waiting click, the move keys).
         /// </summary>
         bool PressReady(float now)
         {
             if (!_buffer.TryPeek(out Press waiting)) return false;
             if (waiting.Kind == PressKind.Skill && now < _skillGateUntil) return false; // waits out a free recovery
-            if (_buffer.IsFresh(now, Feel.InputBuffer)) return true;
-            _buffer.Clear(); // too old: dropped, as taking it would have dropped it
+            FeelValues feel = Feel;
+            // A gate is set only by a free recovery, and a new skill, a dash or a teleport clears it.
+            bool afterFreeRecovery = waiting.Kind == PressKind.Skill && feel.SkillRecoveryFree
+                                     && _skillGateUntil != float.NegativeInfinity;
+            if (SkillGate.PressStillGood(waiting.At, now, feel.InputBuffer, afterFreeRecovery, _gateLetGoAt)) return true;
+            _buffer.Clear(); // not good: dropped
+            Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = waiting.Kind == PressKind.Skill ? waiting.Slot : -1 });
             return false;
         }
 
         /// <summary>
-        /// One frame of a skill's slide: along the way she was moving at the press, at the share of run speed the
-        /// slide allows now (ApplyMovementFeel has set it), on the NavMesh. At a stand the slide is over.
+        /// One frame of a skill's slide, at the share of run speed the slide allows now (ApplyMovementFeel has set it),
+        /// on the NavMesh. At a stand the slide is over. The way is the held move direction, changed at once as free
+        /// movement does; with no move key held, the way she last slid (decision 0004, amended 2026-11-19: Kristian
+        /// ruled that the move keys steer the slide). Steering never changes the speed: an opposite key turns the slide
+        /// round at the speed it has. With <see cref="FeelValues.SlideSteering"/> off, the way she was moving at the press.
         /// </summary>
         void Slide(FeelValues feel, float now)
         {
@@ -634,6 +720,7 @@ namespace Roguelike
                 Halt();
                 return;
             }
+            if (feel.SlideSteering && _moveInput != Vector3.zero) _slideDir = _moveInput;
             MoveAlong(_slideDir, _agent.speed);
         }
 
@@ -717,6 +804,7 @@ namespace Roguelike
             _dashing = true;
             DashesStarted++;
             Face(dir);
+            Report(new PlayerReport { Kind = PlayerReportKind.DashStarted });
             return true;
         }
 
@@ -724,7 +812,7 @@ namespace Roguelike
 
         IntentResult BufferPress(PressKind kind, Vector3 point, int slot = -1)
         {
-            _buffer.Store(new Press { Kind = kind, Point = point, Slot = slot }, Time.time);
+            _buffer.Store(new Press { Kind = kind, Point = point, Slot = slot, At = Time.time }, Time.time);
             return IntentResult.Buffered;
         }
 
@@ -751,12 +839,13 @@ namespace Roguelike
             ActionLeadTime = feel.BasicShotStartup;
             _shotStartedAt = Time.time;
             _action.Start(Time.time, feel.BasicShotStartup, feel.BasicShotActive, feel.BasicShotRecovery);
+            Report(new PlayerReport { Kind = PlayerReportKind.ShotStarted, Moving = onTheMove });
         }
 
         void StartSkill(int slot, Vector3 point)
         {
             SkillDefinition skill = Skills[slot];
-            _clicks.Clear(); // a skill drops a waiting click
+            DropWaitingClick(); // a skill drops a waiting click
             _shotFacing.End(turnBack: false); // and ends the backpedal at once: the skill faces the cursor
             _action.Cancel(); // a skill may start during a basic shot, and ends it
             _movingShot = false;
@@ -794,6 +883,7 @@ namespace Roguelike
             ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : skill.Startup;
             _cast.Start(skill, Time.time);
             CooldownFor(slot).Start(Time.time, skill.Cooldown);
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
         }
 
         void EndAction()
@@ -836,12 +926,26 @@ namespace Roguelike
             Vector3 end = new Vector3(endPoint.x, muzzle.y, endPoint.z);
             SpawnFlash(look, muzzle, end - muzzle);
             SpawnStreak(look, muzzle, end, 1f);
-            if (hit == null) return false;
-            if (Deal(hit, Placeholders.BasicShotDamage) <= 0) return false;
+            if (hit == null) return ShotFired(false);
+            bool empowered = IsEmpowered;
+            int applied = Deal(hit, Placeholders.BasicShotDamage);
+            if (applied <= 0) return ShotFired(false);
+            ReportHit(-1, hit, applied, empowered);
             SpawnHit(look, hit, muzzle);
             BasicShotHits++;
-            return true;
+            return ShotFired(true);
         }
+
+        /// <summary>Reports a basic shot that went off, and whether it hit; returns that.</summary>
+        bool ShotFired(bool landed)
+        {
+            Report(new PlayerReport { Kind = PlayerReportKind.ShotFired, Landed = landed });
+            return landed;
+        }
+
+        /// <summary>Reports damage she dealt: by a skill's slot, or -1 for the basic shot.</summary>
+        void ReportHit(int slot, Damageable target, int damage, bool empowered) =>
+            Report(new PlayerReport { Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered });
 
         /// <summary>
         /// Deals damage to a target: more while empowered, and what was dealt fills the focus gauge.
@@ -876,11 +980,15 @@ namespace Roguelike
             {
                 Damageable d = all[i];
                 if (!SkillRules.Hits(skill, origin, aim, d.GroundPosition, d.Radius)) continue;
-                if (Deal(d, damage) <= 0) continue;
+                bool empowered = IsEmpowered;
+                int applied = Deal(d, damage);
+                if (applied <= 0) continue;
+                ReportHit(_castSlot, d, applied, empowered);
                 SpawnHit(look, d, shotPoint);
                 SkillShotHits++;
                 landed = true;
             }
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = landed, Charge = charge });
             return landed;
         }
 

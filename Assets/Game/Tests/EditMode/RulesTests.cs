@@ -38,6 +38,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(feel.ShootGaitFade, Is.EqualTo(0.15f));
             Assert.That(feel.SkillRecoveryFree, Is.True);
             Assert.That(feel.SkillSlowdown, Is.EqualTo(0.3f));
+            Assert.That(feel.SlideSteering, Is.True);
             Assert.That(feel.SkillSpeedRecovery, Is.EqualTo(0.25f));
             Assert.That(feel.AimHold, Is.EqualTo(0.3f));
             Assert.That(feel.HitStop, Is.EqualTo(0.05f));
