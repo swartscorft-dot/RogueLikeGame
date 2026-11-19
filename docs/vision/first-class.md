@@ -5,9 +5,9 @@ Feel reference: Lost Ark's Gunslinger (movement and skill timing, not its weapon
 
 | Layer | First version |
 |---|---|
-| Loadout | Eight equipped skills from a pool of 10 to 12 |
+| Loadout | Four skills at the start of a run, four more chosen during it from a pool of eight (Kristian, 2026-11-19; decision 0005) |
 | Input types | The five in `docs/vision/skill-model.md`: Normal, Point, Combo, Holding, Charging. Combo can wait. Stagger and Counter come with the bosses |
-| Basic attack | Ranged, with a visible range on attack-move |
+| Basic attack | Ranged, one shot per click, aimed at the cursor (decision 0002; attack-move is gone) |
 | Dash | One dash on a long cooldown, small i-frame, cancels a skill in progress |
 | Identity gauge | Direction A, focus meter: fills on hits, spent on an empowered mode with stronger shots |
 | Tripods | Reduced set: two tiers with two to three choices per skill |

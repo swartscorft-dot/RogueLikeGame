@@ -47,6 +47,9 @@ namespace Roguelike.Rules
         public const string PlayerDeath = "player_death";
 
         public const string Move = "move";                    // a sample, a few times a second, of whether she is moving
+
+        public const string LevelBuilt = "level_built";       // a generated level was built: name is its seed's text, with version and rooms
+        public const string RoomEntered = "room_entered";     // she entered a room of the generated level: room is its place in the run, name its kind
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>

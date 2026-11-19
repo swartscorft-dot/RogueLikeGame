@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Enemy
   m_EditorClassIdentifier: Roguelike.Runtime::Roguelike.EnemySettings
   Values:
-    Health: 3000
+    Health: 12000
     MoveSpeed: 3.5
     AggroRange: 9
     LeashRange: 22

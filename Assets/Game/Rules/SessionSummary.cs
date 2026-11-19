@@ -118,6 +118,11 @@ namespace Roguelike.Rules
         /// <summary>Each fight as (start, end), in seconds since the session started.</summary>
         /// <remarks>Kept in the same type as the events' times, so an event in the fight's first or last millisecond is in it.</remarks>
         public readonly List<KeyValuePair<double, double>> FightSpans = new List<KeyValuePair<double, double>>();
+        /// <summary>Generated levels built in the session; the last one's seed, its rooms, and how many of them she entered.</summary>
+        public int LevelsBuilt;
+        public string LevelSeedText = "";
+        public int LevelRooms;
+        public int LevelRoomsEntered;
         public ScopeStats Session;
         public ScopeStats InFights;
     }
@@ -177,6 +182,24 @@ namespace Roguelike.Rules
             stats.Fights = stats.FightSpans.Count;
             stats.Kills = events.Count(e => e.Type == SessionEventTypes.EnemyDeath);
             stats.Deaths = events.Count(e => e.Type == SessionEventTypes.PlayerDeath);
+
+            // The generated levels: the last one built, and the rooms of it she entered.
+            var entered = new HashSet<string>();
+            foreach (SessionEvent e in events)
+            {
+                if (e.Type == SessionEventTypes.LevelBuilt)
+                {
+                    stats.LevelsBuilt++;
+                    stats.LevelSeedText = e.Name ?? "";
+                    stats.LevelRooms = int.TryParse(e.ExtraValue("rooms"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rooms) ? rooms : 0;
+                    entered.Clear();
+                }
+                else if (e.Type == SessionEventTypes.RoomEntered && stats.LevelsBuilt > 0)
+                {
+                    entered.Add(e.ExtraValue("room") ?? "");
+                }
+            }
+            stats.LevelRoomsEntered = entered.Count;
 
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
@@ -521,6 +544,9 @@ namespace Roguelike.Rules
             sb.Append("Length ").Append(Duration(stats.Length)).Append("   fights ").Append(stats.Fights)
               .Append(" (").Append(Duration(f.Seconds)).Append(")   kills ").Append(stats.Kills)
               .Append("   deaths ").Append(stats.Deaths).AppendLine();
+            if (stats.LevelsBuilt > 0)
+                sb.Append("Generated level ").Append(Empty(stats.LevelSeedText)).Append("   rooms entered ").Append(stats.LevelRoomsEntered)
+                  .Append(" of ").Append(stats.LevelRooms).Append("   levels built ").Append(stats.LevelsBuilt).AppendLine();
             sb.AppendLine();
 
             var t = new Table("", "Session", "In fights");
