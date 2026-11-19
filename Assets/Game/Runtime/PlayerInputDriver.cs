@@ -17,6 +17,8 @@ namespace Roguelike
         public int SkillsPressed;
         /// <summary>Skill bindings that are down this frame, same bits. One that went down this frame counts as down.</summary>
         public int SkillsHeld;
+        /// <summary>The cover key is down this frame (Left Ctrl to start with; Kristian 2026-11-19, an experiment).</summary>
+        public bool CoverHeld;
     }
 
     /// <summary>
@@ -27,7 +29,8 @@ namespace Roguelike
     /// ground, and a diagonal is as fast as straight. The left button fires one basic shot toward the cursor; holding
     /// it never repeats. Space dashes toward the cursor, or the way she moves if the bindings say so. The skill bindings (Q 1 2 3 4 R F and the right mouse button
     /// to start with) are in the <see cref="InputBindings"/> asset: the press, the release and the cursor all reach
-    /// the character. Z spends a full focus gauge. A dead character takes no input.
+    /// the character. Z spends a full focus gauge. Left Ctrl, held, takes cover (Kristian 2026-11-19, an experiment): it
+    /// is given every frame, as the move keys are. A dead character takes no input.
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
     public sealed class PlayerInputDriver : MonoBehaviour
@@ -87,11 +90,13 @@ namespace Roguelike
             {
                 _skillsHeldBefore = 0;
                 _player.Steer(Vector3.zero);
+                _player.HoldCover(false);
                 return;
             }
 
-            // Movement first, so a shot this frame knows whether she is moving.
+            // Movement first, so a shot this frame knows whether she is moving; the cover key with it.
             _player.Steer(ScreenToGround(input.Move));
+            _player.HoldCover(input.CoverHeld);
             _player.AimAt(cursor);
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
@@ -152,6 +157,7 @@ namespace Roguelike
                 ShootPressed = bindings.Shoot.Control(mouse, keyboard)?.wasPressedThisFrame ?? false,
                 DashPressed = bindings.Dash != Key.None && keyboard[bindings.Dash].wasPressedThisFrame,
                 IdentityPressed = bindings.Focus != Key.None && keyboard[bindings.Focus].wasPressedThisFrame,
+                CoverHeld = bindings.TakeCover != Key.None && keyboard[bindings.TakeCover].isPressed,
             };
             InputBinding[] skills = bindings.Skills ?? Array.Empty<InputBinding>();
             for (int slot = 0; slot < skills.Length && slot < 32; slot++)

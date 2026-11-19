@@ -673,6 +673,19 @@ namespace Roguelike
                         Add(new SessionEvent(t, SessionEventTypes.FocusPress) { Result = Word(r.Result) });
                         if (r.Result == IntentResult.Started) Add(new SessionEvent(t, SessionEventTypes.FocusSpent));
                         break;
+                    // Taking cover (2026-11-19, an experiment).
+                    case PlayerReportKind.CoverEntered:
+                        Add(new SessionEvent(t, SessionEventTypes.CoverEnter, r.Tall ? SessionWords.Tall : SessionWords.Low));
+                        break;
+                    case PlayerReportKind.CoverLeft:
+                        Add(new SessionEvent(t, SessionEventTypes.CoverLeave)
+                        {
+                            Result = r.Leaving == CoverLeaving.Released ? SessionWords.Released
+                                   : r.Leaving == CoverLeaving.Dash ? SessionWords.DashLeft
+                                   : r.Leaving == CoverLeaving.MovingSkill ? SessionWords.MovingSkill
+                                   : SessionWords.Other,
+                        });
+                        break;
                 }
             }
             catch (Exception e)
@@ -704,6 +717,7 @@ namespace Roguelike
                         e.Result = r.Outcome == StrikeOutcome.Landed ? SessionWords.Landed
                                  : r.Outcome == StrikeOutcome.OutOfArea ? SessionWords.OutOfArea
                                  : r.Outcome == StrikeOutcome.AvoidedByDash ? SessionWords.AvoidedByDash
+                                 : r.Outcome == StrikeOutcome.StoppedByCover ? SessionWords.StoppedByCover
                                  : SessionWords.NoEffect;
                         e.Damage = r.Damage > 0 ? r.Damage : (int?)null;
                         Add(e);

@@ -80,6 +80,16 @@ namespace Roguelike.Rules
 
         public float MovingShare = float.NaN;
 
+        // Taking cover (Kristian 2026-11-19, an experiment).
+        /// <summary>Seconds she spent in cover in this scope, from taking it to leaving it.</summary>
+        public float CoverSeconds;
+        /// <summary>Times she took cover in this scope.</summary>
+        public int CoversTaken;
+        /// <summary>The share of this scope's time she spent in cover; NaN for a scope with no time.</summary>
+        public float CoverShare => Seconds > 0f ? CoverSeconds / Seconds : float.NaN;
+        /// <summary>Enemy strikes that what she was in cover behind stopped.</summary>
+        public int StrikesStoppedByCover;
+
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
 
@@ -158,6 +168,11 @@ namespace Roguelike.Rules
         /// <summary>Damage dealt to guards, and of it the part dealt while the guard was dazed.</summary>
         public int GuardDamage;
         public int GuardDamageWhileDazed;
+
+        /// <summary>Each stretch in cover as (start, end), in seconds since the session started (an experiment, 2026-11-19).</summary>
+        public readonly List<KeyValuePair<double, double>> CoverSpans = new List<KeyValuePair<double, double>>();
+        /// <summary>True when the log has anything of taking cover: the summary then gives its lines.</summary>
+        public bool HasCover;
     }
 
     /// <summary>One kind of enemy in a session: its kills, and the damage it did her, by attack.</summary>
@@ -180,6 +195,10 @@ namespace Roguelike.Rules
     /// order 008. Tempo counts actions that started something (a skill, a basic shot, a dash), at the
     /// moment they started, so a buffered press or a waiting click counts when it fires. The second tempo counts every
     /// press of a skill key, a click and a dash key, whatever became of it.
+    ///
+    /// Taking cover (Kristian 2026-11-19, an experiment): a log with any cover in it gets two lines, the time in cover
+    /// and its share of the time (of the fights' time in the "In fights" column), and under the defence the enemy shots
+    /// that what she was in cover behind stopped.
     /// </summary>
     public static class SessionSummary
     {
@@ -257,9 +276,26 @@ namespace Roguelike.Rules
             }
             stats.LevelRoomsEntered = entered.Count;
 
+            // Taking cover (2026-11-19, an experiment): from each cover_enter to the next cover_leave, or the session's end.
+            double coverFrom = -1d;
+            foreach (SessionEvent e in events)
+            {
+                if (e.Type == SessionEventTypes.CoverEnter && coverFrom < 0d) coverFrom = e.T;
+                else if (e.Type == SessionEventTypes.CoverLeave && coverFrom >= 0d)
+                {
+                    stats.CoverSpans.Add(new KeyValuePair<double, double>(coverFrom, e.T));
+                    coverFrom = -1d;
+                }
+            }
+            if (coverFrom >= 0d) stats.CoverSpans.Add(new KeyValuePair<double, double>(coverFrom, Math.Max(coverFrom, length)));
+            stats.HasCover = events.Any(e => e.Type == SessionEventTypes.CoverEnter
+                                             || (e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover));
+
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
             stats.InFights = ComputeScope("In fights", events, stats.FightSpans, kit);
+            stats.Session.CoverSeconds = (float)Overlap(stats.CoverSpans, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) });
+            stats.InFights.CoverSeconds = (float)Overlap(stats.CoverSpans, stats.FightSpans);
             stats.Kit = ComputeKit(events, start, kit);
             return stats;
         }
@@ -648,7 +684,21 @@ namespace Roguelike.Rules
             // Movement.
             List<SessionEvent> samples = events.Where(e => e.Type == SessionEventTypes.Move).ToList();
             if (samples.Count > 0) s.MovingShare = samples.Count(e => e.Moving == true) / (float)samples.Count;
+
+            // Taking cover (2026-11-19, an experiment); the time in cover is added by Compute, which has the stretches.
+            s.CoversTaken = events.Count(e => e.Type == SessionEventTypes.CoverEnter);
+            s.StrikesStoppedByCover = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover);
             return s;
+        }
+
+        /// <summary>Seconds where the stretches of <paramref name="a"/> and those of <paramref name="b"/> overlap; neither list overlaps itself.</summary>
+        static double Overlap(List<KeyValuePair<double, double>> a, List<KeyValuePair<double, double>> b)
+        {
+            double total = 0d;
+            foreach (KeyValuePair<double, double> x in a)
+            foreach (KeyValuePair<double, double> y in b)
+                total += Math.Max(0d, Math.Min(x.Value, y.Value) - Math.Max(x.Key, y.Key));
+            return total;
         }
 
         static void FillDamageAndUse(ActionRow row, List<SessionEvent> events, List<KeyValuePair<double, double>> spans, int total)
@@ -731,6 +781,10 @@ namespace Roguelike.Rules
             t.Add("Free over 1 s: count, total", a.GapsOver1 + ", " + Seconds(a.GapsOver1Seconds), fights ? f.GapsOver1 + ", " + Seconds(f.GapsOver1Seconds) : "-");
             t.Add("Free over 2 s: count, total", a.GapsOver2 + ", " + Seconds(a.GapsOver2Seconds), fights ? f.GapsOver2 + ", " + Seconds(f.GapsOver2Seconds) : "-");
             t.Add("Time on the move", Percent(a.MovingShare), fights ? Percent(f.MovingShare) : "-");
+            // Taking cover (2026-11-19, an experiment), only in a log that has any.
+            if (stats.HasCover)
+                t.Add("Time in cover, share of the time", Duration(a.CoverSeconds) + ", " + Percent(a.CoverShare),
+                      fights ? Duration(f.CoverSeconds) + ", " + Percent(f.CoverShare) : "-");
             t.Add("Damage dealt", a.TotalDamage.ToString(CultureInfo.InvariantCulture), fights ? f.TotalDamage.ToString(CultureInfo.InvariantCulture) : "-");
             t.Write(sb);
             sb.AppendLine();
@@ -799,6 +853,8 @@ namespace Roguelike.Rules
             d.Add("  landed", Int(a.StrikesLanded), fights ? Int(f.StrikesLanded) : "-");
             d.Add("  avoided by moving out of the area", Int(a.StrikesOutOfArea), fights ? Int(f.StrikesOutOfArea) : "-");
             d.Add("  avoided by the dash", Int(a.StrikesAvoidedByDash), fights ? Int(f.StrikesAvoidedByDash) : "-");
+            if (stats.HasCover)
+                d.Add("  stopped by the cover she ducked behind", Int(a.StrikesStoppedByCover), fights ? Int(f.StrikesStoppedByCover) : "-");
             d.Add("Damage taken", Int(a.DamageTaken), fights ? Int(f.DamageTaken) : "-");
             d.Add("Dashes / that avoided a strike", a.Dashes + " / " + Share(a.DashesThatAvoided, a.Dashes),
                   fights ? f.Dashes + " / " + Share(f.DashesThatAvoided, f.Dashes) : "-");

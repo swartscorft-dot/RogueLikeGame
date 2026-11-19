@@ -274,6 +274,12 @@ namespace Roguelike
         /// <summary>How far a line or a cone of this attack reaches now: its length, unless something cuts it short.</summary>
         protected virtual float Reach(EnemyAttackDefinition attack) => attack.Length;
 
+        /// <summary>
+        /// At the strike: would it have reached her, but what she is in cover against stops it (taking cover, Kristian
+        /// 2026-11-19, an experiment)? Never, unless a kind says otherwise: strikes on the ground ignore cover.
+        /// </summary>
+        protected virtual bool StoppedByHerCover(EnemyAttackDefinition attack, GroundPoint origin, GroundPoint aim) => false;
+
         // ---------------- Death and the strike ----------------
 
         void StayDead(float now, EnemyValues values)
@@ -304,6 +310,13 @@ namespace Roguelike
             float reach = Reach(attack);
             SpawnStrikeFx(attack, reach);
 
+            // What she is in cover against stopped it (taking cover, 2026-11-19, an experiment): only a kind that says so.
+            if (StoppedByHerCover(attack, origin, aim))
+            {
+                Player.NoteEnemyShotStoppedByCover();
+                Report(EnemyReportKind.Struck, attack, StrikeOutcome.StoppedByCover);
+                return;
+            }
             if (!EnemyBrain.Hits(attack, origin, aim, Player.GroundPosition, Placeholders.PlayerRadius, reach))
             {
                 Report(EnemyReportKind.Struck, attack, StrikeOutcome.OutOfArea);

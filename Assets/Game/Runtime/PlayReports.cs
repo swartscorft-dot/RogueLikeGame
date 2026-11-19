@@ -25,9 +25,15 @@ namespace Roguelike
         RecastPressed,  // Slot, Shot (which shot of the chain: 2, 3), Clean, Focus (gained from a clean tap)
         ChainEnded,     // Slot, Shot (shots it fired), Early (short of its count)
         CooldownsCut,   // Cuts (seconds cut per skill slot), DashCut
+        // Taking cover (Kristian 2026-11-19, an experiment):
+        CoverEntered,   // Tall: whether what she took cover behind is tall cover
+        CoverLeft,      // Leaving: why
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
+
+    /// <summary>Why she left cover: the key went up, the dash, a skill that moves her, or anything else (the switch, the thing gone, a teleport, death).</summary>
+    public enum CoverLeaving { Released, Dash, MovingSkill, Other }
 
     /// <summary>
     /// Something the player character did, as <see cref="PlayerCharacter.Reported"/> tells it: what became of a press,
@@ -59,6 +65,8 @@ namespace Roguelike
         public float Focus;
         public float[] Cuts;
         public float DashCut;
+        public bool Tall;             // CoverEntered
+        public CoverLeaving Leaving;  // CoverLeft
     }
 
     /// <summary>
@@ -67,7 +75,8 @@ namespace Roguelike
     /// </summary>
     public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded }
 
-    public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect }
+    /// <summary>How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment, 2026-11-19).</summary>
+    public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect, StoppedByCover }
 
     /// <summary>
     /// Something an enemy did, as <see cref="Enemy.Reported"/> tells it. For the play session recorder; nothing
