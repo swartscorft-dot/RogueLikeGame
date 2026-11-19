@@ -10,6 +10,7 @@ namespace Roguelike
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
 
         PlayerCharacter _player;
+        PlayerInputDriver _driver;
         GUIStyle _style;
         readonly StringBuilder _text = new StringBuilder();
 
@@ -24,15 +25,21 @@ namespace Roguelike
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
 
             _text.Clear();
-            _text.AppendLine("RMB move  |  LMB shoot at the cursor  |  Space dash  |  QWER SDFG skills  |  Z focus");
+            if (_driver == null && _player != null) _driver = _player.GetComponent<PlayerInputDriver>();
+            _text.AppendLine(_driver != null ? _driver.ActiveBindings.HelpLine() : "");
             int lines = 2;
             if (_player != null)
             {
                 Vector3 p = _player.Position;
                 _text.AppendLine(string.Format(s_Inv, "pos ({0:0.00}, {1:0.00})  speed {2:0.0} m/s", p.x, p.z, _player.Speed));
-                _text.AppendLine(string.Format(s_Inv, "order {0}{1}", _player.Order, _player.HasPendingShot ? "  click waiting" : ""));
-                _text.AppendLine(string.Format(s_Inv, "action {0}{1} {2}{3}{4}", _player.Action,
+                Vector3 m = _player.MoveInput;
+                _text.AppendLine(string.Format(s_Inv, "move ({0:0.0}, {1:0.0}){2}{3}", m.x, m.z, _player.IsMoving ? "" : "  standing",
+                    _player.HasPendingShot ? "  click waiting" : ""));
+                int recovering = _player.FreeRecoverySlot;
+                _text.AppendLine(string.Format(s_Inv, "action {0}{1} {2}{3}{4}{5}{6}", _player.Action,
                     _player.ActiveSkill != null ? " (" + _player.ActiveSkill.Name + ")" : "", _player.ActionPhase,
+                    _player.IsSkillSliding ? "  sliding" : "",
+                    recovering >= 0 ? string.Format(s_Inv, "  {0} recovery (free) {1:0.00} s", _player.Skills[recovering].Name, _player.SkillGateRemaining) : "",
                     _player.HasBufferedPress ? "  buffered press" : "", HitStop.IsActive ? "  HIT-STOP" : ""));
                 _text.AppendLine(string.Format(s_Inv, "dash cd {0:0.0} s{1}{2}", _player.DashCooldownRemaining,
                     _player.IsDashing ? "  DASHING" : "", _player.IsInvulnerable ? "  i-frame" : ""));

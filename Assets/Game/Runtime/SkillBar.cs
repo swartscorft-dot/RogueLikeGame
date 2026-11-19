@@ -31,6 +31,7 @@ namespace Roguelike
 
         public PlayerCharacter Player;
         public PlayerHealth Health;
+        PlayerInputDriver _driver;
 
         GUIStyle _box;
         GUIStyle _label;
@@ -53,20 +54,24 @@ namespace Roguelike
             Color before = GUI.color;
 
             IReadOnlyList<SkillDefinition> skills = Player.Skills;
-            int count = Mathf.Min(skills.Count, PlayerInputDriver.SkillKeys.Length);
+            if (_driver == null) _driver = Player.GetComponent<PlayerInputDriver>();
+            InputBindings bindings = _driver != null ? _driver.ActiveBindings : null;
+            int count = bindings != null && bindings.Skills != null ? Mathf.Min(skills.Count, bindings.Skills.Length) : skills.Count;
             float total = count * BoxWidth + (count - 1) * Gap;
             float left = (viewWidth - total) * 0.5f;
             float top = LayoutHeight - BoxHeight - 14f;
             int active = Player.ActiveSkillSlot;
+            int recovering = Player.FreeRecoverySlot; // decision 0004: its recovery runs, but she is free to shoot and move
 
             for (int slot = 0; slot < count; slot++)
             {
                 float cooldown = Player.SkillCooldownRemaining(slot);
                 string state = slot == active ? Player.SkillPhase.ToString()
+                    : slot == recovering ? "Recovery (free)"
                     : cooldown > 0f ? string.Format(s_Inv, "{0:0.0} s", cooldown) : "ready";
-                GUI.color = slot == active ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
+                GUI.color = slot == active || slot == recovering ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
                 GUI.Box(new Rect(left + slot * (BoxWidth + Gap), top, BoxWidth, BoxHeight),
-                        PlayerInputDriver.SkillKeys[slot] + "  " + skills[slot].Name + "\n" + state, _box);
+                        (bindings != null ? bindings.SkillLabel(slot) : "") + "  " + skills[slot].Name + "\n" + state, _box);
             }
 
             // Health to the left, focus to the right.

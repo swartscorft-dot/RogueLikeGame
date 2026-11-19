@@ -61,7 +61,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_a.HitsTaken, Is.EqualTo(1));
             yield return new WaitForSeconds(Cycle * 3f);
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "three cycles later: still one shot");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "she stands");
+            Assert.That(_player.IsMoving, Is.False, "she stands");
             Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
 
             _player.Shoot(_a.transform.position);
@@ -155,7 +155,20 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator AWaitingShot_IsDroppedByAMoveOrder() => WaitingShotDroppedBy(() => _player.MoveTo(_player.Position + Vector3.back * 2f));
+        public IEnumerator AWaitingShot_IsKept_WhenAMoveKeyIsPressed()
+        {
+            _player.Teleport(NearA);
+            yield return null;
+            _player.Shoot(_a.transform.position);
+            yield return Until(() => _a.HitsTaken >= 1, 3f);
+            _player.Shoot(_a.transform.position);
+            Assert.That(_player.HasPendingShot, Is.True, "a click in the recovery waits for the next shot");
+            _player.Steer(Vector3.back);
+            Assert.That(_player.HasPendingShot, Is.True, "a move key does not drop it");
+            yield return Until(() => _player.BasicShotsFired >= 2, 2f);
+            _player.Stop();
+            Assert.That(_player.BasicShotsFired, Is.EqualTo(2), "it fires, on the move");
+        }
 
         [UnityTest]
         public IEnumerator AWaitingShot_IsDroppedByADash() =>
@@ -182,30 +195,11 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator OnTheMove_AWaitingShot_IsDroppedByAMoveOrder()
+        public IEnumerator OnTheMove_HoldingAMoveKey_KeepsAWaitingShot()
         {
             _player.Teleport(new Vector3(-6f, 0f, 0f));
             yield return null;
-            _player.MoveTo(new Vector3(10f, 0f, 0f));
-            yield return Until(() => _player.Position.x >= -1f, 4f);
-            Assume.That(InReach(_player.GroundPosition, _a.GroundPosition, _a.Radius, _feel.BasicShotRange), Is.True);
-
-            _player.Shoot(_a.transform.position);
-            Assume.That(_player.IsShootingOnTheMove, Is.True);
-            _player.Shoot(_a.transform.position); // during the shot's startup: waits
-            Assert.That(_player.HasPendingShot, Is.True, "a second click on the move waits");
-            _player.MoveTo(new Vector3(10f, 0f, 2f));
-            Assert.That(_player.HasPendingShot, Is.False, "a new move order drops it");
-            yield return new WaitForSeconds(Cycle * 3f);
-            Assert.That(_player.BasicShotsFired, Is.EqualTo(1), "only the shot already going");
-        }
-
-        [UnityTest]
-        public IEnumerator OnTheMove_HoldingTheMoveButton_KeepsAWaitingShot()
-        {
-            _player.Teleport(new Vector3(-6f, 0f, 0f));
-            yield return null;
-            _player.MoveTo(new Vector3(10f, 0f, 0f));
+            _player.Steer(Vector3.right);
             yield return Until(() => _player.Position.x >= -1f, 4f);
             Assume.That(InReach(_player.GroundPosition, _a.GroundPosition, _a.Radius, _feel.BasicShotRange), Is.True);
 
@@ -215,10 +209,11 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + 3f;
             while (_player.BasicShotsFired - shotsBefore < 2 && Time.realtimeSinceStartup < deadline)
             {
-                _player.SteerTo(new Vector3(10f, 0f, 0f)); // the held right button, every frame
+                _player.Steer(Vector3.right); // the held key, every frame, as the input gives it
                 yield return null;
             }
-            Assert.That(_player.BasicShotsFired - shotsBefore, Is.EqualTo(2), "steering with the held button does not drop the waiting shot");
+            _player.Stop();
+            Assert.That(_player.BasicShotsFired - shotsBefore, Is.EqualTo(2), "holding a move key does not drop the waiting shot");
         }
 
         static IEnumerator Until(Func<bool> condition, float timeoutSeconds)

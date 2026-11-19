@@ -1,6 +1,8 @@
 # 0002 The basic shot aims at the cursor
 
-Status: **on trial: decided by Kristian 2026-11-18, to be confirmed after he has played it.** The version before it is commit `668c5c5` on `art/grip`; if the trial is not confirmed, we go back to that.
+Status: **confirmed in effect 2026-11-19.** Decided by Kristian 2026-11-18. He played it that day ("looks very much better now"), and on 2026-11-19 he confirmed W A S D movement (decision 0003), which is built on it: A is a move key now, so there is no attack-move to go back to. The version before it is commit `668c5c5` on `art/grip`.
+
+Decision 0003 replaced part of what follows: the right mouse button is a skill key now, and move orders are gone. Where this file speaks of the right click moving her, or of a move order, decision 0003 applies.
 
 ## Decision
 
@@ -63,4 +65,4 @@ The click-to-shoot decision from the same day stays.
 
 ## If the trial is confirmed
 
-Pillar 1 in `docs/vision/pillars.md` says "attack-move on A". If the trial is confirmed, its wording changes to say that the basic shot and the skills are aimed at the cursor. This file does not edit the pillars.
+Pillar 1 in `docs/vision/pillars.md` says "attack-move on A". Its wording was changed on 2026-11-19 to say that the basic shot and the skills are aimed at the cursor.

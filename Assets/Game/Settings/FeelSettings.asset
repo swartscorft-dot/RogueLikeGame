@@ -34,9 +34,14 @@ MonoBehaviour:
     ShotFrontAngle: 120
     ShotTurnTime: 0.2
     ShotTurnHold: 0.5
+    BackpedalSpeedShare: 0.5
     MovingShotSpeedShare: 0.5
     MovingShotSlowdown: 0.15
     MovingShotRecovery: 0.5
     ShootGaitFade: 0.15
+    SkillRecoveryFree: 1
+    SkillSlowdown: 0.3
+    SkillSpeedRecovery: 0.25
+    AimHold: 0.3
     HitStop: 0.05
     BasicShotHitStop: 0.025

@@ -763,7 +763,126 @@ Kristian set `ShotFrontAngle` to 120 while playing: "works fine". About shooting
 
 **Not verified:** play with the real mouse; how the backpedal speed feels; the sound by ear; arm clipping at 120 from every view (I looked from three).
 
+### W A S D movement and the new skill keys (2026-11-18, branch `art/grip`, uncommitted on top of 2094a67)
+
+Kristian: "I feel that WASD movement would be nice. Then Q-1-2-3-4-R-F and right click are abilities." Decision record: `docs/decisions/0003-wasd-movement.md`, on trial.
+
+**How it is built.**
+- **Input:** the input frame carries a move direction relative to the screen. The driver turns it into a ground direction (up the screen is the camera's view laid flat; normalised, so a diagonal is as fast as straight) and passes it to the new intent `PlayerCharacter.Steer(direction)` every frame.
+- **Moving:** each frame she is free, she is steered 1.5 m ahead along the held direction through the NavMesh agent, with her velocity set at once. She starts and stops at once, stays on the NavMesh, and slides along its edges (tested at the floor's edge). No key: she stands.
+- **While a skill or a dash locks her,** the direction does nothing. When the lock ends, a key still held moves her at once.
+- **Her run direction** in the front-angle, shot-facing and gait rules is the held direction this frame. She faces it, except while the shot-turn hold keeps her turned to the aim.
+- **Movement never cancels a shot** (the League rule for the basic shot is retired for movement):
+  - a move key in a standing shot's wind-up makes it a shot on the move, with the slow-down from that moment;
+  - one after it has gone off cuts the recovery and moves her at once;
+  - a waiting click is kept.
+
+  A dash or a skill still cancels and drops, as before.
+- **Backpedal cap** (`BackpedalCap` in `Roguelike.Rules`, with 4 EditMode tests):
+  - while she is held turned away from her movement by a shot, her speed is capped at `BackpedalSpeedShare` of run speed: 0.5, so 3 m/s, in `FeelSettings.asset` and the feel-spec, a guess;
+  - it eases in over the moving-shot slow-down time and out over its recovery time, from wherever it was;
+  - while held, she backpedals at a steady 3.00 m/s, where the v2_30 jog plays at its own speed.
+- **Bindings:** `Assets/Game/Settings/InputBindings.asset`, a new asset he can edit.
+  - Move keys W, S, A, D; shoot on the left mouse button; dash Space; focus Z.
+  - One binding per skill slot, keyboard key or mouse button: Q, 1, 2, 3, 4, R, F, right mouse button (Quick Shot, Powder Keg, Fan Fire, Long Shot, Scatter Blast, Heavy Volley, Backstep, Triple Tap).
+  - The builder creates the asset when it is missing and never overwrites it.
+  - The skill bar and the help line read it: "WASD move | LMB shoot at the cursor | Space dash to the cursor | Q 1 2 3 4 R F RMB skills | Z focus".
+  - Hold and charge skills work as before on their new keys.
+- **Removed:**
+  - right-click to move;
+  - the move orders: `MoveTo`, `SteerTo`, `OrderKind`, `Order`, destinations, arrival;
+  - the "a move order cancels a standing shot or drops a waiting click" code;
+  - the hard-coded Q W E R S D F G skill keys.
+  - Nothing else used them; the enemy has its own agent and orders.
+- **Readout:** the order line is now "move (x, z)", or "standing".
+
+**From the running game** (`wasd-captures/move-table.txt`, frames 0.02 s):
+- W held: 6.00 m/s straight up the screen (+Z), facing 0 degrees.
+- W+D: 6.00 m/s at 45 degrees, not faster.
+- Let go: 0.00 m/s in the next sample, and she stands.
+
+**Sequences** (`wasd-captures/a-up-shoot-up/`, `b-right-shoot-up/`, `c-down-shoot-up/`; game camera, game angle close, a front view; `table.txt` in each):
+- **(a) Running up the screen, shooting up it:**
+  - forward shooting gait, no twist;
+  - speed 3.1 to 3.7 m/s between clicks;
+  - back to the run and 6 m/s after the last shot.
+- **(b) Running right, shooting up the screen (90 degrees off the run):**
+  - the body keeps facing right, the legs in the forward shooting gait, the upper body twisted about 90 degrees with both pistols up the screen;
+  - up close it reads as running and gunning sideways, with a strong twist at the chest;
+  - **at the 28 m camera it reads, but only just:** the figure is small, the pistols pointing up are what show, and the sideways stride is hard to make out.
+  - **One honest problem:** I clicked every 0.3 s, slower than the 0.225 s fire rate. In each gap between shots, after the recovery ends and before the next click, the arms start to come down (aim weight 0.4, twist 36 degrees at the click frames) and go back up. That is a twitch on every shot, and it is the common case now.
+  - **Proposal, not built:** keep the arms up for a short linger after each shot (about 0.3 s), so they only come down when she stops shooting. It is a few lines in `CharacterAnimation`.
+- **(c) Running down the screen, shooting up it:**
+  - she turns once in about 0.2 s, then holds at 180 degrees through five clicks;
+  - speed exactly 3.00 m/s throughout (the cap), in the backward jog;
+  - no flip.
+
+**Tests.**
+- **Totals:** rules 108 of 108 (104 + 4 `BackpedalCap`). PlayMode 123 of 124, with the one inconclusive as before (118 − 6 deleted + 12 new in `WasdTests`).
+- **Deleted, behaviour gone:**
+  - `MoveOrderInAShotsStartup_CancelsTheShot` (now the opposite, covered by `AMoveKeyInAStandingShotsWindUp_DoesNotCancelIt…`);
+  - `Input_HeldRightClick_FollowsTheCursor_AndStopsAfterRelease` (covered by the W A S D input tests);
+  - `AMoveOrder_EndsTheHold_WithTheTurnBackAtTheRate` (there are no move orders; the cursor-back-inside test covers ending the hold);
+  - `OnTheMove_AWaitingShot_IsDroppedByAMoveOrder` (now the opposite, covered by `OnTheMove_HoldingAMoveKey_KeepsAWaitingShot`);
+  - `Input_RightClickOnAnEnemy_Moves_AndDoesNotShoot` (covered by the right-click-fires-the-last-slot test);
+  - `Input_TheAKey_DoesNothing…` (A is a move key now; covered by the device-read test).
+- **Changed:**
+  - every test that walked her with a move order now steers, with a `SteerTo` helper in ControlRoomTests and `RunUntilX` holding the direction;
+  - "arrives where it was going" checks became "runs on at full speed the held way";
+  - `Order` checks became `IsMoving`;
+  - `AShotCancelledInItsStartup…` cancels with a dash;
+  - `AWaitingShot_IsDroppedByAMoveOrder` became `AWaitingShot_IsKept_WhenAMoveKeyIsPressed`;
+  - the move-order-during-wind-up test became `OnTheMove_ChangingDirectionDuringTheWindUp_DoesNotCancelTheShot`;
+  - the dead-character input test feeds a move direction.
+- **New** (`WasdTests`):
+  - each of W, A, S, D moves her that way on the screen at run speed;
+  - a diagonal is no faster;
+  - letting go stops her;
+  - she slides along the floor's edge;
+  - the dash goes toward the cursor whatever is held;
+  - read from test devices, W+D give the move, and the right button gives no move but presses the eighth slot and starts Triple Tap without moving her;
+  - each of the eight bindings, read from the asset, starts its own skill;
+  - the skill bar labels and the help line show the bindings;
+  - a move key during a skill lock does nothing and moves her when the lock ends;
+  - a move key in a standing shot's wind-up does not cancel it;
+  - holding S with the cursor up the screen and clicking in rhythm for 2.5 s keeps her facing up, never swinging back, at no more than the capped speed, in the backward jog;
+  - moving sideways with the cursor ahead keeps the body on the run, twists the upper body over 70 degrees, and keeps the forward gait.
+- **Planted bugs,** one at a time and removed again:
+
+| Planted bug | Caught by |
+|---|---|
+| A diagonal is faster | `ADiagonal_IsNoFasterThanStraight` (8.5 m/s) |
+| A move key cancels a standing shot | `AMoveKeyInAStandingShotsWindUp_DoesNotCancelIt…` |
+| The right button still moves | `ReadFromDevices_…RightClickFiresTheLastSlot_AndDoesNotMove` |
+
+**Not verified:** play with the real keyboard and mouse; how continuous strafing and backpedalling feel; whether the sideways twist reads in motion at the game camera; the arms twitching between slower clicks (seen in the table, not yet fixed).
+
+### Skills on the move (2026-11-19, branch `art/grip`, decision 0004)
+
+Kristian played W A S D on 2026-11-19 ("this feels very good") and asked for smoother spellcasting. Built the same day, and the arm linger proposed above with it:
+
+- **The delay was the skill's recovery locking the basic shot.** Seconds from a skill's last hit to the first basic shot going off, measured in tests:
+
+  | Skill | Old lock | Free recovery |
+  |---|---|---|
+  | Quick Shot | 0.38 | 0.08 |
+  | Powder Keg | 0.28 | 0.09 |
+  | Heavy Volley | 0.58 | 0.08 |
+
+- **Free recovery:** after a skill's last hit the basic shot and the move keys are free; the next skill waits until the recovery would have ended. A skill pressed in that time started 0.002 to 0.004 s after the recovery's end, never before.
+- **The slide:** Quick Shot from a run dips to 3.0 m/s at its hit, slides 0.73 m and is back at run speed 0.27 s after the press. Heavy Volley stands 0.29 s after the press, 0.91 m on, and stays there until its hit.
+- **The arm hold:** with a click every 0.3 s the arm weight never fell below 1 and the pose stayed Shoot; the arms were down 0.35 s after the last shot ended.
+- **The dash direction** is a setting in `InputBindings.asset`: toward the cursor, or the way she moves.
+- **Totals:** rules 121 of 121. PlayMode 145 of 146, with the one inconclusive as before.
+- **Found by the producer's read of the code and fixed:** a skill press that had gone stale while it waited out a free recovery cancelled a basic shot winding up at the recovery's end, and then was dropped. A test reproduced it before the fix.
+- **Found by an independent review, not fixed:** a move key pressed during a standing shot's wind-up starts her at full speed before the shot's slow-down (see decision 0004).
+- **Kristian played it on 2026-11-19: "veldig bra. fantastisk."** He tuned no value.
+
+**Not verified:** the NavMesh stopping a slide at an edge (it uses the same steering as walking, which is tested there); that the rebuilt scene differs from the old one only in file IDs.
+
 ## Decisions waiting for Kristian
+
+The points listed as open in `docs/decisions/0003-wasd-movement.md` and `docs/decisions/0004-skills-on-the-move.md` wait for him too.
 
 The ten behaviours under "How the pieces behave" in the slice file are my choices, and so are the three new skills, the gauge's numbers and the enemy's. The ones most likely to matter in the hand:
 
@@ -776,7 +895,8 @@ The ten behaviours under "How the pieces behave" in the slice file are my choice
 ## State for the play session
 
 - The Editor is open on `Assets/Game/Scenes/ControlRoom.unity`, Play mode stopped, no compile errors.
-- Controls: right-click moves (held, it follows the cursor), also on an enemy. Left-click fires one basic shot toward the cursor; one click, one shot, no auto-attack, and she looks toward the cursor while free. Space dashes. Skills: Q Quick Shot, W Powder Keg, E Fan Fire (hold), R Long Shot (charge), S Scatter Blast, D Heavy Volley (cast), F Backstep, G Triple Tap. Z spends a full focus gauge.
+- Controls: W A S D move (relative to the screen). Left-click fires one basic shot toward the cursor; one click, one shot. Space dashes toward the cursor (or the way she moves, a setting). Skills: Q Quick Shot, 1 Powder Keg, 2 Fan Fire (hold), 3 Long Shot (charge), 4 Scatter Blast, R Heavy Volley (cast), F Backstep, right click Triple Tap. Z spends a full focus gauge. The bindings are in `Assets/Game/Settings/InputBindings.asset`.
 - The enemy is the tall purple shape far to the right and down from the start, at (15, -10). It stands still until you come within 9 m or hurt it. Its red outlines show where it will hit.
 - To tune: `Assets/Game/Settings/Skills.asset` (skills and the gauge), `Assets/Game/Settings/Enemy.asset` (the enemy), `Assets/Game/Settings/ShotFx.asset` (how the shots look, and the recoil) and `Assets/Game/Settings/PostProcessing.asset` (the bloom; untick Bloom there to turn it off), in the Inspector while playing.
-- Nothing is committed on `g4/kit`.
+- Committed on `art/grip` on 2026-11-19: W A S D movement and skills on the move.
+- To tune the feel: `Assets/Game/Settings/FeelSettings.asset` (`SkillSlowdown`, `SkillSpeedRecovery`, `AimHold`, `SkillRecoveryFree`) and `Assets/Game/Settings/InputBindings.asset` (`DashDirection`).

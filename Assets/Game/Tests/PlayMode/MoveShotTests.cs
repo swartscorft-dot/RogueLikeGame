@@ -65,7 +65,7 @@ namespace Roguelike.PlayModeTests
             _player.Shoot(_a.transform.position);
             float startedAt = Time.time;
             Assert.That(_player.IsShootingOnTheMove, Is.True, "it shoots on the move");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "the move order stays");
+            Assert.That(_player.IsMoving, Is.True, "she keeps moving");
             yield return null;
             yield return null;
             Assert.That(_player.SpeedLimit, Is.LessThan(_feel.RunSpeed), "it starts slowing at once");
@@ -93,8 +93,10 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.SpeedLimit, Is.EqualTo(_feel.RunSpeed).Within(1e-3f), "back to full speed after the recovery time");
             Assert.That(_player.Speed, Is.EqualTo(_feel.RunSpeed).Within(0.4f), "and running at it");
 
-            yield return Until(() => _player.Order == OrderKind.None, 5f);
-            Assert.That(FlatDistance(_player.Position, RunTo), Is.LessThan(0.2f), "it arrives where it was going");
+            yield return new WaitForSeconds(0.3f);
+            Assert.That(_player.Speed, Is.EqualTo(_feel.RunSpeed).Within(0.4f), "she runs on at full speed the held way");
+            Assert.That(Vector3.Dot(Flat(_player.Velocity).normalized, Vector3.right), Is.GreaterThan(0.98f));
+            _player.Stop();
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "no second shot without a second command");
             Assert.That(_player.BasicShotsFired, Is.EqualTo(1));
             Assert.That(_player.ShotsOnTheMove, Is.EqualTo(1));
@@ -107,12 +109,13 @@ namespace Roguelike.PlayModeTests
             int shotsBefore = _player.BasicShotsFired;
             _player.Shoot(new Vector3(-3f, 0f, -14f)); // open floor, far beyond the range: no in-range condition any more
             Assert.That(_player.IsShootingOnTheMove, Is.True, "a click while walking is always a shot on the move");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "the move order stays");
+            Assert.That(_player.IsMoving, Is.True, "she keeps moving");
             yield return Until(() => _player.BasicShotsFired > shotsBefore, 2f);
             Assert.That(_player.BasicShotsFired - shotsBefore, Is.EqualTo(1), "the shot went off, a miss");
             Assert.That(_player.BasicShotHits, Is.EqualTo(0));
-            yield return Until(() => _player.Order == OrderKind.None, 6f);
-            Assert.That(FlatDistance(_player.Position, RunTo), Is.LessThan(0.2f), "she still arrives where she was going");
+            yield return new WaitForSeconds(1f);
+            Assert.That(_player.Speed, Is.EqualTo(_feel.RunSpeed).Within(0.4f), "and she runs on the held way at full speed");
+            _player.Stop();
             Assert.That(_player.ShotsOnTheMove, Is.EqualTo(1));
         }
 
@@ -123,12 +126,12 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _player.Shoot(_a.transform.position);
             Assert.That(_player.IsShootingOnTheMove, Is.False);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "a click gives no order: she does not walk");
+            Assert.That(_player.IsMoving, Is.False, "a click does not move her");
             yield return Until(() => _a.HitsTaken >= 1, 3f);
             float cycle = _feel.BasicShotStartup + _feel.BasicShotActive + _feel.BasicShotRecovery;
             yield return new WaitForSeconds(cycle * 2f);
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "standing, one command is one shot (click to shoot)");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
+            Assert.That(_player.IsMoving, Is.False);
             Assert.That(_player.ShotsOnTheMove, Is.EqualTo(0));
         }
 
@@ -155,19 +158,19 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator OnTheMove_ANewMoveOrderDuringTheWindUp_ChangesTheWay_ButDoesNotCancelTheShot()
+        public IEnumerator OnTheMove_ChangingDirectionDuringTheWindUp_DoesNotCancelTheShot()
         {
             yield return RunUntilX(-1f);
             _player.Shoot(_a.transform.position);
             Assume.That(_player.IsShootingOnTheMove, Is.True);
-            var newTarget = new Vector3(8f, 0f, -4f);
-            _player.MoveTo(newTarget);
+            _player.Steer(Vector3.back); // a new key, a new way
             Assert.That(_player.IsShootingOnTheMove, Is.True, "the shot goes on");
 
             yield return Until(() => _a.HitsTaken >= 1, 2f);
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "and goes off");
-            yield return Until(() => _player.Order == OrderKind.None, 5f);
-            Assert.That(FlatDistance(_player.Position, newTarget), Is.LessThan(0.2f), "to the new destination");
+            yield return new WaitForSeconds(0.3f);
+            Assert.That(Vector3.Dot(Flat(_player.Velocity).normalized, Vector3.back), Is.GreaterThan(0.95f), "she moves the new way");
+            _player.Stop();
         }
 
         [UnityTest]
@@ -186,14 +189,21 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator OnTheMove_ASkill_StopsFacesAndLocksAsBefore()
+        public IEnumerator OnTheMove_ASkill_SlidesFacesAndLocks()
         {
             yield return RunUntilX(-1f);
+            float running = _player.Speed;
             Assert.That(_player.PressSkill(0, _a.transform.position), Is.EqualTo(IntentResult.Started));
             Assert.That(_player.IsLocked, Is.True, "a skill locks");
             Assert.That(_player.IsShootingOnTheMove, Is.False);
             yield return null;
-            Assert.That(_player.Speed, Is.LessThan(0.2f), "and stops the character");
+            // Decision 0004: she slides to a stand instead of stopping dead (SkillsOnTheMoveTests measure the curve).
+            if (_feel.SkillSlowdown > 0f)
+            {
+                Assert.That(_player.IsSkillSliding, Is.True, "a skill pressed on the move slides her");
+                Assert.That(_player.Speed, Is.LessThanOrEqualTo(running + 0.05f).And.GreaterThan(running * 0.5f), "slowing, not stopped dead");
+            }
+            else Assert.That(_player.Speed, Is.LessThan(0.2f), "with no slowdown, it stops the character");
             if (_feel.FaceCursorOnCast)
                 Assert.That(Vector3.Dot(Flat(_player.transform.forward), Flat(_a.transform.position - _player.Position).normalized),
                             Is.GreaterThan(0.99f), "facing the aim point");
@@ -380,7 +390,7 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(RunFrom);
             yield return null;
-            _player.MoveTo(RunTo);
+            _player.Steer(Vector3.right); // held, as a key
             yield return Until(() => _player.Position.x >= x, 4f);
             Assume.That(_player.Position.x, Is.GreaterThanOrEqualTo(x), "the character got there");
             Assume.That(_player.Speed, Is.EqualTo(_feel.RunSpeed).Within(0.4f), "at full speed");

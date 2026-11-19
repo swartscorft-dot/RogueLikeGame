@@ -175,7 +175,7 @@ namespace Roguelike.PlayModeTests
             yield return new WaitForSeconds(Cycle * 3f);
             Assert.That(_player.BasicShotsFired, Is.EqualTo(1), "it fires");
             Assert.That(FlatDistance(_player.Position, stood), Is.LessThan(0.02f), "from where she stands: no walking into range");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
+            Assert.That(_player.IsMoving, Is.False);
         }
 
         // ---------------- Input, fed frames ----------------
@@ -211,80 +211,6 @@ namespace Roguelike.PlayModeTests
             Assert.That(streak, Is.Not.Null);
             Assert.That(Vector3.Dot(Flat(streak.End - _player.Position).normalized, Vector3.back), Is.GreaterThan(0.99f), "a click behind her shoots behind her");
             Assert.That(FlatDistance(_player.Position, Vector3.zero), Is.LessThan(0.05f), "and none of the clicks moved her");
-        }
-
-        [UnityTest]
-        public IEnumerator Input_RightClickOnAnEnemy_Moves_AndDoesNotShoot()
-        {
-            UseFakeInput();
-            yield return Standing(new Vector3(-6f, 0f, 0f));
-            yield return null;
-            Vector3 onA = _a.transform.position;
-            _frames.Enqueue(new InputFrame { CursorScreen = ScreenOf(onA), MoveHeld = true });
-            yield return null;
-            yield return null;
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move), "a right click on a dummy is a move");
-            Vector3 from = _player.Position;
-            yield return new WaitForSeconds(0.4f);
-            Assert.That(FlatDistance(_player.Position, onA), Is.LessThan(FlatDistance(from, onA) - 1f), "she walks toward that point");
-            Assert.That(_player.BasicShotsFired, Is.EqualTo(0), "and does not shoot");
-            Assert.That(_a.HitsTaken, Is.EqualTo(0));
-        }
-
-        [UnityTest]
-        public IEnumerator Input_TheAKey_DoesNothing_AndAHeldLeftButton_IsOnePress()
-        {
-            Assert.That(GameObject.Find("RangeRing"), Is.Null, "there is no range ring any more");
-            var keyboard = InputSystem.AddDevice<Keyboard>();
-            var mouse = InputSystem.AddDevice<Mouse>();
-            try
-            {
-                yield return Standing(new Vector3(2f, 0f, 1f));
-                UseFakeInput();
-                Vector2 screen = ScreenOf(new Vector3(2f, 0f, 6f));
-
-                // A, read from a keyboard the way the game reads the real one.
-                _idle = new InputFrame { CursorScreen = screen };
-                InputSystem.QueueStateEvent(mouse, new MouseState { position = screen });
-                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.A));
-                // The input system takes the events in at the start of a later frame.
-                for (int i = 0; i < 10 && !keyboard.aKey.isPressed; i++) yield return null;
-                InputFrame? withA = PlayerInputDriver.FrameFrom(mouse, keyboard);
-                Assert.That(keyboard.aKey.isPressed, Is.True, "A is down on the test keyboard");
-                Assert.That(withA.HasValue, Is.True);
-                InputFrame frame = withA.Value;
-                Assert.That(frame.ShootPressed || frame.MoveHeld || frame.DashPressed || frame.IdentityPressed
-                            || frame.SkillsPressed != 0 || frame.SkillsHeld != 0, Is.False, "A gives nothing the game acts on");
-                _frames.Enqueue(frame);
-                yield return null;
-                yield return null;
-                yield return new WaitForSeconds(Cycle);
-                Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
-                Assert.That(_player.BasicShotsFired, Is.EqualTo(0));
-                Assert.That(_player.HasPendingShot, Is.False);
-                Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
-
-                // The left button held over several input updates: one press.
-                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
-                int presses = 0;
-                for (int i = 0; i < 5; i++)
-                {
-                    var state = new MouseState { position = screen }.WithButton(MouseButton.Left);
-                    InputSystem.QueueStateEvent(mouse, state);
-                    yield return null;
-                    InputFrame? held = PlayerInputDriver.FrameFrom(mouse, keyboard);
-                    if (held.HasValue && held.Value.ShootPressed) presses++;
-                    if (held.HasValue) _frames.Enqueue(held.Value);
-                }
-                yield return new WaitForSeconds(Cycle * 2f);
-                Assert.That(presses, Is.EqualTo(1), "holding the left button is one press");
-                Assert.That(_player.BasicShotsFired, Is.EqualTo(1), "and one shot");
-            }
-            finally
-            {
-                InputSystem.RemoveDevice(keyboard);
-                InputSystem.RemoveDevice(mouse);
-            }
         }
 
         // ---------------- Looking toward the cursor ----------------

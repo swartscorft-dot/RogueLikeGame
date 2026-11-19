@@ -42,10 +42,17 @@ namespace Roguelike.Rules
         public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)
         public float ShotTurnTime = 0.2f;         // s for a half turn of the body to a shot aimed outside the front angle, and back to the run after
         public float ShotTurnHold = 0.5f;         // s she stays turned to the aim after the last such shot, backpedalling
+        public float BackpedalSpeedShare = 0.5f;  // share of run speed she may move at while held turned away from her movement (0003, a guess)
         public float MovingShotSpeedShare = 0.5f; // share of run speed a shot on the move slows to
         public float MovingShotSlowdown = 0.15f;  // s to ease down to that share when a shot on the move starts
         public float MovingShotRecovery = 0.5f;   // s to ease back to full speed, once the shot has gone off and the slow-down is done
         public float ShootGaitFade = 0.15f;       // s to cross-fade between the run and the shooting gait
+
+        // Skills on the move (decision 0004, the producer's guesses, on trial)
+        public bool SkillRecoveryFree = true;     // after a skill's last hit the basic shot and the move keys are free; the next skill still waits out the recovery
+        public float SkillSlowdown = 0.3f;        // s to slide from full run speed to a stand when a skill is pressed on the move (less from a lower speed); 0 is the old dead stop
+        public float SkillSpeedRecovery = 0.25f;  // s to ease back to full speed from a stand when a skill lets her go (less from a higher speed)
+        public float AimHold = 0.3f;              // s the arms stay aimed at the cursor after a shot or a skill ends
 
         // Hits
         public float HitStop = 0.05f;             // s, a skill hit

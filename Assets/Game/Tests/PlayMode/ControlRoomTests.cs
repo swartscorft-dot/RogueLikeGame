@@ -67,24 +67,23 @@ namespace Roguelike.PlayModeTests
         // ---------------- C2 Move ----------------
 
         [UnityTest]
-        public IEnumerator Move_ArrivesAtRunSpeed_AndTheOrderEnds()
+        public IEnumerator Steer_MovesAtRunSpeed_InTheHeldDirection_AndStopsWhenLetGo()
         {
             var target = new Vector3(-6f, 0f, -5f);
             float distance = FlatDistance(_player.Position, target);
             float start = Time.time;
 
-            _player.MoveTo(target);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move));
-            yield return Until(() => FlatDistance(_player.Position, target) < 0.15f, 10f);
+            yield return SteerTo(target, 0.15f, 10f);
 
             float elapsed = Time.time - start;
             float expected = distance / _feel.RunSpeed;
-            Assert.That(FlatDistance(_player.Position, target), Is.LessThan(0.15f), $"arrived (at {_player.Position})");
+            Assert.That(FlatDistance(_player.Position, target), Is.LessThan(0.3f), $"got there (at {_player.Position})");
             Assert.That(elapsed, Is.InRange(expected - 0.2f, expected + 0.5f + _feel.TimeToFullSpeed),
                         $"took {elapsed:0.00}s for {distance:0.00}m");
-
-            yield return Until(() => _player.Order == OrderKind.None, 2f);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "the order is done on arrival");
+            Vector3 stoppedAt = _player.Position;
+            yield return new WaitForSeconds(0.2f);
+            Assert.That(FlatDistance(_player.Position, stoppedAt), Is.LessThan(0.05f), "let go, she stands");
+            Assert.That(_player.IsMoving, Is.False);
         }
 
         // ---------------- C3 Dash ----------------
@@ -149,28 +148,6 @@ namespace Roguelike.PlayModeTests
         // ---------------- C6 The basic shot never locks, as in League ----------------
 
         [UnityTest]
-        public IEnumerator MoveOrderInAShotsStartup_CancelsTheShot()
-        {
-            _player.Teleport(NearA);
-            yield return null;
-            _player.Shoot(_a.transform.position);
-            yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
-            Assume.That(_player.ActionPhase, Is.EqualTo(ActionPhase.Startup));
-            Vector3 from = _player.Position;
-            float orderedAt = Time.time;
-
-            _player.MoveTo(new Vector3(2f, 0f, -6f));
-            Assert.That(_player.Action, Is.EqualTo(ActionKind.None), "the shot is cancelled at once");
-            yield return Until(() => FlatDistance(_player.Position, from) > 0.3f, 2f);
-            Assert.That(FlatDistance(_player.Position, from), Is.GreaterThan(0.3f), "the character leaves");
-            Assert.That(Time.time - orderedAt, Is.LessThan(0.12f), "without waiting for the shot");
-
-            yield return new WaitForSeconds(ShotSeconds * 2f);
-            Assert.That(_a.HitsTaken, Is.EqualTo(0), "the cancelled shot never lands");
-            Assert.That(_player.BasicShotsFired, Is.EqualTo(0));
-        }
-
-        [UnityTest]
         public IEnumerator AShotCancelledInItsStartup_DoesNotDelayTheNextOne()
         {
             _player.Teleport(NearA);
@@ -179,8 +156,11 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.Action == ActionKind.BasicShot, 2f);
             Assume.That(_player.ActionPhase, Is.EqualTo(ActionPhase.Startup));
 
-            _player.MoveTo(_player.Position + Vector3.back);
+            // A dash cancels a shot in its startup (movement no longer does).
+            Assert.That(_player.DashToward(_player.Position + Vector3.back * 2f), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => !_player.IsDashing, 1f);
             yield return null;
+            Assert.That(_player.BasicShotsFired, Is.EqualTo(0), "the cancelled shot never went off");
             float orderedAt = Time.time;
             _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 1, 3f);
@@ -191,7 +171,7 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator MoveOrderInAShotsRecovery_MovesAtOnce()
+        public IEnumerator AMoveKeyInAShotsRecovery_MovesAtOnce()
         {
             Assume.That(_feel.BasicShotRecovery, Is.GreaterThan(0.08f), "a recovery long enough to leave during");
             _player.Teleport(NearA);
@@ -203,8 +183,9 @@ namespace Roguelike.PlayModeTests
             Vector3 from = _player.Position;
             float orderedAt = Time.time;
 
-            _player.MoveTo(new Vector3(2f, 0f, -6f));
+            _player.Steer(Vector3.back);
             yield return Until(() => FlatDistance(_player.Position, from) > 0.15f, 2f);
+            _player.Stop();
             Assert.That(FlatDistance(_player.Position, from), Is.GreaterThan(0.15f));
             Assert.That(Time.time - orderedAt, Is.LessThan(_feel.BasicShotRecovery * 0.8f), "it left during what would have been the recovery");
             Assert.That(_player.Action, Is.EqualTo(ActionKind.None));
@@ -222,13 +203,14 @@ namespace Roguelike.PlayModeTests
             // Step away and order the attack again every frame: the fastest a player could try to shoot.
             // (A command during the shot's cycle waits for the next shot; repeating it every frame is what a
             // player hammering the button would do, and still gives one shot per cycle.)
-            _player.MoveTo(_player.Position + Vector3.back);
+            _player.Steer(Vector3.back);
             yield return null;
             yield return Until(() =>
             {
                 if (_a.HitsTaken < 2) _player.Shoot(_a.transform.position);
                 return _a.HitsTaken >= 2;
             }, 3f);
+            _player.Stop();
 
             Assert.That(_a.HitsTaken, Is.EqualTo(2));
             Assert.That(Time.time - firstHit, Is.GreaterThanOrEqualTo(ShotSeconds - 0.03f),
@@ -345,28 +327,6 @@ namespace Roguelike.PlayModeTests
         // ---------------- C10 Input driver, fed frames ----------------
 
         [UnityTest]
-        public IEnumerator Input_HeldRightClick_FollowsTheCursor_AndStopsAfterRelease()
-        {
-            UseFakeInput();
-            Vector3 start = _player.Position;
-            var offset = new Vector3(-5f, 0f, -4f);
-            Vector2 screen = ScreenOf(start + offset);
-
-            _idle = new InputFrame { CursorScreen = screen, MoveHeld = true };
-            yield return new WaitForSeconds(0.5f);
-
-            Vector3 moved = Flat(_player.Position - start);
-            Assert.That(moved.magnitude, Is.EqualTo(_feel.RunSpeed * 0.5f).Within(0.6f + _feel.RunSpeed * _feel.TimeToFullSpeed),
-                        "runs at run speed for as long as the button is held");
-            Assert.That(Vector3.Dot(moved.normalized, offset.normalized), Is.GreaterThan(0.98f), "toward the cursor");
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.Move));
-
-            _idle = new InputFrame { CursorScreen = screen };
-            yield return Until(() => _player.Order == OrderKind.None, 5f);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "walks to the last cursor point and stops");
-        }
-
-        [UnityTest]
         public IEnumerator Input_LeftClicksInRhythm_EveryClickIsAShot()
         {
             UseFakeInput();
@@ -393,6 +353,10 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Input_SpaceDashesTowardTheCursor_AndQCastsAtIt()
         {
+            // The dash direction is a setting since decision 0004: test the cursor one whatever the asset says.
+            InputBindings bindings = Object.Instantiate(_driver.ActiveBindings);
+            bindings.DashDirection = DashDirection.TowardCursor;
+            _driver.Bindings = bindings;
             UseFakeInput();
             Vector3 start = _player.Position;
             _idle = new InputFrame { CursorScreen = ScreenOf(start + Vector3.left * 5f) };
@@ -422,7 +386,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(view.Pose, Is.EqualTo(CharacterPose.Idle));
             Assert.That(InState(view, CharacterAnimation.IdleState), Is.True, "the Animator is in Idle");
 
-            _player.MoveTo(new Vector3(-6f, 0f, -5f));
+            _player.Steer(new Vector3(-6f, 0f, -5f) - _player.Position);
             yield return Until(() => view.Pose == CharacterPose.Run, 1f);
             Assert.That(view.Pose, Is.EqualTo(CharacterPose.Run), "moving shows Run");
             yield return new WaitForSeconds(0.3f);
@@ -516,9 +480,10 @@ namespace Roguelike.PlayModeTests
                 Assert.That(Vector3.Distance(view.LeftWeapon.position, view.LeftHand.position), Is.EqualTo(leftReach).Within(0.01f), "left pistol, " + when);
             };
 
-            _player.MoveTo(new Vector3(-6f, 0f, -5f));
+            _player.Steer(new Vector3(-6f, 0f, -5f) - _player.Position);
             yield return new WaitForSeconds(0.4f);
             check("running");
+            _player.Stop();
 
             _player.Teleport(NearA);
             yield return null;
@@ -609,6 +574,18 @@ namespace Roguelike.PlayModeTests
 
         static Vector2 ScreenOf(Vector3 world) =>
             Camera.main.WorldToScreenPoint(new Vector3(world.x, 0f, world.z));
+
+        /// <summary>Holds the move direction toward a point, as a held key would, until she is within a distance of it; then lets go.</summary>
+        IEnumerator SteerTo(Vector3 point, float within, float timeoutSeconds)
+        {
+            float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+            while (FlatDistance(_player.Position, point) > within && Time.realtimeSinceStartup < deadline)
+            {
+                _player.Steer(point - _player.Position);
+                yield return null;
+            }
+            _player.Stop();
+        }
 
         static IEnumerator Until(Func<bool> condition, float timeoutSeconds)
         {

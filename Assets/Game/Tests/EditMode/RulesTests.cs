@@ -31,10 +31,15 @@ namespace Roguelike.Rules.Tests
             Assert.That(feel.ShotFrontAngle, Is.EqualTo(120f));
             Assert.That(feel.ShotTurnTime, Is.EqualTo(0.2f));
             Assert.That(feel.ShotTurnHold, Is.EqualTo(0.5f));
+            Assert.That(feel.BackpedalSpeedShare, Is.EqualTo(0.5f));
             Assert.That(feel.MovingShotSpeedShare, Is.EqualTo(0.5f));
             Assert.That(feel.MovingShotSlowdown, Is.EqualTo(0.15f));
             Assert.That(feel.MovingShotRecovery, Is.EqualTo(0.5f));
             Assert.That(feel.ShootGaitFade, Is.EqualTo(0.15f));
+            Assert.That(feel.SkillRecoveryFree, Is.True);
+            Assert.That(feel.SkillSlowdown, Is.EqualTo(0.3f));
+            Assert.That(feel.SkillSpeedRecovery, Is.EqualTo(0.25f));
+            Assert.That(feel.AimHold, Is.EqualTo(0.3f));
             Assert.That(feel.HitStop, Is.EqualTo(0.05f));
             Assert.That(feel.BasicShotHitStop, Is.EqualTo(0.025f));
         }
@@ -635,6 +640,48 @@ namespace Roguelike.Rules.Tests
             Assert.That(ShotFacing.Turn(10f, 20f, 0.2f, 0.1f), Is.EqualTo(20f).Within(1e-3f), "never past the target");
             Assert.That(ShotFacing.Turn(0f, 135f, 0f, 0.001f), Is.EqualTo(135f).Within(1e-3f), "no turn time: at once");
             Assert.That(ShotFacing.DeltaAngle(350f, 10f), Is.EqualTo(20f).Within(1e-3f));
+        }
+    }
+
+    public class BackpedalCapTests
+    {
+        [Test]
+        public void Off_ItAllowsFullSpeed()
+        {
+            var c = new BackpedalCap();
+            Assert.That(c.Update(false, 1f, 0.5f, 0.15f, 0.5f), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void On_ItEasesDownToTheCap_NotInAJump()
+        {
+            var c = new BackpedalCap();
+            c.Update(false, 0f, 0.5f, 0.15f, 0.5f);
+            Assert.That(c.Update(true, 1f, 0.5f, 0.15f, 0.5f), Is.EqualTo(1f).Within(1e-4f), "at the moment it comes on: still full");
+            float mid = c.Update(true, 1.075f, 0.5f, 0.15f, 0.5f);
+            Assert.That(mid, Is.EqualTo(0.75f).Within(1e-3f), "half way in time, half way down");
+            Assert.That(c.Update(true, 1.2f, 0.5f, 0.15f, 0.5f), Is.EqualTo(0.5f).Within(1e-4f), "then the cap");
+        }
+
+        [Test]
+        public void Off_AgainItEasesBackUp_FromWhereItWas()
+        {
+            var c = new BackpedalCap();
+            c.Update(true, 0f, 0.5f, 0.15f, 0.5f);
+            c.Update(true, 1f, 0.5f, 0.15f, 0.5f);
+            Assert.That(c.Update(false, 2f, 0.5f, 0.15f, 0.5f), Is.EqualTo(0.5f).Within(1e-4f), "at the moment it goes off: still capped");
+            Assert.That(c.Update(false, 2.25f, 0.5f, 0.15f, 0.5f), Is.EqualTo(0.75f).Within(1e-3f));
+            Assert.That(c.Update(false, 2.6f, 0.5f, 0.15f, 0.5f), Is.EqualTo(1f).Within(1e-4f));
+        }
+
+        [Test]
+        public void Reset_TakesItOffAtOnce()
+        {
+            var c = new BackpedalCap();
+            c.Update(true, 0f, 0.5f, 0f, 0.5f);
+            Assert.That(c.Share, Is.EqualTo(0.5f));
+            c.Reset();
+            Assert.That(c.Share, Is.EqualTo(1f));
         }
     }
 }

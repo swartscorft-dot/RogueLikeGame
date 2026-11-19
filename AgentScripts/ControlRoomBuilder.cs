@@ -4,7 +4,8 @@
 // depend on what the scene looked like before. Returns a hierarchy dump for comparison between runs.
 //
 // The feel, skill, enemy, grip and shot-effect settings assets are created only when they are missing.
-// They hold Kristian's tuning and are never overwritten. An older skill asset gets the skills it lacks.
+// They hold Kristian's tuning and are never overwritten. An older skill asset gets the skills it lacks, and a field
+// added to the feel settings or the bindings is written into the asset with its start value (BringInNewFields).
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -113,6 +114,7 @@ public static class ControlRoomBuilder
             AssetDatabase.CreateAsset(settings, SettingsPath);
             settingsCreated = true;
         }
+        bool settingsExtended = !settingsCreated && BringInNewFields(settings, SettingsPath);
 
         bool skillsCreated = false;
         var skills = AssetDatabase.LoadAssetAtPath<SkillSettings>(SkillsPath);
@@ -221,7 +223,16 @@ public static class ControlRoomBuilder
         playerVisual += "  muzzles: " + (character.RightMuzzle != null ? "right" : "no right") + ", "
                       + (character.LeftMuzzle != null ? "left" : "no left") + "\n";
         var playerHealth = player.AddComponent<PlayerHealth>();
-        player.AddComponent<PlayerInputDriver>();
+        // The keys and buttons: created with the start bindings when missing, never overwritten.
+        var bindings = AssetDatabase.LoadAssetAtPath<InputBindings>(BindingsPath);
+        bool bindingsExtended = false;
+        if (bindings == null)
+        {
+            bindings = ScriptableObject.CreateInstance<InputBindings>();
+            AssetDatabase.CreateAsset(bindings, BindingsPath);
+        }
+        else bindingsExtended = BringInNewFields(bindings, BindingsPath);
+        player.AddComponent<PlayerInputDriver>().Bindings = bindings;
         if (animation != null) animation.Player = character;
 
         // Skill aim: the outline of the area the skill in use will hit.
@@ -310,12 +321,41 @@ public static class ControlRoomBuilder
 
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
-        return (settingsCreated ? "settings: created\n" : "settings: kept\n")
+        return (settingsCreated ? "settings: created\n" : settingsExtended ? "settings: kept, new fields written with their start values\n" : "settings: kept\n")
+             + (bindingsExtended ? "bindings: kept, new fields written with their start values\n" : "")
              + (skillsCreated ? "skills: created\n" : skillsExtended ? "skills: kept, missing ones added\n" : "skills: kept\n")
              + (enemyCreated ? "enemy: created\n" : "enemy: kept\n")
              + (shotFxCreated ? "shot effects: created\n" : shotFxExtended ? "shot effects: kept, missing looks added\n" : "shot effects: kept\n") + soundReport
              + (oldBulletsRemoved ? "old bullet settings: removed\n" : "")
              + (postProcessingCreated ? "post-processing profile: created\n" : "post-processing profile: kept\n") + floorReport + playerVisual + Dump();
+    }
+
+    /// <summary>
+    /// A field added to a settings class after its asset was made is not in the asset's file. Unity gives it its start
+    /// value when it loads the asset, but writes it to the file only when the asset is saved. This marks the asset for
+    /// saving when the file lacks any of its fields, so new fields arrive in the file with their start values. Every
+    /// value already in the file is written back unchanged: nothing is reset. True if it was marked.
+    /// </summary>
+    static bool BringInNewFields(Object asset, string path)
+    {
+        if (asset == null || !System.IO.File.Exists(path)) return false;
+        string text = System.IO.File.ReadAllText(path);
+        var so = new SerializedObject(asset);
+        SerializedProperty it = so.GetIterator();
+        bool missing = false;
+        while (it.Next(true))
+        {
+            string name = it.name;
+            if (name.StartsWith("m_") || name == "Array" || name == "size" || name == "data") continue;
+            if (!System.Text.RegularExpressions.Regex.IsMatch(text, @"^[ \t-]*" + System.Text.RegularExpressions.Regex.Escape(name) + ":",
+                                                               System.Text.RegularExpressions.RegexOptions.Multiline))
+            {
+                missing = true;
+                break;
+            }
+        }
+        if (missing) EditorUtility.SetDirty(asset);
+        return missing;
     }
 
     /// <summary>
@@ -944,6 +984,7 @@ public static class ControlRoomBuilder
     // ---------------- Shot sounds ----------------
 
     const string ShotSoundDir = Root + "/Audio/Shots";
+    const string BindingsPath = Root + "/Settings/InputBindings.asset";
 
     /// <summary>The start mapping of sounds to looks (2026-11-18): clip, share of the loudest peak to aim at, pitch, pitch spread.</summary>
     static readonly (string look, string clip, float level, float pitch, float spread)[] StartSounds =

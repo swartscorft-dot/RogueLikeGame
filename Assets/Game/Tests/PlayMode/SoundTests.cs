@@ -116,7 +116,7 @@ namespace Roguelike.PlayModeTests
             int fired = _player.SkillShotsFired;
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.Not.EqualTo(IntentResult.Rejected));
             _player.ReleaseSkill(Triple);
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 3f); // and its free recovery (0004)
             int hits = _player.SkillShotsFired - fired;
             Assume.That(hits, Is.GreaterThan(1), "a burst");
             Assert.That(_played.Count, Is.EqualTo(hits), "one sound per hit of the burst");
@@ -127,7 +127,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.PressSkill(Fan, _a.transform.position), Is.Not.EqualTo(IntentResult.Rejected));
             yield return new WaitForSeconds(0.5f);
             _player.ReleaseSkill(Fan);
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 3f); // and its free recovery (0004)
             int ticks = _player.SkillShotsFired - fired;
             Assume.That(ticks, Is.GreaterThan(1), "several ticks");
             Assert.That(_played.Count, Is.EqualTo(ticks), "one sound per tick of the hold");
@@ -136,7 +136,7 @@ namespace Roguelike.PlayModeTests
             _played.Clear();
             Assert.That(_player.PressSkill(Keg, _a.transform.position), Is.Not.EqualTo(IntentResult.Rejected));
             _player.ReleaseSkill(Keg);
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 3f); // and its free recovery (0004)
             Assert.That(_played.Count, Is.EqualTo(1), "Powder Keg: one sound when it lands");
             Assert.That(_played[0].Clip, Is.SameAs(keg.Sound));
             Assert.That(_played[0].Pitch, Is.EqualTo(keg.SoundPitch * (_player.IsEmpowered ? _player.ShotLooks.EmpoweredPitch : 1f)).Within(keg.SoundPitchSpread + 1e-3f));

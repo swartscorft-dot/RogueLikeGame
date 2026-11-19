@@ -5,9 +5,6 @@ using UnityEngine.AI;
 
 namespace Roguelike
 {
-    /// <summary>What the character has been told to do: walk somewhere. An order stays until it is done or replaced.</summary>
-    public enum OrderKind { None, Move }
-
     /// <summary>The committed action the character is locked in, if any.</summary>
     public enum ActionKind { None, BasicShot, Skill }
 
@@ -15,34 +12,52 @@ namespace Roguelike
 
     /// <summary>
     /// The player character. Everything that drives it goes through the intent API:
-    /// <see cref="MoveTo"/>, <see cref="SteerTo"/>, <see cref="Shoot"/>, <see cref="DashToward"/>,
-    /// <see cref="PressSkill"/>, <see cref="ReleaseSkill"/>, <see cref="AimAt"/>, <see cref="ActivateIdentity"/>
-    /// and <see cref="Stop"/>. Input and tests both call these; nothing else moves the character.
+    /// <see cref="Steer"/>, <see cref="Shoot"/>, <see cref="DashToward"/>, <see cref="PressSkill"/>,
+    /// <see cref="ReleaseSkill"/>, <see cref="AimAt"/>, <see cref="ActivateIdentity"/> and <see cref="Stop"/>.
+    /// Input and tests both call these; nothing else moves the character.
     ///
-    /// The only order is a move. It stays until done or replaced, and waits for a lock to end.
+    /// Movement is a direction the input gives every frame (W A S D, decision 0003): she moves that way at run speed
+    /// while it is held, on the NavMesh and sliding along its edges, and stands when it is let go. There are no move
+    /// orders and no destinations. While a skill or a dash locks her, the direction does nothing; when the lock ends,
+    /// a direction still held moves her at once.
     /// Presses (dash, skill) made during a lock go through the input buffer and expire.
     /// A skill locks the character, and only the dash cancels it.
     ///
     /// The basic shot goes where the cursor points (decision 0002, Kristian 2026-11-18): a straight line toward the
     /// cursor's ground point, aimed at the live cursor until it goes off, hitting the first living target the line
     /// touches and only that one. With nothing in the line it is a miss that still fires. A click never moves her:
-    /// standing she shoots from where she stands; walking on a move order she shoots on the move, the move going on,
+    /// standing she shoots from where she stands; moving she shoots on the move, still moving the held way,
     /// slowed while the shot winds up and back to full speed after it.
     ///
     /// Click to shoot: one click, one shot, no auto-attack. A click while she cannot shoot yet waits and fires the
-    /// moment the cycle allows; only one waits (<see cref="ClickToShoot"/>). A move order drops it; so do a dash and
-    /// a skill. A shot that went off makes the next one wait out the whole shot time, so clicking never raises
+    /// moment the cycle allows; only one waits (<see cref="ClickToShoot"/>). A dash or a skill drops it; movement
+    /// never does. A shot that went off makes the next one wait out the whole shot time, so clicking never raises
     /// the fire rate.
     ///
-    /// The basic shot never locks, as in League. Before a standing shot has gone off, a move order, a skill or a dash
-    /// cancels it, and a cancelled shot costs nothing. After it has gone off, anything takes over at once. A shot on
-    /// the move goes on under a new move order. A basic shot turns the whole body only if the aim lies outside the
-    /// front angle; within it the body keeps its direction and CharacterAnimation turns the upper body.
+    /// The basic shot never locks. Movement never cancels it (decision 0003; this retires the League rule that a move
+    /// order cancels a standing shot): a move key during a standing shot's wind-up makes it a shot on the move, and
+    /// one after it has gone off moves her at once. A skill or a dash cancels a shot that has not gone off, at no
+    /// cost. A basic shot turns the whole body only if the aim lies outside the front angle; within it the body keeps
+    /// its direction and CharacterAnimation turns the upper body.
+    ///
+    /// Skills on the move (decision 0004, on trial):
+    /// - A skill commits her until its last hit (the end of the hold for a Holding skill). With
+    ///   <see cref="FeelValues.SkillRecoveryFree"/> on, the recovery after it no longer holds back the basic shot or the
+    ///   move keys: the skill ends there for everything but the next skill, which waits until the recovery would have
+    ///   ended (a press in that time goes through the input buffer, as during a lock). During that free recovery
+    ///   <see cref="Action"/> is None (or BasicShot), <see cref="IsLocked"/> is false, <see cref="ActiveSkill"/> is null,
+    ///   <see cref="ActiveSkillSlot"/> -1 and <see cref="SkillPhase"/> None; <see cref="FreeRecoverySlot"/> and
+    ///   <see cref="SkillGateRemaining"/> say which skill's recovery runs and for how long. A dash ends it, as a dash
+    ///   cancels a skill. Off, the whole recovery locks as before.
+    /// - A skill pressed on the move slides her to a stand along the way she was moving (<see cref="SkillSlide"/>), from
+    ///   the speed she had; the move keys do not steer it. When the skill lets her go the speed she may move at eases
+    ///   back up. A skill that moves her itself (Backstep) does neither, and a dash ends both at once.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
     {
-        const float ArriveDistance = 0.05f;
+        /// <summary>Metres ahead of her, along the held direction, that she is steered toward each frame.</summary>
+        const float SteerLookAhead = 1.5f;
         /// <summary>Where a shot starts without a pistol to fire it from: this high over the character's ground point.</summary>
         public const float FallbackMuzzleHeight = 0.6f;
         /// <summary>Metres between streaks side by side across a line skill. A line narrower than twice this shows one streak.</summary>
@@ -76,7 +91,9 @@ namespace Roguelike
         readonly List<TargetInfo> _targetScratch = new List<TargetInfo>();
         readonly ClickToShoot _clicks = new ClickToShoot();
         readonly ShotFacing _shotFacing = new ShotFacing();
+        readonly BackpedalCap _backpedalCap = new BackpedalCap();
         Vector3 _runDirection = Vector3.forward;    // the way she last moved, kept through a hit stop
+        Vector3 _moveInput;                         // the direction the input holds now, flat and of length 1, or zero
         readonly SkillCast _cast = new SkillCast();
         readonly List<Cooldown> _cooldowns = new List<Cooldown>();
         readonly SkillDefinition[] _fallbackSkills = SkillDefaults.Create();
@@ -87,10 +104,6 @@ namespace Roguelike
 
         NavMeshAgent _agent;
 
-        OrderKind _order;
-        Vector3 _orderPoint;
-        bool _travelDirty = true;
-        Vector3 _travelPoint;
 
         ActionKind _actionKind;
         Vector3 _aimPoint;
@@ -98,7 +111,6 @@ namespace Roguelike
         int _castSlot = -1;
         float _nextShotAt = float.NegativeInfinity; // the earliest the next basic shot may start
         float _shotStartedAt;
-        bool _orderedDuringShot;                    // a move order came in while a standing basic shot was going
         bool _movingShot;                           // the basic shot in progress is a shot on the move
         bool _shotTurnsBody;                        // the basic shot in progress turned the whole body to its aim
         // The speed around shots on the move (MovingShot.SpeedShare): eased down from the share it had when the
@@ -120,6 +132,18 @@ namespace Roguelike
         Vector3 _dashFrom;
         Vector3 _dashTo;
 
+        // Skills on the move (decision 0004).
+        float _skillGateUntil = float.NegativeInfinity; // a free recovery: no new skill before this
+        int _gateSlot = -1;                             // whose recovery it is
+        bool _sliding;          // the skill in use slides her to a stand
+        float _slideFrom;       // the share of run speed she had at the press
+        float _slideStartedAt;
+        Vector3 _slideDir;      // the way she was moving at the press, flat and of length 1
+        bool _rising;           // let go by a skill: the speed she may move at eases back up
+        float _riseFrom;
+        float _riseStartedAt;
+        Vector3 _lastVelocity;  // her velocity in the last frame that time ran, for a press during a hit stop
+
         // ---------------- State, for the readout and for tests ----------------
 
         public FeelValues Feel => Settings != null ? Settings.Values : _fallbackFeel;
@@ -128,7 +152,10 @@ namespace Roguelike
         public float Speed => _agent.velocity.magnitude;
         public Vector3 Velocity => _agent.velocity;
 
-        public OrderKind Order => _order;
+        /// <summary>The direction the input holds now: flat, of length 1, or zero when no move key is held.</summary>
+        public Vector3 MoveInput => _moveInput;
+        /// <summary>True while a move key is held and she is free to move: not dashing and not in a skill.</summary>
+        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && _actionKind != ActionKind.Skill;
         /// <summary>True once the cursor has been reported; <see cref="LookPoint"/> is then where it is on the ground.</summary>
         public bool HasLookPoint => _cursorKnown;
         public Vector3 LookPoint => _cursorPoint;
@@ -170,6 +197,22 @@ namespace Roguelike
         public Vector3 AimPoint => _aimPoint;
         public float SkillCooldownRemaining(int slot) =>
             slot >= 0 && slot < Skills.Count ? CooldownFor(slot).Remaining(Time.time) : 0f;
+        /// <summary>
+        /// The slot whose recovery is running free (decision 0004): the skill is over for the basic shot and the move
+        /// keys, but the next skill waits for it. -1 when none.
+        /// </summary>
+        public int FreeRecoverySlot => Time.time < _skillGateUntil ? _gateSlot : -1;
+        /// <summary>Seconds until a new skill may start after a free recovery; 0 when it may start now (or a lock holds it).</summary>
+        public float SkillGateRemaining => Mathf.Max(0f, _skillGateUntil - Time.time);
+        /// <summary>True while a skill slides her to a stand (decision 0004).</summary>
+        public bool IsSkillSliding => _actionKind == ActionKind.Skill && _sliding;
+        /// <summary>The share of run speed the latest skill slide started from: what she had at the press.</summary>
+        public float SlideStartShare => _slideFrom;
+        /// <summary>
+        /// The live cursor as the character knows it: the latest cursor report, click or skill press. The arms
+        /// follow it while they are held up after a shot (CharacterAnimation).
+        /// </summary>
+        public Vector3 AimCursor => _shotCursor;
 
         // ---------------- The identity gauge: focus ----------------
 
@@ -181,7 +224,10 @@ namespace Roguelike
         /// <summary>For the bar, 0 to 1: how full the gauge is, or while empowered how much of the mode is left.</summary>
         public float FocusBarFill => _focus.BarFill(Time.time, Identity);
         public bool IsDashing => _dashing;
-        /// <summary>True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock.</summary>
+        /// <summary>
+        /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
+        /// neither does a free recovery (decision 0004), which holds back only the next skill (<see cref="SkillGateRemaining"/>).
+        /// </summary>
         public bool IsLocked => _dashing || _actionKind == ActionKind.Skill;
         /// <summary>True from the moment a basic shot has gone off until its recovery is over or is cut short.</summary>
         public bool IsInShotRecovery => _actionKind == ActionKind.BasicShot && _action.HitResolved;
@@ -200,7 +246,7 @@ namespace Roguelike
         /// True while the speed is eased down or back up around a shot on the move: the shooting gait, forward or
         /// (with the body turned to a target behind) backward.
         /// </summary>
-        public bool InShootingGait => _easing || _shotFacing.State != ShotFacing.Mode.Free;
+        public bool InShootingGait => _easing || _shotFacing.State != ShotFacing.Mode.Free || IsSkillSliding;
         /// <summary>
         /// Where the body faces around shots that must turn it: free, held turned to the aim (backpedalling while she
         /// keeps shooting), or turning back to the run (<see cref="ShotFacing"/>).
@@ -226,48 +272,42 @@ namespace Roguelike
             _agent = GetComponent<NavMeshAgent>();
             _agent.updateRotation = false;
             _agent.angularSpeed = 0f;
-            _agent.autoBraking = true;
+            _agent.autoBraking = false; // she is steered a little way ahead every frame: no braking toward that point
             _agent.stoppingDistance = 0f;
             ApplyMovementFeel(Feel);
         }
 
         // ---------------- Intent API ----------------
 
-        /// <summary>Order: walk to a point. It drops a click that waits for its shot.</summary>
-        public void MoveTo(Vector3 point) => OrderMove(point, steering: false);
-
         /// <summary>
-        /// The held move button following the cursor. It walks to the point as <see cref="MoveTo"/> does, but it
-        /// keeps a click that waits for its shot, and it never cancels a standing shot: that shot goes off first,
-        /// and the walk takes over after it.
+        /// The move keys: walk this way (any length; it is laid flat and made of length 1), or stand with zero. Given
+        /// every frame by the input; it holds until it is changed. It never cancels a shot or drops a waiting click.
         /// </summary>
-        public void SteerTo(Vector3 point) => OrderMove(point, steering: true);
+        public void Steer(Vector3 direction)
+        {
+            Vector3 flat = Flat(direction);
+            _moveInput = flat.sqrMagnitude > 1e-6f ? flat.normalized : Vector3.zero;
+        }
 
         /// <summary>
         /// Press: one basic shot toward a point on the ground, the cursor. It never moves her: standing she shoots
-        /// from where she stands, walking on a move order she shoots on the move. The shot aims at the live cursor
+        /// from where she stands, moving she shoots on the move. The shot aims at the live cursor
         /// (<see cref="AimAt"/>) until it goes off. A click while she cannot shoot yet waits for the next shot.
         /// </summary>
         public void Shoot(Vector3 point)
         {
             _shotCursor = point;
             if (!_clicks.Click(Busy, Time.time, _nextShotAt)) return;
-            StartBasicShot(Feel, onTheMove: IsWalkingOnMoveOrder);
+            StartBasicShot(Feel, onTheMove: IsMoving);
         }
 
         /// <summary>True while she cannot start a basic shot now: a shot, a skill or a dash is going.</summary>
         bool Busy => _actionKind != ActionKind.None || _dashing;
 
-        /// <summary>True while the character walks on a move order and is free to shoot on the move.</summary>
-        bool IsWalkingOnMoveOrder =>
-            _order == OrderKind.Move && !_dashing && _actionKind != ActionKind.Skill
-            && (_actionKind == ActionKind.None || _movingShot)
-            && _agent.isOnNavMesh && (_agent.pathPending || _agent.remainingDistance > ArriveDistance);
-
-        /// <summary>Drop the order. A shot or dash in progress still finishes.</summary>
+        /// <summary>Let go of the move keys: she stands. A shot or dash in progress still finishes. For tests and tools.</summary>
         public void Stop()
         {
-            ClearOrder();
+            _moveInput = Vector3.zero;
             if (!IsLocked) Halt();
         }
 
@@ -301,7 +341,9 @@ namespace Roguelike
         {
             if (slot < 0 || slot >= Skills.Count) return IntentResult.Rejected;
             if (!CooldownFor(slot).IsReady(Time.time)) return IntentResult.Rejected;
-            if (IsLocked)
+            _shotCursor = point; // a press comes with the cursor: the arms held up after the skill follow it from here
+            // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer.
+            if (IsLocked || Time.time < _skillGateUntil)
             {
                 _bufferedSkillReleased = false;
                 return BufferPress(PressKind.Skill, point, slot);
@@ -363,8 +405,12 @@ namespace Roguelike
             _buffer.Clear();
             _clicks.Clear();
             _shotFacing.End(turnBack: false);
+            _backpedalCap.Reset();
             _easing = false;
-            ClearOrder();
+            _sliding = false;
+            _rising = false;
+            _skillGateUntil = float.NegativeInfinity;
+            _moveInput = Vector3.zero;
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
         }
@@ -397,28 +443,35 @@ namespace Roguelike
                     if (_movingShot && _easing) _easeFiredAfter = now - _easeStartedAt;
                     if (ResolveBasicShot()) HitStop.Trigger(feel.BasicShotHitStop);
                 }
+                // A buffered press that may start now takes over at once, as the press itself would have: a skill that
+                // waited out a free recovery (decision 0004) cancels a shot that has not gone off, like any skill.
+                bool takenOver = PressReady(now);
                 if (_movingShot)
                 {
-                    // On the move: the move order goes on under the shot, at the speed ApplyMovementFeel sets.
-                    // The body faces the aim if the shot turned it, else the way it walks.
-                    if (_order == OrderKind.Move)
-                    {
-                        Travel(_orderPoint);
-                        if (Arrived()) ClearOrder();
-                    }
+                    // On the move: she keeps moving the held way under the shot, at the speed ApplyMovementFeel sets.
+                    // The body faces the aim if the shot turned it, else the way she moves.
+                    Walk();
                     UpdateFacing(feel);
-                    // Once it has gone off, a buffered press takes over at once.
-                    bool takenOver = _action.HitResolved && _buffer.HasItem;
                     if (_action.IsRunning(now) && !takenOver) return;
                     _action.Cancel();
                     EndAction();
                 }
                 else
                 {
-                    // Once the shot has gone off, a move order that came in during it does not wait for the recovery.
+                    // A move key never cancels a standing shot. Before it has gone off, the shot becomes a shot on the
+                    // move, slowing from this moment; after, the recovery is cut short and she moves at once.
                     // A waiting click does not cut it short: the recovery runs out exactly when the next shot may
                     // start, so the arms stay up between shots clicked in rhythm.
-                    bool cutShort = _action.HitResolved && (_orderedDuringShot || _buffer.HasItem);
+                    if (IsMoving && !_action.HitResolved && !takenOver)
+                    {
+                        _movingShot = true;
+                        ShotsOnTheMove++;
+                        StartEasing(feel);
+                        Walk();
+                        UpdateFacing(feel);
+                        return;
+                    }
+                    bool cutShort = takenOver || (_action.HitResolved && IsMoving);
                     UpdateFacing(feel);
                     if (_action.IsRunning(now) && !cutShort) return;
                     _action.Cancel();
@@ -445,21 +498,35 @@ namespace Roguelike
                     if (feel.FaceCursorOnCast) Face(Flat(_aimPoint - transform.position));
                 }
 
+                // Pressed on the move, she slides to a stand along the way she was moving (decision 0004).
+                if (_sliding) Slide(feel, now);
+
                 float charge = _cast.Charge(now);
                 bool landed = false;
                 for (int hits = _cast.TakeHits(now); hits > 0; hits--) landed |= ResolveSkillHit(skill, charge);
                 if (landed) HitStop.Trigger(feel.HitStop);
-                if (_cast.IsRunning(now)) return;
+                // Committed until the last hit. With the free recovery, that is where the skill lets her go; the next
+                // skill still waits until the recovery would have ended. Without it, the recovery locks as before.
+                if (feel.SkillRecoveryFree ? _cast.IsCommitted(now) : _cast.IsRunning(now)) return;
+                if (_cast.IsRunning(now))
+                {
+                    _skillGateUntil = _cast.RecoveryEndsAt;
+                    _gateSlot = _castSlot;
+                }
+                LetGo(skill, now);
+                _cast.Cancel();
                 EndAction();
             }
 
-            // Free from here on: first a buffered press, then a waiting click, then the order.
-            if (!_buffer.HasItem && _clicks.TakeWhenAllowed(Busy, now, _nextShotAt))
+            // Free from here on: first a buffered press that may start now, then a waiting click, then the order.
+            // A skill press that waits out a free recovery does not hold back the click or the move keys meanwhile.
+            bool pressReady = PressReady(now);
+            if (!pressReady && _clicks.TakeWhenAllowed(Busy, now, _nextShotAt))
             {
-                StartBasicShot(feel, onTheMove: IsWalkingOnMoveOrder);
+                StartBasicShot(feel, onTheMove: IsMoving);
                 return;
             }
-            if (_buffer.TryTake(now, feel.InputBuffer, out Press press))
+            if (pressReady && _buffer.TryTake(now, feel.InputBuffer, out Press press))
             {
                 if (press.Kind == PressKind.Skill)
                 {
@@ -470,8 +537,33 @@ namespace Roguelike
                 if (StartDash(press.Point)) return;
             }
 
-            RunOrder(feel);
+            Walk();
             UpdateFacing(feel);
+        }
+
+        /// <summary>
+        /// Moves her the held way at the speed the feel allows now, by steering the NavMesh agent a little way ahead:
+        /// she stays on the NavMesh and slides along its edges. With no direction held she stops at once.
+        /// </summary>
+        void Walk()
+        {
+            if (!_agent.isOnNavMesh) return;
+            if (_moveInput == Vector3.zero)
+            {
+                if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
+                return;
+            }
+            MoveAlong(_moveInput, _agent.speed);
+        }
+
+        /// <summary>Moves her along a flat direction of length 1 at this speed, steering the agent a little way ahead.</summary>
+        void MoveAlong(Vector3 direction, float speed)
+        {
+            if (!_agent.isOnNavMesh) return;
+            _agent.isStopped = false;
+            _agent.SetDestination(transform.position + direction * SteerLookAhead);
+            // Start at once, as the movement always has: the agent would otherwise wait a frame for its path.
+            _agent.velocity = direction * speed;
         }
 
         /// <summary>
@@ -482,9 +574,9 @@ namespace Roguelike
         /// </summary>
         void UpdateFacing(FeelValues feel)
         {
-            Vector3 v = Flat(_agent.velocity);
-            if (v.sqrMagnitude > 0.25f) _runDirection = v.normalized;
-            bool moving = _order == OrderKind.Move;
+            // Her run direction is the way she moves this frame: the held direction.
+            bool moving = IsMoving;
+            if (moving) _runDirection = _moveInput;
             Vector3 aim = Flat(AimEnd(_shotCursor) - transform.position);
             bool aimInsideRunFront = moving && !UpperBodyAim.BodyMustTurn(
                 new GroundPoint(_runDirection.x, _runDirection.z), new GroundPoint(aim.x, aim.z), feel.ShotFrontAngle);
@@ -512,12 +604,60 @@ namespace Roguelike
             transform.rotation = Quaternion.Euler(0f, ShotFacing.Turn(yaw, want, feel.ShotTurnTime, Time.deltaTime), 0f);
         }
 
+        /// <summary>
+        /// True when the buffer holds a press that may start now and will: a dash at once, a skill once no free
+        /// recovery holds it back, and either only while it is still fresh. A press that is due but no longer fresh is
+        /// dropped here, so it never cancels or holds back anything (a shot winding up, a waiting click, the move keys).
+        /// </summary>
+        bool PressReady(float now)
+        {
+            if (!_buffer.TryPeek(out Press waiting)) return false;
+            if (waiting.Kind == PressKind.Skill && now < _skillGateUntil) return false; // waits out a free recovery
+            if (_buffer.IsFresh(now, Feel.InputBuffer)) return true;
+            _buffer.Clear(); // too old: dropped, as taking it would have dropped it
+            return false;
+        }
+
+        /// <summary>
+        /// One frame of a skill's slide: along the way she was moving at the press, at the share of run speed the
+        /// slide allows now (ApplyMovementFeel has set it), on the NavMesh. At a stand the slide is over.
+        /// </summary>
+        void Slide(FeelValues feel, float now)
+        {
+            if (SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, feel.SkillSlowdown) <= 0f)
+            {
+                _sliding = false;
+                Halt();
+                return;
+            }
+            MoveAlong(_slideDir, _agent.speed);
+        }
+
+        /// <summary>
+        /// A skill lets her go (at its last hit with the free recovery, else at the end of its recovery): the speed she
+        /// may move at eases back up from what the slide has left. A skill that moved her itself leaves her free at once.
+        /// </summary>
+        void LetGo(SkillDefinition skill, float now)
+        {
+            float share = _sliding ? SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, Feel.SkillSlowdown) : 0f;
+            _sliding = false;
+            _rising = skill == null || skill.MoveDistance == 0f;
+            _riseFrom = share;
+            _riseStartedAt = now;
+        }
+
         void ApplyMovementFeel(FeelValues feel)
         {
+            if (Time.timeScale > 0f) _lastVelocity = _agent.velocity;
+            if (_rising && SkillSlide.IsRisen(_riseFrom, Time.time - _riseStartedAt, feel.SkillSpeedRecovery)) _rising = false;
             // A shot on the move that was cancelled before it went off ends the slow at once.
             if (_easing && _easeFiredAfter < 0f && !_movingShot) _easing = false;
             if (_easing && MovingShot.IsOver(Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSlowdown, feel.MovingShotRecovery))
                 _easing = false;
+            // The backpedal cap: held turned away from her movement by a shot, she moves at no more than a share of
+            // run speed, eased in and out (decision 0003, a guess).
+            _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time, feel.BackpedalSpeedShare,
+                                 feel.MovingShotSlowdown, feel.MovingShotRecovery);
             _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
@@ -525,49 +665,7 @@ namespace Roguelike
             _agent.acceleration = feel.TimeToFullSpeed > 0f ? feel.RunSpeed / feel.TimeToFullSpeed : 10000f;
         }
 
-        // ---------------- Orders ----------------
-
-        /// <summary>
-        /// Gives the move order. A fresh one (a click) drops a waiting click and cancels a standing shot that has not
-        /// gone off; the held button (<paramref name="steering"/>) does neither. During a shot on the move it only
-        /// changes where she is going.
-        /// </summary>
-        void OrderMove(Vector3 point, bool steering)
-        {
-            if (!steering)
-            {
-                _clicks.Clear();
-                _shotFacing.End(turnBack: true); // a new move order ends the backpedal: she turns to the new way at the rate
-            }
-            if (_actionKind == ActionKind.BasicShot && !_movingShot)
-            {
-                if (_action.HitResolved || steering)
-                {
-                    _orderedDuringShot = true; // it takes over when the shot has gone off
-                }
-                else
-                {
-                    _action.Cancel(); // the shot has not gone off: it never will
-                    EndAction();
-                }
-            }
-            _order = OrderKind.Move;
-            _orderPoint = point;
-            _travelDirty = true;
-        }
-
-        void ClearOrder()
-        {
-            _order = OrderKind.None;
-            _travelDirty = true;
-        }
-
-        void RunOrder(FeelValues feel)
-        {
-            if (_order != OrderKind.Move) return;
-            Travel(_orderPoint);
-            if (Arrived()) ClearOrder();
-        }
+        // ---------------- Movement ----------------
 
         /// <summary>True when an aim direction lies outside the front angle, so a basic shot along it turns the whole body.</summary>
         bool BodyMustTurnToward(Vector3 direction, FeelValues feel)
@@ -587,22 +685,10 @@ namespace Roguelike
             return transform.position + new Vector3(dir.X, 0f, dir.Z) * Feel.BasicShotRange;
         }
 
-        void Travel(Vector3 point)
-        {
-            if (!_travelDirty && (point - _travelPoint).sqrMagnitude < 1e-6f) return;
-            _travelPoint = point;
-            _travelDirty = false;
-            _agent.isStopped = false;
-            _agent.SetDestination(point);
-        }
-
-        bool Arrived() => !_agent.pathPending && _agent.remainingDistance <= ArriveDistance;
-
         void Halt()
         {
             if (_agent.isOnNavMesh) _agent.ResetPath();
             _agent.velocity = Vector3.zero;
-            _travelDirty = true;
         }
 
         // ---------------- Dash ----------------
@@ -617,6 +703,11 @@ namespace Roguelike
             dir.Normalize();
 
             Halt();
+            // A dash ends a skill's slide and the ease back up after one at once, and a free recovery with them:
+            // a dash cancels a skill, recovery and all.
+            _sliding = false;
+            _rising = false;
+            _skillGateUntil = float.NegativeInfinity;
             _dashFrom = transform.position;
             _dashTo = _dashFrom + dir * feel.DashDistance;
             _dashing = true;
@@ -650,13 +741,8 @@ namespace Roguelike
             if (onTheMove)
             {
                 ShotsOnTheMove++;
-                // Ease down from the speed it has now: full speed, or wherever a chained shot left it.
-                _easeFrom = CurrentSpeedShare(feel);
-                _easeStartedAt = Time.time;
-                _easeFiredAfter = -1f;
-                _easing = true;
+                StartEasing(feel);
             }
-            _orderedDuringShot = false;
             ActionsStarted++;
             ActionLeadTime = feel.BasicShotStartup;
             _shotStartedAt = Time.time;
@@ -672,7 +758,25 @@ namespace Roguelike
             _movingShot = false;
             _shotTurnsBody = false;
             _easing = false; // a skill ends the slow of a shot on the move at once
-            Halt();
+            // The slide (decision 0004): from the speed she actually has, along the way she actually moves. During a
+            // hit stop the agent reads standing, so the last frame in which time ran is used.
+            FeelValues feel = Feel;
+            Vector3 velocity = Flat(Time.timeScale > 0f ? _agent.velocity : _lastVelocity);
+            float share = feel.RunSpeed > 0f ? Mathf.Clamp01(velocity.magnitude / feel.RunSpeed) : 0f;
+            _rising = false;
+            _skillGateUntil = float.NegativeInfinity; // the recovery it waited for is over
+            _sliding = skill.MoveDistance == 0f && feel.SkillSlowdown > 0f && share > 0.01f;
+            if (_sliding)
+            {
+                _slideFrom = share;
+                _slideStartedAt = Time.time;
+                _slideDir = velocity / velocity.magnitude;
+            }
+            else
+            {
+                _slideFrom = 0f;
+                Halt();
+            }
             _aimPoint = point;
             _castSlot = slot;
             _hasCursor = false; // follow only a cursor that is reported after this skill started, never a stale one
@@ -914,12 +1018,32 @@ namespace Roguelike
             KickCount++;
         }
 
-        /// <summary>The share of run speed it may walk at now: 1, or eased around a shot on the move.</summary>
-        float CurrentSpeedShare(FeelValues feel) =>
-            _easing
-                ? MovingShot.SpeedShare(_easeFrom, Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSpeedShare,
-                                        feel.MovingShotSlowdown, feel.MovingShotRecovery)
-                : 1f;
+        /// <summary>
+        /// The share of run speed it may walk at now: 1, or the lowest of what limits it. Each limit eases without a
+        /// jump (a shot on the move, the backpedal cap, a skill's slide, the ease back up after a skill), so the lowest
+        /// of them does too, whichever follows which.
+        /// </summary>
+        float CurrentSpeedShare(FeelValues feel)
+        {
+            float now = Time.time;
+            float share = Mathf.Min(_backpedalCap.Share,
+                                    _easing
+                                        ? MovingShot.SpeedShare(_easeFrom, now - _easeStartedAt, _easeFiredAfter, feel.MovingShotSpeedShare,
+                                                                feel.MovingShotSlowdown, feel.MovingShotRecovery)
+                                        : 1f);
+            if (_rising) share = Mathf.Min(share, SkillSlide.RiseShare(_riseFrom, now - _riseStartedAt, feel.SkillSpeedRecovery));
+            if (IsSkillSliding) share = Mathf.Min(share, SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, feel.SkillSlowdown));
+            return share;
+        }
+
+        /// <summary>Starts the ease around a shot on the move: down from the speed she has now (full, or wherever a chained shot left it).</summary>
+        void StartEasing(FeelValues feel)
+        {
+            _easeFrom = CurrentSpeedShare(feel);
+            _easeStartedAt = Time.time;
+            _easeFiredAfter = _actionKind == ActionKind.BasicShot && _action.HitResolved ? 0f : -1f;
+            _easing = true;
+        }
 
         void SpawnFlash(Look look, Vector3 muzzle, Vector3 direction)
         {
@@ -946,7 +1070,7 @@ namespace Roguelike
 
         void FaceMovement(FeelValues feel)
         {
-            Vector3 v = Flat(_agent.velocity);
+            Vector3 v = IsMoving ? _moveInput : Flat(_agent.velocity);
             if (v.sqrMagnitude < 0.01f) return;
             Quaternion want = Quaternion.LookRotation(v.normalized, Vector3.up);
             transform.rotation = feel.TurnTime <= 0f

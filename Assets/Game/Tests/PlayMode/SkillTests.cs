@@ -299,7 +299,8 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(_player.PressSkill(Quick, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return new WaitForSeconds(first.Startup + first.Recovery - _feel.InputBuffer * 0.5f);
-            Assume.That(_player.ActiveSkillSlot, Is.EqualTo(Quick), "the press lands during the first skill");
+            // Decision 0004: with the free recovery the first skill is over for everything but the next skill.
+            Assume.That(_player.ActiveSkillSlot == Quick || _player.FreeRecoverySlot == Quick, Is.True, "the press lands in the first skill's recovery");
 
             Assert.That(_player.PressSkill(Volley, _a.transform.position), Is.EqualTo(IntentResult.Buffered));
             yield return Until(() => _player.ActiveSkillSlot == Volley, 1f);

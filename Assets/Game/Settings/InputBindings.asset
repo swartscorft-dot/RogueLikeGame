@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd17e75c310c4ce4ba412712bab10158, type: 3}
+  m_Name: InputBindings
+  m_EditorClassIdentifier: Roguelike.Runtime::Roguelike.InputBindings
+  MoveUp: 37
+  MoveDown: 33
+  MoveLeft: 15
+  MoveRight: 18
+  Shoot:
+    Source: 1
+    Key: 0
+  Dash: 1
+  DashDirection: 0
+  Focus: 40
+  Skills:
+  - Source: 0
+    Key: 31
+  - Source: 0
+    Key: 41
+  - Source: 0
+    Key: 42
+  - Source: 0
+    Key: 43
+  - Source: 0
+    Key: 44
+  - Source: 0
+    Key: 32
+  - Source: 0
+    Key: 20
+  - Source: 2
+    Key: 0

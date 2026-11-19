@@ -99,6 +99,22 @@ namespace Roguelike.Rules
 
         public bool IsRunning(float now) => Phase(now) != SkillPhase.None;
 
+        /// <summary>
+        /// True up to the last hit (for a Holding skill, the end of the hold): the startup, the cast, the hold, the
+        /// charge and the burst. False in the recovery and when nothing runs. Decision 0004: the commitment ends here.
+        /// </summary>
+        public bool IsCommitted(float now)
+        {
+            SkillPhase phase = Phase(now);
+            return phase == SkillPhase.Startup || phase == SkillPhase.Channel || phase == SkillPhase.Active;
+        }
+
+        /// <summary>
+        /// When the recovery ends, as known now. For a Holding or Charge skill not yet let go it moves with the
+        /// release, so it is final only once the skill is in its recovery. Negative infinity when nothing runs.
+        /// </summary>
+        public float RecoveryEndsAt => _running ? End : float.NegativeInfinity;
+
         /// <summary>How many hits have come due by now, counted from the start of this use.</summary>
         public int HitsDue(float now)
         {

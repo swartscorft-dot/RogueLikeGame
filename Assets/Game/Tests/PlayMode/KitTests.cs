@@ -359,14 +359,14 @@ namespace Roguelike.PlayModeTests
             Vector3 start = _player.Position;
             _player.Teleport(new Vector3(5f, 0f, 5f));
             yield return null;
-            _player.MoveTo(new Vector3(8f, 0f, 8f));
+            _player.Steer(new Vector3(8f, 0f, 8f) - _player.Position);
 
             Assert.That(_health.TakeHit(_health.MaxHealth - 1), Is.EqualTo(_health.MaxHealth - 1));
             Assert.That(_health.IsAlive, Is.True);
             Assert.That(_health.TakeHit(50), Is.EqualTo(1), "only what was left can be taken");
             Assert.That(_health.IsAlive, Is.False);
             Assert.That(_health.Deaths, Is.EqualTo(1));
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None), "a dead character drops its order");
+            Assert.That(_player.IsMoving, Is.False, "a dead character lets go of the move keys");
             Assert.That(_health.TakeHit(10), Is.EqualTo(0), "and cannot be hit again");
 
             yield return new WaitForSeconds(Placeholders.PlayerRespawnDelay + 0.3f);
@@ -379,13 +379,13 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Input_ADeadCharacter_TakesNoInput()
         {
             UseFakeInput();
-            _idle = new InputFrame { CursorScreen = ScreenOf(_player.Position + new Vector3(-5f, 0f, -4f)), MoveHeld = true };
+            _idle = new InputFrame { CursorScreen = ScreenOf(_player.Position + new Vector3(-5f, 0f, -4f)), Move = new Vector2(-1f, -1f) };
             _health.TakeHit(_health.MaxHealth);
             Assume.That(_health.IsAlive, Is.False);
             Vector3 diedAt = _player.Position;
 
             yield return new WaitForSeconds(0.5f);
-            Assert.That(_player.Order, Is.EqualTo(OrderKind.None));
+            Assert.That(_player.IsMoving, Is.False);
             Assert.That(FlatDistance(_player.Position, diedAt), Is.LessThan(0.05f));
         }
 

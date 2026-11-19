@@ -119,6 +119,8 @@ namespace Roguelike
         Vector3 _hipsRest;
         bool _started;
         float _aimWeight;
+        readonly ArmHold _armHold = new ArmHold();
+        bool _holding;
         Quaternion _rightWeaponRest = Quaternion.identity;
         Quaternion _leftWeaponRest = Quaternion.identity;
         Vector3 _aimDirection = Vector3.forward;
@@ -138,6 +140,9 @@ namespace Roguelike
 
         /// <summary>0 with the arms as the clip has them, 1 with both arms and weapons pointed at the target.</summary>
         public float AimWeight => _aimWeight;
+
+        /// <summary>True while the arms are held up after a shot or a skill has ended (decision 0004, <see cref="FeelValues.AimHold"/>).</summary>
+        public bool ArmsHeld => _holding;
 
         /// <summary>Degrees the upper body is turned from the legs this frame, clockwise seen from above.</summary>
         public float Twist { get; private set; }
@@ -186,8 +191,16 @@ namespace Roguelike
             if (newDash) _dashPoseUntil = now + feel.DashDuration + DashRecovery;
 
             // A shot on the move keeps the legs going: the shooting gait while it slows her (or the run, when the
-            // body turned for a target behind), with the arms aimed on top.
+            // body turned for a target behind), with the arms aimed on top. So does a skill's slide (decision 0004).
             bool acting = Player.Action != ActionKind.None && !Player.IsShootingOnTheMove;
+            // After a shot or a skill the arms stay up for a moment, at the live cursor, while it stays in front of the
+            // body and she does not dash (decision 0004). Standing, the body keeps the Shoot stance meanwhile, so it
+            // does not flip Shoot, Idle, Shoot between shots clicked slower than the fire rate.
+            Vector3 toCursor = Flat(Player.AimCursor - Player.transform.position);
+            Vector3 facing = Flat(Player.transform.forward);
+            bool cursorInFront = !UpperBodyAim.BodyMustTurn(new GroundPoint(facing.x, facing.z), new GroundPoint(toCursor.x, toCursor.z),
+                                                            feel.ShotFrontAngle);
+            _holding = _armHold.Update(now, Player.Action != ActionKind.None, feel.AimHold, cursorInFront, Player.IsDashing || newDash);
             // A hit stop freezes time and the character's speed reads 0: keep the speed from before it, so a hit
             // on the move does not flash the idle pose.
             if (Time.timeScale > 0f)
@@ -197,7 +210,8 @@ namespace Roguelike
                 Vector3 velocity = Flat(Player.Velocity);
                 if (velocity.sqrMagnitude > 0.01f) _backward = Vector3.Dot(velocity, Flat(Player.transform.forward)) < 0f;
             }
-            CharacterPose pose = PoseRule.Pick(Player.IsDashing, acting, now < _dashPoseUntil, _speed, Player.InShootingGait, _backward);
+            bool standingHold = _holding && _speed <= PoseRule.MoveThreshold;
+            CharacterPose pose = PoseRule.Pick(Player.IsDashing, acting || standingHold, now < _dashPoseUntil, _speed, Player.InShootingGait, _backward);
             if (Player.KickCount != _seenKicks)
             {
                 _seenKicks = Player.KickCount;
@@ -299,17 +313,20 @@ namespace Roguelike
                 Hips.position = root.TransformPoint(local);
             }
 
-            bool aiming = Pose == CharacterPose.Shoot || Player.IsShootingOnTheMove;
+            // Aimed: in the Shoot pose, in a shot on the move, in a skill (also while it slides her, in the gait), and
+            // while the arms are held up after a shot or a skill.
+            bool aiming = Pose == CharacterPose.Shoot || Player.IsShootingOnTheMove || Player.Action == ActionKind.Skill || _holding;
             float wanted = aiming ? 1f : 0f;
             _aimWeight = AimBlend > 0f ? Mathf.MoveTowards(_aimWeight, wanted, Time.deltaTime / AimBlend) : wanted;
 
-            // Where to aim: at the shot's target or the skill's aim point while acting; while the arms come down
-            // again, the last such direction, so they do not swing round on the way.
+            // Where to aim: at the shot's target or the skill's aim point while acting; while the arms are held after
+            // it, at the live cursor; while the arms come down again, the last such direction, so they do not swing
+            // round on the way.
             Vector3 body = Flat(Player.transform.forward).normalized;
-            if (Player.Action != ActionKind.None)
+            if (Player.Action != ActionKind.None || _holding)
             {
-                Vector3 toAim = Flat(Player.AimPoint - Player.transform.position);
-                _aimDirection = toAim.sqrMagnitude > 1e-4f ? toAim.normalized : body;
+                Vector3 toAim = Flat((Player.Action != ActionKind.None ? Player.AimPoint : Player.AimCursor) - Player.transform.position);
+                _aimDirection = toAim.sqrMagnitude > 1e-4f ? toAim.normalized : _aimWeight > 0f ? _aimDirection : body;
             }
             else if (_aimWeight <= 0f) _aimDirection = body;
 

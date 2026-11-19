@@ -176,10 +176,6 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ASkill_EndsTheHoldAtOnce() => HoldEndedBy(() =>
             Assert.That(_player.PressSkill(0, _player.Position + Vector3.forward * 6f), Is.Not.EqualTo(IntentResult.Rejected)), ShotFacing.Mode.Free);
 
-        [UnityTest]
-        public IEnumerator AMoveOrder_EndsTheHold_WithTheTurnBackAtTheRate() => HoldEndedBy(() =>
-            _player.MoveTo(new Vector3(14f, 0f, 4f)), ShotFacing.Mode.TurningBack);
-
         IEnumerator HoldEndedBy(Action takeOver, ShotFacing.Mode expected)
         {
             yield return RunUntilX(-3f);
@@ -232,7 +228,7 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(RunFrom);
             yield return null;
-            _player.MoveTo(RunTo);
+            _player.Steer(Vector3.right); // held, as a key
             yield return Until(() => _player.Position.x >= x, 4f);
             Assume.That(_player.Position.x, Is.GreaterThanOrEqualTo(x), "the character got there");
         }

@@ -30,6 +30,16 @@ namespace Roguelike.Rules
             return true;
         }
 
+        /// <summary>True while a press waits and is no older than the window: it would fire if it were taken now.</summary>
+        public bool IsFresh(float now, float window) => HasItem && now - _storedAt <= window;
+
+        /// <summary>The press that waits, without taking it, fresh or not. False when the buffer is empty.</summary>
+        public bool TryPeek(out T item)
+        {
+            item = HasItem ? _item : default;
+            return HasItem;
+        }
+
         public void Clear() => HasItem = false;
     }
 }
