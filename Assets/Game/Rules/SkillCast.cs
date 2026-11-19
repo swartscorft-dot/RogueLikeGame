@@ -143,6 +143,21 @@ namespace Roguelike.Rules
             return fresh;
         }
 
+        /// <summary>The hits taken so far by this use. For the play session log: whether it fired at all.</summary>
+        public int HitsTaken => _hitsTaken;
+
+        /// <summary>
+        /// Seconds the key has counted as held by now, from the press: to the release, or to the longest hold if that
+        /// came first. For the play session log; it changes nothing.
+        /// </summary>
+        public float HeldSeconds(float now)
+        {
+            if (_skill == null) return 0f;
+            float latest = ChannelStart + Math.Max(0f, _skill.HoldMax);
+            float held = Math.Min(Math.Min(now, _release), latest) - _start;
+            return held < 0f ? 0f : held;
+        }
+
         /// <summary>For a Charge skill: 0 at the press, 1 at full charge; it stops growing at the release. 1 for other skills.</summary>
         public float Charge(float now)
         {
