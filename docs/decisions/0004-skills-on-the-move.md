@@ -24,10 +24,13 @@ Read from the code, not measured in play:
 - **The recovery after the last hit no longer holds back the basic shot or the move keys.**
   - A click that waited during the skill starts its shot at the last hit; a new click in the recovery shoots at once.
   - A move key held in the recovery moves her.
-  - **The next skill still waits out the recovery,** so skills chain exactly as fast as before. A skill key pressed in the recovery goes through the input buffer, as before.
+  - **The next skill still waits out the recovery,** so skills chain exactly as fast as before.
+  - **A skill key pressed in the recovery waits it out and fires when it ends,** however early in the recovery it was pressed, and so does one pressed within the buffer time (0.15 s) before the last hit. One pressed earlier than that, while she is visibly committed, is dropped. The longest wait is the skill's recovery plus the buffer time: 0.35 s after Powder Keg, 0.65 s after Heavy Volley. Amended 2026-11-19 on Kristian's ruling; before, only a press in the last 0.15 s fired. Rule: `Rules/SkillGate.cs`.
+  - **Only a waiting skill's own key going up releases it.** Before 2026-11-19 the key of the skill before it going up did too, and a Charge skill that waited fired at once with no charge.
   - Switch: `SkillRecoveryFree` in `FeelSettings.asset`. Off gives the old lock back.
 - **A skill pressed on the move slows her to a stop instead of stopping her dead.**
-  - She slides on the way she was moving, and the speed eases down to zero. The move keys do not steer the slide: it is momentum, not control.
+  - She slides on the way she was moving, and the speed eases down to zero.
+  - **The move keys steer the slide** (amended 2026-11-19 on Kristian's ruling): the direction is the held move direction, changed at once as free movement does, and with no key held she keeps the way she last slid. The speed is not theirs: steering never restarts, shortens or lengthens the slide, and an opposite key turns it round without braking. Only a slide that exists is steered; from a stand she is planted. Switch: `SlideSteering` in `FeelSettings.asset`; off, the keys do nothing during the slide, as before.
   - The slowdown is the same for every skill: `SkillSlowdown` seconds from full run speed to standing (0.3), less from a lower speed.
   - So the length of the skill decides how far it goes. A short skill (Quick Shot fires after 0.15 s) only dips her speed and she never stands. A long cast or a hold (Heavy Volley, Fan Fire) brings her to a full stop early and she stands for the rest.
   - She faces the cursor through it, as skills always have. Each hit is measured from where she is when it lands.
@@ -43,8 +46,8 @@ Read from the code, not measured in play:
 
 - That the recovery is free for the basic shot **and** for movement, and not for the next skill.
 - That the slowdown is one rate for every skill, rather than a time set per skill or scaled by the cast.
-- That the move keys do not steer the slide.
-- That the long casts slide to a stop like the rest. His words leave room for the long casts to stop dead; if he wants that, it becomes a per-skill switch.
+- ~~That the move keys do not steer the slide.~~ Ruled 2026-11-19: they steer it.
+- ~~That the long casts slide to a stop like the rest.~~ Ruled 2026-11-19: no change.
 - Every value: `SkillSlowdown` 0.3, `SkillSpeedRecovery` 0.25, `AimHold` 0.3.
 - The dash with no move key held going the way she faces.
 
@@ -52,7 +55,7 @@ Settled by the agent while building, 2026-11-19, and open in the same way:
 
 - **Letting go of the move keys during a skill stops her at once when the skill lets her go.** The slide does not coast on. Quick Shot pressed on the run with the key released drops from about 3 m/s to a stand at its hit.
 - **The ease back up follows every skill,** also one pressed while standing: walking off right after any skill takes up to 0.25 s to reach run speed. Backstep is the exception.
-- **A skill key pressed early in a free recovery is dropped,** as it was in the old lock: only a press in the last 0.15 s (`InputBuffer`) before the recovery's end fires. She looks free in that time now, so a dropped press may read as a missed key. First thing to watch in play.
+- ~~A skill key pressed early in a free recovery is dropped.~~ Changed on his ruling, see the Decision above. Still open from that change: a Holding or Charge skill whose own key is pressed and let go while it waits starts as already released (Fan Fire fires one tick, Long Shot fires at its lowest charge), and a press that waits when she dashes out of the recovery is judged by the old 0.15 s rule and usually dropped.
 - **A dash ends a free recovery,** as a dash cancels a skill: after the dash a skill may start at once.
 - **A Holding skill lets her go at the release** (or at its longest hold), a Charge skill at its shot.
 - **When the arm hold starts, the arms go from the shot's aim to the live cursor without smoothing.** A small snap if the cursor moved during the shot.
@@ -61,10 +64,10 @@ Settled by the agent while building, 2026-11-19, and open in the same way:
 
 Asked the four questions below, he answered "ja til alt" (yes to all) and added to two of them.
 
-- **A skill key pressed early in a free recovery feels like a missed key: yes.** To be changed: a skill press made in the free recovery, or within the buffer time before the last hit, waits out the recovery and fires at its end. In work order 003, not built into this branch yet.
+- **A skill key pressed early in a free recovery feels like a missed key: yes.** Changed: a skill press made in the free recovery, or within the buffer time before the last hit, waits out the recovery and fires at its end. Built in work order 003 and merged the same day (c2f5d78). He played it right after: "føles bra ut" (feels good).
 - **Letting go of the move keys during a skill stops her at the last hit: fine as it is.**
 - **Long casts stopping her: nothing to change.** His words: "hun vil jo det etter hvert på 3 uansett" (she will end up doing that on the long ones anyway). The slide already brings her to a stand early in a long cast, so there is no per-skill dead stop.
-- **The move keys should steer the slide: yes.** To be changed: the held direction steers the slide, and the speed still follows the slowdown. In work order 003, not built into this branch yet. How it steers (the direction changes at once, an opposite key does not brake) is the producer's choice, not his.
+- **The move keys should steer the slide: yes.** Changed: the held direction steers the slide, and the speed still follows the slowdown. Built in work order 003 and merged the same day (c2f5d78); "føles bra ut" covers this too, though he named neither change. How it steers (the direction changes at once, an opposite key does not brake) is the producer's choice, not his. Measured in tests from a full run: a Heavy Volley steered to the side ends 0.90 m to the side instead of 0.90 m ahead; a Quick Shot turned back is 0.73 m behind the press point at its hit instead of 0.73 m ahead.
 
 **For later, his idea, not built:** steering the slide is a little like counter-strafing, but there is no accuracy yet. "Det tenker jeg vi bør implementere senere, sånn at det lønner seg å stå stille for treffsikkerhet": accuracy should come later, so that it pays to stand still to hit. Also in `docs/parking-lot.md`.
 
