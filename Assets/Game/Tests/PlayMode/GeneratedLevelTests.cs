@@ -1,0 +1,263 @@
+using System;
+using System.Collections;
+using System.IO;
+using System.Linq;
+using NUnit.Framework;
+using Roguelike.Rules;
+using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+using Object = UnityEngine.Object;
+
+namespace Roguelike.PlayModeTests
+{
+    /// <summary>
+    /// Generated levels walked in grey boxes inside the ControlRoom scene (work order 006), driven through the intents
+    /// of <see cref="GeneratedLevels"/>: the level is built far from the practice room with a floor per room and walls,
+    /// she can walk from the start to every room and not through a wall, the enemies stand at their points with the
+    /// level's health and stay dead, the boss's death clears the level, and going back removes it all.
+    /// </summary>
+    public class GeneratedLevelTests
+    {
+        const ulong Seed = 42UL;
+
+        PlayerCharacter _player;
+        EnemyBrute _practiceEnemy;
+        GeneratedLevels _levels;
+        string _folder;
+        PlaySessionRecorder _recorder;
+
+        [UnitySetUp]
+        public IEnumerator LoadScene()
+        {
+            Time.timeScale = 1f;
+            PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
+            yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
+            yield return null;
+            _player = Object.FindAnyObjectByType<PlayerCharacter>();
+            Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
+            _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
+            _practiceEnemy = Object.FindAnyObjectByType<EnemyBrute>();
+        }
+
+        [TearDown]
+        public void CleanUp()
+        {
+            if (_recorder != null) _recorder.StopRecording();
+            _recorder = null;
+            if (_folder != null && Directory.Exists(_folder)) Directory.Delete(_folder, true);
+            if (_levels != null) Object.Destroy(_levels.gameObject);
+            _levels = null;
+            Time.timeScale = 1f;
+            PlayerInputDriver.ReadRealDevices = true;
+        }
+
+        GeneratedLevel Build(ulong seed = Seed)
+        {
+            _levels = GeneratedLevels.Ensure();
+            GeneratedLevel level = _levels.Build(seed);
+            Assert.That(level, Is.Not.Null, "a level was built");
+            return level;
+        }
+
+        static float Flat(Vector3 a, Vector3 b) => Vector2.Distance(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
+
+        [UnityTest]
+        public IEnumerator NotInstalledByItself_InATestRun()
+        {
+            yield return null;
+            Assert.That(GeneratedLevels.Current, Is.Null, "nothing runs unless a test makes it");
+            Assert.That(Object.FindAnyObjectByType<GeneratedLevels>(), Is.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator Build_PutsTheLevelFarFromThePracticeRoom_AndHerAtItsStart()
+        {
+            GeneratedLevel level = Build();
+            yield return null;
+            LevelLayout layout = level.Layout;
+            Assert.That(layout.Seed, Is.EqualTo(Seed));
+            Assert.That(layout.Describe(), Is.EqualTo(LevelGenerator.Generate(Seed, new LevelValues()).Describe()), "the level of the seed");
+            Assert.That(Flat(_player.Position, level.PlayerStart), Is.LessThan(0.3f), "she stands at its start");
+            Assert.That(Flat(level.PlayerStart, new Vector3(500f, 0f, 0f)), Is.LessThan(0.01f), "500 m to one side");
+            foreach (LevelRoom r in layout.Rooms)
+                Assert.That(Flat(level.Middle(r), Vector3.zero), Is.GreaterThan(100f), "every room far from the practice room: " + r.Letter + r.Order);
+
+            Assert.That(level.Floors, Is.EqualTo(layout.Rooms.Count), "a floor per room");
+            Assert.That(level.Walls, Is.GreaterThan(layout.Rooms.Count));
+            Assert.That(level.LowWalls, Is.GreaterThan(0), "walls on the camera's side are low");
+            Assert.That(level.LowWalls, Is.LessThan(level.Walls));
+            Assert.That(level.GetComponentsInChildren<Collider>().Length, Is.EqualTo(level.Floors + level.Walls), "floors and walls have colliders");
+
+            Assert.That(_levels.CurrentRoom, Is.Not.Null);
+            Assert.That(_levels.CurrentRoom.Kind, Is.EqualTo(RoomKind.Start));
+            StringAssert.Contains(layout.SeedText, _levels.StatusText());
+            StringAssert.Contains("room 1 of " + layout.Rooms.Count, _levels.StatusText());
+            StringAssert.Contains("v" + LevelGenerator.Version, _levels.StatusText());
+        }
+
+        [UnityTest]
+        public IEnumerator SheCanWalk_FromTheStart_ToEveryRoom_ButNotThroughAWall()
+        {
+            GeneratedLevel level = Build();
+            yield return null;
+            LevelLayout layout = level.Layout;
+            Vector3 Ground(Vector3 p)
+            {
+                Assert.That(NavMesh.SamplePosition(p, out NavMeshHit hit, 1f, NavMesh.AllAreas), "NavMesh at " + p + "\n" + LevelMap.Draw(layout));
+                return hit.position;
+            }
+
+            Vector3 start = Ground(level.PlayerStart);
+            var path = new NavMeshPath();
+            foreach (LevelRoom r in layout.Rooms)
+            {
+                Assert.That(NavMesh.CalculatePath(start, Ground(level.Middle(r)), NavMesh.AllAreas, path), "a path to " + r.Letter + r.Order);
+                Assert.That(path.status, Is.EqualTo(NavMeshPathStatus.PathComplete), "the whole way to " + r.Letter + r.Order + "\n" + LevelMap.Draw(layout));
+            }
+
+            // At each door, the wall cell beside it: 1.5 m either side of the wall, the straight line is blocked and the
+            // way round goes through the door, much longer than the 3 m between the two points.
+            double cs = layout.CellSize;
+            foreach (LevelDoor d in layout.Doors)
+            {
+                double along = (d.From - 0.5) * cs;
+                double line = d.Line * cs;
+                LevelPoint a = d.Vertical ? new LevelPoint(line - 1.5, along) : new LevelPoint(along, line - 1.5);
+                LevelPoint b = d.Vertical ? new LevelPoint(line + 1.5, along) : new LevelPoint(along, line + 1.5);
+                Vector3 pa = Ground(level.ToWorld(a)), pb = Ground(level.ToWorld(b));
+                string where = "beside door " + d.RoomA + "-" + d.RoomB;
+                Assert.That(NavMesh.Raycast(pa, pb, out _, NavMesh.AllAreas), Is.True, "the wall blocks the straight line " + where);
+                Assert.That(NavMesh.CalculatePath(pa, pb, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete, "a way round " + where);
+                float length = 0f;
+                for (int i = 1; i < path.corners.Length; i++) length += Vector3.Distance(path.corners[i - 1], path.corners[i]);
+                Assert.That(length, Is.GreaterThan(5f), "the way round goes through the door " + where);
+            }
+
+            // And none out of the level: the ground just outside the start room's outer walls has no NavMesh.
+            Assert.That(NavMesh.SamplePosition(level.PlayerStart + new Vector3(0f, 0f, 0f), out _, 0.5f, NavMesh.AllAreas), Is.True);
+            Assert.That(NavMesh.SamplePosition(new Vector3(500f, 0f, -300f), out _, 5f, NavMesh.AllAreas), Is.False, "nothing far outside");
+        }
+
+        [UnityTest]
+        public IEnumerator Enemies_StandAtTheirPoints_WithTheLevelsHealth()
+        {
+            GeneratedLevel level = Build();
+            yield return null;
+            yield return null;
+            LevelLayout layout = level.Layout;
+            int points = layout.Rooms.Sum(r => r.EnemyPoints.Count);
+            Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy is there to copy");
+            Assert.That(level.Enemies.Count, Is.EqualTo(points), "an enemy at every point");
+            foreach (LevelRoom r in layout.Rooms)
+            {
+                for (int i = 0; i < r.EnemyPoints.Count; i++)
+                {
+                    EnemyBrute e = level.EnemiesByRoom[r.Order][i];
+                    Assert.That(Flat(e.Home, level.ToWorld(r.EnemyPoints[i])), Is.LessThan(0.3f), "home at its point");
+                    Assert.That(e.ComesBack, Is.False);
+                    var d = e.GetComponent<Damageable>();
+                    int wanted = r.Kind == RoomKind.Boss ? level.Values.BossHealth : level.Values.EnemyHealth;
+                    Assert.That(d.MaxHealth, Is.EqualTo(wanted), "room " + r.Letter + r.Order);
+                    Assert.That(d.CurrentHealth, Is.EqualTo(wanted));
+                }
+            }
+            Assert.That(level.Boss, Is.Not.Null);
+            Assert.That(level.Boss.GetComponent<Damageable>().MaxHealth, Is.EqualTo(9000));
+            Assert.That(_practiceEnemy.ComesBack, Is.True, "the practice enemy comes back as before");
+            Assert.That(_practiceEnemy.HealthOverride, Is.EqualTo(0));
+            Assert.That(_practiceEnemy.GetComponent<Damageable>().MaxHealth, Is.EqualTo(_practiceEnemy.Values.Health));
+        }
+
+        [UnityTest]
+        public IEnumerator AGeneratedEnemy_StaysDead_AndTheBossClearsTheLevel()
+        {
+            GeneratedLevel level = Build();
+            yield return null;
+            yield return null;
+            EnemyBrute first = level.Enemies.First(e => e != level.Boss);
+            first.GetComponent<Damageable>().TakeHit(100000);
+            yield return null;
+            Assert.That(first.IsDead, Is.True);
+            Assert.That(_levels.Cleared, Is.False, "not by any enemy");
+
+            level.Boss.GetComponent<Damageable>().TakeHit(100000);
+            yield return null;
+            yield return null;
+            Assert.That(_levels.Cleared, Is.True, "the boss is dead");
+            StringAssert.Contains("LEVEL CLEARED", _levels.StatusText());
+            StringAssert.Contains(level.Layout.SeedText, _levels.StatusText());
+
+            yield return new WaitForSeconds(first.Values.RespawnDelay + 0.5f);
+            Assert.That(first.IsDead, Is.True, "it does not come back");
+            Assert.That(level.Boss.IsDead, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator Rebuild_GivesTheSameLevel_ANewSeedAnother_AndBackRemovesIt()
+        {
+            Vector3 before = _player.Position;
+            GeneratedLevel first = Build();
+            string described = first.Layout.Describe();
+            Vector3[] homes = first.Enemies.Select(e => e.Home).ToArray();
+            yield return null;
+
+            GeneratedLevel again = _levels.Rebuild();
+            yield return null;
+            Assert.That(first == null, "the old level is gone");
+            Assert.That(again.Layout.Describe(), Is.EqualTo(described));
+            Assert.That(again.Enemies.Select(e => e.Home).ToArray(), Is.EqualTo(homes));
+            Assert.That(Object.FindObjectsByType<GeneratedLevel>(FindObjectsSortMode.None).Length, Is.EqualTo(1));
+
+            GeneratedLevel other = _levels.BuildNew();
+            yield return null;
+            Assert.That(other.Layout.Seed, Is.Not.EqualTo(Seed));
+            Assert.That(other.Layout.DescribeLayout(), Is.Not.EqualTo(again.Layout.DescribeLayout()));
+            Assert.That(Flat(_player.Position, other.PlayerStart), Is.LessThan(0.3f));
+
+            _levels.BackToPracticeRoom();
+            yield return null;
+            Assert.That(_levels.IsInLevel, Is.False);
+            Assert.That(Object.FindObjectsByType<GeneratedLevel>(FindObjectsSortMode.None), Is.Empty, "the level is removed");
+            Assert.That(Object.FindObjectsByType<EnemyBrute>(FindObjectsSortMode.None), Is.EqualTo(new[] { _practiceEnemy }), "and its enemies");
+            Assert.That(Flat(_player.Position, before), Is.LessThan(0.3f), "she is back where she was");
+            Vector3 feet = new Vector3(_player.Position.x, 0f, _player.Position.z); // her root stands 1 m over the ground
+            Assert.That(NavMesh.SamplePosition(feet, out _, 0.5f, NavMesh.AllAreas), "on the practice room's NavMesh");
+            Assert.That(_levels.StatusText(), Is.Empty);
+        }
+
+        [UnityTest]
+        public IEnumerator EnteringARoom_IsTracked_AndRecorded()
+        {
+            _folder = Path.Combine(Path.GetTempPath(), "GeneratedLevelTests-" + Guid.NewGuid().ToString("N"));
+            _recorder = PlaySessionRecorder.StartRecording(_folder);
+            GeneratedLevel level = Build();
+            yield return null;
+            LevelRoom combat = level.Layout.Rooms.First(r => r.Kind == RoomKind.Combat);
+            _player.Teleport(level.Middle(combat));
+            yield return null;
+            yield return null;
+            Assert.That(_levels.CurrentRoom, Is.SameAs(combat));
+            Assert.That(_levels.RoomsEntered, Is.EquivalentTo(new[] { 0, combat.Order }));
+            StringAssert.Contains("room " + (combat.Order + 1) + " of " + level.Layout.Rooms.Count, _levels.StatusText());
+
+            SessionEvent built = _recorder.Events.Single(e => e.Type == SessionEventTypes.LevelBuilt);
+            Assert.That(built.Name, Is.EqualTo(level.Layout.SeedText));
+            Assert.That(built.ExtraValue("version"), Is.EqualTo(LevelGenerator.Version.ToString()));
+            Assert.That(built.ExtraValue("rooms"), Is.EqualTo(level.Layout.Rooms.Count.ToString()));
+            var entered = _recorder.Events.Where(e => e.Type == SessionEventTypes.RoomEntered).ToList();
+            Assert.That(entered.Select(e => e.ExtraValue("room")), Is.EqualTo(new[] { "0", combat.Order.ToString() }));
+            Assert.That(entered.Select(e => e.Name), Is.EqualTo(new[] { "start", "combat" }));
+
+            // The recorder listens to the level's enemies too.
+            level.Enemies[0].GetComponent<Damageable>().TakeHit(100000);
+            yield return null;
+            Assert.That(_recorder.Events.Count(e => e.Type == SessionEventTypes.EnemyDeath), Is.EqualTo(1));
+
+            _recorder.StopRecording();
+            string summary = File.ReadAllText(_recorder.SummaryPath);
+            StringAssert.Contains("Generated level " + level.Layout.SeedText + "   rooms entered 2 of " + level.Layout.Rooms.Count, summary);
+        }
+    }
+}

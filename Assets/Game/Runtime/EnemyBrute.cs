@@ -11,7 +11,8 @@ namespace Roguelike
     /// The telegraph is a red outline on the ground that thickens until the strike. Its place is locked
     /// when the windup begins, so stepping out of it avoids the hit, and so does the dash's i-frame.
     /// It stands at home until the player comes near or hurts it, and goes home when the player is far away.
-    /// Dead, it is gone for a moment and then stands at home with full health.
+    /// Dead, it is gone for a moment and then stands at home with full health; one with <see cref="ComesBack"/> off
+    /// stays gone.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public sealed class EnemyBrute : MonoBehaviour
@@ -28,6 +29,16 @@ namespace Roguelike
         public PlayerHealth PlayerHealth;
         public LineRenderer Telegraph;
         public Material StrikeMaterial;
+
+        /// <summary>
+        /// For an enemy made at run time (a generated level's): the health it has instead of the settings' health,
+        /// when over 0. Set it before the enemy's first frame. The practice enemy leaves it at 0.
+        /// </summary>
+        [System.NonSerialized] public int HealthOverride;
+        /// <summary>
+        /// False for an enemy that stays dead once killed, as a generated level's do. The practice enemy comes back.
+        /// </summary>
+        [System.NonSerialized] public bool ComesBack = true;
 
         readonly EnemyBrain _brain = new EnemyBrain();
         readonly EnemyValues _fallback = new EnemyValues();
@@ -80,7 +91,10 @@ namespace Roguelike
             }
         }
 
-        void Start() => _self.SetMaxHealth(Values.Health);
+        /// <summary>The health it starts with and comes back with.</summary>
+        public int StartHealth => HealthOverride > 0 ? HealthOverride : Values.Health;
+
+        void Start() => _self.SetMaxHealth(StartHealth);
 
         void OnDestroy()
         {
@@ -151,12 +165,12 @@ namespace Roguelike
                 if (Telegraph != null) Telegraph.enabled = false;
                 SetVisible(false);
             }
-            if (now - _deadSince < values.RespawnDelay) return;
+            if (!ComesBack || now - _deadSince < values.RespawnDelay) return;
 
             _deadSince = -1f;
             _provoked = false;
             _agent.Warp(_home);
-            _self.SetMaxHealth(values.Health);
+            _self.SetMaxHealth(StartHealth);
             SetVisible(true);
         }
 

@@ -260,6 +260,7 @@ namespace Roguelike
 
         void FindEnemies()
         {
+            _enemies.RemoveAll(e => e == null); // those of a generated level that was removed
             foreach (EnemyBrute enemy in FindObjectsByType<EnemyBrute>(FindObjectsSortMode.None))
             {
                 if (_enemies.Contains(enemy)) continue;
@@ -629,6 +630,43 @@ namespace Roguelike
                         Add(new SessionEvent(t, SessionEventTypes.EnemyDeath));
                         break;
                 }
+            }
+            catch (Exception e)
+            {
+                Fail(e);
+            }
+        }
+
+        /// <summary>
+        /// A generated level was built (<see cref="GeneratedLevels"/>): writes its seed, version and number of rooms,
+        /// and starts listening to the enemies it brought.
+        /// </summary>
+        public void NoteLevelBuilt(string seedText, int version, int rooms)
+        {
+            if (!_recording) return;
+            try
+            {
+                var e = new SessionEvent(Now(), SessionEventTypes.LevelBuilt, seedText);
+                e.AddExtra("version", version.ToString(CultureInfo.InvariantCulture));
+                e.AddExtra("rooms", rooms.ToString(CultureInfo.InvariantCulture));
+                Add(e);
+                if (_player != null) FindEnemies();
+            }
+            catch (Exception e)
+            {
+                Fail(e);
+            }
+        }
+
+        /// <summary>She entered a room of the generated level: its place in the run (from 0) and its kind.</summary>
+        public void NoteRoomEntered(int room, string kind)
+        {
+            if (!_recording) return;
+            try
+            {
+                var e = new SessionEvent(Now(), SessionEventTypes.RoomEntered, kind);
+                e.AddExtra("room", room.ToString(CultureInfo.InvariantCulture));
+                Add(e);
             }
             catch (Exception e)
             {

@@ -3,7 +3,8 @@
     "rootNamespace": "Roguelike",
     "references": [
         "Roguelike.Rules",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
