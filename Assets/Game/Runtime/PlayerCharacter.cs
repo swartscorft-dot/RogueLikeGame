@@ -75,6 +75,13 @@ namespace Roguelike
     ///   spender does; an earlier one is an ordinary shot that adds its mark. The shot itself does not move her.
     /// - Focus fills from spent marks, clean taps and a trickle of damage; spending it cuts every running cooldown and,
     ///   for its window, makes every basic shot hit mark.
+    ///
+    /// Cover (Kristian, 2026-11-19: "Skudd skal stoppes av vegg og søyler", shots are to be stopped by walls and
+    /// pillars): a generated level's walls and tall props (<see cref="Cover"/>) stop her shots and skills
+    /// (<see cref="CoverRules"/>). A line shot, basic or skill, ends at the first cover on its centre line, its streak
+    /// too, with a hit spark there; a cone hits only what it sees from her; a circle lands short of cover in its way and
+    /// hits only what it sees from its centre. What cover saves takes no damage, stagger, marks or focus.
+    /// <see cref="FeelValues.CoverStopsShots"/> off, nothing stops them.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
@@ -181,6 +188,12 @@ namespace Roguelike
         // ---------------- State, for the readout and for tests ----------------
 
         public FeelValues Feel => Settings != null ? Settings.Values : _fallbackFeel;
+        /// <summary>
+        /// What her shots and skills test for cover (Kristian, 2026-11-19: shots are stopped by walls and pillars): the
+        /// physics query of <see cref="Cover"/>, or null, so nothing stops them, when <see cref="FeelValues.CoverStopsShots"/>
+        /// is off or no cover stands anywhere (the practice room).
+        /// </summary>
+        public CoverLine CoverQuery => Feel.CoverStopsShots && Cover.Any ? Cover.Line : null;
         public Vector3 Position => transform.position;
         public GroundPoint GroundPosition => new GroundPoint(transform.position.x, transform.position.z);
         public float Speed => _agent.velocity.magnitude;
@@ -344,6 +357,10 @@ namespace Roguelike
         public int BasicShotsFired { get; private set; }
         public int BasicShotHits { get; private set; }
         public int SkillShotsFired { get; private set; }
+        /// <summary>Line shots, basic and skill, that cover stopped short of their range (Kristian, 2026-11-19).</summary>
+        public int ShotsStoppedByCover { get; private set; }
+        /// <summary>Where cover stopped the last line shot it stopped, on the ground.</summary>
+        public Vector3 LastCoverStop { get; private set; }
         public int SkillShotHits { get; private set; }
 
         /// <summary>
@@ -1137,7 +1154,9 @@ namespace Roguelike
         /// <summary>
         /// The basic shot goes off along its aim: it hits the first living target its line touches
         /// (<see cref="LineShot.FirstHit"/>), or misses. Either way it fires: the streak runs to the target it hit,
-        /// or out to the full range. True if it dealt damage.
+        /// or out to the full range. Cover stops the line (Kristian, 2026-11-19): it hits nothing past the first cover
+        /// on its centre line, and a shot that hits nothing before it ends there, its streak too, with a hit spark on
+        /// the cover. True if it dealt damage.
         /// </summary>
         bool ResolveBasicShot()
         {
@@ -1153,13 +1172,17 @@ namespace Roguelike
             IReadOnlyList<Damageable> all = Damageable.All;
             _targetScratch.Clear();
             for (int i = 0; i < all.Count; i++) _targetScratch.Add(all[i].Info);
-            int index = LineShot.FirstHit(origin, aim, feel.BasicShotRange, feel.BasicShotHalfWidth, _targetScratch);
+            float stop = CoverRules.LineStop(origin, aim, feel.BasicShotRange, CoverQuery);
+            int index = LineShot.FirstHit(origin, aim, feel.BasicShotRange, feel.BasicShotHalfWidth, _targetScratch, stop);
             Damageable hit = index >= 0 ? all[index] : null;
 
             Vector3 endPoint = hit != null ? hit.transform.position : _aimPoint;
+            bool stopped = hit == null && stop < feel.BasicShotRange;
+            if (stopped) endPoint = NoteCoverStop(origin, aim, stop);
             Vector3 end = new Vector3(endPoint.x, muzzle.y, endPoint.z);
             SpawnFlash(look, muzzle, end - muzzle);
             SpawnStreak(look, muzzle, end, 1f);
+            if (stopped) SpawnCoverHit(look, end);
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
             int applied = Deal(hit, Placeholders.BasicShotDamage, out float focus);
@@ -1226,7 +1249,12 @@ namespace Roguelike
             return applied;
         }
 
-        /// <summary>One hit of a skill: every living target its area touches takes the damage. True if any did.</summary>
+        /// <summary>
+        /// One hit of a skill: every living target its area touches takes the damage. True if any did. Cover takes its
+        /// share away first (<see cref="SkillArea"/>, Kristian, 2026-11-19): a line ends at the first cover, a cone and
+        /// a circle hit only what they see, and a circle lands short of cover in its way. A target cover saves is not
+        /// hit at all: no damage, stagger, marks or focus.
+        /// </summary>
         bool ResolveSkillHit(SkillDefinition skill, float charge)
         {
             SkillShotsFired++;
@@ -1235,9 +1263,10 @@ namespace Roguelike
             // With nothing to aim at (the cursor on the character), a line or cone goes where the character faces.
             if (flatAim.sqrMagnitude < 1e-6f && skill.Shape != SkillShape.Circle) flatAim = Flat(transform.forward);
             var aim = new GroundPoint(origin.X + flatAim.x, origin.Z + flatAim.z);
+            var area = new SkillArea(skill, origin, aim, CoverQuery);
 
             Look look = LookFor(skill, charge);
-            Vector3 shotPoint = SpawnSkillFx(skill, look, origin, aim);
+            Vector3 shotPoint = SpawnSkillFx(skill, look, area);
             PlaySound(look); // once per hit of a burst, per tick of a hold, per landing
 
             int damage = SkillRules.Damage(skill, charge);
@@ -1251,8 +1280,8 @@ namespace Roguelike
             for (int i = 0; i < all.Count; i++)
             {
                 Damageable d = all[i];
-                if (!SkillRules.Hits(skill, origin, aim, d.GroundPosition, d.Radius)) continue;
                 if (!d.IsAlive) continue;
+                if (!area.Hits(d.GroundPosition, d.Radius)) continue;
                 bool empowered = IsEmpowered;
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005).
                 int taken = spender ? d.TakeMarks() : 0;
@@ -1347,16 +1376,18 @@ namespace Roguelike
         }
 
         /// <summary>The effects of one hit of a skill. Returns the height and place the hit sparks go from.</summary>
-        Vector3 SpawnSkillFx(SkillDefinition skill, Look look, GroundPoint origin, GroundPoint aim)
+        Vector3 SpawnSkillFx(SkillDefinition skill, Look look, SkillArea area)
         {
+            GroundPoint origin = area.Origin, aim = area.Aim;
             Vector3 dir = new Vector3(aim.X - origin.X, 0f, aim.Z - origin.Z);
             if (dir.sqrMagnitude > 1e-8f) dir.Normalize();
 
             if (skill.Shape == SkillShape.Circle)
             {
                 // The area hit is a thin ring at the circle's edge. The bang is a big burst over the middle,
-                // drawn in front of whatever stands in it, and a shockwave that runs out to the edge.
-                GroundPoint c = SkillRules.CircleCenter(skill, origin, aim);
+                // drawn in front of whatever stands in it, and a shockwave that runs out to the edge. It is where the
+                // circle landed: short of cover in its way (Kristian, 2026-11-19).
+                GroundPoint c = area.Centre;
                 var centre = new Vector3(c.X, 0f, c.Z);
                 float blast = look.Values.BlastSeconds;
                 ShotFx.Outline(centre, skill.Radius, blast * 1.6f, look.Paint, ShotFxMaterial);
@@ -1381,7 +1412,11 @@ namespace Roguelike
                     float yaw = rays >= 5
                         ? Mathf.Lerp(-skill.Angle * 0.5f, skill.Angle * 0.5f, i / (rays - 1f))
                         : Random.Range(-skill.Angle * 0.5f, skill.Angle * 0.5f);
-                    SpawnStreak(look, muzzle, level + Quaternion.Euler(0f, yaw, 0f) * dir * skill.Range, 1f);
+                    // A streak that meets cover ends at it, as the hit does (Kristian, 2026-11-19).
+                    Vector3 rayDir = Quaternion.Euler(0f, yaw, 0f) * dir;
+                    float reach = skill.Range;
+                    if (CoverQuery != null) reach = Cover.ClearDistance(level, rayDir, reach, Cover.RayHeight);
+                    SpawnStreak(look, muzzle, level + rayDir * reach, 1f);
                 }
                 // The blast comes out of the gun, level with the streaks, so it reads as one with them from the
                 // camera. It reaches as far as the cone does.
@@ -1394,15 +1429,22 @@ namespace Roguelike
                 return muzzle;
             }
 
-            // A line pierces everything in its strip, so its streaks run its whole range. A wide one sends
-            // several side by side, spread evenly across its width.
+            // A line pierces everything in its strip, so its streaks run its whole range, or to the cover that stopped
+            // it, with a hit spark there (Kristian, 2026-11-19). A wide one sends several side by side, spread evenly
+            // across its width, all ending where its centre line ended.
             float width = skill.HalfWidth * 2f;
             int count = StreaksAcross(width);
             Vector3 across = new Vector3(dir.z, 0f, -dir.x);
+            float length = area.Stop;
             for (int i = 0; i < count; i++)
             {
                 Vector3 offset = across * ((i + 0.5f) / count - 0.5f) * width;
-                SpawnStreak(look, muzzle + offset, level + dir * skill.Range + offset, 1f);
+                SpawnStreak(look, muzzle + offset, level + dir * length + offset, 1f);
+            }
+            if (area.Stopped)
+            {
+                Vector3 stop = NoteCoverStop(origin, aim, length);
+                SpawnCoverHit(look, new Vector3(stop.x, muzzle.y, stop.z));
             }
             return muzzle;
         }
@@ -1474,6 +1516,22 @@ namespace Roguelike
             Vector3 back = Flat(from - centre);
             Vector3 at = back.sqrMagnitude > 1e-6f ? centre + back.normalized * Mathf.Min(target.Radius, back.magnitude) : centre;
             ShotFx.Spark(at, look.Values.HitSize * look.Scale, look.Values.HitSeconds, look.Paint, ShotFxMaterial, target.Radius + 0.2f);
+        }
+
+        /// <summary>Counts a line shot that cover stopped and returns where, on the ground, <paramref name="stop"/> metres along it.</summary>
+        Vector3 NoteCoverStop(GroundPoint origin, GroundPoint aim, float stop)
+        {
+            GroundPoint dir = LineShot.Direction(origin, aim, new GroundPoint(transform.forward.x, transform.forward.z), 1e-4f);
+            GroundPoint at = origin + dir * stop;
+            ShotsStoppedByCover++;
+            LastCoverStop = new Vector3(at.X, 0f, at.Z);
+            return LastCoverStop;
+        }
+
+        /// <summary>The hit spark, on the cover that stopped a line shot (Kristian, 2026-11-19): a blocked shot reads as blocked.</summary>
+        void SpawnCoverHit(Look look, Vector3 at)
+        {
+            ShotFx.Spark(at, look.Values.HitSize * look.Scale, look.Values.HitSeconds, look.Paint, ShotFxMaterial, 0.2f);
         }
 
         // ---------------- Facing ----------------

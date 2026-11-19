@@ -18,9 +18,10 @@ namespace Roguelike
     /// walls by their colliders, and the props' (work order 009: each prop of the description stands at its place on
     /// the walls' layer with a box or capsule collider of its footprint and height, never lower than a little over the
     /// agent's step, so a low prop is not a step to walk over), and is built once they are there.
-    /// The props treat shots and attacks as the walls do: the player's shots and skills and the enemies' strikes do
-    /// not look at walls; the shooter's sight and shot stop at any collider that is not a character, so at walls and
-    /// props alike. Then the enemies of each enemy point stand there, of
+    /// Cover (Kristian, 2026-11-19: shots are stopped by walls and pillars): every wall, and every prop at least
+    /// <see cref="PropValues.CoverHeight"/> tall, carries <see cref="Cover"/>, which stops her shots and skills and the
+    /// shooter's sight and line; she and the shooter shoot over a lower prop. The enemies' strikes on the ground do not
+    /// look at cover. Then the enemies of each enemy point stand there, of
     /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed.
     ///
     /// Positions: the level's ground point (x, y) in metres is the world point (x, 0, y) moved so that the start
@@ -215,6 +216,7 @@ namespace Roguelike
             wall.transform.position = ToWorld(centre) + Vector3.up * (height * 0.5f);
             wall.transform.localScale = vertical ? new Vector3(t, height, along) : new Vector3(along, height, t);
             wall.GetComponent<Renderer>().sharedMaterial = material;
+            wall.AddComponent<Cover>(); // every wall, the low near ones too, stops shots (Kristian, 2026-11-19)
             WallLayer = wall.layer;
             Walls++;
             if (low) LowWalls++;
@@ -244,7 +246,9 @@ namespace Roguelike
                     }
                     string name = "Prop_" + room.Letter + room.Order + "_" + i + "_" + prop.Model;
                     GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
-                    _props.Add(new PlacedProp { Room = room, Prop = prop, Object = go });
+                    bool cover = prop.IsCover(Values.PropRules);
+                    if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
+                    _props.Add(new PlacedProp { Room = room, Prop = prop, Object = go, IsCover = cover });
                 }
             }
         }
@@ -255,6 +259,8 @@ namespace Roguelike
             public LevelRoom Room;
             public LevelProp Prop;
             public GameObject Object;
+            /// <summary>It stops shots: it is at least <see cref="PropValues.CoverHeight"/> tall and carries <see cref="Cover"/>.</summary>
+            public bool IsCover;
         }
 
         // ---------------- Enemies ----------------

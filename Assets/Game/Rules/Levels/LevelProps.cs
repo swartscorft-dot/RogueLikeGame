@@ -238,6 +238,13 @@ namespace Roguelike.Rules
 
         public char Letter => PropSize.Of(Model).Letter;
 
+        /// <summary>
+        /// Does it stop shots (Kristian, 2026-11-19)? A prop as tall as <see cref="PropValues.CoverHeight"/> or taller
+        /// does; she shoots over a lower one, which still blocks walking. Its height is its table entry's
+        /// (<see cref="PropSize.Crypt"/>); a millimetre of slack, so a 1.2 m prop against a 1.2 m float counts.
+        /// </summary>
+        public bool IsCover(PropValues v) => Height >= v.CoverHeight - 1e-3;
+
         public override string ToString() =>
             string.Format(CultureInfo.InvariantCulture, "{0} {1} at {2} turned {3} ({4} {5})", Place.ToString().ToLowerInvariant(), Model, Position, Rotation,
                           Shape == PropShape.Circle ? "circle" : "rect",

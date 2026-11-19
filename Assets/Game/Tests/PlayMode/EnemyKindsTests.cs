@@ -213,6 +213,7 @@ namespace Roguelike.PlayModeTests
             wall.name = "TestWall";
             wall.transform.SetPositionAndRotation(new Vector3(mid.x, 1.5f, mid.z), Quaternion.LookRotation(new Vector3(across.x, 0f, across.z)));
             wall.transform.localScale = new Vector3(4f, 3f, 0.5f);
+            wall.AddComponent<Cover>(); // a wall is cover, as a generated level's walls are (work order 010)
             Physics.SyncTransforms(); // frames without a window are far shorter than a physics step
             yield return null;
             Assert.That(shooter.Sees(_player.Position), Is.False, "the wall is between them");

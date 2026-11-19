@@ -14,9 +14,11 @@ namespace Roguelike
     ///
     /// Its one attack is a line aimed at where she stands when the windup begins, shown for the windup and then landing
     /// along its whole length at once; it does not follow her. It needs to see her: it starts no windup while a wall
-    /// stands between them (a ray at <see cref="ShooterValues.SightHeight"/> over the ground, against every collider
-    /// that is not her, an enemy or a target, so the level's walls, the low ones too), and walks toward her until it
-    /// does. The line stops at the first wall on its way, so stepping behind one avoids it.
+    /// stands between them (a ray at <see cref="ShooterValues.SightHeight"/> over the ground against cover, the same
+    /// cover that stops her shots: the level's walls, the low ones too, and its tall props, so it sees and shoots over
+    /// a low prop as she does; Kristian, 2026-11-19), and walks toward her until it does. The line stops at the first
+    /// wall on its way, so stepping behind one avoids it. With <see cref="FeelValues.CoverStopsShots"/> off, a wall is
+    /// every collider that is not her, an enemy or a target, as before.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public sealed class EnemyShooter : Enemy
@@ -88,9 +90,16 @@ namespace Roguelike
             return length < 1e-3f || ClearDistance(dir / length, length) >= length - 1e-3f;
         }
 
-        /// <summary>Metres along a flat direction, up to <paramref name="max"/>, before the first wall.</summary>
+        /// <summary>
+        /// Metres along a flat direction, up to <paramref name="max"/>, before the first wall. With
+        /// <see cref="FeelValues.CoverStopsShots"/> on, a wall is cover as her shots take it (<see cref="Cover"/>, Kristian,
+        /// 2026-11-19), so it sees and shoots over a low prop as she does; off, it is any collider that is not her, an
+        /// enemy or a target, as before.
+        /// </summary>
         float ClearDistance(Vector3 flatDir, float max)
         {
+            if (Player == null || Player.Feel.CoverStopsShots)
+                return Cover.ClearDistance(Flat(transform.position), flatDir, max, Tuning.SightHeight);
             Vector3 from = Flat(transform.position) + Vector3.up * Tuning.SightHeight;
             int n = Physics.RaycastNonAlloc(from, flatDir, s_Hits, max, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
             float nearest = max;
