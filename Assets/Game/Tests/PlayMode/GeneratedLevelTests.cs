@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -92,7 +93,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.GetComponentsInChildren<Collider>().Length, Is.EqualTo(level.Floors + level.Walls + level.Props.Count), "floors, walls and props have colliders");
 
             Assert.That(_levels.CurrentRoom, Is.Not.Null);
-            Assert.That(_levels.CurrentRoom.Kind, Is.EqualTo(RoomKind.Start));
+            Assert.That(_levels.CurrentRoom.Kind, Is.EqualTo(RoomKind.Entrance));
             StringAssert.Contains(layout.SeedText, _levels.StatusText());
             StringAssert.Contains("room 1 of " + layout.Rooms.Count, _levels.StatusText());
             StringAssert.Contains("v" + LevelGenerator.Version, _levels.StatusText());
@@ -144,7 +145,10 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Enemies_StandAtTheirPoints_WithTheLevelsHealth()
         {
-            GeneratedLevel level = Build();
+            // Work order 012: floor 5, for the act boss; every enemy stands at its place in the description (a pack round
+            // its point, a line across it), and every kind has the floor's health for it, the act boss the boss's.
+            _levels = GeneratedLevels.Ensure();
+            GeneratedLevel level = _levels.Build(Seed, 5);
             yield return null;
             yield return null;
             LevelLayout layout = level.Layout;
@@ -157,52 +161,61 @@ namespace Roguelike.PlayModeTests
             foreach (GeneratedLevel.PlacedGroup g in level.Groups)
             {
                 LevelRoom r = g.Room;
-                Vector3 point = level.ToWorld(r.EnemyPoints[g.Point]);
+                LevelPoint[] places = r.PlacesAt(g.Point);
                 Assert.That(g.Members.Count, Is.EqualTo(g.Group.Count));
-                foreach (Enemy e in g.Members)
+                for (int m = 0; m < g.Members.Count; m++)
                 {
+                    Enemy e = g.Members[m];
                     string where = "room " + r.Letter + r.Order + " point " + g.Point;
                     Assert.That(e.Kind, Is.EqualTo(g.Group.Kind), where);
-                    float off = g.Group.IsPack ? level.Values.PackRadius : 0f;
-                    Assert.That(Flat(e.Home, point), Is.EqualTo(off).Within(0.3f), "home at its point, or round it for a pack: " + where);
+                    Assert.That(Flat(e.Home, level.ToWorld(places[m])), Is.LessThan(0.3f), "home at its place: " + where);
                     Assert.That(e.ComesBack, Is.False);
                     var d = e.GetComponent<Damageable>();
-                    int wanted = r.Kind == RoomKind.Boss ? level.Values.BossHealth
-                               : e.Kind == EnemyKind.Brute ? level.Values.EnemyHealth
-                               : e.Values.Health;
+                    int wanted = level.Values.HealthOf(g.Group.Kind, g.Group.Boss);
                     Assert.That(d.MaxHealth, Is.EqualTo(wanted), where);
                     Assert.That(d.CurrentHealth, Is.EqualTo(wanted));
                 }
             }
             Assert.That(level.Boss, Is.Not.Null);
             Assert.That(level.Boss.GetComponent<Damageable>().MaxHealth, Is.EqualTo(9000));
+            Assert.That(level.Values.SwarmerHealth, Is.EqualTo(150));
+            Assert.That(level.Values.ShooterHealth, Is.EqualTo(400));
+            Assert.That(level.Values.EnemyHealth, Is.EqualTo(1200));
+            Assert.That(level.Values.GuardHealth, Is.EqualTo(3500));
             Assert.That(_practiceEnemy.ComesBack, Is.True, "the practice enemy comes back as before");
             Assert.That(_practiceEnemy.HealthOverride, Is.EqualTo(0));
             Assert.That(_practiceEnemy.GetComponent<Damageable>().MaxHealth, Is.EqualTo(_practiceEnemy.Values.Health));
         }
 
+        // Work order 012: a floor is finished when every enemy of its exit room is dead (it was the boss room's one enemy).
         [UnityTest]
-        public IEnumerator AGeneratedEnemy_StaysDead_AndTheBossClearsTheLevel()
+        public IEnumerator AGeneratedEnemy_StaysDead_AndTheExitRoomClearsTheFloor()
         {
             GeneratedLevel level = Build();
             yield return null;
             yield return null;
-            Enemy first = level.Enemies.First(e => e != level.Boss);
+            Enemy first = level.Enemies.First(e => !level.ExitEnemies.Contains(e));
             first.GetComponent<Damageable>().TakeHit(100000);
             yield return null;
             Assert.That(first.IsDead, Is.True);
             Assert.That(_levels.Cleared, Is.False, "not by any enemy");
 
-            level.Boss.GetComponent<Damageable>().TakeHit(100000);
+            List<Enemy> exit = level.ExitEnemies.ToList();
+            Assert.That(exit.Count, Is.GreaterThanOrEqualTo(9), "the exit room's fight");
+            for (int i = 0; i < exit.Count - 1; i++) exit[i].GetComponent<Damageable>().TakeHit(100000);
             yield return null;
             yield return null;
-            Assert.That(_levels.Cleared, Is.True, "the boss is dead");
-            StringAssert.Contains("LEVEL CLEARED", _levels.StatusText());
+            Assert.That(_levels.Cleared, Is.False, "one is left in the exit room");
+            exit[exit.Count - 1].GetComponent<Damageable>().TakeHit(100000);
+            yield return null;
+            yield return null;
+            Assert.That(_levels.Cleared, Is.True, "the exit room is cleared");
+            StringAssert.Contains("FLOOR CLEARED", _levels.StatusText());
             StringAssert.Contains(level.Layout.SeedText, _levels.StatusText());
 
             yield return new WaitForSeconds(first.Values.RespawnDelay + 0.5f);
             Assert.That(first.IsDead, Is.True, "it does not come back");
-            Assert.That(level.Boss.IsDead, Is.True);
+            Assert.That(exit.All(e => e.IsDead), Is.True);
         }
 
         [UnityTest]
@@ -259,7 +272,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(built.ExtraValue("rooms"), Is.EqualTo(level.Layout.Rooms.Count.ToString()));
             var entered = _recorder.Events.Where(e => e.Type == SessionEventTypes.RoomEntered).ToList();
             Assert.That(entered.Select(e => e.ExtraValue("room")), Is.EqualTo(new[] { "0", combat.Order.ToString() }));
-            Assert.That(entered.Select(e => e.Name), Is.EqualTo(new[] { "start", "combat" }));
+            Assert.That(entered.Select(e => e.Name), Is.EqualTo(new[] { "entrance", "combat" }));
 
             // The recorder listens to the level's enemies too.
             level.Enemies[0].GetComponent<Damageable>().TakeHit(100000);

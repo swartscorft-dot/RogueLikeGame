@@ -43,7 +43,7 @@ namespace Roguelike
         public IReadOnlyList<Enemy> Enemies => _enemies;
         /// <summary>What stands at each enemy point of the level, in the order of the rooms and their points.</summary>
         public IReadOnlyList<PlacedGroup> Groups => _groups;
-        /// <summary>The boss room's enemy, or null when there was no enemy to copy.</summary>
+        /// <summary>The act boss (work order 012: only on the act's last floor), or null.</summary>
         public Enemy Boss { get; private set; }
         public int Floors { get; private set; }
         public int Walls { get; private set; }
@@ -129,10 +129,10 @@ namespace Roguelike
         {
             var tints = new Dictionary<RoomKind, Material>
             {
-                [RoomKind.Start] = Tinted(baseMaterial, StartTint, "LevelFloor_Start"),
+                [RoomKind.Entrance] = Tinted(baseMaterial, StartTint, "LevelFloor_Entrance"),
                 [RoomKind.Combat] = Tinted(baseMaterial, CombatTint, "LevelFloor_Combat"),
-                [RoomKind.Reward] = Tinted(baseMaterial, RewardTint, "LevelFloor_Reward"),
-                [RoomKind.Boss] = Tinted(baseMaterial, BossTint, "LevelFloor_Boss"),
+                [RoomKind.Treasure] = Tinted(baseMaterial, RewardTint, "LevelFloor_Treasure"),
+                [RoomKind.Exit] = Tinted(baseMaterial, BossTint, "LevelFloor_Exit"),
             };
             float cs = Layout.CellSize;
             foreach (LevelRoom room in Layout.Rooms)
@@ -266,10 +266,10 @@ namespace Roguelike
         // ---------------- Enemies ----------------
 
         /// <summary>
-        /// What stands at each enemy point (work order 008): one enemy of the point's kind, or for a pack its swarmers
-        /// evenly round a circle of <see cref="LevelValues.PackRadius"/> about the point. A brute has the level's
-        /// <see cref="LevelValues.EnemyHealth"/>, the boss room's enemy <see cref="LevelValues.BossHealth"/>, and the
-        /// other kinds their own.
+        /// What stands at each enemy point (work order 008): the group's enemies of its kind, each where the description
+        /// puts it (work order 012: one on the point, a pack round it, a line side by side across it). Every kind has
+        /// the floor's health for it (<see cref="LevelValues.HealthOf"/>), the act boss <see cref="LevelValues.BossHealth"/>;
+        /// the practice room's enemies keep their own.
         /// </summary>
         void PlaceEnemies(EnemyBrute template)
         {
@@ -279,21 +279,44 @@ namespace Roguelike
                 {
                     EnemyGroup group = room.GroupAt(i);
                     var placed = new PlacedGroup { Room = room, Point = i, Group = group };
-                    List<Vector3> places = EnemyFactory.PackPlaces(ToWorld(room.EnemyPoints[i]), group.Count, Values.PackRadius);
-                    for (int m = 0; m < places.Count; m++)
+                    LevelPoint[] places = room.PlacesAt(i);
+                    for (int m = 0; m < places.Length; m++)
                     {
-                        string name = "Enemy_" + room.Letter + room.Order + "_" + i + (places.Count > 1 ? "_" + m : "");
-                        Enemy enemy = EnemyFactory.Make(group.Kind, places[m], transform, template, name);
-                        bool boss = room.Kind == RoomKind.Boss;
-                        enemy.HealthOverride = boss ? Values.BossHealth : group.Kind == EnemyKind.Brute ? Values.EnemyHealth : 0;
+                        string name = "Enemy_" + room.Letter + room.Order + "_" + i + (places.Length > 1 ? "_" + m : "");
+                        Enemy enemy = EnemyFactory.Make(group.Kind, ToWorld(places[m]), transform, template, name);
+                        if (enemy == null) continue;
+                        enemy.HealthOverride = Values.HealthOf(group.Kind, group.Boss);
                         placed.Members.Add(enemy);
                         if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
                         list.Add(enemy);
                         _enemies.Add(enemy);
-                        if (boss && Boss == null) Boss = enemy;
+                        if (group.Boss && Boss == null) Boss = enemy;
                     }
                     _groups.Add(placed);
                 }
+            }
+        }
+
+        /// <summary>The enemies of the exit room (work order 012): when every one is dead, the floor is finished.</summary>
+        public IReadOnlyList<Enemy> ExitEnemies
+        {
+            get
+            {
+                LevelRoom exit = Layout.ExitRoom;
+                return exit != null && _enemiesByRoom.TryGetValue(exit.Order, out List<Enemy> list) ? list : (IReadOnlyList<Enemy>)System.Array.Empty<Enemy>();
+            }
+        }
+
+        /// <summary>True once every enemy of the exit room is dead; false while there is none to kill (no enemy to copy).</summary>
+        public bool ExitRoomCleared
+        {
+            get
+            {
+                IReadOnlyList<Enemy> exit = ExitEnemies;
+                if (exit.Count == 0) return false;
+                for (int i = 0; i < exit.Count; i++)
+                    if (exit[i] != null && !exit[i].IsDead) return false;
+                return true;
             }
         }
 

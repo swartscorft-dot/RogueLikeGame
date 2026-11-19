@@ -346,14 +346,13 @@ namespace Roguelike.PlayModeTests
         public IEnumerator AGeneratedLevel_HoldsTheKindsOfItsPlan()
         {
             _practiceEnemy.enabled = true;
-            GeneratedLevel level = _levels.Build(42UL);
+            // Work order 012: the kinds come from the description's groups (drawn per floor), not a fixed plan; floor 5
+            // has the act boss.
+            GeneratedLevel level = _levels.Build(42UL, 5);
             yield return null;
-            var plan = level.Values.Plan;
-            int combat = 0;
             foreach (LevelRoom r in level.Layout.Rooms)
             {
-                EnemyGroup[] planned = plan.GroupsFor(r.Kind, r.Kind == RoomKind.Combat ? combat++ : 0);
-                List<string> want = planned.SelectMany(g => Enumerable.Repeat(g.Kind.ToString(), g.Count)).OrderBy(s => s).ToList();
+                List<string> want = r.EnemyGroups.SelectMany(g => Enumerable.Repeat(g.Kind.ToString(), g.Count)).OrderBy(s => s).ToList();
                 List<string> have = (level.EnemiesByRoom.TryGetValue(r.Order, out List<Enemy> list) ? list : new List<Enemy>())
                                     .Select(e => e.Kind.ToString()).OrderBy(s => s).ToList();
                 Assert.That(have, Is.EqualTo(want), "room " + r.Letter + r.Order);

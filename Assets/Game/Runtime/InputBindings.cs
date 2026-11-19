@@ -76,6 +76,8 @@ namespace Roguelike
         [Tooltip("Toward the cursor, or the way she moves (the way she faces when no move key is held).")]
         public DashDirection DashDirection = DashDirection.TowardCursor;
         public Key Focus = Key.Z;
+        [Tooltip("Opens a chest she stands by (work order 012).")]
+        public Key Interact = Key.E;
 
         [Header("Skills, one per slot in order")]
         [Tooltip("Slot 1 is the first skill in Skills.asset (Quick Shot), slot 2 the second, and so on.")]
@@ -110,7 +112,7 @@ namespace Roguelike
         {
             MoveUp = Key.W; MoveDown = Key.S; MoveLeft = Key.A; MoveRight = Key.D;
             Shoot = new InputBinding(BindingSource.LeftMouse);
-            Dash = Key.Space; Focus = Key.Z;
+            Dash = Key.Space; Focus = Key.Z; Interact = Key.E;
             DashDirection = DashDirection.TowardCursor;
             Skills = DefaultSkills();
         }

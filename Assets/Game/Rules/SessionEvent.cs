@@ -54,6 +54,15 @@ namespace Roguelike.Rules
 
         public const string LevelBuilt = "level_built";       // a generated level was built: name is its seed's text, with version and rooms
         public const string RoomEntered = "room_entered";     // she entered a room of the generated level: room is its place in the run, name its kind
+
+        // Runs (work order 012, decision 0008).
+        public const string RunStart = "run_start";           // a run started: name is the run seed's text
+        public const string FloorEnter = "floor_enter";       // she entered a floor of the run: floor its number, name its seed's text
+        public const string FloorFinish = "floor_finish";     // the floor's exit room was cleared: floor, seconds it took, health left
+        public const string RewardOffer = "reward_offer";     // the floor reward was offered: floor, offered the skills joined by " | "
+        public const string RewardTake = "reward_take";       // a floor reward was taken: floor, name the skill
+        public const string ChestOpen = "chest_open";         // a chest was opened and an upgrade taken: floor, room, offered joined by " | ", name the one taken
+        public const string RunEnd = "run_end";               // the run ended: result death, act cleared or left; floor, room and its kind, seconds since the run started
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>

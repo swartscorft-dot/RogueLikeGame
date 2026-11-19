@@ -7,7 +7,8 @@ namespace Roguelike
     /// <summary>
     /// The player's health. A hit during the dash's i-frame does nothing.
     /// At zero the character drops what it was doing, and after a moment stands at the start again with
-    /// full health: the control room is for practice. In a run, death will end the run.
+    /// full health: the control room is for practice. In a run, death ends the run (work order 012, <see cref="GeneratedLevels"/>),
+    /// and the run's upgrades raise her maximum (<see cref="RefreshMax"/>).
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
     public sealed class PlayerHealth : MonoBehaviour
@@ -21,6 +22,30 @@ namespace Roguelike
 
         public int Current => _health.Current;
         public bool IsAlive => !_health.IsDead;
+        /// <summary>The maximum now: <see cref="MaxHealth"/>, and in a run the run's upgrades on top (work order 012).</summary>
+        public int Max => _health.Max;
+
+        /// <summary>
+        /// Reads the maximum again from <see cref="MaxHealth"/> and the run's upgrades on the character
+        /// (<see cref="PlayerCharacter.Modifiers"/>), keeping what she has (cut to the new maximum). Called when an
+        /// upgrade is taken and when a run starts or ends (work order 012).
+        /// </summary>
+        public void RefreshMax()
+        {
+            RunModifiers m = _player != null ? _player.Modifiers : null;
+            _health.SetMax(MaxHealth + (m != null ? m.BonusMaxHealth : 0));
+        }
+
+        /// <summary>Gives back health, up to the maximum; returns what was given.</summary>
+        public int Heal(int amount) => _health.Heal(amount);
+
+        /// <summary>Full health, alive: the start of a run. Cancels a respawn that was waiting.</summary>
+        public void RestoreFull()
+        {
+            RefreshMax();
+            _health.Reset();
+            _deadSince = -1f;
+        }
         public int HitsTaken { get; private set; }
         /// <summary>Hits that landed during the dash's i-frame and did nothing.</summary>
         public int HitsAvoided { get; private set; }
