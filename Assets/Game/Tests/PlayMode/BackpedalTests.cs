@@ -135,21 +135,23 @@ namespace Roguelike.PlayModeTests
             _player.Shoot(behind);
             yield return Until(() => _player.BasicShotsFired >= 1, 1f);
             float firedAt = Time.time;
-            float turnBackAt = -1f, freeAt = -1f, maxStep = 0f, last = Yaw();
+            float turnBackAt = -1f, freeAt = -1f, last = Yaw();
+            var steps = new List<(float seconds, float degrees)>();
             float deadline = Time.realtimeSinceStartup + 3f;
-            while (freeAt < 0f && Time.realtimeSinceStartup < deadline)
+            // On until she is free, and one rate window past that, so the end of the turn is measured over a whole window.
+            while ((freeAt < 0f || Time.time < freeAt + RateWindow) && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
                 float yaw = Yaw();
-                if (turnBackAt >= 0f && Time.deltaTime > 0f) maxStep = Mathf.Max(maxStep, Mathf.Abs(Mathf.DeltaAngle(last, yaw)) / Time.deltaTime);
+                if (turnBackAt >= 0f) steps.Add((Time.deltaTime, Mathf.Abs(Mathf.DeltaAngle(last, yaw))));
                 last = yaw;
                 if (turnBackAt < 0f && _player.FacingMode == ShotFacing.Mode.TurningBack) turnBackAt = Time.time;
-                if (turnBackAt >= 0f && _player.FacingMode == ShotFacing.Mode.Free) freeAt = Time.time;
+                if (turnBackAt >= 0f && freeAt < 0f && _player.FacingMode == ShotFacing.Mode.Free) freeAt = Time.time;
             }
             Assert.That(turnBackAt, Is.GreaterThan(0f), "the hold ran out");
             Assert.That(turnBackAt - firedAt, Is.GreaterThanOrEqualTo(_feel.ShotTurnHold - 0.1f), "not before its time after the shot");
             Assert.That(freeAt - turnBackAt, Is.GreaterThan(_feel.ShotTurnTime * 0.6f), "turning back took time, not one frame");
-            Assert.That(maxStep, Is.LessThan(180f / _feel.ShotTurnTime * 1.15f), "at the shot turn rate");
+            Assert.That(FastestTurn(steps), Is.LessThan(180f / _feel.ShotTurnTime * 1.15f), "at the shot turn rate");
             yield return null;
             Assert.That(Vector3.Dot(Flat(_player.transform.forward), Vector3.right), Is.GreaterThan(0.99f), "and she faces her run again");
         }
@@ -234,6 +236,33 @@ namespace Roguelike.PlayModeTests
         }
 
         float Yaw() => _player.transform.eulerAngles.y;
+
+        /// <summary>The shortest stretch a turn rate is measured over: one frame at 60 frames a second.</summary>
+        const float RateWindow = 1f / 60f;
+
+        /// <summary>
+        /// The fastest turn, in degrees a second, over any run of consecutive frames lasting at least
+        /// <see cref="RateWindow"/>; a frame longer than that is a run of its own. Measured per frame instead, a step
+        /// the game allows at any frame length, such as the last fraction of a degree she snaps to when the turn
+        /// back ends, reads as thousands of degrees a second when frames are a fraction of a millisecond long, as
+        /// they are without a window. Runs that end before a whole window are covered by the ones that start earlier.
+        /// </summary>
+        static float FastestTurn(List<(float seconds, float degrees)> steps)
+        {
+            float fastest = 0f;
+            for (int i = 0; i < steps.Count; i++)
+            {
+                float seconds = 0f, degrees = 0f;
+                for (int j = i; j < steps.Count && seconds < RateWindow; j++)
+                {
+                    seconds += steps[j].seconds;
+                    degrees += steps[j].degrees;
+                }
+                if (seconds < RateWindow) break;
+                fastest = Mathf.Max(fastest, degrees / seconds);
+            }
+            return fastest;
+        }
 
         static void Place(Damageable d, float x, float z)
         {
