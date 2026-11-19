@@ -17,7 +17,8 @@ namespace Roguelike.Rules
     /// start room; every reward room has exactly one door, to a combat room, and no combat room has two; no other
     /// door; the player's start is in the start room only; the number of enemy points of each room; and every start
     /// and enemy point is inside its room and far enough from its walls and doors, a combat room's enemies far enough
-    /// from the door she enters by and from each other.
+    /// from the door she enters by and from each other. Since work order 008 also: every enemy point has a group, a
+    /// room holds just the groups its plan gives it, only swarmers come in packs, and a pack fits inside its room.
     /// </summary>
     public static class LevelValidator
     {
@@ -171,8 +172,28 @@ namespace Roguelike.Rules
             {
                 if (r.Kind == RoomKind.Start && !r.PlayerStart.HasValue) faults.Add($"{Name(r)} has no player start");
                 if (r.Kind != RoomKind.Start && r.PlayerStart.HasValue) faults.Add($"{Name(r)} has a player start but is not the start room");
-                int wanted = r.Kind == RoomKind.Combat ? plan.EnemiesInCombatRoom(combatNumber++) : r.Kind == RoomKind.Boss ? 1 : 0;
+                EnemyGroup[] planned = plan.GroupsFor(r.Kind, r.Kind == RoomKind.Combat ? combatNumber++ : 0);
+                // The boss room has one point, in its middle, for the plan's first boss group.
+                if (r.Kind == RoomKind.Boss && planned.Length > 1) planned = new[] { planned[0] };
+                int wanted = r.Kind == RoomKind.Boss ? 1 : planned.Length;
                 if (r.EnemyPoints.Count != wanted) faults.Add($"{Name(r)} has {r.EnemyPoints.Count} enemy points, not {wanted}");
+
+                // The kinds (work order 008): a group for every point, the room's plan dealt out whole, packs of swarmers only.
+                if (r.EnemyGroups.Count != r.EnemyPoints.Count)
+                    faults.Add($"{Name(r)} has {r.EnemyGroups.Count} enemy groups for {r.EnemyPoints.Count} enemy points");
+                string Kinds(IEnumerable<EnemyGroup> groups) =>
+                    string.Join(", ", groups.Where(g => g != null).Select(g => g.ToString()).OrderBy(s => s, StringComparer.Ordinal));
+                if (Kinds(r.EnemyGroups) != Kinds(planned))
+                    faults.Add($"{Name(r)} holds [{Kinds(r.EnemyGroups)}], its plan [{Kinds(planned)}]");
+                for (int i = 0; i < r.EnemyGroups.Count; i++)
+                {
+                    EnemyGroup g = r.EnemyGroups[i];
+                    if (g == null || g.Count < 1) faults.Add($"{Name(r)}'s enemy {i} has no enemy in its group");
+                    else if (g.IsPack && g.Kind != EnemyKind.Swarmer) faults.Add($"{Name(r)}'s enemy {i} is a pack of {g.Kind}, and only swarmers come in packs");
+                    else if (g.IsPack && i < r.EnemyPoints.Count
+                             && LevelGeometry.DistanceToWalls(r.EnemyPoints[i], r.Rect, cs) < values.PackRadius - Slack)
+                        faults.Add($"{Name(r)}'s pack {i} at {r.EnemyPoints[i]} does not fit inside the room ({values.PackRadius} m around it)");
+                }
 
                 List<LevelDoor> doors = level.DoorsOf(r.Order).Where(d => Known(d.Other(r.Order))).ToList();
                 void CheckPoint(LevelPoint p, string what)

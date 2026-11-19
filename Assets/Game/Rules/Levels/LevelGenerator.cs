@@ -23,13 +23,18 @@ namespace Roguelike.Rules
     /// the seed and the attempt's number. The result is still a function of the seed alone.
     ///
     /// Contents (their own stream, "contents"): the player's start in the middle of the start room; in each combat
-    /// room 1 to 3 enemy points, more in later rooms, away from the walls, from the door she enters by and from each
-    /// other; one enemy point in the middle of the boss room; nothing in the reward rooms.
+    /// room an enemy point per group of the plan's entry for it (<see cref="LevelPlan.CombatEnemies"/>), away from the
+    /// walls, from the door she enters by and from each other, and then the room's groups dealt out to its points in
+    /// a drawn order; one enemy point in the middle of the boss room with the plan's boss group; nothing in the
+    /// reward rooms.
+    ///
+    /// Version 2 (work order 008) gave each enemy point a kind of enemy. Only the contents changed: the layout stream
+    /// is as it was, so old seeds keep their rooms and doors.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 1;
+        public const int Version = 2;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -241,10 +246,18 @@ namespace Roguelike.Rules
                         room.PlayerStart = room.Middle(cs);
                         break;
                     case RoomKind.Boss:
+                        // One point, in the middle; with more than one group in the plan the rest have no place, and the validator says so.
                         room.EnemyPoints.Add(room.Middle(cs));
+                        EnemyGroup[] boss = v.Plan.GroupsFor(RoomKind.Boss, 0);
+                        if (boss.Length > 0) room.EnemyGroups.Add(boss[0].Copy());
                         break;
                     case RoomKind.Combat:
-                        PlaceEnemies(level, room, v.Plan.EnemiesInCombatRoom(combatNumber++), rng, v);
+                        EnemyGroup[] groups = v.Plan.CombatGroups(combatNumber++);
+                        PlaceEnemies(level, room, groups.Length, rng, v);
+                        // Which point gets which group is drawn (work order 008).
+                        var dealt = groups.Select(g => g.Copy()).ToList();
+                        rng.Shuffle(dealt);
+                        room.EnemyGroups.AddRange(dealt.Take(room.EnemyPoints.Count));
                         break;
                 }
             }

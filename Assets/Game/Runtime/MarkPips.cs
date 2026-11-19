@@ -60,7 +60,9 @@ namespace Roguelike
             if (renderers.Length > 0)
             {
                 top = float.NegativeInfinity;
-                foreach (Renderer r in renderers) top = Mathf.Max(top, r.bounds.max.y);
+                // Not over a stagger bar (work order 008): that one is drawn above the pips.
+                foreach (Renderer r in renderers)
+                    if (r.GetComponent<StaggerBarView>() == null) top = Mathf.Max(top, r.bounds.max.y);
                 top -= target.transform.position.y;
             }
 

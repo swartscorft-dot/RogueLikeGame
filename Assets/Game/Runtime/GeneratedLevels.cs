@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using Roguelike.Rules;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
@@ -19,6 +20,11 @@ namespace Roguelike
     /// level. Building a level removes the one before. Tests use the same three as intents: <see cref="Build"/>,
     /// <see cref="Rebuild"/> and <see cref="BackToPracticeRoom"/>.
     ///
+    /// In the practice room (work order 008), under the same rule: F9 spawns a pack of swarmers, F10 a shooter, F11 a
+    /// guard, each about <see cref="SpawnDistance"/> from her on the practice floor, and F12 removes everything spawned
+    /// this way. They stay dead when killed. The intents are <see cref="SpawnPractice"/> and <see cref="ClearSpawned"/>.
+    /// Nothing is spawned while she is in a generated level.
+    ///
     /// It installs itself when Play starts, under the same rule as the play session recorder, so never in a test run
     /// (<see cref="SessionRecordingRule.MayStartByItself"/>); tests make one with <see cref="Ensure"/>. It does
     /// nothing while there is no <see cref="PlayerCharacter"/> in the scene.
@@ -32,6 +38,12 @@ namespace Roguelike
         public const Key NewLevelKey = Key.F5;
         public const Key SameLevelKey = Key.F6;
         public const Key PracticeRoomKey = Key.F7;
+        public const Key SwarmersKey = Key.F9;
+        public const Key ShooterKey = Key.F10;
+        public const Key GuardKey = Key.F11;
+        public const Key ClearSpawnsKey = Key.F12;
+        /// <summary>Metres from her that a spawned enemy (or a pack's middle) stands.</summary>
+        public const float SpawnDistance = 12f;
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static ulong s_freshCounter;
@@ -91,7 +103,82 @@ namespace Roguelike
         void OnDestroy()
         {
             if (_level != null) Destroy(_level.gameObject);
+            if (_spawnRoot != null) Destroy(_spawnRoot.gameObject);
             if (Current == this) Current = null;
+        }
+
+        // ---------------- Practice spawns (work order 008) ----------------
+
+        Transform _spawnRoot;
+        readonly List<Enemy> _spawned = new List<Enemy>();
+
+        /// <summary>The enemies spawned in the practice room and not yet cleared, dead ones too.</summary>
+        public IReadOnlyList<Enemy> Spawned => _spawned;
+
+        /// <summary>
+        /// Spawns enemies of a kind about <see cref="SpawnDistance"/> from her on the practice floor: for swarmers a pack
+        /// (<see cref="SwarmerValues.PracticePack"/>, round a circle of the level values' pack radius), else one. Returns
+        /// what it made; nothing while she is in a generated level, without a character or without the practice enemy
+        /// to copy.
+        /// </summary>
+        public List<Enemy> SpawnPractice(EnemyKind kind)
+        {
+            var made = new List<Enemy>();
+            PlayerCharacter player = FindPlayer();
+            EnemyBrute template = PracticeEnemy();
+            if (player == null || template == null || _level != null) return made;
+            if (_spawnRoot == null)
+            {
+                // In the scene, not under this object that lives across scene loads: a new scene takes them away.
+                _spawnRoot = new GameObject("PracticeSpawns").transform;
+                SceneManager.MoveGameObjectToScene(_spawnRoot.gameObject, player.gameObject.scene);
+            }
+            Vector3 middle = SpawnPoint(player.Position);
+            int count = kind == EnemyKind.Swarmer ? new SwarmerValues().PracticePack : 1;
+            List<Vector3> places = EnemyFactory.PackPlaces(middle, count, Values.PackRadius);
+            for (int i = 0; i < places.Count; i++)
+            {
+                Enemy e = EnemyFactory.Make(kind, places[i], _spawnRoot, template, "Spawned_" + kind + "_" + (_spawned.Count + 1));
+                if (e == null) continue;
+                made.Add(e);
+                _spawned.Add(e);
+            }
+            return made;
+        }
+
+        /// <summary>Removes everything spawned in the practice room.</summary>
+        public void ClearSpawned()
+        {
+            _spawned.Clear();
+            if (_spawnRoot == null) return;
+            _spawnRoot.gameObject.SetActive(false);
+            Destroy(_spawnRoot.gameObject);
+            _spawnRoot = null;
+        }
+
+        /// <summary>
+        /// A point on the NavMesh about <see cref="SpawnDistance"/> from her: the first of eight ways round (north first)
+        /// whose straight line from her stays on the NavMesh all the way, else the farthest one gets. Ground height.
+        /// </summary>
+        static Vector3 SpawnPoint(Vector3 from)
+        {
+            Vector3 feet = new Vector3(from.x, 0f, from.z);
+            if (NavMesh.SamplePosition(feet, out NavMeshHit start, 2f, NavMesh.AllAreas)) feet = start.position;
+            Vector3 best = feet;
+            float bestDistance = -1f;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 dir = Quaternion.Euler(0f, i * 45f, 0f) * Vector3.forward;
+                Vector3 to = feet + dir * SpawnDistance;
+                if (!NavMesh.Raycast(feet, to, out NavMeshHit hit, NavMesh.AllAreas)) return new Vector3(to.x, 0f, to.z);
+                float d = Vector3.Distance(feet, hit.position);
+                if (d > bestDistance)
+                {
+                    bestDistance = d;
+                    best = hit.position - dir * 1.5f; // off the edge a little, so a pack fits
+                }
+            }
+            return new Vector3(best.x, 0f, best.z);
         }
 
         // ---------------- Intents ----------------
@@ -182,6 +269,10 @@ namespace Roguelike
                 if (keyboard[NewLevelKey].wasPressedThisFrame) BuildNew();
                 else if (keyboard[SameLevelKey].wasPressedThisFrame) Rebuild();
                 else if (keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
+                else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
+                else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
+                else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
+                else if (keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
             }
             if (_level == null)
             {
@@ -245,7 +336,8 @@ namespace Roguelike
             }
             else
             {
-                GUI.Box(new Rect(x, 10, width, 25), "F5 generated level" + (LastSeed.HasValue ? "   F6 " + LevelSeed.ToText(LastSeed.Value) + " again" : ""), _style);
+                GUI.Box(new Rect(x, 10, width, 40), "F5 generated level" + (LastSeed.HasValue ? "   F6 " + LevelSeed.ToText(LastSeed.Value) + " again" : "")
+                                                    + "\nF9 swarmers   F10 shooter   F11 guard   F12 clear", _style);
             }
             GUI.matrix = matrixBefore;
         }

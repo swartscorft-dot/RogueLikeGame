@@ -145,6 +145,29 @@ namespace Roguelike.Rules
         public int LevelRoomsEntered;
         public ScopeStats Session;
         public ScopeStats InFights;
+
+        // The kinds of enemy (work order 008), whole session.
+        /// <summary>A row per kind of enemy met (woke, struck, died or was hit), in the order first met.</summary>
+        public readonly List<EnemyKindRow> EnemyKinds = new List<EnemyKindRow>();
+        /// <summary>Guards hit at least once, and of them those dazed at least once.</summary>
+        public int GuardsHit;
+        public int GuardsDazed;
+        public int Dazes;
+        /// <summary>From a guard's first hit taken to its first daze, the mean over the guards dazed; NaN with none.</summary>
+        public float FirstHitToDazeMean = float.NaN;
+        /// <summary>Damage dealt to guards, and of it the part dealt while the guard was dazed.</summary>
+        public int GuardDamage;
+        public int GuardDamageWhileDazed;
+    }
+
+    /// <summary>One kind of enemy in a session: its kills, and the damage it did her, by attack.</summary>
+    public sealed class EnemyKindRow
+    {
+        public string Kind;
+        public int Kills;
+        public int DamageTaken;
+        /// <summary>Damage it did her, by the attack's name, in the order the attacks first landed.</summary>
+        public readonly List<KeyValuePair<string, int>> DamageByAttack = new List<KeyValuePair<string, int>>();
     }
 
     /// <summary>
@@ -152,8 +175,9 @@ namespace Roguelike.Rules
     /// plain text in aligned columns. The same numbers come out of a log file read back
     /// (<see cref="WriteFromLog"/>), so a summary can be recomputed later, or after the summary itself changes.
     ///
-    /// A fight runs from the enemy waking until it dies, she dies, or it gives up and goes home; a session that ends
-    /// in a fight ends that fight. Tempo counts actions that started something (a skill, a basic shot, a dash), at the
+    /// A fight runs from an enemy waking until no enemy is awake (each has died, given up and gone home, or been
+    /// removed) or she dies; a session that ends in a fight ends that fight. With one enemy that is as before work
+    /// order 008. Tempo counts actions that started something (a skill, a basic shot, a dash), at the
     /// moment they started, so a buffered press or a waiting click counts when it fires. The second tempo counts every
     /// press of a skill key, a click and a dash key, whatever became of it.
     /// </summary>
@@ -186,14 +210,25 @@ namespace Roguelike.Rules
             double length = Math.Max(0d, end != null ? end.T : events.Count > 0 ? events[events.Count - 1].T : 0d);
             stats.Length = (float)length;
 
-            // The fights.
+            // The fights: one starts when an enemy wakes and none was awake, and lasts until none is awake (each has died,
+            // given up or been removed) or she dies. An enemy is told apart by its id; a log from before work order 008
+            // has none, and then they all count as one enemy, as they did.
             double fightStart = -1d;
+            var awake = new HashSet<int>();
             foreach (SessionEvent e in events)
             {
-                if (e.Type == SessionEventTypes.EnemyWake && fightStart < 0d) fightStart = e.T;
-                else if (fightStart >= 0d && (e.Type == SessionEventTypes.EnemyDeath || e.Type == SessionEventTypes.PlayerDeath
-                                              || e.Type == SessionEventTypes.EnemyGaveUp))
+                int id = e.EnemyId ?? -1;
+                if (e.Type == SessionEventTypes.EnemyWake)
                 {
+                    if (awake.Count == 0) fightStart = e.T;
+                    awake.Add(id);
+                }
+                else if (awake.Count > 0 && (e.Type == SessionEventTypes.EnemyDeath || e.Type == SessionEventTypes.EnemyGaveUp
+                                              || e.Type == SessionEventTypes.PlayerDeath))
+                {
+                    if (e.Type == SessionEventTypes.PlayerDeath) awake.Clear();
+                    else awake.Remove(id);
+                    if (awake.Count > 0) continue;
                     stats.FightSpans.Add(new KeyValuePair<double, double>(fightStart, e.T));
                     fightStart = -1d;
                 }
@@ -201,6 +236,7 @@ namespace Roguelike.Rules
             if (fightStart >= 0d) stats.FightSpans.Add(new KeyValuePair<double, double>(fightStart, Math.Max(fightStart, length)));
             stats.Fights = stats.FightSpans.Count;
             stats.Kills = events.Count(e => e.Type == SessionEventTypes.EnemyDeath);
+            ComputeEnemyKinds(events, stats);
             stats.Deaths = events.Count(e => e.Type == SessionEventTypes.PlayerDeath);
 
             // The generated levels: the last one built, and the rooms of it she entered.
@@ -226,6 +262,71 @@ namespace Roguelike.Rules
             stats.InFights = ComputeScope("In fights", events, stats.FightSpans, kit);
             stats.Kit = ComputeKit(events, start, kit);
             return stats;
+        }
+
+        /// <summary>
+        /// The kinds of enemy (work order 008), whole session: kills and damage done to her by kind and attack, and for
+        /// guards the time from the first hit each took to its first daze and the share of their damage dealt while dazed.
+        /// A log from before has no kinds: its enemies count as "enemy".
+        /// </summary>
+        static void ComputeEnemyKinds(List<SessionEvent> events, SessionStats stats)
+        {
+            EnemyKindRow Row(string kind)
+            {
+                kind = string.IsNullOrEmpty(kind) ? SessionWords.Enemy : kind;
+                EnemyKindRow row = stats.EnemyKinds.FirstOrDefault(r => r.Kind == kind);
+                if (row == null) stats.EnemyKinds.Add(row = new EnemyKindRow { Kind = kind });
+                return row;
+            }
+
+            const string Guard = "guard";
+            var firstHit = new Dictionary<int, double>();
+            var firstDaze = new Dictionary<int, double>();
+            var dazedSince = new Dictionary<int, double>(); // the guards dazed now
+            foreach (SessionEvent e in events)
+            {
+                switch (e.Type)
+                {
+                    case SessionEventTypes.EnemyWake:
+                        Row(e.Enemy);
+                        break;
+                    case SessionEventTypes.EnemyDeath:
+                        Row(e.Enemy).Kills++;
+                        if (e.EnemyId.HasValue) dazedSince.Remove(e.EnemyId.Value);
+                        break;
+                    case SessionEventTypes.EnemyStrike when e.Result == SessionWords.Landed && e.Damage > 0:
+                    {
+                        EnemyKindRow row = Row(e.Enemy);
+                        row.DamageTaken += e.Damage.Value;
+                        string attack = e.Name ?? "?";
+                        int at = row.DamageByAttack.FindIndex(p => p.Key == attack);
+                        if (at < 0) row.DamageByAttack.Add(new KeyValuePair<string, int>(attack, e.Damage.Value));
+                        else row.DamageByAttack[at] = new KeyValuePair<string, int>(attack, row.DamageByAttack[at].Value + e.Damage.Value);
+                        break;
+                    }
+                    case SessionEventTypes.Hit when e.Enemy == Guard && e.EnemyId.HasValue:
+                    {
+                        int id = e.EnemyId.Value;
+                        if (!firstHit.ContainsKey(id)) firstHit[id] = e.T;
+                        int damage = e.Damage ?? 0;
+                        stats.GuardDamage += damage;
+                        if (dazedSince.ContainsKey(id)) stats.GuardDamageWhileDazed += damage;
+                        break;
+                    }
+                    case SessionEventTypes.EnemyDazed when e.EnemyId.HasValue:
+                        stats.Dazes++;
+                        dazedSince[e.EnemyId.Value] = e.T;
+                        if (!firstDaze.ContainsKey(e.EnemyId.Value)) firstDaze[e.EnemyId.Value] = e.T;
+                        break;
+                    case SessionEventTypes.DazeEnded when e.EnemyId.HasValue:
+                        dazedSince.Remove(e.EnemyId.Value);
+                        break;
+                }
+            }
+            stats.GuardsHit = firstHit.Count;
+            List<double> spans = firstDaze.Where(d => firstHit.ContainsKey(d.Key)).Select(d => d.Value - firstHit[d.Key]).ToList();
+            stats.GuardsDazed = spans.Count;
+            if (spans.Count > 0) stats.FirstHitToDazeMean = (float)spans.Average();
         }
 
         /// <summary>The kit's numbers (decision 0005), over the whole session, in all and per skill.</summary>
@@ -702,6 +803,29 @@ namespace Roguelike.Rules
             d.Add("Dashes / that avoided a strike", a.Dashes + " / " + Share(a.DashesThatAvoided, a.Dashes),
                   fights ? f.Dashes + " / " + Share(f.DashesThatAvoided, f.Dashes) : "-");
             d.Write(sb);
+
+            // The kinds of enemy (work order 008): a line per kind, under it a line per attack that hurt her.
+            if (stats.EnemyKinds.Count > 0)
+            {
+                sb.AppendLine();
+                var k2 = new Table("Enemies by kind, whole session", "Kills", "Damage to her");
+                foreach (EnemyKindRow r in stats.EnemyKinds)
+                {
+                    k2.Add(r.Kind, Int(r.Kills), Int(r.DamageTaken));
+                    foreach (KeyValuePair<string, int> byAttack in r.DamageByAttack) k2.Add("  " + byAttack.Key, "", Int(byAttack.Value));
+                }
+                k2.Write(sb);
+            }
+            if (stats.GuardsHit > 0)
+            {
+                sb.AppendLine();
+                var gd = new Table("Guards, whole session", "");
+                gd.Add("Hit / dazed / dazes", stats.GuardsHit + " / " + stats.GuardsDazed + " / " + stats.Dazes);
+                gd.Add("First hit to first daze, mean", Seconds(stats.FirstHitToDazeMean));
+                gd.Add("Damage dealt while dazed", stats.GuardDamageWhileDazed + " of " + stats.GuardDamage + " ("
+                       + (stats.GuardDamage > 0 ? Percent(stats.GuardDamageWhileDazed / (float)stats.GuardDamage) : "-") + ")");
+                gd.Write(sb);
+            }
             return sb.ToString();
         }
 

@@ -26,7 +26,7 @@ namespace Roguelike
     /// (<see cref="SessionSummary"/>).
     ///
     /// It listens to events the game raises anyway (<see cref="PlayerCharacter.Reported"/>,
-    /// <see cref="EnemyBrute.Reported"/>, <see cref="PlayerHealth"/>) and reads a few properties once a frame; it never
+    /// <see cref="Enemy.Reported"/> of every kind of enemy, <see cref="PlayerHealth"/>) and reads a few properties once a frame; it never
     /// changes what the game does. Anything that goes wrong (a full disk, a locked file) stops the recording and is said
     /// once in the console, and nothing is thrown into the game.
     /// </summary>
@@ -58,7 +58,7 @@ namespace Roguelike
         readonly List<SessionEvent> _events = new List<SessionEvent>();
         readonly StringBuilder _pending = new StringBuilder(FlushChars + 1024);
         readonly Dictionary<Damageable, string> _targetKinds = new Dictionary<Damageable, string>();
-        readonly List<EnemyBrute> _enemies = new List<EnemyBrute>();
+        readonly List<Enemy> _enemies = new List<Enemy>();
         StreamWriter _writer;
         bool _recording;
         bool _failed;
@@ -249,6 +249,7 @@ namespace Roguelike
             _nextFlush = Time.unscaledTime + FlushSeconds;
             player.Reported += OnPlayer;
             Damageable.MarksLost += OnMarksLost;
+            Enemy.Appeared += Listen; // those spawned later: a generated level's, the practice room's spawns
             if (_health != null)
             {
                 _health.Damaged += OnDamaged;
@@ -262,24 +263,27 @@ namespace Roguelike
         void FindEnemies()
         {
             _enemies.RemoveAll(e => e == null); // those of a generated level that was removed
-            foreach (EnemyBrute enemy in FindObjectsByType<EnemyBrute>(FindObjectsSortMode.None))
-            {
-                if (_enemies.Contains(enemy)) continue;
-                _enemies.Add(enemy);
-                enemy.Reported += OnEnemy;
-            }
+            foreach (Enemy enemy in FindObjectsByType<Enemy>(FindObjectsSortMode.InstanceID)) Listen(enemy);
+        }
+
+        void Listen(Enemy enemy)
+        {
+            if (enemy == null || _enemies.Contains(enemy)) return;
+            _enemies.Add(enemy);
+            enemy.Reported += OnEnemy;
         }
 
         void Detach()
         {
             if (_player != null) _player.Reported -= OnPlayer;
             Damageable.MarksLost -= OnMarksLost;
+            Enemy.Appeared -= Listen;
             if (_health != null)
             {
                 _health.Damaged -= OnDamaged;
                 _health.Died -= OnDied;
             }
-            foreach (EnemyBrute enemy in _enemies)
+            foreach (Enemy enemy in _enemies)
                 if (enemy != null) enemy.Reported -= OnEnemy;
             _enemies.Clear();
             _targetKinds.Clear();
@@ -318,14 +322,21 @@ namespace Roguelike
             AddFields(start, "feel.", player.Feel);
             AddFields(start, "identity.", player.Identity);
             AddFields(start, "kit.", player.Kit);
-            EnemyBrute enemy = _enemies.Count > 0 ? _enemies[0] : null;
-            if (enemy != null)
-            {
-                AddFields(start, "enemy.", enemy.Values);
-                if (enemy.Values.Attacks != null)
-                    foreach (EnemyAttackDefinition attack in enemy.Values.Attacks)
-                        if (attack != null) AddFields(start, "enemy." + attack.Name + ".", attack);
-            }
+            EnemyBrute enemy = null;
+            foreach (Enemy e in _enemies)
+                if (e is EnemyBrute brute) { enemy = brute; break; }
+            if (enemy != null) AddEnemyFields(start, "enemy.", enemy.Values);
+            // The other kinds (work order 008), as their values start in code.
+            var swarmer = new SwarmerValues();
+            AddFields(start, "swarmer.", swarmer);
+            AddEnemyFields(start, "swarmer.", swarmer.Enemy);
+            var shooter = new ShooterValues();
+            AddFields(start, "shooter.", shooter);
+            AddEnemyFields(start, "shooter.", shooter.Enemy);
+            var guard = new GuardValues();
+            AddFields(start, "guard.", guard);
+            AddEnemyFields(start, "guard.", guard.Enemy);
+            AddFields(start, "guard.stagger.", guard.Stagger);
             Add(start);
 
             IReadOnlyList<SkillDefinition> skills = player.Skills;
@@ -356,6 +367,14 @@ namespace Roguelike
                 if (s.RecastCount > 1 && s.CleanMarkDamageBonus > 0f) e.AddExtra("clean_mark_bonus", Text(s.CleanMarkDamageBonus));
                 Add(e);
             }
+        }
+
+        static void AddEnemyFields(SessionEvent e, string prefix, EnemyValues values)
+        {
+            AddFields(e, prefix, values);
+            if (values?.Attacks == null) return;
+            foreach (EnemyAttackDefinition attack in values.Attacks)
+                if (attack != null) AddFields(e, prefix + attack.Name + ".", attack);
         }
 
         /// <summary>Every public number, switch and word of a settings object, under a prefix: the tuning in use.</summary>
@@ -505,7 +524,7 @@ namespace Roguelike
         {
             if (target == null) return "";
             if (_targetKinds.TryGetValue(target, out string kind)) return kind;
-            kind = target.GetComponent<EnemyBrute>() != null ? SessionWords.Enemy
+            kind = target.GetComponent<Enemy>() != null ? SessionWords.Enemy
                  : target.GetComponent<TrainingDummy>() != null ? SessionWords.Dummy
                  : target.name;
             _targetKinds[target] = kind;
@@ -638,13 +657,18 @@ namespace Roguelike
                         Add(new SessionEvent(t, SessionEventTypes.DashStart, SessionWords.Dash));
                         break;
                     case PlayerReportKind.Hit:
+                    {
+                        Enemy enemy = r.Target != null ? r.Target.GetComponent<Enemy>() : null;
                         Add(new SessionEvent(t, SessionEventTypes.Hit, r.Slot >= 0 ? SkillName(r.Slot) : SessionWords.BasicShot)
                         {
                             Slot = r.Slot >= 0 ? r.Slot : (int?)null,
                             Damage = r.Damage, Target = TargetKind(r.Target), Empowered = r.Empowered,
                             Focus = r.Focus > 0f ? r.Focus : (float?)null,
+                            Enemy = enemy != null ? EnemyKinds.Word(enemy.Kind) : null,
+                            EnemyId = enemy != null ? enemy.Id : (int?)null,
                         });
                         break;
+                    }
                     case PlayerReportKind.FocusPressed:
                         Add(new SessionEvent(t, SessionEventTypes.FocusPress) { Result = Word(r.Result) });
                         if (r.Result == IntentResult.Started) Add(new SessionEvent(t, SessionEventTypes.FocusSpent));
@@ -663,29 +687,54 @@ namespace Roguelike
             try
             {
                 double t = Now();
+                // Every enemy event says which enemy and its kind (work order 008).
+                SessionEvent Of(string type, string name = null) =>
+                    new SessionEvent(t, type, name) { Enemy = EnemyKinds.Word(r.EnemyKind), EnemyId = r.Id };
                 switch (r.Kind)
                 {
                     case EnemyReportKind.Woke:
-                        Add(new SessionEvent(t, SessionEventTypes.EnemyWake));
+                        Add(Of(SessionEventTypes.EnemyWake));
                         break;
                     case EnemyReportKind.AttackStarted:
-                        Add(new SessionEvent(t, SessionEventTypes.EnemyAttack, r.Attack));
+                        Add(Of(SessionEventTypes.EnemyAttack, r.Attack));
                         break;
                     case EnemyReportKind.Struck:
-                        Add(new SessionEvent(t, SessionEventTypes.EnemyStrike, r.Attack)
-                        {
-                            Result = r.Outcome == StrikeOutcome.Landed ? SessionWords.Landed
-                                   : r.Outcome == StrikeOutcome.OutOfArea ? SessionWords.OutOfArea
-                                   : r.Outcome == StrikeOutcome.AvoidedByDash ? SessionWords.AvoidedByDash
-                                   : SessionWords.NoEffect,
-                            Damage = r.Damage > 0 ? r.Damage : (int?)null,
-                        });
+                    {
+                        SessionEvent e = Of(SessionEventTypes.EnemyStrike, r.Attack);
+                        e.Result = r.Outcome == StrikeOutcome.Landed ? SessionWords.Landed
+                                 : r.Outcome == StrikeOutcome.OutOfArea ? SessionWords.OutOfArea
+                                 : r.Outcome == StrikeOutcome.AvoidedByDash ? SessionWords.AvoidedByDash
+                                 : SessionWords.NoEffect;
+                        e.Damage = r.Damage > 0 ? r.Damage : (int?)null;
+                        Add(e);
                         break;
+                    }
                     case EnemyReportKind.GaveUp:
-                        Add(new SessionEvent(t, SessionEventTypes.EnemyGaveUp));
+                        Add(Of(SessionEventTypes.EnemyGaveUp));
                         break;
+                    case EnemyReportKind.Removed:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.EnemyGaveUp);
+                        e.Result = SessionWords.Removed;
+                        Add(e);
+                        break;
+                    }
                     case EnemyReportKind.Died:
-                        Add(new SessionEvent(t, SessionEventTypes.EnemyDeath));
+                        Add(Of(SessionEventTypes.EnemyDeath));
+                        break;
+                    case EnemyReportKind.StaggerTaken:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.StaggerTaken);
+                        e.Stagger = r.Stagger;
+                        e.AddExtra("bar", Text(r.StaggerLeft));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.Dazed:
+                        Add(Of(SessionEventTypes.EnemyDazed));
+                        break;
+                    case EnemyReportKind.DazeEnded:
+                        Add(Of(SessionEventTypes.DazeEnded));
                         break;
                 }
             }

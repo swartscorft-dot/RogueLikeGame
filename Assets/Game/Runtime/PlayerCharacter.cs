@@ -1216,11 +1216,12 @@ namespace Roguelike
         /// <summary>
         /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005), and what
         /// was dealt trickles into the focus gauge. Returns the amount actually removed, and the focus gained.
+        /// <paramref name="stagger"/> is what the hit takes off a stagger bar (work order 008); the basic shot's is 0.
         /// </summary>
-        int Deal(Damageable target, int damage, out float focus)
+        int Deal(Damageable target, int damage, out float focus, float stagger = 0f)
         {
             IdentityValues identity = Identity;
-            int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity));
+            int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
             focus = _focus.AddDamage(applied, identity, Time.time);
             return applied;
         }
@@ -1256,7 +1257,7 @@ namespace Roguelike
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005).
                 int taken = spender ? d.TakeMarks() : 0;
                 int dealt = spender ? MarkRules.SpenderDamage(damage, taken, bonusPerMark) : damage;
-                int applied = Deal(d, dealt, out float focus);
+                int applied = Deal(d, dealt, out float focus, skill.Stagger);
                 if (spender)
                 {
                     float markFocus = _focus.Add(taken * Identity.FocusPerMarkSpent, Identity, Time.time);

@@ -186,11 +186,12 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 1 makes. A change that changes them must raise
-        // LevelGenerator.Version and paste the new maps here, on purpose.
+        // These maps are what the generator of version 2 makes (work order 008: the enemy points show their kinds; the
+        // rooms and doors are those of version 1). A change that changes them must raise LevelGenerator.Version and
+        // paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["22222229"] = @"seed 22222229  version 1  11 rooms  92 x 88 m
+            ["22222229"] = @"seed 22222229  version 2  11 rooms  92 x 88 m
                                     +-+-+-+
                                     |R8   |
             +-+-+-+   +-+-+-+       +     +
@@ -199,25 +200,25 @@ namespace Roguelike.Rules.Tests
             |     |   |     |       |     |
             +     +   +     +     +-+-+ +-+-+-+
             |     |   |     |     |C7         |
-            +-+ +-+-+-+-+ +-+-+-+-+           +
+            +-+ +-+-+-+-+ +-+-+-+-+     h     +
             |C3       |C5         |           |
-    +-+-+-+-+         +           +           +
-    |S0     |.            .       |         . |
+    +-+-+-+-+  b      +       h   +           +
+    |S0     |b             b      |           |
     +       +         +           +           +
-    |       |         |        .              |
-    +   @   +         +           +           +
-    |       |         |           |      .    |
-    +       +         +           +-+-+-+ +-+-+
+    |       |         |                       |
+    +   @   +         +           +      p    +
+    |       |         |           |           |
+    +       +         +     h     +-+-+-+ +-+-+
     |       |         |           |C9         |
 +-+-+-+-+ +-+-+-+ +-+-+-+-+-+-+-+-+           +
-|R2   |C1           |             |           |
-+     +             +             +    .      +
+|R2   |C1           |             |g          |
++     +             +             +   s       +
 |                   |             |           |
-+     +           . +             +           +
++     +           p +             +s          +
 |     |             |             |           |
 +-+-+-+             +             +           +
-      |             |             |   .       |
-      +             +             +     .     +
+      |             |             |           |
+      +             +             +           +
       |             |             |           |
       +-+-+-+-+-+-+-+         +-+-+-+-+-+-+ +-+
                               |B10            |
@@ -227,7 +228,7 @@ namespace Roguelike.Rules.Tests
                               |               |
                               +               +
                               |               |
-                              +       .       +
+                              +       g       +
                               |               |
                               +               +
                               |               |
@@ -237,7 +238,7 @@ namespace Roguelike.Rules.Tests
                               |               |
                               +-+-+-+-+-+-+-+-+
 ",
-            ["WALKTHRU"] = @"seed WALKTHRU  version 1  11 rooms  96 x 92 m
+            ["WALKTHRU"] = @"seed WALKTHRU  version 2  11 rooms  96 x 92 m
           +-+-+-+-+-+-+-+-+-+-+
           |S0     |C1         |
           +       +           +
@@ -248,36 +249,36 @@ namespace Roguelike.Rules.Tests
           |       |           |
           +-+-+-+-+           +
                   |           |
-      +-+-+-+-+-+-+         . +
+      +-+-+-+-+-+-+         p +
       |C4         |           |
       +           +-+-+-+-+ +-+-+
-      |        .  |C2           |
-+-+-+-+    .      +             +-+-+-+
+      |     b     |C2           |
++-+-+-+          h+             +-+-+-+
 |R5   |           |             |R3   |
-+     +           +             +     +
++     +           +  b          +     +
 |                 |                   |
-+     +           +             +     +
++     +     h     +             +     +
 |     |                         |     |
 +-+-+-+           +             +-+-+-+-+-+-+-+-+
-      |           |  .          |B10            |
+      |           |  b          |B10            |
       +           +-+-+-+-+-+-+-+               +
       |           |             |               |
       +-+-+-+-+ +-+             +               +
       |C6         |             |               |
       +           +             +               +
-      |  .        |             |               |
-      +           +             +       .       +
+      |           |             |               |
+      +  h  p     +             +       g       +
       |           |             |               |
       +           +-+-+-+-+-+-+-+               +
       |           |C8           |               |
-      +           +        .   .+               +
+      +           +     s  g    +               +
       |                                         |
-      +    .      +             +               +
-      |           |             |               |
+      +           +             +               +
+      |           |      s      |               |
       +-+-+-+-+ +-+             +-+-+-+-+-+-+-+-+
             |R7   |             |
             +     +             +
-            |     |          .  |
+            |     |             |
             +     +-+-+-+-+ +-+-+
             |     |     |R9   |
             +-+-+-+     +     +
@@ -286,7 +287,7 @@ namespace Roguelike.Rules.Tests
                         |     |
                         +-+-+-+
 ",
-            ["RUNNER42"] = @"seed RUNNER42  version 1  11 rooms  76 x 96 m
+            ["RUNNER42"] = @"seed RUNNER42  version 2  11 rooms  76 x 96 m
                     +-+-+-+-+
                     |S0     |
                     +       +
@@ -300,8 +301,8 @@ namespace Roguelike.Rules.Tests
 +               +         +-+-+-+-+-+-+
 |               |         |R2   |R4   |
 +               +         +     +     +
-|               |     .         |     |
-+       .       +         +     +     +
+|               |     p         |     |
++       g       +         +     +     +
 |               |         |     |     |
 +               +         +-+-+-+-+ +-+
 |               |         |C3         |
@@ -310,26 +311,26 @@ namespace Roguelike.Rules.Tests
 +               +         +           +
 |               |         |           |
 +-+-+-+-+-+-+ +-+-+-+-+-+-+           +
-          |C8       . |   |           |
-          +   .       +   +           +
-          |           |   |    .      |
-    +-+-+-+          .+   +           +
+          |C8         |   |           |
+          +           +   +           +
+          |s     g    |   |    b     b|
+    +-+-+-+           +   +           +
     |R9   |           |   |           |
     +     +           + +-+-+-+ +-+-+-+
     |                 | |C5       |
     +     +           + +         +
-    |     |           | |         |
+    |     |       s   | |         |
     +-+-+-+-+ +-+-+-+-+-+         +
-          |C7     .     |         |
-          +   .         +         +
+          |C7           |         |
+          +             +h b      +
+          |             |         |
+          +        p    +         +
+          |              h        |
+          +             +         +
           |             |         |
           +             +         +
-          |                    .  |
-          +             +         +
-          |             |    .    |
-          +             +         +
           |             |         |
-          +             +-+-+-+ +-+
+          +   h         +-+-+-+ +-+
           |             |   |R6   |
           +-+-+-+-+-+-+-+   +     +
                             |     |
@@ -345,7 +346,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(1), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(2), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(Make(seed));
             TestContext.WriteLine("GOLDEN " + seedText + "\n" + map);
             Assert.That(map, Is.EqualTo(Golden[seedText].Replace("\r\n", "\n")), "map of seed " + seedText + "\n" + map);
@@ -551,10 +552,11 @@ namespace Roguelike.Rules.Tests
         // ---------------- The plan ----------------
 
         [Test]
-        public void Plan_EnemiesClimbFromOneToThree()
+        public void Plan_EnemyPoints_AreOnePerGroupOfTheRoomsPlan()
         {
+            // Work order 008: the number of enemy points follows the plan of kinds (it was 1, 1, 2, 2, 3 before).
             var plan = new LevelPlan();
-            Assert.That(Enumerable.Range(0, plan.CombatRooms).Select(plan.EnemiesInCombatRoom), Is.EqualTo(new[] { 1, 1, 2, 2, 3 }));
+            Assert.That(Enumerable.Range(0, plan.CombatRooms).Select(plan.EnemiesInCombatRoom), Is.EqualTo(new[] { 1, 2, 3, 2, 3 }));
         }
 
         [Test]
@@ -564,7 +566,11 @@ namespace Roguelike.Rules.Tests
             string map = LevelMap.Draw(level);
             foreach (LevelRoom r in level.Rooms) Assert.That(map, Does.Contain(r.Letter + r.Order.ToString(CultureInfo.InvariantCulture)), map);
             Assert.That(map.Count(c => c == '@'), Is.EqualTo(1), map);
-            Assert.That(map.Split('\n').Skip(1).Sum(line => line.Count(c => c == '.')), Is.EqualTo(level.Rooms.Sum(r => r.EnemyPoints.Count)), map);
+            // Work order 008: each enemy point shows the small letter of its kind, not a dot.
+            const string letters = "bsphg";
+            Assert.That(map.Split('\n').Skip(1).Sum(line => line.Count(c => letters.IndexOf(c) >= 0)), Is.EqualTo(level.Rooms.Sum(r => r.EnemyPoints.Count)), map);
+            foreach (LevelRoom r in level.Rooms)
+                foreach (EnemyGroup g in r.EnemyGroups) Assert.That(map, Does.Contain(g.Letter.ToString()), map);
         }
     }
 }

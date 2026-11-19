@@ -38,11 +38,15 @@ namespace Roguelike.Rules
         public const string ChainEnd = "chain_end";           // a recast chain ended: shot is how many it fired, result complete or early
         public const string CooldownCut = "cooldown_cut";     // spending focus cut the running cooldowns: cut.<name> is the seconds cut
 
+        // Every enemy event says which enemy (enemy_id) and its kind (enemy) since work order 008.
         public const string EnemyWake = "enemy_wake";
         public const string EnemyAttack = "enemy_attack";     // the enemy started an attack's windup: name is the attack
         public const string EnemyStrike = "enemy_strike";     // the strike: landed, out of the area, the dash, or no effect
-        public const string EnemyGaveUp = "enemy_gave_up";    // it went back to standing at home
+        public const string EnemyGaveUp = "enemy_gave_up";    // it went back to standing at home; result "removed" when it was taken out of the game awake
         public const string EnemyDeath = "enemy_death";
+        public const string StaggerTaken = "stagger_taken";   // a hit took stagger off its bar: stagger is the points taken, bar the points left
+        public const string EnemyDazed = "enemy_dazed";       // its stagger bar was emptied: the daze began
+        public const string DazeEnded = "daze_ended";         // the daze ended, the bar is full again
         public const string PlayerDamaged = "player_damaged";
         public const string PlayerDeath = "player_death";
 
@@ -84,6 +88,7 @@ namespace Roguelike.Rules
         public const string Reset = "reset";
         public const string Complete = "complete";            // how a recast chain ended
         public const string Early = "early";
+        public const string Removed = "removed";              // an enemy taken out of the game awake
     }
 
     /// <summary>
@@ -113,6 +118,9 @@ namespace Roguelike.Rules
         public int? Shot;            // which shot of a recast chain (recast_press), how many it fired (chain_end)
         public bool? Clean;          // a recast press in the clean part of its window
         public float? Focus;         // focus gained: from the damage of a hit, from the marks taken, from a clean tap
+        public string Enemy;         // the kind of enemy: on its own events, and on a hit that landed on it (work order 008)
+        public int? EnemyId;         // which enemy, unique in the session
+        public float? Stagger;       // stagger points taken off a bar
         /// <summary>Anything else, in the order written: the session's date, commit and tuning. Values are kept as text.</summary>
         public List<KeyValuePair<string, string>> Extra;
 
@@ -172,6 +180,9 @@ namespace Roguelike.Rules
             if (Shot.HasValue) sb.Append(",\"shot\":").Append(Shot.Value.ToString(CultureInfo.InvariantCulture));
             WriteBool(sb, "clean", Clean);
             WriteNumber(sb, "focus", Focus);
+            WriteString(sb, "enemy", Enemy);
+            if (EnemyId.HasValue) sb.Append(",\"enemy_id\":").Append(EnemyId.Value.ToString(CultureInfo.InvariantCulture));
+            WriteNumber(sb, "stagger", Stagger);
             if (Extra != null)
                 foreach (KeyValuePair<string, string> pair in Extra) WriteString(sb, pair.Key, pair.Value);
             sb.Append('}');
@@ -281,6 +292,9 @@ namespace Roguelike.Rules
                 case "shot": Shot = (int)ParseDouble(value); break;
                 case "clean": Clean = value == "true"; break;
                 case "focus": Focus = (float)ParseDouble(value); break;
+                case "enemy": Enemy = value; break;
+                case "enemy_id": EnemyId = (int)ParseDouble(value); break;
+                case "stagger": Stagger = (float)ParseDouble(value); break;
                 default: AddExtra(key, value); break;
             }
         }

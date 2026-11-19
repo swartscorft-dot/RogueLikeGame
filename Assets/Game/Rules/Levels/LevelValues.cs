@@ -36,9 +36,24 @@ namespace Roguelike.Rules
         public RoomSizeRange RewardSize = new RoomSizeRange(3, 3);
         public RoomSizeRange BossSize = new RoomSizeRange(8, 8);
 
-        /// <summary>Enemy points in the first combat room and in the last; the rooms between climb in steps.</summary>
-        public int FewestEnemies = 1;
-        public int MostEnemies = 3;
+        /// <summary>
+        /// What stands in each combat room, in the order of the path (work order 008): one entry per enemy point. A
+        /// combat room past the end of the list gets the last entry. Which point gets which entry is drawn from the
+        /// seed. With the start values: a pack of four swarmers; two brutes; two shooters and a brute; a pack of four
+        /// swarmers and a shooter; a guard and two swarmers.
+        /// </summary>
+        public RoomEnemies[] CombatEnemies = DefaultCombatEnemies();
+        /// <summary>What stands in the boss room, at its middle: a guard, with <see cref="LevelValues.BossHealth"/>.</summary>
+        public RoomEnemies BossEnemies = new RoomEnemies(new EnemyGroup(EnemyKind.Guard));
+
+        public static RoomEnemies[] DefaultCombatEnemies() => new[]
+        {
+            new RoomEnemies(new EnemyGroup(EnemyKind.Swarmer, 4)),
+            new RoomEnemies(new EnemyGroup(EnemyKind.Brute), new EnemyGroup(EnemyKind.Brute)),
+            new RoomEnemies(new EnemyGroup(EnemyKind.Shooter), new EnemyGroup(EnemyKind.Shooter), new EnemyGroup(EnemyKind.Brute)),
+            new RoomEnemies(new EnemyGroup(EnemyKind.Swarmer, 4), new EnemyGroup(EnemyKind.Shooter)),
+            new RoomEnemies(new EnemyGroup(EnemyKind.Guard), new EnemyGroup(EnemyKind.Swarmer), new EnemyGroup(EnemyKind.Swarmer)),
+        };
 
         public RoomSizeRange SizeOf(RoomKind kind) =>
             kind == RoomKind.Start ? StartSize
@@ -46,17 +61,33 @@ namespace Roguelike.Rules
             : kind == RoomKind.Reward ? RewardSize
             : BossSize;
 
-        /// <summary>
-        /// Enemy points in the combat room with this number on the path (0 for the first): from
-        /// <see cref="FewestEnemies"/> in the first, rising in even steps, to <see cref="MostEnemies"/> in the last.
-        /// With the start values: 1, 1, 2, 2, 3.
-        /// </summary>
-        public int EnemiesInCombatRoom(int combatNumber)
+        /// <summary>What the combat room with this number on the path (0 for the first) holds, one group per enemy point.</summary>
+        public EnemyGroup[] CombatGroups(int combatNumber)
         {
-            int steps = MostEnemies - FewestEnemies + 1;
-            int n = FewestEnemies + steps * combatNumber / Math.Max(1, CombatRooms);
-            return Math.Min(MostEnemies, Math.Max(FewestEnemies, n));
+            if (CombatEnemies == null || CombatEnemies.Length == 0) return new[] { new EnemyGroup(EnemyKind.Brute) };
+            RoomEnemies room = CombatEnemies[Math.Max(0, Math.Min(CombatEnemies.Length - 1, combatNumber))];
+            return room?.Groups ?? Array.Empty<EnemyGroup>();
         }
+
+        /// <summary>What a room of this kind holds; <paramref name="combatNumber"/> counts the combat rooms only. Empty for the start and reward rooms.</summary>
+        public EnemyGroup[] GroupsFor(RoomKind kind, int combatNumber) =>
+            kind == RoomKind.Combat ? CombatGroups(combatNumber)
+            : kind == RoomKind.Boss ? BossEnemies?.Groups ?? Array.Empty<EnemyGroup>()
+            : Array.Empty<EnemyGroup>();
+
+        /// <summary>Enemy points in the combat room with this number on the path (0 for the first): one per group of its plan.</summary>
+        public int EnemiesInCombatRoom(int combatNumber) => CombatGroups(combatNumber).Length;
+    }
+
+    /// <summary>What one room holds: a group per enemy point (work order 008).</summary>
+    [Serializable]
+    public sealed class RoomEnemies
+    {
+        public EnemyGroup[] Groups = Array.Empty<EnemyGroup>();
+
+        public RoomEnemies() { }
+
+        public RoomEnemies(params EnemyGroup[] groups) => Groups = groups;
     }
 
     /// <summary>
@@ -92,8 +123,9 @@ namespace Roguelike.Rules
         public float OffsetZ = 0f;
 
         // Enemies
-        public int EnemyHealth = 3000;
-        public int BossHealth = 9000;
+        public int EnemyHealth = 3000;         // a brute's; the other kinds have their own (work order 008)
+        public int BossHealth = 9000;          // the boss room's enemy, whatever its kind
+        public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers; under WallClearance
 
         public LevelPlan Plan = new LevelPlan();
     }

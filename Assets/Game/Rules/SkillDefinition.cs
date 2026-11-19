@@ -75,6 +75,8 @@ namespace Roguelike.Rules
         // Amended 2026-11-19 after Kristian played: a second, harder way to spend marks (Backstep).
         public bool OpeningMove = false;   // recast: the first press only moves her (MoveDistance, over the startup) and fires nothing; the window opens when the move ends
         public float CleanMarkDamageBonus = 0f; // above 0: a clean last press takes all marks off each target it hits, this much more damage per mark, instead of a clean tap
+        // Work order 008: what it takes off a stagger bar (StaggerBar), per hit, on each target it hits. The basic shot takes none.
+        public float Stagger = 0f;
     }
 
     /// <summary>
@@ -109,11 +111,13 @@ namespace Roguelike.Rules
                 Name = "Quick Shot", Input = SkillInput.Normal, Shape = SkillShape.Line,
                 Cooldown = 3f, Damage = 100, Startup = 0.15f, Recovery = 0.1f, Range = 12f, HalfWidth = 0.3f,
                 StartEquipped = true, Lock = SkillLock.Light, MarksAdded = 1,
+                Stagger = 3f,
             },
             new SkillDefinition
             {
                 Name = "Powder Keg", Input = SkillInput.Point, Shape = SkillShape.Circle,
                 Cooldown = 14f, Damage = 180, Startup = 0.5f, Recovery = 0.2f, Range = 8f, Radius = 2.5f,
+                Stagger = 20f,
             },
             new SkillDefinition
             {
@@ -121,12 +125,14 @@ namespace Roguelike.Rules
                 Cooldown = 16f, Damage = 30, Startup = 0.2f, Recovery = 0.3f, Range = 7f, Angle = 50f,
                 HoldMax = 2f, TickInterval = 0.15f,
                 MarksAdded = 1, MarkInterval = 1f,
+                Stagger = 4f, // per tick
             },
             new SkillDefinition
             {
                 Name = "Long Shot", Input = SkillInput.Charge, Shape = SkillShape.Line,
                 Cooldown = 12f, Damage = 300, Startup = 0.1f, Recovery = 0.4f, Range = 16f, HalfWidth = 0.25f,
                 HoldMax = 2.5f, ChargeTime = 1f, MinChargeDamage = 0.3f,
+                Stagger = 15f,
             },
             new SkillDefinition
             {
@@ -134,12 +140,14 @@ namespace Roguelike.Rules
                 Name = "Scatter Blast", Input = SkillInput.Normal, Shape = SkillShape.Cone,
                 Cooldown = 6f, Damage = 220, Startup = 0.2f, Recovery = 0.35f, Range = 5f, Angle = 70f,
                 StartEquipped = true, MarkDamageBonus = 0.25f,
+                Stagger = 30f,
             },
             new SkillDefinition
             {
                 Name = "Heavy Volley", Input = SkillInput.Casting, Shape = SkillShape.Line,
                 Cooldown = 24f, Damage = 400, Startup = 1f, Recovery = 0.5f, Range = 14f, HalfWidth = 1f,
                 MarkDamageBonus = 0.4f,
+                Stagger = 40f,
             },
             new SkillDefinition
             {
@@ -151,6 +159,7 @@ namespace Roguelike.Rules
                 MoveDistance = -5f,
                 StartEquipped = true, MarksAdded = 1,
                 RecastCount = 2, RecastWindow = 0.6f, OpeningMove = true, CleanMarkDamageBonus = 0.5f,
+                Stagger = 5f,
             },
             new SkillDefinition
             {
@@ -160,6 +169,7 @@ namespace Roguelike.Rules
                 HitCount = 1, HitInterval = 0.12f,
                 StartEquipped = true, Lock = SkillLock.Light, MarksAdded = 1,
                 RecastCount = 3, RecastWindow = 0.6f, CleanTapMarks = 2,
+                Stagger = 2f, // per shot
             },
         };
     }

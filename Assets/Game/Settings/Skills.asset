@@ -41,6 +41,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 3
   - Name: Powder Keg
     Input: 1
     Shape: 1
@@ -69,6 +70,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 20
   - Name: Fan Fire
     Input: 2
     Shape: 2
@@ -97,6 +99,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 4
   - Name: Long Shot
     Input: 3
     Shape: 0
@@ -125,6 +128,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 15
   - Name: Scatter Blast
     Input: 0
     Shape: 2
@@ -153,6 +157,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 30
   - Name: Heavy Volley
     Input: 4
     Shape: 0
@@ -181,6 +186,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 40
   - Name: Backstep
     Input: 0
     Shape: 0
@@ -209,6 +215,7 @@ MonoBehaviour:
     CleanTapMarks: 0
     OpeningMove: 1
     CleanMarkDamageBonus: 0.5
+    Stagger: 5
   - Name: Triple Tap
     Input: 0
     Shape: 0
@@ -237,6 +244,7 @@ MonoBehaviour:
     CleanTapMarks: 2
     OpeningMove: 0
     CleanMarkDamageBonus: 0
+    Stagger: 2
   Identity:
     MaxFocus: 100
     FocusPerDamage: 0.005

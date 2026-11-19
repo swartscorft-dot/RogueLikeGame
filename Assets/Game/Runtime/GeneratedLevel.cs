@@ -15,8 +15,8 @@ namespace Roguelike
     /// <see cref="LevelValues.WallThickness"/> thick, centred on the edge. The camera looks north from the south
     /// (<see cref="CameraRig"/>), so a wall on a room's south side stands between the camera and that room's floor; it
     /// is built only <see cref="LevelValues.NearWallHeight"/> high. A NavMeshSurface on the root collects the floors and
-    /// walls by their colliders and is built once they are there. Then a copy of the practice enemy stands at each
-    /// enemy point, with the level's health, and stays dead when killed.
+    /// walls by their colliders and is built once they are there. Then the enemies of each enemy point stand there, of
+    /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed.
     ///
     /// Positions: the level's ground point (x, y) in metres is the world point (x, 0, y) moved so that the start
     /// room's middle lands on (<see cref="LevelValues.OffsetX"/>, 0, <see cref="LevelValues.OffsetZ"/>).
@@ -32,17 +32,20 @@ namespace Roguelike
         public LevelLayout Layout { get; private set; }
         public LevelValues Values { get; private set; }
         public NavMeshSurface Surface { get; private set; }
-        /// <summary>The enemies of each room, by the room's place in the run.</summary>
-        public IReadOnlyDictionary<int, List<EnemyBrute>> EnemiesByRoom => _enemiesByRoom;
-        public IReadOnlyList<EnemyBrute> Enemies => _enemies;
+        /// <summary>The enemies of each room, by the room's place in the run, in the order of its points (a pack's together).</summary>
+        public IReadOnlyDictionary<int, List<Enemy>> EnemiesByRoom => _enemiesByRoom;
+        public IReadOnlyList<Enemy> Enemies => _enemies;
+        /// <summary>What stands at each enemy point of the level, in the order of the rooms and their points.</summary>
+        public IReadOnlyList<PlacedGroup> Groups => _groups;
         /// <summary>The boss room's enemy, or null when there was no enemy to copy.</summary>
-        public EnemyBrute Boss { get; private set; }
+        public Enemy Boss { get; private set; }
         public int Floors { get; private set; }
         public int Walls { get; private set; }
         public int LowWalls { get; private set; }
 
-        readonly Dictionary<int, List<EnemyBrute>> _enemiesByRoom = new Dictionary<int, List<EnemyBrute>>();
-        readonly List<EnemyBrute> _enemies = new List<EnemyBrute>();
+        readonly Dictionary<int, List<Enemy>> _enemiesByRoom = new Dictionary<int, List<Enemy>>();
+        readonly List<Enemy> _enemies = new List<Enemy>();
+        readonly List<PlacedGroup> _groups = new List<PlacedGroup>();
         readonly List<Material> _materials = new List<Material>();
         Vector3 _shift;
 
@@ -204,30 +207,45 @@ namespace Roguelike
 
         // ---------------- Enemies ----------------
 
+        /// <summary>
+        /// What stands at each enemy point (work order 008): one enemy of the point's kind, or for a pack its swarmers
+        /// evenly round a circle of <see cref="LevelValues.PackRadius"/> about the point. A brute has the level's
+        /// <see cref="LevelValues.EnemyHealth"/>, the boss room's enemy <see cref="LevelValues.BossHealth"/>, and the
+        /// other kinds their own.
+        /// </summary>
         void PlaceEnemies(EnemyBrute template)
         {
             foreach (LevelRoom room in Layout.Rooms)
             {
                 for (int i = 0; i < room.EnemyPoints.Count; i++)
                 {
-                    Vector3 at = ToWorld(room.EnemyPoints[i]);
-                    // Made where it will stand, so that is its home (EnemyBrute reads it in Awake).
-                    GameObject copy = Instantiate(template.gameObject, new Vector3(at.x, template.transform.position.y, at.z),
-                                                  Quaternion.LookRotation(Vector3.back), transform);
-                    copy.name = "Enemy_" + room.Letter + room.Order + "_" + i;
-                    var brute = copy.GetComponent<EnemyBrute>();
-                    bool boss = room.Kind == RoomKind.Boss;
-                    brute.HealthOverride = boss ? Values.BossHealth : Values.EnemyHealth;
-                    brute.ComesBack = false;
-                    // The practice enemy may be dead and hidden at this moment; its copy starts alive and seen.
-                    foreach (Renderer r in copy.GetComponentsInChildren<Renderer>(true))
-                        if (!(r is LineRenderer)) r.enabled = true;
-                    if (!_enemiesByRoom.TryGetValue(room.Order, out List<EnemyBrute> list)) _enemiesByRoom[room.Order] = list = new List<EnemyBrute>();
-                    list.Add(brute);
-                    _enemies.Add(brute);
-                    if (boss) Boss = brute;
+                    EnemyGroup group = room.GroupAt(i);
+                    var placed = new PlacedGroup { Room = room, Point = i, Group = group };
+                    List<Vector3> places = EnemyFactory.PackPlaces(ToWorld(room.EnemyPoints[i]), group.Count, Values.PackRadius);
+                    for (int m = 0; m < places.Count; m++)
+                    {
+                        string name = "Enemy_" + room.Letter + room.Order + "_" + i + (places.Count > 1 ? "_" + m : "");
+                        Enemy enemy = EnemyFactory.Make(group.Kind, places[m], transform, template, name);
+                        bool boss = room.Kind == RoomKind.Boss;
+                        enemy.HealthOverride = boss ? Values.BossHealth : group.Kind == EnemyKind.Brute ? Values.EnemyHealth : 0;
+                        placed.Members.Add(enemy);
+                        if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
+                        list.Add(enemy);
+                        _enemies.Add(enemy);
+                        if (boss && Boss == null) Boss = enemy;
+                    }
+                    _groups.Add(placed);
                 }
             }
+        }
+
+        /// <summary>The enemies that stand at one enemy point: the point's room, its number in the room, what the plan put there.</summary>
+        public sealed class PlacedGroup
+        {
+            public LevelRoom Room;
+            public int Point;
+            public EnemyGroup Group;
+            public readonly List<Enemy> Members = new List<Enemy>();
         }
     }
 }

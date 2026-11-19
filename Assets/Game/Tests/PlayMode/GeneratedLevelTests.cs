@@ -147,19 +147,29 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return null;
             LevelLayout layout = level.Layout;
-            int points = layout.Rooms.Sum(r => r.EnemyPoints.Count);
+            // Work order 008: a point holds a group of a kind (a pack is several swarmers round it), and each kind has
+            // its own health; a brute the level's, the boss room's enemy the boss's.
+            int enemies = layout.Rooms.Sum(r => Enumerable.Range(0, r.EnemyPoints.Count).Sum(i => r.GroupAt(i).Count));
             Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy is there to copy");
-            Assert.That(level.Enemies.Count, Is.EqualTo(points), "an enemy at every point");
-            foreach (LevelRoom r in layout.Rooms)
+            Assert.That(level.Enemies.Count, Is.EqualTo(enemies), "the enemies of every point");
+            Assert.That(level.Groups.Count, Is.EqualTo(layout.Rooms.Sum(r => r.EnemyPoints.Count)), "a group at every point");
+            foreach (GeneratedLevel.PlacedGroup g in level.Groups)
             {
-                for (int i = 0; i < r.EnemyPoints.Count; i++)
+                LevelRoom r = g.Room;
+                Vector3 point = level.ToWorld(r.EnemyPoints[g.Point]);
+                Assert.That(g.Members.Count, Is.EqualTo(g.Group.Count));
+                foreach (Enemy e in g.Members)
                 {
-                    EnemyBrute e = level.EnemiesByRoom[r.Order][i];
-                    Assert.That(Flat(e.Home, level.ToWorld(r.EnemyPoints[i])), Is.LessThan(0.3f), "home at its point");
+                    string where = "room " + r.Letter + r.Order + " point " + g.Point;
+                    Assert.That(e.Kind, Is.EqualTo(g.Group.Kind), where);
+                    float off = g.Group.IsPack ? level.Values.PackRadius : 0f;
+                    Assert.That(Flat(e.Home, point), Is.EqualTo(off).Within(0.3f), "home at its point, or round it for a pack: " + where);
                     Assert.That(e.ComesBack, Is.False);
                     var d = e.GetComponent<Damageable>();
-                    int wanted = r.Kind == RoomKind.Boss ? level.Values.BossHealth : level.Values.EnemyHealth;
-                    Assert.That(d.MaxHealth, Is.EqualTo(wanted), "room " + r.Letter + r.Order);
+                    int wanted = r.Kind == RoomKind.Boss ? level.Values.BossHealth
+                               : e.Kind == EnemyKind.Brute ? level.Values.EnemyHealth
+                               : e.Values.Health;
+                    Assert.That(d.MaxHealth, Is.EqualTo(wanted), where);
                     Assert.That(d.CurrentHealth, Is.EqualTo(wanted));
                 }
             }
@@ -176,7 +186,7 @@ namespace Roguelike.PlayModeTests
             GeneratedLevel level = Build();
             yield return null;
             yield return null;
-            EnemyBrute first = level.Enemies.First(e => e != level.Boss);
+            Enemy first = level.Enemies.First(e => e != level.Boss);
             first.GetComponent<Damageable>().TakeHit(100000);
             yield return null;
             Assert.That(first.IsDead, Is.True);
@@ -220,7 +230,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Assert.That(_levels.IsInLevel, Is.False);
             Assert.That(Object.FindObjectsByType<GeneratedLevel>(FindObjectsSortMode.None), Is.Empty, "the level is removed");
-            Assert.That(Object.FindObjectsByType<EnemyBrute>(FindObjectsSortMode.None), Is.EqualTo(new[] { _practiceEnemy }), "and its enemies");
+            Assert.That(Object.FindObjectsByType<Enemy>(FindObjectsSortMode.None), Is.EqualTo(new Enemy[] { _practiceEnemy }), "and its enemies, of every kind");
             Assert.That(Flat(_player.Position, before), Is.LessThan(0.3f), "she is back where she was");
             Vector3 feet = new Vector3(_player.Position.x, 0f, _player.Position.z); // her root stands 1 m over the ground
             Assert.That(NavMesh.SamplePosition(feet, out _, 0.5f, NavMesh.AllAreas), "on the practice room's NavMesh");

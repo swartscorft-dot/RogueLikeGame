@@ -84,6 +84,8 @@ namespace Roguelike.PlayModeTests
                 Assert.That(have.MoveDistance, Is.EqualTo(want.MoveDistance), n + "MoveDistance");
                 Assert.That(have.OpeningMove, Is.EqualTo(want.OpeningMove), n + "OpeningMove");
                 Assert.That(have.CleanMarkDamageBonus, Is.EqualTo(want.CleanMarkDamageBonus), n + "CleanMarkDamageBonus");
+                // Work order 008: what it takes off a stagger bar.
+                Assert.That(have.Stagger, Is.EqualTo(want.Stagger), n + "Stagger");
             }
             IdentityValues id = asset.Identity, idStart = new IdentityValues();
             Assert.That(id.MaxFocus, Is.EqualTo(idStart.MaxFocus), "MaxFocus");
