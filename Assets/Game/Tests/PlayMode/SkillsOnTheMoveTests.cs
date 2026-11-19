@@ -361,7 +361,10 @@ namespace Roguelike.PlayModeTests
                 maxFall = Mathf.Max(maxFall, (before - s.Speed) / dt);
                 biggestStep = Mathf.Max(biggestStep, before - s.Speed - SteepestFall() * dt);
                 if (s.Velocity.sqrMagnitude > 0.01f) worstSideways = Mathf.Max(worstSideways, Mathf.Abs(Vector3.Dot(s.Velocity.normalized, Vector3.forward)));
-                if (float.IsNaN(stoppedAt) && s.Speed < 0.05f) { stoppedAt = s.T; stopPos = s.Position; }
+                // Standing counts from well under the limit checked afterwards: at very short frames (no window) the
+                // speed wavers by a few mm/s from frame to frame, and a first sample just under 0.05 could be followed
+                // by one just over it.
+                if (float.IsNaN(stoppedAt) && s.Speed < 0.01f) { stoppedAt = s.T; stopPos = s.Position; }
                 else if (!float.IsNaN(stoppedAt)) movedAfterStop = Mathf.Max(movedAfterStop, Flat(s.Position - stopPos).magnitude, s.Speed);
                 before = s.Speed;
                 beforeT = s.T;
