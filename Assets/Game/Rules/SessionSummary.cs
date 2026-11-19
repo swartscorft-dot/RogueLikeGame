@@ -54,6 +54,7 @@ namespace Roguelike.Rules
 
         public float GapMedian = float.NaN;
         public float GapP90 = float.NaN;
+        // The long gaps: counted on the time she was free between two actions, after a skill had let her go.
         public int GapsOver1;
         public float GapsOver1Seconds;
         public int GapsOver2;
@@ -275,18 +276,25 @@ namespace Roguelike.Rules
             FillDamageAndUse(dash, events, spans, s.TotalDamage);
             s.Rows.Add(dash);
 
-            // The gaps and the pairs, never across two spans.
+            // The gaps and the pairs, never across two spans. A gap is from one start to the next: the rhythm. The long
+            // ones are counted on the time she was free in it: a skill is busy until it lets her go, so holding Fan
+            // Fire or casting Heavy Volley is not time spent doing nothing.
             var gaps = new List<float>();
             var pairs = new Dictionary<string, int>();
             var pairOrder = new List<string>();
+            List<SessionEvent> skillEnds = all.Where(e => e.Type == SessionEventTypes.SkillEnd).ToList();
             foreach (List<KeyValuePair<float, string>> started in startedPerSpan)
             {
                 for (int i = 1; i < started.Count; i++)
                 {
-                    float gap = started[i].Key - started[i - 1].Key;
+                    float from = started[i - 1].Key, to = started[i].Key;
+                    float gap = to - from;
                     gaps.Add(gap);
-                    if (gap > 1f) { s.GapsOver1++; s.GapsOver1Seconds += gap; }
-                    if (gap > 2f) { s.GapsOver2++; s.GapsOver2Seconds += gap; }
+                    string earlier = started[i - 1].Value;
+                    SessionEvent end = skillEnds.FirstOrDefault(e => e.Name == earlier && e.T >= from - 1e-4 && e.T <= to + 1e-4);
+                    float free = end != null ? Math.Max(0f, to - (float)end.T) : gap;
+                    if (free > 1f) { s.GapsOver1++; s.GapsOver1Seconds += free; }
+                    if (free > 2f) { s.GapsOver2++; s.GapsOver2Seconds += free; }
                     string pair = started[i - 1].Value + " then " + started[i].Value;
                     if (!pairs.ContainsKey(pair)) { pairs[pair] = 0; pairOrder.Add(pair); }
                     pairs[pair]++;
@@ -439,8 +447,8 @@ namespace Roguelike.Rules
             t.Add("Actions started / presses", a.StartedActions + " / " + a.Presses, fights ? f.StartedActions + " / " + f.Presses : "-");
             t.Add("Gap between actions, median", Seconds(a.GapMedian), fights ? Seconds(f.GapMedian) : "-");
             t.Add("Gap between actions, 90th percentile", Seconds(a.GapP90), fights ? Seconds(f.GapP90) : "-");
-            t.Add("Gaps over 1 s: count, total", a.GapsOver1 + ", " + Seconds(a.GapsOver1Seconds), fights ? f.GapsOver1 + ", " + Seconds(f.GapsOver1Seconds) : "-");
-            t.Add("Gaps over 2 s: count, total", a.GapsOver2 + ", " + Seconds(a.GapsOver2Seconds), fights ? f.GapsOver2 + ", " + Seconds(f.GapsOver2Seconds) : "-");
+            t.Add("Free over 1 s: count, total", a.GapsOver1 + ", " + Seconds(a.GapsOver1Seconds), fights ? f.GapsOver1 + ", " + Seconds(f.GapsOver1Seconds) : "-");
+            t.Add("Free over 2 s: count, total", a.GapsOver2 + ", " + Seconds(a.GapsOver2Seconds), fights ? f.GapsOver2 + ", " + Seconds(f.GapsOver2Seconds) : "-");
             t.Add("Time on the move", Percent(a.MovingShare), fights ? Percent(f.MovingShare) : "-");
             t.Add("Damage dealt", a.TotalDamage.ToString(CultureInfo.InvariantCulture), fights ? f.TotalDamage.ToString(CultureInfo.InvariantCulture) : "-");
             t.Write(sb);
