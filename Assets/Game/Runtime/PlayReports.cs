@@ -8,7 +8,7 @@ namespace Roguelike
         SkillPressed,   // Slot, Result, CooldownLeft (when the cooldown rejected it)
         SkillReleased,  // Slot
         SkillStarted,   // Slot
-        SkillFired,     // Slot, Landed, Charge: one hit of the skill went off
+        SkillFired,     // Slot, Landed, Charge: one hit of the skill went off; Clean, Held, At (work orders 015 and 019, below)
         SkillEnded,     // Slot, Ending, Held, Charge, Fired
         BufferDropped,  // Slot (-1 for a dash): a buffered press ran out before it could start
         ShotClicked,    // Result: Started, or Buffered for a click that waits
@@ -17,7 +17,7 @@ namespace Roguelike
         ShotFired,      // Landed
         DashPressed,    // Result, CooldownLeft (when the cooldown rejected it), AlreadyDashing
         DashStarted,
-        Hit,            // Slot (-1 for the basic shot), Target, Damage, Empowered, Focus (gained from the damage)
+        Hit,            // Slot (-1 for the basic shot), Target, Damage, Empowered, Focus (gained from the damage), Countered
         FocusPressed,   // Result
         // Decision 0005, the kit:
         MarkAdded,      // Slot (-1 for the basic shot), Target, Marks (added), MarksAfter
@@ -67,6 +67,11 @@ namespace Roguelike
         public float DashCut;
         public bool Tall;             // CoverEntered
         public CoverLeaving Leaving;  // CoverLeft
+        // Work order 019 (2026-11-20), for the timing feedback (TimingFeedback). SkillFired's Clean is a perfect release,
+        // or for a keg's burst a keg set off by a shot (work order 015); its Held is the seconds the skill had charged
+        // when it went off (a Charge skill; 0 for others), and a keg's burst says where the keg lay in At.
+        public bool Countered;        // Hit: this hit countered the enemy's attack (Stopping Shot)
+        public GroundPoint At;        // SkillFired of a keg's burst: where it lay
     }
 
     /// <summary>
