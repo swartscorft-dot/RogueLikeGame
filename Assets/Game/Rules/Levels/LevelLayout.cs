@@ -61,7 +61,8 @@ namespace Roguelike.Rules
     /// round the point; since work order 012 several shooters or brutes are a line and stand side by side across it
     /// (<see cref="LevelGeometry.MemberPlaces"/>). <see cref="Boss"/> marks the act boss (since work order 014 of the
     /// kind <see cref="EnemyKind.Boss"/>, a guard before, with <see cref="LevelValues.BossHealth"/>), in the exit room of
-    /// the act's last floor.
+    /// the act's last floor. <see cref="Elite"/> marks the elite of an elite room (work order 017): one enemy of a kind the
+    /// floor can have, tougher and larger (<see cref="LevelValues.EliteHealthScale"/> and the rest), e on a map.
     /// </summary>
     [Serializable]
     public sealed class EnemyGroup
@@ -69,25 +70,27 @@ namespace Roguelike.Rules
         public EnemyKind Kind;
         public int Count = 1;
         public bool Boss;
+        public bool Elite;
 
         public EnemyGroup() { }
 
-        public EnemyGroup(EnemyKind kind, int count = 1, bool boss = false)
+        public EnemyGroup(EnemyKind kind, int count = 1, bool boss = false, bool elite = false)
         {
             Kind = kind;
             Count = count;
             Boss = boss;
+            Elite = elite;
         }
 
         /// <summary>Several swarmers round the point.</summary>
         public bool IsPack => Count > 1 && Kind == EnemyKind.Swarmer;
         /// <summary>Several of another kind side by side across the point (work order 012).</summary>
         public bool IsLine => Count > 1 && Kind != EnemyKind.Swarmer;
-        public EnemyGroup Copy() => new EnemyGroup(Kind, Count, Boss);
-        /// <summary>On a map: the kind's small letter (<see cref="EnemyKinds.Letter"/>, p for a pack); a line its capital (H shooters, B brutes); the act boss G.</summary>
-        public char Letter => Boss ? 'G' : IsLine ? char.ToUpperInvariant(EnemyKinds.Letter(Kind, 1)) : EnemyKinds.Letter(Kind, Count);
+        public EnemyGroup Copy() => new EnemyGroup(Kind, Count, Boss, Elite);
+        /// <summary>On a map: the kind's small letter (<see cref="EnemyKinds.Letter"/>, p for a pack); a line its capital (H shooters, B brutes); the act boss G; an elite e (work order 017).</summary>
+        public char Letter => Boss ? 'G' : Elite ? 'e' : IsLine ? char.ToUpperInvariant(EnemyKinds.Letter(Kind, 1)) : EnemyKinds.Letter(Kind, Count);
         public override string ToString() =>
-            (Boss ? "act boss " : "") + EnemyKinds.Word(Kind) + (Count > 1 ? " x" + Count.ToString(CultureInfo.InvariantCulture) : "");
+            (Boss ? "act boss " : "") + (Elite ? "elite " : "") + EnemyKinds.Word(Kind) + (Count > 1 ? " x" + Count.ToString(CultureInfo.InvariantCulture) : "");
     }
 
     /// <summary>One room: its kind, its cells and its place in the order of the run, and what stands in it.</summary>
@@ -97,6 +100,11 @@ namespace Roguelike.Rules
         public CellRect Rect;
         /// <summary>Its place in the run, from 0 (the start room); the level's list of rooms is in this order.</summary>
         public int Order;
+        /// <summary>
+        /// The floor's elite room (work order 017): a combat room, the middle one of the chain (<see cref="LevelPlan.EliteRoomNumber"/>),
+        /// that holds what a combat room holds and an elite besides. L on a map.
+        /// </summary>
+        public bool Elite;
         /// <summary>Where the player starts. Only in the entrance.</summary>
         public LevelPoint? PlayerStart;
         public readonly List<LevelPoint> EnemyPoints = new List<LevelPoint>();
@@ -130,10 +138,10 @@ namespace Roguelike.Rules
         /// <summary>What stands at enemy point <paramref name="i"/>; a single brute when the room says nothing (a hand-made layout).</summary>
         public EnemyGroup GroupAt(int i) => i >= 0 && i < EnemyGroups.Count && EnemyGroups[i] != null ? EnemyGroups[i] : new EnemyGroup(EnemyKind.Brute);
 
-        /// <summary>The letter for its kind on a map.</summary>
-        public char Letter => KindLetter(Kind);
+        /// <summary>The letter for its kind on a map; L for the elite room (work order 017).</summary>
+        public char Letter => Elite ? 'L' : KindLetter(Kind);
 
-        /// <summary>E entrance, C combat, T treasure, X exit (work order 012; S, C, R and B before).</summary>
+        /// <summary>E entrance, C combat, T treasure, X exit (work order 012; S, C, R and B before). The elite room, a combat room, is L.</summary>
         public static char KindLetter(RoomKind kind) =>
             kind == RoomKind.Entrance ? 'E' : kind == RoomKind.Combat ? 'C' : kind == RoomKind.Treasure ? 'T' : 'X';
 
@@ -214,6 +222,17 @@ namespace Roguelike.Rules
             }
         }
 
+        /// <summary>The elite room (work order 017), or null on a floor without one.</summary>
+        public LevelRoom EliteRoom
+        {
+            get
+            {
+                foreach (LevelRoom r in Rooms)
+                    if (r.Elite) return r;
+                return null;
+            }
+        }
+
         /// <summary>The room that has this cell, or null.</summary>
         public LevelRoom RoomAtCell(int x, int y)
         {
@@ -268,7 +287,7 @@ namespace Roguelike.Rules
                             Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor);
             foreach (LevelRoom r in Rooms)
             {
-                sb.Append(r.Order).Append(' ').Append(r.Kind).Append(' ').Append(r.Rect);
+                sb.Append(r.Order).Append(' ').Append(r.Kind).Append(r.Elite ? " elite" : "").Append(' ').Append(r.Rect);
                 if (r.PlayerStart.HasValue) sb.Append(" start ").Append(r.PlayerStart.Value);
                 for (int i = 0; i < r.EnemyPoints.Count; i++) sb.Append(" enemy ").Append(r.EnemyPoints[i]).Append(' ').Append(r.GroupAt(i));
                 sb.Append('\n');

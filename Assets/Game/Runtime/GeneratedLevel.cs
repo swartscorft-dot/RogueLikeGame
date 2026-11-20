@@ -10,7 +10,8 @@ namespace Roguelike
     /// A generated level built in grey boxes at run time, on the root object it sits on. Everything it makes is a child
     /// of that root and goes when the root goes: the materials it made go with it too.
     ///
-    /// Each room is a floor (a flat box with its top at the ground) tinted for its kind, and walls stand along every
+    /// Each room is a floor (a flat box with its top at the ground) tinted for its kind (the elite room for itself, work
+    /// order 017), and walls stand along every
     /// edge between a room and anything else, with gaps at the doors: <see cref="LevelValues.WallHeight"/> high and
     /// <see cref="LevelValues.WallThickness"/> thick, centred on the edge. The camera looks north from the south
     /// (<see cref="CameraRig"/>), so a wall on a room's south side stands between the camera and that room's floor; it
@@ -23,7 +24,8 @@ namespace Roguelike
     /// shooter's sight and line; she and the shooter shoot over a lower prop. The enemies' strikes on the ground do not
     /// look at cover. Every wall and every prop, tall or low, also carries <see cref="Shelter"/>: she can take cover
     /// against it (Kristian, 2026-11-19, an experiment). Then the enemies of each enemy point stand there, of
-    /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed.
+    /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed; the elite of the elite
+    /// room is made one (work order 017, <see cref="EnemyFactory.MakeElite"/>).
     ///
     /// The crypt kit (work order 016, 2026-11-20; <see cref="LevelValues.CryptKit"/>, on by default): once the NavMesh
     /// is built, the wall boxes stop showing and the kit's walls, low walls, piers, posts, door arches and lanterns are
@@ -40,6 +42,7 @@ namespace Roguelike
         public static readonly Color CombatTint = new Color(0.50f, 0.47f, 0.44f);
         public static readonly Color RewardTint = new Color(0.36f, 0.46f, 0.66f);
         public static readonly Color BossTint = new Color(0.58f, 0.30f, 0.30f);
+        public static readonly Color EliteTint = new Color(0.62f, 0.52f, 0.28f); // work order 017: the elite room's, warm
         public static readonly Color WallTint = new Color(0.72f, 0.72f, 0.74f);
 
         public LevelLayout Layout { get; private set; }
@@ -52,6 +55,8 @@ namespace Roguelike
         public IReadOnlyList<PlacedGroup> Groups => _groups;
         /// <summary>The act boss (work order 012: only on the act's last floor), or null.</summary>
         public Enemy Boss { get; private set; }
+        /// <summary>The elite of the elite room (work order 017), or null.</summary>
+        public Enemy Elite { get; private set; }
         public int Floors { get; private set; }
         public int Walls { get; private set; }
         public int LowWalls { get; private set; }
@@ -160,6 +165,7 @@ namespace Roguelike
                 [RoomKind.Treasure] = Tinted(baseMaterial, RewardTint, "LevelFloor_Treasure"),
                 [RoomKind.Exit] = Tinted(baseMaterial, BossTint, "LevelFloor_Exit"),
             };
+            Material elite = null;
             float cs = Layout.CellSize;
             foreach (LevelRoom room in Layout.Rooms)
             {
@@ -169,7 +175,9 @@ namespace Roguelike
                 Vector3 middle = Middle(room);
                 floor.transform.position = new Vector3(middle.x, -Values.FloorThickness * 0.5f, middle.z);
                 floor.transform.localScale = new Vector3(room.Rect.Width * cs, Values.FloorThickness, room.Rect.Height * cs);
-                floor.GetComponent<Renderer>().sharedMaterial = tints[room.Kind];
+                floor.GetComponent<Renderer>().sharedMaterial = room.Elite
+                    ? elite != null ? elite : elite = Tinted(baseMaterial, EliteTint, "LevelFloor_Elite")
+                    : tints[room.Kind];
                 _floorBoxes.Add(floor);
                 Floors++;
             }
@@ -374,14 +382,15 @@ namespace Roguelike
             }
 
             // Floors: each kind's texture, a copy a cell, lined up with the grid (a room starts on a cell's edge).
-            var floorMaterials = new Dictionary<RoomKind, Material>();
+            // The elite room's floor has its own faint tint (work order 017), its kind's texture.
+            var floorMaterials = new Dictionary<(RoomKind, bool), Material>();
             var block = new MaterialPropertyBlock();
             for (int i = 0; i < _floorBoxes.Count && i < Layout.Rooms.Count; i++)
             {
                 LevelRoom room = Layout.Rooms[i];
-                if (!floorMaterials.TryGetValue(room.Kind, out Material m))
+                if (!floorMaterials.TryGetValue((room.Kind, room.Elite), out Material m))
                 {
-                    floorMaterials[room.Kind] = m = CryptKit.MakeFloorMaterial(room.Kind, v);
+                    floorMaterials[(room.Kind, room.Elite)] = m = CryptKit.MakeFloorMaterial(room.Kind, v, room.Elite);
                     _materials.Add(m);
                 }
                 Renderer r = _floorBoxes[i].GetComponent<Renderer>();
@@ -466,6 +475,12 @@ namespace Roguelike
                         Enemy enemy = EnemyFactory.Make(group.Kind, ToWorld(places[m]), transform, template, name);
                         if (enemy == null) continue;
                         enemy.HealthOverride = Values.HealthOf(group.Kind, group.Boss);
+                        // The elite (work order 017): its kind's health for the floor times the elite's share, and the rest.
+                        if (group.Elite && !group.Boss)
+                        {
+                            EnemyFactory.MakeElite(enemy, Values.EliteHealthOf(group.Kind), Values.EliteDamageScale, Values.EliteSizeScale, Values.EliteStaggerShare);
+                            if (Elite == null) Elite = enemy;
+                        }
                         placed.Members.Add(enemy);
                         if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
                         list.Add(enemy);
@@ -549,6 +564,29 @@ namespace Roguelike
                 if (exit.Count == 0) return false;
                 for (int i = 0; i < exit.Count; i++)
                     if (exit[i] != null && !exit[i].IsDead) return false;
+                return true;
+            }
+        }
+
+        /// <summary>The enemies of the elite room (work order 017), the elite among them; empty without one.</summary>
+        public IReadOnlyList<Enemy> EliteRoomEnemies
+        {
+            get
+            {
+                LevelRoom room = Layout.EliteRoom;
+                return room != null && _enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list) ? list : (IReadOnlyList<Enemy>)System.Array.Empty<Enemy>();
+            }
+        }
+
+        /// <summary>True once every enemy of the elite room is dead (work order 017); false while there is none to kill.</summary>
+        public bool EliteRoomCleared
+        {
+            get
+            {
+                IReadOnlyList<Enemy> list = EliteRoomEnemies;
+                if (list.Count == 0) return false;
+                for (int i = 0; i < list.Count; i++)
+                    if (list[i] != null && !list[i].IsDead) return false;
                 return true;
             }
         }

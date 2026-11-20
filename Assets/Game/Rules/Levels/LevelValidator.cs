@@ -25,7 +25,9 @@ namespace Roguelike.Rules
     /// of its walls and doors and of the door she comes in by, enemy points apart, and enemies of different groups apart.
     /// Since work order 009 also the props: each is a model its kind of room may hold, with its model's footprint, and
     /// keeps every rule of <see cref="PropRules"/>; no room holds more than its kind may; and every room keeps its
-    /// clear lane.
+    /// clear lane. Since work order 017 the elite room: exactly the combat room of the chain the plan names
+    /// (<see cref="LevelPlan.EliteRoomNumber"/>) is marked elite, and it alone holds an elite: one, of a kind its floor can
+    /// have, counted apart from the room's range, kinds and guards, with its larger body's room round it.
     /// </summary>
     public static class LevelValidator
     {
@@ -134,6 +136,18 @@ namespace Roguelike.Rules
             bool Joined(int x, int y) => level.Doors.Any(d => d.Joins(x) && d.Other(x) == y);
             for (int i = 1; i < path.Count; i++)
                 if (!Joined(path[i - 1].Order, path[i].Order)) faults.Add($"no door from {Name(path[i - 1])} to {Name(path[i])} on the main path");
+            // The elite room (work order 017): the plan's combat room of the chain, and no other.
+            int eliteNumber = plan.EliteRoomNumber(plan.CombatRooms);
+            List<LevelRoom> combatsInOrder = path.Where(r => r.Kind == RoomKind.Combat).ToList();
+            for (int i = 0; i < combatsInOrder.Count; i++)
+            {
+                bool wanted = i + 1 == eliteNumber;
+                if (combatsInOrder[i].Elite != wanted)
+                    faults.Add($"{Name(combatsInOrder[i])}, combat room {i + 1} of the chain, "
+                               + (wanted ? "is not the elite room" : "is marked elite, and the plan's elite room is combat room " + eliteNumber));
+            }
+            foreach (LevelRoom r in rooms)
+                if (r.Elite && r.Kind != RoomKind.Combat) faults.Add($"{Name(r)} is marked elite and is not a combat room");
             LevelRoom exit = rooms.FirstOrDefault(r => r.Kind == RoomKind.Exit);
             if (exit != null)
             {
@@ -250,18 +264,26 @@ namespace Roguelike.Rules
             }
 
             List<EnemyGroup> groups = r.EnemyGroups.Where(g => g != null).ToList();
-            List<EnemyGroup> others = groups.Where(g => !g.Boss).ToList();
+            List<EnemyGroup> others = groups.Where(g => !g.Boss && !g.Elite).ToList();
             int count = others.Sum(g => g.Count);
             values.EnemyRange(r.Kind, floor, out int fewest, out int most);
             if (count < fewest || count > most) faults.Add($"{name} holds {count} enemies, floor {floor} has {fewest} to {most} in a {r.Kind} room");
             int kinds = others.Select(g => g.Kind).Distinct().Count();
             if (kinds < 2) faults.Add($"{name} holds {kinds} kind of enemy, not at least two");
-            int guards = groups.Where(g => g.Kind == EnemyKind.Guard).Sum(g => g.Count);
+            int guards = groups.Where(g => g.Kind == EnemyKind.Guard && !g.Elite).Sum(g => g.Count);
             int guardsMost = values.GuardsMost(r.Kind, floor);
             if (guards > guardsMost) faults.Add($"{name} holds {guards} guards, floor {floor} at most {guardsMost} in a {r.Kind} room");
             int bosses = groups.Count(g => g.Boss);
             bool wantsBoss = r.Kind == RoomKind.Exit && floor >= values.FloorsPerAct;
             if (bosses != (wantsBoss ? 1 : 0)) faults.Add($"{name} holds {bosses} act bosses, not {(wantsBoss ? 1 : 0)}");
+            // The elite (work order 017): one in the elite room, of a kind its floor can have; none elsewhere.
+            List<EnemyGroup> elites = groups.Where(g => g.Elite).ToList();
+            if (elites.Count != (r.Elite ? 1 : 0)) faults.Add($"{name} holds {elites.Count} elites, not {(r.Elite ? 1 : 0)}");
+            foreach (EnemyGroup g in elites)
+            {
+                if (g.Count != 1 || g.Boss) faults.Add($"{name}'s elite is not one enemy");
+                if (Array.IndexOf(values.EliteKinds(floor), g.Kind) < 0) faults.Add($"{name}'s elite is a {EnemyKinds.Word(g.Kind)}, which floor {floor} has no elite of");
+            }
 
             for (int i = 0; i < r.EnemyGroups.Count; i++)
             {
@@ -283,28 +305,30 @@ namespace Roguelike.Rules
             for (int i = 0; i < r.EnemyPoints.Count; i++)
             {
                 LevelPoint p = r.EnemyPoints[i];
-                string pointFault = LevelGeometry.EnemyPlaceFault(level, r, p, entry, doors, values);
+                EnemyGroup g = r.GroupAt(i);
+                double extra = LevelGeometry.ExtraRoom(g, values); // an elite's larger body (work order 017)
+                string pointFault = LevelGeometry.EnemyPlaceFault(level, r, p, entry, doors, values, extra);
                 if (pointFault != null) faults.Add($"{name}'s enemy {i} at {p} {pointFault}");
                 LevelPoint[] places = r.PlacesAt(i);
-                EnemyGroup g = r.GroupAt(i);
                 LevelPoint[] wanted = LevelGeometry.MemberPlaces(level, r, p, g, values);
                 bool same = places.Length == wanted.Length;
                 for (int m = 0; same && m < places.Length; m++) same = places[m].DistanceTo(wanted[m]) < 1e-6;
                 if (!same) faults.Add($"{name}'s group {i} ({g}) does not stand as its kind of group stands round its point {p}");
                 for (int m = 0; m < places.Length; m++)
                 {
-                    string fault = LevelGeometry.EnemyPlaceFault(level, r, places[m], entry, doors, values);
+                    string fault = LevelGeometry.EnemyPlaceFault(level, r, places[m], entry, doors, values, extra);
                     if (fault != null) faults.Add($"{name}'s enemy {i}.{m} at {places[m]} {fault}");
                 }
                 for (int j = i + 1; j < r.EnemyPoints.Count; j++)
                 {
                     if (p.DistanceTo(r.EnemyPoints[j]) < values.EnemySpacing - Slack)
                         faults.Add($"{name}'s enemies {i} and {j} are nearer each other than {values.EnemySpacing} m");
+                    double apart = values.MemberSpacing + Math.Max(extra, LevelGeometry.ExtraRoom(r.GroupAt(j), values));
                     foreach (LevelPoint a in places)
                         foreach (LevelPoint b in r.PlacesAt(j))
-                            if (a.DistanceTo(b) < values.MemberSpacing - Slack)
+                            if (a.DistanceTo(b) < apart - Slack)
                             {
-                                faults.Add($"{name}'s groups {i} and {j} stand nearer each other than {values.MemberSpacing} m");
+                                faults.Add($"{name}'s groups {i} and {j} stand nearer each other than {apart} m");
                                 goto nextPair;
                             }
                     nextPair:;

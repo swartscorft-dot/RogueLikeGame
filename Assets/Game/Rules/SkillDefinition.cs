@@ -97,6 +97,24 @@ namespace Roguelike.Rules
         public float CounterFocus = 0f;    // share of the focus gauge a counter fills
         public float Fuse = 0f;            // above 0: a circle that lies this long after it lands, then bursts (Powder Keg); a shot of hers through it sets it off at once
         public float ShotBurstScale = 1.5f; // a keg set off by a shot deals this times the damage
+
+        // Work order 017 (2026-11-20): what the run's skill upgrades change (SkillUpgrades). Every skill starts with them
+        // off; an upgrade sets them on the run's own copy of the skill, never here in the settings.
+        public float BasicHitCooldownCut = 0f; // s off this skill's cooldown for every basic shot that hits (Quick Draw)
+        public float HitCooldownCut = 0f;      // s off a cooldown for every use of this skill that hits (Tied Trigger)
+        public string HitCutsSkill = "";       // whose cooldown HitCooldownCut cuts, by name; "": its own
+        public float CloseRange = 0f;          // above 0, a spender: within this many m its bonus per mark is CloseMarkScale times; farther, no bonus and it takes no marks (Point Blank)
+        public float CloseMarkScale = 1f;
+        public float KillCooldownCut = 0f;     // share of its cooldown taken off when a use kills something (Fresh Shells: 0.5)
+        public float DazeCooldownCut = 0f;     // share of its cooldown taken off when a use dazes its target (Follow Through: 0.5)
+        public bool NoCharge = false;          // a Charge skill that fires at once, always as a perfect release (Snap Shot)
+        public float DazedDamageScale = 1f;    // its damage to a dazed target, times this (Execution: 2)
+        public float TagJump = 0f;             // above 0: when a target tagged by it dies, the tag jumps to the nearest enemy this near, renewed (Spreading Tag)
+        public int SlideShotMarks = 0;         // KeyMove: marks each basic shot that hits during the move adds (Slide Shot)
+        public string CounterReadies = "";     // a counter by this skill makes the named skill ready at once (Riposte)
+
+        /// <summary>A copy, field for field: a run's own view of the skill, patched by its upgrades (work order 017).</summary>
+        public SkillDefinition Copy() => (SkillDefinition)MemberwiseClone();
     }
 
     /// <summary>

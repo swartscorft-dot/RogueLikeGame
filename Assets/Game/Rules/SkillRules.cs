@@ -77,6 +77,29 @@ namespace Roguelike.Rules
             _readyAt -= cut;
             return cut;
         }
+
+        /// <summary>
+        /// Takes this many seconds off the recharge running now, no more than it has left (work order 017: Quick Draw,
+        /// Tied Trigger, Fresh Shells, Follow Through). Returns the seconds cut; 0 with nothing recharging.
+        /// </summary>
+        public float CutSeconds(float now, float seconds)
+        {
+            float left = NextCharge(now);
+            if (left <= 0f || seconds <= 0f) return 0f;
+            float cut = Math.Min(left, seconds);
+            _readyAt -= cut;
+            Settle(now);
+            return cut;
+        }
+
+        /// <summary>The charge recharging now comes back at once (work order 017: Riposte). Nothing when all are ready.</summary>
+        public void MakeReady(float now)
+        {
+            Settle(now);
+            if (_spent == 0) return;
+            _readyAt = now;
+            Settle(now);
+        }
     }
 
     /// <summary>What a skill hits and how hard. Targets are circles on the ground; a touched edge counts.</summary>

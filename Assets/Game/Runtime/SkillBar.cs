@@ -8,7 +8,8 @@ namespace Roguelike
     /// <summary>
     /// The bars at the bottom of the screen: one box per skill with its key, name and cooldown; above them
     /// the player's health and the focus gauge; and above those a bar for the cast, hold or charge of the
-    /// skill in use. Left of the skills, a small COVER box while she is in cover (an experiment, 2026-11-19).
+    /// skill in use. Left of the skills, a small COVER box while she is in cover (an experiment, 2026-11-19). A skill with
+    /// upgrades taken this run shows a small gold pip per upgrade in its box's top right corner (work order 017).
     /// Grey-box UI, drawn with IMGUI.
     /// It is laid out for a view 720 pixels high and scaled to the real height.
     /// </summary>
@@ -34,6 +35,8 @@ namespace Roguelike
         static readonly Color s_Clean = new Color(0.4f, 1f, 0.5f, 1f);
         const float RecastBarHeight = 9f;
         const float CoverBoxWidth = 90f;
+        const float PipSize = 7f;
+        static readonly Color s_Pip = new Color(1f, 0.86f, 0.22f, 1f); // the elite's gold (work order 017)
 
         public PlayerCharacter Player;
         public PlayerHealth Health;
@@ -96,6 +99,11 @@ namespace Roguelike
                 GUI.color = slot == active || slot == recovering || chain ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
                 GUI.Box(box, key + "  " + skills[slot].Name + "\n" + state, _box);
                 if (chain && Player.IsRecastWindowOpen) RecastBar(new Rect(box.x + 4f, box.yMax - RecastBarHeight - 3f, box.width - 8f, RecastBarHeight));
+                // The run's upgrades of this skill (work order 017): a pip each.
+                int pips = Player.UpgradesOn(slot);
+                GUI.color = s_Pip;
+                for (int p = 0; p < pips; p++)
+                    GUI.DrawTexture(new Rect(box.xMax - 4f - (p + 1) * (PipSize + 2f), box.y + 4f, PipSize, PipSize), Texture2D.whiteTexture);
             }
 
             // Taking cover (Kristian 2026-11-19, an experiment): a small box left of the skills while she is in cover,

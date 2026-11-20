@@ -30,6 +30,11 @@ namespace Roguelike
         public static readonly Color ShooterColor = new Color(0.95f, 0.80f, 0.15f);
         public static readonly Color GuardColor = new Color(0.45f, 0.08f, 0.08f);
         public static readonly Color BossColor = new Color(0.25f, 0.22f, 0.30f); // work order 014: the act boss's capsule
+        /// <summary>
+        /// An elite's tint (work order 017): a bright gold, warm, and far from the daze's pale blue and the angry boss's
+        /// orange (1, 0.55, 0.32).
+        /// </summary>
+        public static readonly Color EliteTint = new Color(1f, 0.86f, 0.22f);
 
         /// <summary>
         /// One enemy of a kind, standing at <paramref name="at"/> (on the ground), under <paramref name="parent"/>.
@@ -161,6 +166,46 @@ namespace Roguelike
             if (damageable.Stagger != null && template.Player != null)
                 StaggerBarView.For(damageable, template.Player.ShotFxMaterial);
             return enemy;
+        }
+
+        /// <summary>
+        /// Makes an enemy just made the elite of an elite room (work order 017), before its first frame: this much health,
+        /// its strikes' damage times <paramref name="damageScale"/>, shown <paramref name="sizeScale"/> times as large with its
+        /// body as much wider, tinted <see cref="EliteTint"/>, and a stagger bar if its kind has none, of
+        /// <paramref name="staggerShare"/> of the guard's (its daze as the guard's). Never the act boss.
+        /// </summary>
+        public static void MakeElite(Enemy enemy, int health, float damageScale, float sizeScale, float staggerShare)
+        {
+            if (enemy == null || enemy.Kind == EnemyKind.Boss) return;
+            enemy.IsElite = true;
+            enemy.HealthOverride = health;
+            enemy.DamageScale = damageScale;
+            enemy.transform.localScale *= sizeScale;
+            Damageable body = enemy.GetComponent<Damageable>();
+            body.Radius *= sizeScale;
+            if (body.Stagger == null)
+            {
+                StaggerValues guard = new GuardValues().Stagger;
+                body.Stagger = new StaggerBar(new StaggerValues
+                {
+                    Max = guard.Max * staggerShare, DazeSeconds = guard.DazeSeconds, DazedDamageMultiplier = guard.DazedDamageMultiplier,
+                });
+                if (enemy.Player != null) StaggerBarView.For(body, enemy.Player.ShotFxMaterial);
+            }
+            // A brute copied from the practice enemy without its model has no body renderer of its own: it gets one, with
+            // its own material, so the tint is on this enemy only.
+            if (enemy.BodyRenderer == null)
+            {
+                foreach (Renderer r in enemy.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (r is LineRenderer || r.GetComponent<MarkPips>() != null || r.GetComponentInParent<StaggerBarView>() != null || r.sharedMaterial == null) continue;
+                    r.sharedMaterial = new Material(r.sharedMaterial) { name = OwnMaterialPrefix + "Elite" };
+                    enemy.BodyRenderer = r;
+                    break;
+                }
+            }
+            enemy.BodyColor = EliteTint;
+            if (enemy.BodyRenderer != null) Paint(enemy.BodyRenderer.sharedMaterial, EliteTint);
         }
 
         /// <summary>The practice enemy's body: its first renderer that is not a line.</summary>

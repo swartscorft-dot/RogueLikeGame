@@ -47,6 +47,7 @@ namespace Roguelike.Rules
         public Rgb CombatFloorTint = new Rgb(1f, 0.98f, 0.96f);
         public Rgb TreasureFloorTint = new Rgb(0.87f, 0.92f, 1f);
         public Rgb ExitFloorTint = new Rgb(1f, 0.87f, 0.87f);
+        public Rgb EliteFloorTint = new Rgb(1f, 0.94f, 0.86f);     // work order 017: the elite room's, a faint warm gold
 
         // Stone
         public Rgb PaleStoneTint = new Rgb(0.94f, 0.85f, 0.83f);   // on the pier and the arch, modelled by script and paler and greyer than the walls

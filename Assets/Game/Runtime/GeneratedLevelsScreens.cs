@@ -125,7 +125,7 @@ namespace Roguelike
             RunRecord record = Record;
             if (!InRun || record == null || level == null) return;
             record.EnterFloor(Floor, level.Layout.Rooms.Count);
-            if (CurrentRoom != null) record.EnterRoom(CurrentRoom.Order, CurrentRoom.Kind);
+            if (CurrentRoom != null) record.EnterRoom(CurrentRoom.Order, CurrentRoom.Kind, CurrentRoom.Elite);
             // The same report the play session recorder counts a kill from (EnemyReportKind.Died), once per enemy.
             foreach (Enemy enemy in level.Enemies)
                 if (enemy != null) CountKills(record, enemy);

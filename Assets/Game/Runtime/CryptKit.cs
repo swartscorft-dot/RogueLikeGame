@@ -188,10 +188,14 @@ namespace Roguelike
             return m;
         }
 
-        /// <summary>A new floor material for a room kind (the caller destroys it): its floor texture, its faint tint.</summary>
-        public static Material MakeFloorMaterial(RoomKind kind, CryptKitValues values)
+        /// <summary>
+        /// A new floor material for a room kind (the caller destroys it): its floor texture, its faint tint; the elite room
+        /// its kind's texture with a faint tint of its own (work order 017).
+        /// </summary>
+        public static Material MakeFloorMaterial(RoomKind kind, CryptKitValues values, bool elite = false)
         {
-            Rgb tint = kind == RoomKind.Entrance ? values.EntranceFloorTint
+            Rgb tint = elite ? values.EliteFloorTint
+                : kind == RoomKind.Entrance ? values.EntranceFloorTint
                 : kind == RoomKind.Combat ? values.CombatFloorTint
                 : kind == RoomKind.Treasure ? values.TreasureFloorTint
                 : values.ExitFloorTint;
@@ -202,7 +206,7 @@ namespace Roguelike
                 texture.anisoLevel = values.FloorAnisoLevel;
                 if (values.FloorTrilinear) texture.filterMode = FilterMode.Trilinear;
             }
-            return SimpleLit("CryptKit_Floor_" + kind, texture, Picked(tint), null);
+            return SimpleLit("CryptKit_Floor_" + kind + (elite ? "_Elite" : ""), texture, Picked(tint), null);
         }
 
         static int s_uAlongX; // 0 not known yet, 1 yes, -1 no
