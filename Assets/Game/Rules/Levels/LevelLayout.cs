@@ -59,8 +59,9 @@ namespace Roguelike.Rules
     /// <summary>
     /// What stands at one enemy point (work order 008): a kind, and how many. Several swarmers are a pack and stand
     /// round the point; since work order 012 several shooters or brutes are a line and stand side by side across it
-    /// (<see cref="LevelGeometry.MemberPlaces"/>). <see cref="Boss"/> marks the act boss (a guard with
-    /// <see cref="LevelValues.BossHealth"/>), in the exit room of the act's last floor.
+    /// (<see cref="LevelGeometry.MemberPlaces"/>). <see cref="Boss"/> marks the act boss (since work order 014 of the
+    /// kind <see cref="EnemyKind.Boss"/>, a guard before, with <see cref="LevelValues.BossHealth"/>), in the exit room of
+    /// the act's last floor.
     /// </summary>
     [Serializable]
     public sealed class EnemyGroup

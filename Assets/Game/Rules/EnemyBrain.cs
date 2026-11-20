@@ -28,6 +28,13 @@ namespace Roguelike.Rules
         public float HalfWidth = 1.2f;   // m, Line
         public float Angle = 90f;        // degrees in all, Cone
         public bool Counterable = false; // work order 015: Stopping Shot from its front drops it; its telegraph is blue (PoolRules.IsCounterable)
+        /// <summary>
+        /// m/s the enemy runs along its Line at the strike, hitting what it passes, instead of striking from where it
+        /// stands (work order 014: the boss's charge). 0, every other attack: it strikes in place.
+        /// </summary>
+        public float Rush = 0f;
+
+        public EnemyAttackDefinition Copy() => (EnemyAttackDefinition)MemberwiseClone();
     }
 
     /// <summary>
@@ -123,7 +130,12 @@ namespace Roguelike.Rules
         /// False holds it in the chase even when an attack fits the distance: a shooter that cannot see her, or one
         /// that is backing off. The brute passes true.
         /// </param>
-        public bool Step(float now, float distance, bool playerAlive, bool provoked, EnemyValues values, bool mayAttack = true)
+        /// <param name="choose">
+        /// Picks the attack for a distance in the chase (work order 014: the boss's own choice); null, every other kind,
+        /// takes <see cref="AttackFor"/>.
+        /// </param>
+        public bool Step(float now, float distance, bool playerAlive, bool provoked, EnemyValues values, bool mayAttack = true,
+                         Func<float, EnemyValues, EnemyAttackDefinition> choose = null)
         {
             switch (State)
             {
@@ -139,7 +151,7 @@ namespace Roguelike.Rules
                         Enter(EnemyState.Idle, now);
                         return false;
                     }
-                    EnemyAttackDefinition fit = mayAttack ? AttackFor(distance, values) : null;
+                    EnemyAttackDefinition fit = !mayAttack ? null : choose != null ? choose(distance, values) : AttackFor(distance, values);
                     if (fit != null)
                     {
                         Attack = fit;
@@ -170,6 +182,26 @@ namespace Roguelike.Rules
             if (State == EnemyState.Idle) return;
             Attack = null;
             Enter(EnemyState.Chase, now);
+        }
+
+        /// <summary>
+        /// Starts the recovery again from now (work order 014): an attack that moves the enemy through its strike (the
+        /// charge's run) holds the recovery off until it stops. Nothing outside a recovery.
+        /// </summary>
+        public void HoldRecovery(float now)
+        {
+            if (State == EnemyState.Recover) _stateSince = now;
+        }
+
+        /// <summary>
+        /// Starts the windup of this attack at once, whatever it was doing but standing at home (work order 014: the
+        /// angry boss's second charge follows the first with no recovery between).
+        /// </summary>
+        public void Begin(EnemyAttackDefinition attack, float now)
+        {
+            if (State == EnemyState.Idle || attack == null) return;
+            Attack = attack;
+            Enter(EnemyState.Windup, now);
         }
 
         void Enter(EnemyState state, float now)

@@ -43,7 +43,7 @@ namespace Roguelike.Rules
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 4;
+        public const int Version = 5; // 5: work order 014, fuller rooms and the act boss its own kind
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -313,7 +313,7 @@ namespace Roguelike.Rules
             int guardRoom = v.GuardsMost(kind, floor);
             if (kind == RoomKind.Exit && floor >= v.FloorsPerAct)
             {
-                groups.Add(new EnemyGroup(EnemyKind.Guard, 1, boss: true));
+                groups.Add(new EnemyGroup(EnemyKind.Boss, 1, boss: true)); // a guard until work order 014
                 guardRoom--;
             }
             int guards = Math.Max(0, Math.Min(guardRoom, mix.Guards * (kind == RoomKind.Exit ? 2 : 1)));

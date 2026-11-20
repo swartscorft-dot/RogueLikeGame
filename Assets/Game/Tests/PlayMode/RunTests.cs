@@ -250,7 +250,7 @@ namespace Roguelike.PlayModeTests
             GeneratedLevel level = _levels.Level;
             Assert.That(level.Boss, Is.Not.Null, "the act boss");
             Assert.That(level.ExitEnemies, Does.Contain(level.Boss), "in the exit room");
-            Assert.That(level.Boss.Kind, Is.EqualTo(EnemyKind.Guard));
+            Assert.That(level.Boss.Kind, Is.EqualTo(EnemyKind.Boss)); // a guard until work order 014
             Assert.That(level.Boss.GetComponent<Damageable>().MaxHealth, Is.EqualTo(level.Values.BossHealth));
             Assert.That(level.ExitEnemies.Count, Is.GreaterThanOrEqualTo(16), "with a full room of others");
 

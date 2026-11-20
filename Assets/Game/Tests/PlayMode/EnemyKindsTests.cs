@@ -357,7 +357,7 @@ namespace Roguelike.PlayModeTests
                                     .Select(e => e.Kind.ToString()).OrderBy(s => s).ToList();
                 Assert.That(have, Is.EqualTo(want), "room " + r.Letter + r.Order);
             }
-            Assert.That(level.Boss, Is.InstanceOf<EnemyGuard>(), "the boss is a guard");
+            Assert.That(level.Boss, Is.InstanceOf<EnemyBoss>(), "the boss is its own kind (a guard until work order 014)");
             Assert.That(level.Boss.Body.MaxHealth, Is.EqualTo(level.Values.BossHealth));
             Assert.That(level.Boss.Body.Stagger, Is.Not.Null, "with its bar");
             Assert.That(level.Boss.GetComponentInChildren<StaggerBarView>(), Is.Not.Null, "shown over it");

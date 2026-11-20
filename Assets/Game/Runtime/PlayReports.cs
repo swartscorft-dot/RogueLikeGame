@@ -76,9 +76,11 @@ namespace Roguelike
 
     /// <summary>
     /// What an enemy reports. Removed: it was taken out of the game alive (its level or the practice spawns went), and
-    /// counts as giving up. StaggerTaken, Dazed and DazeEnded come from its stagger bar (work order 008).
+    /// counts as giving up. StaggerTaken, Dazed and DazeEnded come from its stagger bar (work order 008). The boss's
+    /// (work order 014): Charged, its charge began to run (Attack names it); CalledPack, it called a pack (Count how many
+    /// came); Angered, it turned angry.
     /// </summary>
-    public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded }
+    public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded, Charged, CalledPack, Angered }
 
     /// <summary>How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment, 2026-11-19).</summary>
     public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect, StoppedByCover }
@@ -99,5 +101,6 @@ namespace Roguelike
         public EnemyKind EnemyKind;
         public float Stagger;
         public float StaggerLeft;
+        public int Count;             // CalledPack: the enemies that came (work order 014)
     }
 }
