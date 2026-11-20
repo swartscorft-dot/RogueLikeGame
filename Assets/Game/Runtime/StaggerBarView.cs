@@ -25,6 +25,7 @@ namespace Roguelike
         const float FlashGlow = 3f;
 
         Damageable _target;
+        Enemy _enemy; // work order 042: over an ordinary enemy or an elite the small bars draw the stagger instead (EnemyBars)
         Mesh _mesh;
         MeshRenderer _renderer;
         float _height;
@@ -54,6 +55,7 @@ namespace Roguelike
             go.transform.SetParent(target.transform, false);
             view = go.AddComponent<StaggerBarView>();
             view._target = target;
+            view._enemy = target.GetComponent<Enemy>();
             view._height = top + OverHead;
             view._mesh = new Mesh { name = "StaggerBar" };
             view._mesh.MarkDynamic();
@@ -99,7 +101,7 @@ namespace Roguelike
             Camera cam = Camera.main;
             if (cam != null) transform.rotation = cam.transform.rotation;
 
-            _renderer.enabled = _target.IsAlive;
+            _renderer.enabled = _target.IsAlive && !EnemyBars.Covers(_enemy); // work order 042: under the small health bar instead
             float fill = _target.Stagger.Fill;
             bool dazed = _target.IsDazed;
             int flash = dazed ? (Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f ? 1 : 0) : -1;

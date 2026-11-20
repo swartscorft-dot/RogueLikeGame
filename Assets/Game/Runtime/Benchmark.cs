@@ -323,7 +323,7 @@ namespace Roguelike
             GeneratedLevel level = Stage.Level;
             if (Diagnostics.Contains("nogui"))
                 foreach (MonoBehaviour b in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
-                    if (b is SkillBar || b is RunHud || b is TimingFeedback || b is BossHealthBar || b is DebugReadout || b is PlayerSigns)
+                    if (b is SkillBar || b is RunHud || b is TimingFeedback || b is BossHealthBar || b is DebugReadout || b is PlayerSigns || b is EnemyBars)
                         b.enabled = false;
             if (Diagnostics.Contains("nokit") && level != null && level.KitRoot != null) level.KitRoot.gameObject.SetActive(false);
             if (Diagnostics.Contains("noprops") && level != null)
