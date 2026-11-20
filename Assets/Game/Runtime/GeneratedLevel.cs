@@ -463,10 +463,14 @@ namespace Roguelike
         /// What stands at each enemy point (work order 008): the group's enemies of its kind, each where the description
         /// puts it (work order 012: one on the point, a pack round it, a line side by side across it). Every kind has
         /// the floor's health for it (<see cref="LevelValues.HealthOf"/>), the act boss <see cref="LevelValues.BossHealth"/>;
-        /// the practice room's enemies keep their own.
+        /// the practice room's enemies keep their own. Work order 030: what each deals is scaled by the floor
+        /// (<see cref="LevelValues.DamageScaleOf"/>; an elite's own scale times it, the act boss not at all), and an elite
+        /// takes no turns to attack.
         /// </summary>
         void PlaceEnemies(EnemyBrute template)
         {
+            Enemy.Turns.Floor = Layout.Floor; // work order 030: the shared limit of the turns is by floor
+            float floorScale = Values.DamageScaleOf(Layout.Floor); // work order 030, lever B
             foreach (LevelRoom room in Layout.Rooms)
             {
                 for (int i = 0; i < room.EnemyPoints.Count; i++)
@@ -480,12 +484,19 @@ namespace Roguelike
                         Enemy enemy = EnemyFactory.Make(group.Kind, ToWorld(places[m]), transform, template, name);
                         if (enemy == null) continue;
                         enemy.HealthOverride = Values.HealthOf(group.Kind, group.Boss);
+                        // Work order 023: a floor's enemies take turns to attack; an elite does not (work order 030).
+                        enemy.TakesTurns = !group.Elite;
+                        // Work order 023: a floor's brute has the floors' Shockwave reach, from a copy of the asset's numbers.
+                        if (enemy is EnemyBrute brute) brute.FloorValues = Values.FloorBruteValues(template.Values);
                         // The elite (work order 017): its kind's health for the floor times the elite's share, and the rest.
                         if (group.Elite && !group.Boss)
                         {
                             EnemyFactory.MakeElite(enemy, Values.EliteHealthOf(group.Kind), Values.EliteDamageScale, Values.EliteSizeScale, Values.EliteStaggerShare);
                             if (Elite == null) Elite = enemy;
                         }
+                        // Work order 030, lever B: what a floor's enemies deal rises with the floor; an elite's own scale
+                        // multiplies with it; the act boss is not scaled.
+                        if (!group.Boss && enemy.Kind != EnemyKind.Boss) enemy.DamageScale *= floorScale;
                         placed.Members.Add(enemy);
                         if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
                         list.Add(enemy);
@@ -510,6 +521,11 @@ namespace Roguelike
         /// </summary>
         public IReadOnlyList<Enemy> Called => _called;
         readonly List<Enemy> _called = new List<Enemy>();
+        /// <summary>The called swarmers by the room they were called into, for the room's "enemies left" (work order 026).</summary>
+        public IReadOnlyDictionary<int, List<Enemy>> CalledByRoom => _calledByRoom;
+        readonly Dictionary<int, List<Enemy>> _calledByRoom = new Dictionary<int, List<Enemy>>();
+        /// <summary>Raised for each swarmer the boss calls, as it is made: the run's record counts its death (work order 026).</summary>
+        public event System.Action<Enemy> EnemyCalled;
 
         /// <summary>
         /// A pack the boss calls (work order 014): <paramref name="count"/> swarmers of the floor's health, at places
@@ -535,8 +551,13 @@ namespace Roguelike
                                             "Called_" + room.Letter + room.Order + "_" + boss.PacksCalled + "_" + i);
                 if (e == null) continue;
                 e.HealthOverride = Values.HealthOf(EnemyKind.Swarmer);
+                e.TakesTurns = true; // light: never held back, but one of the floor's (work order 023)
+                e.DamageScale = Values.DamageScaleOf(Layout.Floor); // work order 030, lever B: as the floor's own
                 _enemies.Add(e);
                 _called.Add(e);
+                if (!_calledByRoom.TryGetValue(room.Order, out List<Enemy> inRoom)) _calledByRoom[room.Order] = inRoom = new List<Enemy>();
+                inRoom.Add(e);
+                EnemyCalled?.Invoke(e);
                 made.Add(e);
             }
             return made;

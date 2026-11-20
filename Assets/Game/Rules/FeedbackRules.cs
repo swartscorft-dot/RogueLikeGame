@@ -87,7 +87,8 @@ namespace Roguelike.Rules
     /// What a damage number stands for, weakest first: a hit that spent marks, was a perfect release or landed on a
     /// dazed target shows larger and in the colour of its word. A number that sums several hits shows the strongest.
     /// </summary>
-    public enum NumberKind { Plain, Dazed, Marks, MarksFull, Perfect, Hurt }
+    /// <summary>Heal (work order 030): health back when a combat room is cleared, a green "+8" over her.</summary>
+    public enum NumberKind { Plain, Dazed, Marks, MarksFull, Perfect, Hurt, Heal }
 
     /// <summary>The rules of the timing feedback (work order 019, 2026-11-20), with no engine in them.</summary>
     public static class FeedbackRules
@@ -167,6 +168,7 @@ namespace Roguelike.Rules
                 case NumberKind.Marks: return FeedbackTint.Marks;
                 case NumberKind.Dazed: return FeedbackTint.Dazed;
                 case NumberKind.Hurt: return FeedbackTint.Hurt;
+                case NumberKind.Heal: return FeedbackTint.Clean; // work order 030: green
                 default: return FeedbackTint.Plain;
             }
         }

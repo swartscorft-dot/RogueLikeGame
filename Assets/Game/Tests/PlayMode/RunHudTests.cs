@@ -274,7 +274,7 @@ namespace Roguelike.PlayModeTests
             _hud.Escape();
             yield return null;
             Assert.That(_hud.MenuLines, Has.Member(RunHud.MenuLine.Leave));
-            Assert.That(_hud.MenuText(RunHud.MenuLine.Restart), Does.StartWith("Restart the run"));
+            Assert.That(_hud.MenuText(RunHud.MenuLine.Restart), Does.StartWith("New run")); // work order 026: says what it does
             string keys = string.Join("\n", _hud.KeyLines());
             StringAssert.Contains("Move  W A S D", keys);
             StringAssert.Contains("Dash  Space", keys);
@@ -461,6 +461,7 @@ namespace Roguelike.PlayModeTests
                 _levels.FinishFloorForTests();
                 yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
                 Assert.That(_levels.PickReward(0), Is.True, "floor " + floor);
+                if (floor == 1) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice"); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
                 yield return null;
             }
             exitKills += _levels.Level.ExitEnemies.Count;

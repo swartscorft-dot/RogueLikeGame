@@ -97,29 +97,49 @@ namespace Roguelike.Rules.Tests
             }
         }
 
+        // Work order 034 (Grave Rain's lead): a later circle is led by her velocity times LeadSeconds (0.8 s), at most
+        // LeadMost (5 m); it was 1.5 m whatever her speed, and at her full run of 6 m/s a straight run escaped all three.
+        // The brief's intent, at standing, 3 m/s and 6 m/s straight, and a turn: standing still takes three, a straight
+        // run takes the second and third, a change of way avoids them.
+
         [Test]
-        public void GraveRain_SheMovesStraight_TheLaterCirclesAreLed_AndAtTheMovingShotsSpeedTheyHit()
+        public void GraveRain_TheLead_IsHerVelocityTimesLeadSeconds_NoFartherThanLeadMost()
         {
             var v = new CasterValues();
-            // East at 3 m/s, her speed shooting on the move (half her run).
-            const float speed = 3f;
-            var rain = CasterRules.Rain(t => P(speed * t, 0f), t => P(speed, 0f), v, Her);
-            Assert.That(rain[0].place.DistanceTo(P(0f, 0f)), Is.LessThan(1e-5f), "the first where she stood");
-            Assert.That(rain[1].place.DistanceTo(P(speed * 0.5f + v.RainLead, 0f)), Is.LessThan(1e-5f), "the second 1.5 m ahead of her at 0.5 s");
-            Assert.That(rain[2].place.DistanceTo(P(speed * 1.0f + v.RainLead, 0f)), Is.LessThan(1e-5f), "the third 1.5 m ahead of her at 1 s");
-            Assert.That(rain.Select(c => c.hit), Is.EqualTo(new[] { false, true, true }), "a straight walk takes the second and third");
-
-            // At her full run (6 m/s) she is 4.5 m past each led circle when it bursts: they miss too (see the report).
-            var running = CasterRules.Rain(t => P(6f * t, 0f), t => P(6f, 0f), v, Her);
-            TestContext.WriteLine("CASTERRAIN straight at 6 m/s: hits " + string.Join(", ", running.Select(c => c.hit)));
-            Assert.That(running.Select(c => c.hit), Is.EqualTo(new[] { false, false, false }));
+            Assert.That((v.LeadSeconds, v.LeadMost), Is.EqualTo((0.8f, 5f)));
+            Assert.That(CasterRules.Lead(P(0f, 0f), v).Length, Is.EqualTo(0f), "standing: none");
+            Assert.That(CasterRules.Lead(P(0.4f, 0f), v).Length, Is.EqualTo(0f), "slower than MovingOver: none");
+            Assert.That(CasterRules.Lead(P(3f, 0f), v).DistanceTo(P(2.4f, 0f)), Is.LessThan(1e-5f), "3 m/s: 2.4 m ahead");
+            Assert.That(CasterRules.Lead(P(0f, -6f), v).DistanceTo(P(0f, -4.8f)), Is.LessThan(1e-5f), "6 m/s: 4.8 m ahead");
+            Assert.That(CasterRules.Lead(P(10f, 0f), v).DistanceTo(P(5f, 0f)), Is.LessThan(1e-5f), "10 m/s (a dash): no farther than 5 m");
+            Assert.That(CasterRules.RainPlace(0, P(1f, 1f), P(6f, 0f), v).DistanceTo(P(1f, 1f)), Is.LessThan(1e-5f), "the first circle is never led");
         }
 
-        [Test]
-        public void GraveRain_SheTurnsAfterEachCircle_TheSecondAndThirdMiss()
+        [TestCase(3f)]
+        [TestCase(6f)]
+        public void GraveRain_SheMovesStraight_TheLaterCirclesAreLed_AndTheSecondAndThirdHit(float speed)
         {
             var v = new CasterValues();
-            const float s = 3f;
+            // East at this speed: 3 m/s is hers shooting on the move (half her run), 6 m/s her full run.
+            var rain = CasterRules.Rain(t => P(speed * t, 0f), t => P(speed, 0f), v, Her);
+            float lead = speed * v.LeadSeconds;
+            Assert.That(rain[0].place.DistanceTo(P(0f, 0f)), Is.LessThan(1e-5f), "the first where she stood");
+            Assert.That(rain[1].place.DistanceTo(P(speed * 0.5f + lead, 0f)), Is.LessThan(1e-4f), "the second led from where she is at 0.5 s");
+            Assert.That(rain[2].place.DistanceTo(P(speed * 1.0f + lead, 0f)), Is.LessThan(1e-4f), "the third led from where she is at 1 s");
+            for (int i = 1; i < 3; i++)
+            {
+                float burst = CasterRules.RainBurstAt(i, v);
+                TestContext.WriteLine(string.Format(s_Inv, "CASTERRAIN straight at {0} m/s: circle {1} placed {2:0.00} m ahead of her, bursts with her {3:0.00} m from its middle (radius {4})",
+                    speed, i + 1, lead, rain[i].place.DistanceTo(P(speed * burst, 0f)), CasterTactics.Find(v.Enemy, CasterValues.GraveRain).Radius));
+            }
+            Assert.That(rain.Select(c => c.hit), Is.EqualTo(new[] { false, true, true }), "a straight run takes the second and third");
+        }
+
+        [TestCase(3f)]
+        [TestCase(6f)]
+        public void GraveRain_SheTurnsAfterEachCircle_TheSecondAndThirdMiss(float s)
+        {
+            var v = new CasterValues();
             // East until 0.6 s, north until 1.1 s, then west: a turn just after each later circle is placed.
             GroundPoint At(float t) =>
                 t <= 0.6f ? P(s * t, 0f)
@@ -127,8 +147,10 @@ namespace Roguelike.Rules.Tests
                 : P(s * 0.6f - s * (t - 1.1f), s * 0.5f);
             GroundPoint Velocity(float t) => t < 0.6f ? P(s, 0f) : t < 1.1f ? P(0f, s) : P(-s, 0f);
             var rain = CasterRules.Rain(At, Velocity, v, Her);
-            Assert.That(rain[1].place.DistanceTo(P(s * 0.5f + v.RainLead, 0f)), Is.LessThan(1e-5f), "led east");
-            Assert.That(rain[2].place.DistanceTo(P(s * 0.6f, s * 0.4f + v.RainLead)), Is.LessThan(1e-5f), "led north");
+            float lead = s * v.LeadSeconds;
+            Assert.That(rain[1].place.DistanceTo(P(s * 0.5f + lead, 0f)), Is.LessThan(1e-4f), "led east");
+            Assert.That(rain[2].place.DistanceTo(P(s * 0.6f, s * 0.4f + lead)), Is.LessThan(1e-4f), "led north");
+            TestContext.WriteLine("CASTERRAIN turning at " + s + " m/s: hits " + string.Join(", ", rain.Select(c => c.hit)));
             Assert.That(rain[1].hit, Is.False, "turning avoids the second");
             Assert.That(rain[2].hit, Is.False, "and the third");
         }
@@ -188,10 +210,13 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The floors ----------------
 
+        /// <summary>The casters switched on (work order 034: they are off by default), the rest as the defaults.</summary>
+        static LevelValues On() => new LevelValues { Casters = true };
+
         [Test]
         public void TheMixesPerFloor_HoldCastersFromFloor2_AsData_AndTheCapsAreAsTheOrderSays()
         {
-            var v = new LevelValues();
+            var v = On(); // work order 034: with the casters on; off, every cap is 0 (TheSwitchOff_...)
             int[][] want = { new[] { 0, 0, 0 }, new[] { 0, 0, 1 }, new[] { 0, 1, 1 }, new[] { 0, 1, 2 }, new[] { 1, 1, 2 } };
             for (int floor = 1; floor <= 5; floor++)
             {
@@ -213,7 +238,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ACaster_TakesTheMixesPlaceOfAShooterOrABrute_TheRoomsCountStaysTheSame()
         {
-            var with = new LevelValues();
+            var with = On(); // work order 034: the casters on
             var without = NoCasters();
             for (ulong s = 0; s < 200; s++)
                 foreach (RoomKind kind in new[] { RoomKind.Combat, RoomKind.Exit })
@@ -231,13 +256,20 @@ namespace Roguelike.Rules.Tests
                         Assert.That(Of(a, EnemyKind.Shooter) + Of(a, EnemyKind.Brute) + casters,
                                     Is.EqualTo(Of(b, EnemyKind.Shooter) + Of(b, EnemyKind.Brute)), what + ": in place of shooters and brutes");
                         Assert.That(a.Where(g => g.Kind == EnemyKind.Caster).All(g => g.Count == 1), what + ": each alone");
+                        // Work order 034: after the caps, so the caps on brutes and shooters still hold.
+                        int more = kind == RoomKind.Exit ? with.ExitRoomKindMore : 0;
+                        Assert.That(Of(a, EnemyKind.Brute), Is.LessThanOrEqualTo(with.BrutesMostInRoom + more), what + ": the brutes' cap");
+                        Assert.That(Of(a, EnemyKind.Shooter), Is.LessThanOrEqualTo(with.ShootersMostInRoom + more), what + ": the shooters' cap");
                     }
         }
 
-        /// <summary>The values as they were before work order 027: no caster anywhere.</summary>
+        /// <summary>
+        /// The merged rules with the caster code bypassed (work order 034): the switch on, but no mix holds one, no room may
+        /// and no elite can be one. Before work order 034 the values as they were before work order 027.
+        /// </summary>
         static LevelValues NoCasters()
         {
-            var v = new LevelValues { CastersMostInRoom = new[] { 0 }, EliteCasterFromFloor = 99 };
+            var v = new LevelValues { Casters = true, CastersMostInRoom = new[] { 0 }, EliteCasterFromFloor = 99 };
             foreach (FloorEnemies f in v.Floors)
                 foreach (EnemyMix m in f.Mixes) m.Casters = 0;
             return v;
@@ -249,10 +281,10 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Floor1_IsUnchanged_ByTheCasters()
         {
-            LevelValues none = NoCasters();
+            LevelValues none = NoCasters(), on = On(); // work order 034: with the casters on
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, 1);
+                LevelLayout level = LevelGenerator.Generate(s, 1, on);
                 Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster on floor 1, seed " + s);
                 Assert.That(level.Describe(), Is.EqualTo(LevelGenerator.Generate(s, 1, none).Describe()), "seed " + s);
             }
@@ -265,18 +297,28 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandSeeds_EveryRoomsCastersAreWithinItsCap_AtTheFarSide_AndApart(int floor)
         {
-            var v = new LevelValues();
+            var v = On(); // work order 034: with the casters on, and within both sets of caps (the casters' and main's)
             var perFloor = new List<int>();
             int rooms = 0, roomsWith = 0, eliteCasters = 0;
             double nearestApart = double.MaxValue;
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor);
+                LevelLayout level = LevelGenerator.Generate(s, floor, v); // valid under these values, or it throws
                 int onFloor = 0;
                 foreach (LevelRoom r in level.Rooms)
                 {
                     int casters = r.EnemyGroups.Where(g => g.Kind == EnemyKind.Caster && !g.Elite).Sum(g => g.Count);
                     Assert.That(casters, Is.LessThanOrEqualTo(v.CastersMost(r.Kind, floor)), "seed " + s + " room " + r.Order + " (" + r.Kind + ")");
+                    int more = r.Kind == RoomKind.Exit ? v.ExitRoomKindMore : 0;
+                    Assert.That(r.EnemyGroups.Where(g => g.Kind == EnemyKind.Brute && !g.Elite).Sum(g => g.Count), Is.LessThanOrEqualTo(v.BrutesMostInRoom + more),
+                                "the brutes' cap, seed " + s + " room " + r.Order);
+                    Assert.That(r.EnemyGroups.Where(g => g.Kind == EnemyKind.Shooter && !g.Elite).Sum(g => g.Count), Is.LessThanOrEqualTo(v.ShootersMostInRoom + more),
+                                "the shooters' cap, seed " + s + " room " + r.Order);
+                    if (r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit)
+                    {
+                        v.EnemyRange(r.Kind, floor, out int fewest, out int most);
+                        Assert.That(r.EnemyGroups.Where(g => !g.Elite && !g.Boss).Sum(g => g.Count), Is.InRange(fewest, most), "the room's count, seed " + s + " room " + r.Order);
+                    }
                     if (r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit)
                     {
                         rooms++;
@@ -312,16 +354,17 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Validator_ReportsTooManyCasters_AndTwoCastersNearEachOther()
         {
-            LevelLayout level = LevelGenerator.Generate(42UL, 1);
-            Assume.That(LevelValidator.Validate(level), Is.Empty);
+            LevelValues on = On(); // work order 034: with the casters on
+            LevelLayout level = LevelGenerator.Generate(42UL, 1, on);
+            Assume.That(LevelValidator.Validate(level, on), Is.Empty);
             LevelRoom room = level.Rooms.First(r => r.Kind == RoomKind.Combat && !r.Elite);
             int i = room.EnemyGroups.FindIndex(g => g.Count == 1 && g.Kind != EnemyKind.Guard);
             Assume.That(i, Is.GreaterThanOrEqualTo(0));
             room.EnemyGroups[i] = new EnemyGroup(EnemyKind.Caster);
-            Assert.That(LevelValidator.Validate(level).Any(f => f.Contains("casters, floor 1 at most 0")), string.Join("\n", LevelValidator.Validate(level)));
+            Assert.That(LevelValidator.Validate(level, on).Any(f => f.Contains("casters, floor 1 at most 0")), string.Join("\n", LevelValidator.Validate(level, on)));
 
-            LevelLayout four = LevelGenerator.Generate(42UL, 4);
-            Assume.That(LevelValidator.Validate(four), Is.Empty);
+            LevelLayout four = LevelGenerator.Generate(42UL, 4, on);
+            Assume.That(LevelValidator.Validate(four, on), Is.Empty);
             // Two enemies standing alone in a room of floor 4 made casters, the nearest two such: nearer than 8 m, a fault.
             LevelRoom r4 = null;
             int a = -1, b = -1;
@@ -339,8 +382,85 @@ namespace Roguelike.Rules.Tests
                 if (r4.EnemyGroups[k].Kind == EnemyKind.Caster) r4.EnemyGroups[k] = new EnemyGroup(EnemyKind.Brute);
             r4.EnemyGroups[a] = new EnemyGroup(EnemyKind.Caster);
             r4.EnemyGroups[b] = new EnemyGroup(EnemyKind.Caster);
-            List<string> faults = LevelValidator.Validate(four);
+            List<string> faults = LevelValidator.Validate(four, on);
             Assert.That(faults.Any(f => f.Contains("casters " + a + " and " + b + " are nearer")), string.Join("\n", faults));
+        }
+
+        // ---------------- Work order 034: the switch, the turns, the sounds and effects ----------------
+
+        // Off (the default), no floor holds a caster and no elite is one, and every seed's rooms, enemies and elites are
+        // exactly what the merged rules give with the caster code bypassed: a thousand seeds a floor number, every field
+        // but the props compared with the props on (their themes are drawn from their own stream), and with the themes off
+        // the whole floor. (The golden maps of LevelGeneratorTests compare four of them with main's version 7 maps.)
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(5)]
+        public void TheSwitchOff_GivesNoCaster_AndTheFloorsOfTheRulesWithTheCasterCodeBypassed(int floor)
+        {
+            var off = new LevelValues();
+            Assert.That(off.Casters, Is.False, "off by default");
+            LevelValues bypassed = NoCasters();
+            for (int f = 1; f <= 5; f++)
+            {
+                Assert.That(off.CastersMost(RoomKind.Combat, f) + off.CastersMost(RoomKind.Exit, f), Is.EqualTo(0), "no room may hold one, floor " + f);
+                Assert.That(off.EliteKinds(f), Has.No.Member(EnemyKind.Caster), "no elite may be one, floor " + f);
+            }
+            for (ulong s = 0; s < 1000; s++)
+            {
+                LevelLayout level = LevelGenerator.Generate(s, floor, off);
+                Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster, seed " + s);
+                Assert.That(level.Describe(props: false), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassed).Describe(props: false)), "seed " + s);
+                if (s % 10 == 0)
+                {
+                    var themesOff = new LevelValues { Themes = false };
+                    var bypassedThemesOff = NoCasters();
+                    bypassedThemesOff.Themes = false;
+                    Assert.That(LevelGenerator.Generate(s, floor, themesOff).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassedThemesOff).Describe()),
+                                "seed " + s + ", props too, with the themes off");
+                }
+            }
+        }
+
+        [Test]
+        public void ACaster_IsRangedForTheTurnsToAttack()
+        {
+            Assert.That(AttackTurns.SortOf(EnemyKind.Caster), Is.EqualTo(TurnSort.Ranged), "it waits with the shooters");
+            var turns = new AttackTurns();
+            // Two ranged winding up (a shooter and a caster): a third ranged waits; light ones never do.
+            Assert.That(turns.Ask(1, AttackTurns.SortOf(EnemyKind.Shooter), 0f), Is.True);
+            turns.Began(1, TurnSort.Ranged, 0f, 1.4f);
+            Assert.That(turns.Ask(2, AttackTurns.SortOf(EnemyKind.Caster), 1f), Is.True);
+            turns.Began(2, TurnSort.Ranged, 1f, 1.4f);
+            Assert.That(turns.Ask(3, AttackTurns.SortOf(EnemyKind.Caster), 1.2f), Is.False, "a caster waits its turn as a ranged enemy");
+            Assert.That(turns.Ask(4, TurnSort.None, 1.2f), Is.True, "an elite takes no turn: of no sort, never held");
+        }
+
+        [Test]
+        public void TheTurnsQuestion_DoesNotCountACast()
+        {
+            var v = new CasterValues();
+            var tactics = new CasterTactics();
+            for (int i = 0; i < 5; i++) Assert.That(tactics.Peek(10f, v).Name, Is.EqualTo(CasterValues.BoneSpikes));
+            Assert.That(tactics.Casts, Is.EqualTo(0), "asking is not casting");
+            Assert.That(tactics.Peek(20f, v), Is.Null, "out of its band");
+            tactics.Choose(10f, v);
+            tactics.Choose(10f, v);
+            Assert.That(tactics.Peek(10f, v).Name, Is.EqualTo(CasterValues.GraveRain), "the cast order holds");
+        }
+
+        [Test]
+        public void ItsSounds_AndItsSizeForTheEffects()
+        {
+            Assert.That(PlaceholderSoundRules.SoundFor(SoundMoment.WindupStarted, EnemyKind.Caster, false), Is.EqualTo(PlaceholderSound.WindupRed), "Bone Spikes begins: red");
+            Assert.That(PlaceholderSoundRules.SoundFor(SoundMoment.WindupStarted, EnemyKind.Caster, true), Is.EqualTo(PlaceholderSound.WindupBlue), "Grave Rain begins: blue");
+            Assert.That(PlaceholderSoundRules.SoundFor(SoundMoment.EnemyStruck, EnemyKind.Caster), Is.EqualTo(PlaceholderSound.Strike), "a circle bursts: the strike");
+            var sizes = new FxSizes();
+            Assert.That(sizes.KindScale(EnemyKind.Caster), Is.EqualTo(sizes.KindScale(EnemyKind.Shooter)), "a shooter's size");
+            Assert.That(sizes.ShardCount(EnemyKind.Caster), Is.EqualTo(sizes.ShardCount(EnemyKind.Shooter)));
+            Assert.That(CombatFxRules.StrikeShapes(CasterTactics.Find(new CasterValues().Enemy, CasterValues.BoneSpikes).Shape), Is.EqualTo(new[] { FxShape.Ring, FxShape.Spark }),
+                        "its burst is a circle strike: no new shape");
         }
 
         // ---------------- The summary ----------------

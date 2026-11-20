@@ -11,7 +11,8 @@ namespace Roguelike.Rules
     /// <see cref="BoneSpikes"/>: one circle where she stands when the wind-up begins, bursting at its end. <see cref="GraveRain"/>
     /// (blue, counterable): <see cref="RainCircles"/> circles one after another, the first where she stands when the wind-up
     /// begins and bursting at the end of the attack's wind-up, each next one <see cref="RainEvery"/> after the one before,
-    /// where she stands then moved <see cref="RainLead"/> along the way she is moving, bursting
+    /// where she stands then moved along the way she is moving by her velocity times <see cref="LeadSeconds"/> (at most
+    /// <see cref="LeadMost"/>), bursting
     /// <see cref="RainLaterWindup"/> after it is placed (<see cref="CasterRules"/>). Every <see cref="BigCastEvery"/>th cast
     /// is a Grave Rain (<see cref="CasterTactics"/>). The brain's windup of Grave Rain is its first circle's, so its strike
     /// is the first burst and a counter can drop it only before then.
@@ -45,8 +46,13 @@ namespace Roguelike.Rules
         public int RainCircles = 3;         // circles of a Grave Rain
         public float RainEvery = 0.5f;      // s between two circles of a Grave Rain being placed
         public float RainLaterWindup = 1f;  // s from a later circle of a Grave Rain being placed to its burst
-        public float RainLead = 1.5f;       // m a later circle is moved along the way she is moving
-        public float MovingOver = 0.5f;     // m/s: she counts as moving above this
+        // A later circle's lead (work order 034, 2026-11-20): her velocity times this, so it is where she will be about
+        // when it bursts, no farther than LeadMost. 1.5 m whatever her speed before (work order 027): at her full run of
+        // 6 m/s she was 4.5 m past each led circle when it burst, so a straight run escaped all three, which defeated the
+        // cast. Now standing still takes all three, a straight run the second and third, a change of way none of those.
+        public float LeadSeconds = 0.8f;    // s of her velocity
+        public float LeadMost = 5f;         // m at most
+        public float MovingOver = 0.5f;     // m/s: she counts as moving above this; slower, no lead
         public float KeepNear = 9f;         // m: it backs off to at least this far
         public float KeepFar = 13f;         // m: it walks closer when she is farther than this
         public float BackOffUnder = 6f;     // m: it starts to back off when she is nearer than this
@@ -75,10 +81,20 @@ namespace Roguelike.Rules
         /// </summary>
         public EnemyAttackDefinition Choose(float distance, CasterValues v)
         {
-            EnemyAttackDefinition a = Find(v.Enemy, Next(v));
-            if (a == null || distance < a.MinDistance || distance > a.MaxDistance) return null;
+            EnemyAttackDefinition a = Peek(distance, v);
+            if (a == null) return null;
             Casts++;
             return a;
+        }
+
+        /// <summary>
+        /// The next cast when its band holds her, else null, counting nothing (work order 034: the turns to attack ask
+        /// before the brain begins a wind-up, and a question must not move the cast order).
+        /// </summary>
+        public EnemyAttackDefinition Peek(float distance, CasterValues v)
+        {
+            EnemyAttackDefinition a = Find(v.Enemy, Next(v));
+            return a == null || distance < a.MinDistance || distance > a.MaxDistance ? null : a;
         }
 
         /// <summary>The attack of this name in the values, or null.</summary>
@@ -99,14 +115,22 @@ namespace Roguelike.Rules
     {
         /// <summary>
         /// Where circle <paramref name="index"/> (from 0) of a Grave Rain is placed: the first where she stands; a later one
-        /// where she stands, moved <see cref="CasterValues.RainLead"/> along the way she is moving when she moves faster than
-        /// <see cref="CasterValues.MovingOver"/>.
+        /// where she stands, moved by <see cref="Lead"/> along the way she is moving.
         /// </summary>
-        public static GroundPoint RainPlace(int index, GroundPoint her, GroundPoint velocity, CasterValues v)
+        public static GroundPoint RainPlace(int index, GroundPoint her, GroundPoint velocity, CasterValues v) =>
+            index <= 0 ? her : her + Lead(velocity, v);
+
+        /// <summary>
+        /// How far a later circle of a Grave Rain is moved from her, along the way she is moving (work order 034): her
+        /// velocity times <see cref="CasterValues.LeadSeconds"/>, no longer than <see cref="CasterValues.LeadMost"/>; none
+        /// when she moves no faster than <see cref="CasterValues.MovingOver"/>.
+        /// </summary>
+        public static GroundPoint Lead(GroundPoint velocity, CasterValues v)
         {
             float speed = velocity.Length;
-            if (index <= 0 || speed <= v.MovingOver || speed < 1e-5f) return her;
-            return her + velocity * (v.RainLead / speed);
+            if (speed <= v.MovingOver || speed < 1e-5f) return new GroundPoint(0f, 0f);
+            float lead = Math.Min(speed * Math.Max(0f, v.LeadSeconds), Math.Max(0f, v.LeadMost));
+            return velocity * (lead / speed);
         }
 
         /// <summary>When circle <paramref name="index"/> of a Grave Rain is placed.</summary>

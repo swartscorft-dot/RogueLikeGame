@@ -79,7 +79,7 @@ namespace Roguelike.Rules.Tests
         // ---------------- A thousand seeds ----------------
 
         /// <summary>The longest one generation with props may take, in milliseconds. Measured: see the output of the test.</summary>
-        const double SlowestAllowedMs = 150; // 50 until work order 028: raised for other work on the machine, as on main
+        const double SlowestAllowedMs = 150; // 50 until 2026-11-20: see LevelGeneratorTests, the same bound for the same reason (main and work order 028 alike)
 
         [Test]
         public void AThousandSeeds_AllValidWithProps_KeepTheirRoomsAndEnemies_AndAreQuick()

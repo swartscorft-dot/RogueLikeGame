@@ -35,7 +35,10 @@ namespace Roguelike
         {
             if (!_frozen)
             {
-                _restoreScale = Time.timeScale;
+                // Never a scale below 1 (the review of 2026-11-20, work order 026): a slower one belongs to a pause, a
+                // choice or the end of a run, and GeneratedLevels sets that every frame after any hit stop has let go.
+                // Kept, a 0.4 from the end's slow-down would come back after a new run had set 1.
+                _restoreScale = Mathf.Max(1f, Time.timeScale);
                 Time.timeScale = 0f;
                 _frozen = true;
             }

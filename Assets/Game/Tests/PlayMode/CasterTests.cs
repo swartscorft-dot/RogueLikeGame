@@ -513,7 +513,9 @@ namespace Roguelike.PlayModeTests
             Vector3 toCaster = Flat(caster.transform.position - _player.Position).normalized;
             Vector3 a = Vector3.Cross(Vector3.up, toCaster);
             if (Room(_player.Position, a, 10f, out _) < Room(_player.Position, -a, 10f, out _)) a = -a;
-            Vector3 b = Room(_player.Position, -toCaster, 6f, out _) >= 5f ? -toCaster : toCaster;
+            // Room enough for the circles led 0.8 s of her run ahead (work order 034): about 8 m each way.
+            Vector3 b = Room(_player.Position, -toCaster, 10f, out _) >= 9f ? -toCaster : toCaster;
+            Debug.Log(string.Format(s_Inv, "CASTERTURNROOM across {0:0.0} m, away {1:0.0} m", Room(_player.Position, a, 12f, out _), Room(_player.Position, -toCaster, 12f, out _)));
             yield return Until(() => Casting(caster, CasterValues.GraveRain), 4f);
             int first = caster.Circles.Count - 1;
             int health = _health.Current;
@@ -525,7 +527,8 @@ namespace Roguelike.PlayModeTests
                 yield return Until(() => caster.Circles.Count - first >= want, 2f);
                 Assert.That(caster.Circles.Count - first, Is.EqualTo(n), "circle " + n + " placed");
                 Vector3 vel = Flat(_player.Velocity);
-                expected[n - 1] = Flat(_player.Position) + (vel.magnitude > values.MovingOver ? vel.normalized * values.RainLead : Vector3.zero);
+                GroundPoint lead = CasterRules.Lead(new GroundPoint(vel.x, vel.z), values); // work order 034: her velocity times 0.8 s
+                expected[n - 1] = Flat(_player.Position) + new Vector3(lead.X, 0f, lead.Z);
                 yield return For(0.1f);
                 _player.Steer(n == 2 ? b : -a);
             }
@@ -533,7 +536,7 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => circles.All(c => c.HasBurst), 3f);
             _player.Steer(Vector3.zero);
             for (int i = 1; i < 3; i++)
-                Assert.That(Flat(circles[i].Center, expected[i]), Is.LessThan(0.3f), "circle " + (i + 1) + " 1.5 m along the way she was moving");
+                Assert.That(Flat(circles[i].Center, expected[i]), Is.LessThan(0.3f), "circle " + (i + 1) + " led along the way she was moving");
             Assert.That(circles.All(c => c.HasBurst), Is.True);
             Debug.Log("CASTERTURN hits " + string.Join(", ", circles.Select(c => c.Hit)) + "; her speed " + _player.SpeedLimit);
             Assert.That(circles[1].Hit, Is.False, "the turn avoids the second");
@@ -623,7 +626,8 @@ namespace Roguelike.PlayModeTests
             int first = caster.Circles.Count - 1;
             float start = caster.Circles[first].PlacedAt;
             int off = caster.CirclesOffGround;
-            // Her speed, measured; then she runs at the edge so that the second circle's place, 1.5 m ahead of her, is past it.
+            // Her speed, measured; then she runs at the edge so that the second circle's place, led ahead of her (her velocity
+            // times 0.8 s since work order 034), is past it.
             _player.Teleport(edge - dir * 6f);
             _player.Steer(dir);
             yield return For(0.06f);
@@ -651,6 +655,7 @@ namespace Roguelike.PlayModeTests
             caster.Body.TakeHit(caster.Body.MaxHealth);
             yield return null;
             Assert.That(caster.IsDead, Is.True);
+            Assert.That(caster.GetComponent<NavMeshAgent>().enabled, Is.False, "dead, no obstacle to anyone (work order 030's StayDead, work order 034)");
             Assert.That(c.IsShown, Is.True, "its circle stays");
             yield return Until(() => c.HasBurst, 2f);
             Assert.That(c.HasBurst && c.Hit, Is.True, "and goes off on her");
@@ -672,14 +677,171 @@ namespace Roguelike.PlayModeTests
             Assert.That(caster.CirclesOffGround, Is.EqualTo(0));
         }
 
+        // ---------------- Work order 034: the turns, the floor's damage, the sounds and effects ----------------
+
+        /// <summary>Two ranged wind-ups that are not enemies hold every ranged turn for this long.</summary>
+        static void FillRangedTurns(float seconds)
+        {
+            Enemy.Turns.Clear();
+            Enemy.Turns.Values = new TurnValues();
+            Enemy.Turns.Began(-1001, TurnSort.Ranged, Time.time, seconds);
+            Enemy.Turns.Began(-1002, TurnSort.Ranged, Time.time, seconds);
+        }
+
+        [UnityTest]
+        public IEnumerator AFloorsCaster_WaitsItsTurnAsARangedEnemy_AndAnEliteCasterDoesNot()
+        {
+            EnemyCaster floor = Spawn();
+            floor.TakesTurns = true; // as a generated floor's (GeneratedLevel.PlaceEnemies)
+            Assert.That(floor.AttackSort, Is.EqualTo(TurnSort.Ranged));
+            try
+            {
+                FillRangedTurns(4f);
+                yield return Until(() => Enemy.Turns.IsWaiting(floor.Id, Time.time), 4f);
+                Assert.That(Enemy.Turns.IsWaiting(floor.Id, Time.time), Is.True, "it asks for a turn");
+                yield return For(1.5f);
+                Assert.That(floor.CastsBegun, Is.EqualTo(0), "and waits while two ranged wind up");
+                Assert.That(floor.State, Is.Not.EqualTo(EnemyState.Windup));
+                Assert.That(floor.NextCast, Is.EqualTo(CasterValues.BoneSpikes), "asking counts no cast: its order holds");
+                yield return Until(() => floor.State == EnemyState.Windup, 6f);
+                Assert.That(floor.State, Is.EqualTo(EnemyState.Windup), "its turn came");
+                Assert.That(floor.CastsBegun, Is.EqualTo(1));
+                Assert.That(floor.Attack.Name, Is.EqualTo(CasterValues.BoneSpikes), "its first cast, the order untouched by the questions");
+                floor.Body.TakeHit(floor.Body.MaxHealth);
+
+                // An elite caster: of no sort for the turns, never held back.
+                EnemyCaster elite = Spawn();
+                elite.TakesTurns = true;
+                EnemyFactory.MakeElite(elite, 2000, 1.25f, 4f / 3f, 0.5f);
+                Assert.That(elite.IsElite, Is.True);
+                FillRangedTurns(6f);
+                yield return Until(() => elite.State == EnemyState.Windup, 4f);
+                Assert.That(elite.State, Is.EqualTo(EnemyState.Windup), "an elite caster takes no turn");
+                Assert.That(Enemy.Turns.IsWaiting(elite.Id, Time.time), Is.False);
+            }
+            finally
+            {
+                Enemy.Turns.Clear();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AFloor2sCastersCircle_HurtsByTheFloorsScale_AndThePracticeRoomsByAllOfIt()
+        {
+            // The practice room's caster: unscaled.
+            EnemyCaster practice = Spawn();
+            Assert.That(practice.DamageScale, Is.EqualTo(1f));
+            int got = -1;
+            practice.Reported += r => { if (r.Kind == EnemyReportKind.Struck && r.Outcome == StrikeOutcome.Landed && got < 0) got = r.Damage; };
+            yield return Until(() => got >= 0, 6f);
+            EnemyAttackDefinition spikes = CasterTactics.Find(practice.Tuning.Enemy, CasterValues.BoneSpikes);
+            Assert.That(got, Is.EqualTo(spikes.Damage), "the practice room's: all of its damage");
+            _levels.ClearSpawned();
+
+            // A floor 2 with the casters on: its casters are made with the floor's scale, and a circle of one hurts by it.
+            var values = new LevelValues { Casters = true };
+            _levels.Values = values;
+            ulong seed = 0;
+            while (!LevelGenerator.Generate(seed, 2, values).Rooms.Any(r => r.EnemyGroups.Any(g => g.Kind == EnemyKind.Caster && !g.Elite))) seed++;
+            GeneratedLevel level = _levels.Build(seed, 2);
+            yield return null;
+            EnemyCaster caster = level.Enemies.OfType<EnemyCaster>().First(e => !e.IsElite);
+            float scale = values.DamageScaleOf(2);
+            Assert.That(scale, Is.EqualTo(0.8f));
+            Assert.That(caster.DamageScale, Is.EqualTo(scale).Within(1e-5f), "the floor's scale");
+            Assert.That(caster.TakesTurns, Is.True, "a floor's caster takes turns");
+            Assert.That(caster.Body.MaxHealth, Is.EqualTo(values.CasterHealth));
+            got = -1;
+            caster.Reported += r => { if (r.Kind == EnemyReportKind.Struck && r.Outcome == StrikeOutcome.Landed && got < 0) got = r.Damage; };
+            Vector3 toMiddle = Flat(level.Middle(level.Layout.Rooms.First(r => level.EnemiesByRoom.TryGetValue(r.Order, out List<Enemy> l) && l.Contains(caster))) - caster.transform.position);
+            Vector3 dir = toMiddle.sqrMagnitude > 1f ? toMiddle.normalized : -caster.transform.forward;
+            _player.Teleport(Flat(caster.transform.position) + dir * 8f);
+            yield return Until(() => got >= 0, 15f);
+            Debug.Log(string.Format(s_Inv, "CASTERFLOOR2 seed {0}: a circle of a floor-2 caster hurt her by {1} ({2} times {3})", seed, got, scale, spikes.Damage));
+            Assert.That(got, Is.EqualTo(Mathf.RoundToInt(spikes.Damage * scale)), "a floor-2 caster's Bone Spikes: 0.8 of 25");
+            _levels.BackToPracticeRoom();
+        }
+
+        [UnityTest]
+        public IEnumerator ItsCasts_AskForTheWindupSoundAndEffect_ItsBursts_TheStrikeSoundAndTheCircleStrikeAtTheCircle()
+        {
+            PlaceholderSounds sounds = PlaceholderSounds.Ensure();
+            CombatEffects fx = CombatEffects.Ensure();
+            _made.Add(sounds.gameObject);
+            _made.Add(fx.gameObject);
+            var heard = new List<PlaceholderSoundRequest>();
+            var drawn = new List<(FxPiece p, int frame)>();
+            void Hear(PlaceholderSoundRequest r) => heard.Add(r);
+            void Draw(CombatFx f) => drawn.Add((f.Piece, Time.frameCount));
+            PlaceholderSounds.Requested += Hear;
+            CombatEffects.Spawned += Draw;
+            try
+            {
+                yield return null;
+                EnemyCaster caster = Spawn(v => v.BigCastEvery = 2); // Bone Spikes, then a Grave Rain
+                CombatFxValues fv = fx.Values;
+
+                foreach (string cast in new[] { CasterValues.BoneSpikes, CasterValues.GraveRain })
+                {
+                    bool blue = cast == CasterValues.GraveRain;
+                    int windupAt = -1;
+                    yield return Until(() => { if (Casting(caster, cast)) windupAt = Time.frameCount; return windupAt >= 0; }, 10f);
+                    Assert.That(windupAt, Is.GreaterThan(0), cast + " begun");
+                    yield return null; // the sounds go at the frame's end
+                    Assert.That(heard.Count(r => r.Frame == windupAt && r.Sound == (blue ? PlaceholderSound.WindupBlue : PlaceholderSound.WindupRed)), Is.EqualTo(1),
+                                cast + ": the " + (blue ? "blue" : "red") + " wind-up sound; heard " + string.Join(", ", heard.Select(h => h.Sound + "@" + h.Frame)));
+                    List<FxPiece> windups = drawn.Where(d => d.frame == windupAt && d.p.Moment == FxMoment.WindupStarted).Select(d => d.p).ToList();
+                    Assert.That(windups.Count, Is.EqualTo(1), cast + ": the wind-up effect");
+                    Assert.That(Flat(windups[0].At, caster.transform.position), Is.LessThan(0.05f), "on the caster");
+                    Assert.That(windups[0].Rim, Is.EqualTo(blue ? fv.CounterRim : fv.StrikeRim), "in its telegraph's colour");
+                    Assert.That(windups[0].Size, Is.EqualTo(fv.WindupSize * new FxSizes().KindScale(EnemyKind.Shooter)).Within(1e-4f), "a shooter's size");
+
+                    EnemyCaster.Circle circle = caster.Circles.Last();
+                    int burstAt = -1;
+                    yield return Until(() => { if (circle.HasBurst) burstAt = Time.frameCount; return burstAt >= 0; }, 4f);
+                    Assert.That(burstAt, Is.GreaterThan(0), cast + ": its first circle burst");
+                    yield return null;
+                    Assert.That(heard.Count(r => r.Frame == burstAt && r.Sound == PlaceholderSound.Strike), Is.EqualTo(1), cast + ": the strike sound as it bursts");
+                    List<FxPiece> rings = drawn.Where(d => d.frame == burstAt && d.p.Moment == FxMoment.EnemyStruck && d.p.Shape == FxShape.Ring).Select(d => d.p).ToList();
+                    List<FxPiece> stars = drawn.Where(d => d.frame == burstAt && d.p.Moment == FxMoment.EnemyStruck && d.p.Shape == FxShape.Spark).Select(d => d.p).ToList();
+                    Assert.That(rings.Count, Is.EqualTo(1), cast + ": the circle strike's ring");
+                    Assert.That(stars.Count, Is.EqualTo(1), cast + ": and its star");
+                    Assert.That(Flat(rings[0].At, circle.Center), Is.LessThan(0.05f), "at the circle, not at the caster");
+                    Assert.That(Flat(stars[0].At, circle.Center), Is.LessThan(0.05f));
+                    Assert.That(Flat(circle.Center, caster.transform.position), Is.GreaterThan(3f), "which is away from the caster");
+                    Assert.That(rings[0].Size, Is.EqualTo(circle.Radius).Within(1e-4f), "to the circle's edge");
+                    Assert.That(rings[0].Rim, Is.EqualTo(blue ? fv.CounterRim : fv.StrikeRim), "red or blue as its telegraph");
+                    Assert.That(Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None).Count(r => r.name == "StrikeFx"), Is.EqualTo(0), "no flat stand-in");
+                }
+            }
+            finally
+            {
+                PlaceholderSounds.Requested -= Hear;
+                CombatEffects.Spawned -= Draw;
+            }
+        }
+
         // ---------------- The practice room and the floors ----------------
 
         [UnityTest]
         public IEnumerator ThePracticeRoomsKey_SpawnsACaster()
         {
-            Key[] others = { GeneratedLevels.NewLevelKey, GeneratedLevels.SameLevelKey, GeneratedLevels.PracticeRoomKey, GeneratedLevels.BossKey,
-                             GeneratedLevels.SwarmersKey, GeneratedLevels.ShooterKey, GeneratedLevels.GuardKey, GeneratedLevels.ClearSpawnsKey, RunHud.DevTextKey };
-            Assert.That(GeneratedLevels.CasterKey, Is.EqualTo(Key.F4));
+            // Work order 034: F4 went to main's focus choice (today's gauge); the caster's key is C, which nothing else uses.
+            var others = new List<Key>
+            {
+                GeneratedLevels.NewLevelKey, GeneratedLevels.SameLevelKey, GeneratedLevels.PracticeRoomKey, GeneratedLevels.BossKey,
+                GeneratedLevels.SwarmersKey, GeneratedLevels.ShooterKey, GeneratedLevels.GuardKey, GeneratedLevels.ClearSpawnsKey, RunHud.DevTextKey,
+                GeneratedLevels.HairTriggerKey, GeneratedLevels.SteadyHandKey, GeneratedLevels.TodaysFocusKey, GeneratedLevels.RedrawKey,
+                RunHud.PauseKey, RunHud.BetweenRunsStartKey, Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4,
+            };
+            InputBindings bindings = ScriptableObject.CreateInstance<InputBindings>(); // its start values
+            _made.Add(bindings);
+            others.AddRange(new[] { bindings.MoveUp, bindings.MoveDown, bindings.MoveLeft, bindings.MoveRight, bindings.Dash, bindings.Focus, bindings.Interact, bindings.TakeCover });
+            others.AddRange(bindings.Skills.Where(b => b.Source == BindingSource.Key).Select(b => b.Key));
+            InputBindings b = _player.GetComponent<PlayerInputDriver>().ActiveBindings; // the asset in use, as Kristian may have edited it
+            others.AddRange(new[] { b.MoveUp, b.MoveDown, b.MoveLeft, b.MoveRight, b.Dash, b.Focus, b.Interact, b.TakeCover });
+            if (b.Skills != null) others.AddRange(b.Skills.Where(x => x.Source == BindingSource.Key).Select(x => x.Key));
+            Assert.That(GeneratedLevels.CasterKey, Is.EqualTo(Key.C));
             Assert.That(others, Has.No.Member(GeneratedLevels.CasterKey), "a free key");
             EnemyCaster caster = Spawn();
             yield return null;
@@ -697,9 +859,10 @@ namespace Roguelike.PlayModeTests
         public IEnumerator AFloor3_HoldsCasters_WithinTheCaps()
         {
             _practiceEnemy.enabled = true;
-            var values = new LevelValues();
+            var values = new LevelValues { Casters = true }; // work order 034: the casters are off in the floors by default
+            _levels.Values = values;
             ulong seed = 0;
-            while (!LevelGenerator.Generate(seed, 3).Rooms.Any(r => r.EnemyGroups.Count(g => g.Kind == EnemyKind.Caster && !g.Elite) >= 1)) seed++;
+            while (!LevelGenerator.Generate(seed, 3, values).Rooms.Any(r => r.EnemyGroups.Count(g => g.Kind == EnemyKind.Caster && !g.Elite) >= 1)) seed++;
             GeneratedLevel level = _levels.Build(seed, 3);
             yield return null;
             int casters = 0;

@@ -24,7 +24,8 @@ namespace Roguelike
     /// <see cref="CasterValues.GroundSearch"/>); one whose place is off it is not placed. Bone Spikes: one circle where she
     /// stands when the wind-up begins, bursting as it ends. Grave Rain: the first circle so, bursting at the end of the
     /// attack's wind-up; then one every <see cref="CasterValues.RainEvery"/> where she stands then, moved
-    /// <see cref="CasterValues.RainLead"/> along the way she is moving. A circle placed stays: the caster dying, dazed or
+    /// along the way she is moving by her velocity times <see cref="CasterValues.LeadSeconds"/> (work order 034; at most
+    /// <see cref="CasterValues.LeadMost"/>). A circle placed stays: the caster dying, dazed or
     /// countered after does not take it away (a dead caster's last spike still goes off), but nothing more is placed once
     /// it is dazed or dead. Stopping Shot from its front during Grave Rain's wind-up (before the first burst) drops it, and
     /// the circles of it on the ground fade without bursting.
@@ -165,6 +166,9 @@ namespace Roguelike
         // ---------------- Its casts ----------------
 
         protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) => _tactics.Choose(distance, Tuning);
+
+        /// <summary>The turns' question (work order 034): the next cast if its band holds her, not counted as begun.</summary>
+        protected override EnemyAttackDefinition WouldChoose(float distance, EnemyValues values) => _tactics.Peek(distance, Tuning);
 
         protected override void OnWindupStarted(EnemyAttackDefinition attack)
         {
@@ -313,6 +317,9 @@ namespace Roguelike
 
         void SpawnBurstFx(Circle c)
         {
+            // Drawn as the effects draw a circle strike, at the circle and in its telegraph's colour (work order 034); the
+            // flat stand-in below when they are not running.
+            if (StrikeAtDrawer != null && StrikeAtDrawer(this, c.Attack, Flat(c.Center))) return;
             GameObject fx = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             fx.name = "StrikeFx";
             Destroy(fx.GetComponent<Collider>());

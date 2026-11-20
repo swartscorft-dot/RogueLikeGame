@@ -114,7 +114,7 @@ namespace Roguelike.PlayModeTests
         {
             _levels.StartRun(RunSeed);
             yield return null;
-            _health.TakeHit(25);
+            _health.TakeHit(60); // 25 before work order 023: with the floor heal she must still be under her maximum after
             yield return FinishFloorAndWaitForTheReward();
             Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "the floor reward is offered");
             Assert.That(_levels.Cleared, Is.True);
@@ -134,6 +134,10 @@ namespace Roguelike.PlayModeTests
             int health = _health.Current;
             int picked = _levels.OfferedSkills[1];
             Assert.That(_levels.PickReward(1), Is.True);
+            // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FocusChoice), "the focus choice, still paused");
+            Assert.That(_levels.Floor, Is.EqualTo(1));
+            Assert.That(_levels.PickFocusChoice(0), Is.True);
             Assert.That(Time.timeScale, Is.EqualTo(1f), "the game goes on");
             Assert.That(PlayerInputDriver.HeldByChoice, Is.False);
             Assert.That(_player.IsEquipped(picked), Is.True, "the picked skill is equipped");
@@ -142,7 +146,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.Level.Layout.Floor, Is.EqualTo(2));
             Assert.That(_levels.Level.Layout.Seed, Is.EqualTo(RunSeeds.FloorSeed(RunSeed, 2)));
-            Assert.That(_health.Current, Is.EqualTo(health), "her health carries over");
+            // Work order 023: her health carries over, and the floor heal is added to it.
+            Assert.That(_health.Current, Is.EqualTo(health + FloorHeals.Amount(_health.Max, _levels.RunValues.FloorHeal)), "her health carries over, healed");
             Assert.That(_health.Current, Is.LessThan(_health.Max));
             Assert.That(_levels.SkillsTaken, Is.EqualTo(new[] { _player.Skills[picked].Name }));
             yield return null;
@@ -235,6 +240,7 @@ namespace Roguelike.PlayModeTests
                 yield return FinishFloorAndWaitForTheReward();
                 Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "floor " + floor);
                 Assert.That(_levels.PickReward(0), Is.True);
+                if (floor == 1) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice"); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
                 yield return null;
             }
             Assert.That(_levels.Floor, Is.EqualTo(5));
@@ -374,6 +380,7 @@ namespace Roguelike.PlayModeTests
             yield return FinishFloorAndWaitForTheReward();
             string skill = _player.Skills[_levels.OfferedSkills[0]].Name;
             _levels.PickReward(0);
+            Assert.That(_levels.PickFocusChoice(1), Is.True); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
             yield return null;
             _health.TakeHit(100000);
             yield return Frames(() => !_levels.InRun);

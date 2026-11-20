@@ -93,6 +93,7 @@ namespace Roguelike.PlayModeTests
             foreach (int s in _levels.OfferedSkills) Assert.That(_player.Skills[s].StartEquipped, Is.False, "out of the pool");
             int picked = _levels.OfferedSkills[0];
             Assert.That(_levels.PickReward(0), Is.True);
+            Assert.That(_levels.PickFocusChoice(0), Is.True); // changed deliberately (work order 025): the focus choice before floor 2
             Assert.That(_player.KeyOfSkill(picked), Is.EqualTo(1));
             Assert.That(_player.SkillOnKey(1), Is.EqualTo(picked));
             for (int i = 0; i < 5; i++) yield return null;

@@ -15,7 +15,7 @@ namespace Roguelike.Rules
     /// itself (<c>GeneratedLevels</c>): a new record when a run starts, the floor and the room she is in, the skills taken
     /// as floor rewards in order, the chest upgrades taken (short forms), the kills and the time; and how it ended, with
     /// the health she had then. Work order 017: the skill upgrades taken from elite rooms, in order, and whether the room
-    /// she is in is the elite room.
+    /// she is in is the elite room. Work order 025: the focus choice taken after floor 1's reward.
     ///
     /// A kill is an enemy of the run's floors reporting its death: the same report the play session recorder counts
     /// kills from, so the two never disagree on what a kill is. The time is game time from the start of the run, so the
@@ -57,6 +57,14 @@ namespace Roguelike.Rules
         public IReadOnlyList<string> SkillUpgrades => _skillUpgrades;
         public RunOutcome Outcome { get; private set; } = RunOutcome.Going;
         public bool IsOver => Outcome != RunOutcome.Going;
+        /// <summary>The focus choice taken (work order 025), "Hair Trigger"; empty until it is taken.</summary>
+        public string FocusChoice { get; private set; } = "";
+        /// <summary>
+        /// Every pick of the run: the skills, the chest upgrades, the skill upgrades and the focus choice. The one count by
+        /// which the placeholder sounds and the effects both find a pick (the second reviews of 2026-11-20, work order
+        /// 033: the effects did not count the skill upgrades), so the two cannot drift apart again.
+        /// </summary>
+        public int Picks => _skills.Count + _upgrades.Count + _skillUpgrades.Count + (FocusChoice.Length > 0 ? 1 : 0);
         /// <summary>Her health and maximum when the run ended; 0 while it goes on.</summary>
         public int HealthLeft { get; private set; }
         public int MaxHealth { get; private set; }
@@ -97,6 +105,28 @@ namespace Roguelike.Rules
             if (!IsOver) _skillUpgrades.Add(fullName ?? "?");
         }
 
+        /// <summary>The last heal between floors (work order 023): how much, and after which floor; 0 before the first.</summary>
+        public int LastFloorHeal { get; private set; }
+        public int LastFloorHealFloor { get; private set; }
+
+        /// <summary>She was healed by <paramref name="amount"/> when floor <paramref name="floor"/>'s reward was taken (work order 023).</summary>
+        public void FloorHealed(int floor, int amount)
+        {
+            if (IsOver) return;
+            LastFloorHeal = Math.Max(0, amount);
+            LastFloorHealFloor = floor;
+        }
+
+        /// <summary>"+35 health after floor 2", for the line of what was taken; empty before the first heal or for one of nothing.</summary>
+        public string FloorHealText =>
+            LastFloorHeal <= 0 ? "" : string.Format(CultureInfo.InvariantCulture, "+{0} health after floor {1}", LastFloorHeal, LastFloorHealFloor);
+
+        /// <summary>The focus choice was taken (work order 025), by its name.</summary>
+        public void TakeFocusChoice(string name)
+        {
+            if (!IsOver) FocusChoice = name ?? "?";
+        }
+
         /// <summary>
         /// An enemy of the run's floors died. Counted also just after the end: the last enemies of the exit room report
         /// their deaths on the frames after the floor is seen to be cleared.
@@ -133,6 +163,9 @@ namespace Roguelike.Rules
 
         /// <summary>The skill upgrades taken in order (work order 017), "Quick Shot: Double Tap, Backstep: Long Step"; "none" without.</summary>
         public string SkillUpgradesText => _skillUpgrades.Count == 0 ? "none" : string.Join(", ", _skillUpgrades);
+
+        /// <summary>The focus choice (work order 025): its name, or "not chosen" before it is taken.</summary>
+        public string FocusChoiceText => FocusChoice.Length == 0 ? "not chosen" : FocusChoice;
     }
 
     /// <summary>The words the HUD and the end screens use (work order 018).</summary>

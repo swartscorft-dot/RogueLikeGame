@@ -203,6 +203,8 @@ namespace Roguelike
                 });
                 if (enemy.Player != null) StaggerBarView.For(body, enemy.Player.ShotFxMaterial);
             }
+            // A bar made before it was scaled (a guard's, made with it) is placed over it as it is shown now (work order 033).
+            else if (body.GetComponentInChildren<StaggerBarView>(true) is StaggerBarView bar) bar.PlaceAgain();
             // A brute copied from the practice enemy without its model has no body renderer of its own: it gets one, with
             // its own material, so the tint is on this enemy only.
             if (enemy.BodyRenderer == null)

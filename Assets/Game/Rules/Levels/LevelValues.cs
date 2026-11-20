@@ -148,7 +148,16 @@ namespace Roguelike.Rules
         public int CasterHealth = 500;         // work order 027: weak, the first to reach or silence
 
         // The elite (work order 017, 2026-11-20): one in each elite room, besides what a combat room holds.
-        public float EliteHealthScale = 4f;    // times its kind's health for the floor
+        public float EliteHealthScale = 4f;    // times its kind's health for the floor, for a kind with no share of its own below
+        // The elite by its kind (work order 030, lever C): four times for every kind made an elite guard's room about four
+        // times a combat room and an elite shooter's barely different (the test pilot's flights of 2026-11-20); these aim
+        // at an elite room about twice a combat room whichever kind it holds. 4 each before. Flown (work order 030): at 4
+        // an elite guard's room was 1.8 to 4.7 times the floor's combat rooms and killed a pilot in it four times in three
+        // rounds, an elite shooter's mostly 1.1 to 1.5; after it 1.2 to 3.3 (no death there) and 1.0 to 2.5, the floor-1 elite
+        // brute's 1.4 to 2.7.
+        public float EliteBruteHealthScale = 3f;
+        public float EliteShooterHealthScale = 5f;
+        public float EliteGuardHealthScale = 2f;
         public float EliteDamageScale = 1.25f; // its attacks' damage, times this
         public float EliteSizeScale = 4f / 3f; // shown this many times as large, and its body as wide
         public float EliteStaggerShare = 0.5f; // a kind with no stagger bar gets one this share of the guard's
@@ -175,6 +184,17 @@ namespace Roguelike.Rules
         public int GuardsMostInRoom = 1;       // from floor 2: one guard a combat room at most
         public int GuardsMostInExit = 2;       // two in an exit room, the act boss counted
         public int GuardsFromFloor = 2;
+        // Work order 023 (2026-11-20, the test pilot's flights): the brute's Shockwave and the shooter's shot killed the
+        // pilots on floors 3 to 5, in rooms of up to four of each. The room keeps its number of enemies (Kristian asked
+        // for crowds); past these, the brutes and shooters drawn are swarmers instead. 0: no cap, as before.
+        public int BrutesMostInRoom = 3;       // brutes in a combat room at most (no cap before)
+        public int ShootersMostInRoom = 3;     // shooters in a combat room at most (no cap before)
+        public int ExitRoomKindMore = 1;       // an exit room may hold one more of each
+        // The casters in the floors (work order 034, 2026-11-20): the balance passes (work orders 023 and 030) were flown
+        // without casters, and casters make floors 2 to 5 more dangerous, so they come in switched off. Off: no room holds
+        // a caster and no elite is one, and every seed's rooms, enemies and elites are those of version 7 (work order
+        // 030). On: as work order 027 built them, below. The practice room's caster does not depend on it.
+        public bool Casters = false;
         // The casters (work order 027): from floor 2, one a combat room at most on floors 2 and 3, two on floors 4 and 5,
         // and an exit room one more; they stand at the far side as the shooters do, never near each other.
         public int[] CastersMostInRoom = { 0, 1, 1, 2, 2 }; // by floor number, from 1; past the end its last
@@ -237,6 +257,35 @@ namespace Roguelike.Rules
             return Floors[Math.Max(0, Math.Min(Floors.Length - 1, floor - 1))];
         }
 
+        // The floors' brutes' Shockwave (work order 023, 2026-11-20): the test pilot's flights found it the largest
+        // source of her damage, used when she is 3 to 11 m away (a normal kiting distance) down a line 12 m long. Its
+        // damage and timing stay. The enemy settings asset, and the practice brute, keep their own numbers.
+        public float ShockwaveFarthest = 8f;   // m: a floor's brute uses it when she is at most this far (11 before)
+        public float ShockwaveLength = 9f;     // m: its line (12 before)
+
+        /// <summary>
+        /// A generated floor's brute's numbers (work order 023): a copy of the asset's, its attacks copied, with the
+        /// Shockwave's reach of the floors. The asset's own are not changed.
+        /// </summary>
+        public EnemyValues FloorBruteValues(EnemyValues asset)
+        {
+            if (asset == null) asset = new EnemyValues();
+            var copy = new EnemyValues
+            {
+                Health = asset.Health, MoveSpeed = asset.MoveSpeed, AggroRange = asset.AggroRange, LeashRange = asset.LeashRange,
+                RespawnDelay = asset.RespawnDelay, UseModels = asset.UseModels,
+                Attacks = asset.Attacks == null ? null : Array.ConvertAll(asset.Attacks, a => a?.Copy()),
+            };
+            if (copy.Attacks != null)
+                foreach (EnemyAttackDefinition a in copy.Attacks)
+                {
+                    if (a == null || a.Name != "Shockwave") continue;
+                    a.MaxDistance = ShockwaveFarthest;
+                    a.Length = ShockwaveLength;
+                }
+            return copy;
+        }
+
         /// <summary>The fewest and most enemies a room of this kind holds on this floor; 0 for the entrance and treasure rooms.</summary>
         public void EnemyRange(RoomKind kind, int floor, out int fewest, out int most)
         {
@@ -256,27 +305,54 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The kinds an elite may be on this floor (work order 017): a brute on floor 1; a brute, a shooter or a guard after;
-        /// from <see cref="EliteCasterFromFloor"/> a caster too (work order 027).
+        /// from <see cref="EliteCasterFromFloor"/> a caster too (work order 027), while <see cref="Casters"/> is on (work
+        /// order 034: off, the three, so the elite's draw is what it was).
         /// </summary>
         public EnemyKind[] EliteKinds(int floor) =>
             floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute }
-            : floor < EliteCasterFromFloor ? new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }
+            : floor < EliteCasterFromFloor || !Casters ? new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }
             : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster };
 
         /// <summary>
         /// The most casters a room of this kind may hold on this floor (work order 027): <see cref="CastersMostInRoom"/> for
         /// the floor in a combat room, <see cref="CastersMoreInExit"/> more in the exit room (none more on a floor with none);
-        /// none elsewhere. The elite apart.
+        /// none elsewhere. The elite apart. None anywhere while <see cref="Casters"/> is off (work order 034).
         /// </summary>
         public int CastersMost(RoomKind kind, int floor)
         {
+            if (!Casters) return 0;
             if (CastersMostInRoom == null || CastersMostInRoom.Length == 0 || (kind != RoomKind.Combat && kind != RoomKind.Exit)) return 0;
             int room = Math.Max(0, CastersMostInRoom[Math.Max(0, Math.Min(CastersMostInRoom.Length - 1, floor - 1))]);
             return kind == RoomKind.Exit && room > 0 ? room + CastersMoreInExit : room;
         }
 
         /// <summary>An elite's health on a generated floor (work order 017): its kind's, times <see cref="EliteHealthScale"/>.</summary>
-        public int EliteHealthOf(EnemyKind kind) => (int)Math.Round(HealthOf(kind) * (double)EliteHealthScale, MidpointRounding.AwayFromZero);
+        public int EliteHealthOf(EnemyKind kind) => (int)Math.Round(HealthOf(kind) * (double)EliteHealthScaleOf(kind), MidpointRounding.AwayFromZero);
+
+        /// <summary>
+        /// Times its kind's health an elite of this kind has (work order 030, lever C); a kind with no share of its own, the
+        /// caster (work order 034: four times, the fallback <see cref="EliteHealthScale"/>), the fallback.
+        /// </summary>
+        public float EliteHealthScaleOf(EnemyKind kind) =>
+            kind == EnemyKind.Brute ? EliteBruteHealthScale
+            : kind == EnemyKind.Shooter ? EliteShooterHealthScale
+            : kind == EnemyKind.Guard ? EliteGuardHealthScale
+            : EliteHealthScale;
+
+        /// <summary>
+        /// The danger rises with the floor (work order 030, lever B): what a floor's enemies deal to her, times this, by the
+        /// floor's number from 1 (past the end, its last). The act boss is not scaled, and an elite's own scale multiplies
+        /// with it. All 1 before: every floor dealt the same, and the pilots died on floors 2 and 3. Flown (work order 030,
+        /// round 2, with the room heal): every Ace reached floor 3 (one of three before), the Kiter two of three (one).
+        /// </summary>
+        public float[] FloorDamageScale = { 0.7f, 0.8f, 0.9f, 1f, 1f };
+
+        /// <summary>The scale of what a floor's enemies deal (work order 030, lever B); 1 without a table.</summary>
+        public float DamageScaleOf(int floor)
+        {
+            if (FloorDamageScale == null || FloorDamageScale.Length == 0) return 1f;
+            return FloorDamageScale[Math.Max(0, Math.Min(FloorDamageScale.Length - 1, floor - 1))];
+        }
 
         /// <summary>A generated floor's health for an enemy of this kind; the act boss's for the boss.</summary>
         public int HealthOf(EnemyKind kind, bool boss = false) =>

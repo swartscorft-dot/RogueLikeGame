@@ -42,19 +42,32 @@ namespace Roguelike.Rules
     /// amended 2026-11-20): the middle combat room of the chain is the elite room (<see cref="LevelPlan.EliteRoomNumber"/>),
     /// marked in the layout; in the contents it draws its combat room's groups and then its elite's kind from
     /// <see cref="LevelValues.EliteKinds"/>, and the elite is placed first after the act boss, with
-    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps. Version 7 (work order 027):
-    /// casters from floor 2, as their floor's mixes say (<see cref="CastersOf"/>), each in place of a shooter or a brute
-    /// with no draw of its own, placed alone after the shooters at the far side, <see cref="LevelValues.CasterSpacing"/>
-    /// from any other caster; an elite may be one from <see cref="LevelValues.EliteCasterFromFloor"/>. Floor 1 is unchanged.
-    /// Version 8 (work order 028): with <see cref="LevelValues.Themes"/> on (the default), each room gets a theme on its
-    /// own stream ("themes", <see cref="RoomThemes"/>) just before the props, which dress it by its theme's recipe from
-    /// the seven new props and the eleven; the layout and the enemies of every seed are what they were. With it off the
-    /// themes stage is not run and every seed's props are those of version 7.
+    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps. Version 7 (work order
+    /// 030): work order 023's caps on brutes and shooters in a room's mix together with the elite room; the elite is
+    /// added after the capped mix is drawn, so it never counts against the room's range or its caps.
+    /// Work order 027 (version 7 on its own branch): casters from floor 2, as their floor's mixes say
+    /// (<see cref="CastersOf"/>), each in place of a shooter or a brute with no draw of its own, placed alone after the
+    /// shooters at the far side, <see cref="LevelValues.CasterSpacing"/> from any other caster; an elite may be one from
+    /// <see cref="LevelValues.EliteCasterFromFloor"/>. Floor 1 is unchanged.
+    /// Work order 028 (version 8 on that branch): with <see cref="LevelValues.Themes"/> on (the default), each room gets a
+    /// theme on its own stream ("themes", <see cref="RoomThemes"/>) just before the props, which dress it by its theme's
+    /// recipe from the seven new props and the eleven; the layout and the enemies of every seed are what they were. With
+    /// it off the themes stage is not run and every seed's props are those the generator gives without themes.
+    /// Version 9 (work order 034, 2026-11-20): the two merged. The casters are behind <see cref="LevelValues.Casters"/>,
+    /// off by default: off, no room and no elite is a caster and every seed's rooms, enemies and elites are those of
+    /// version 7 (work order 030); on, they come in after the caps on the mix, each in place of a shooter or a brute the
+    /// capped room holds. The themes are on by default.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 8; // 8: work order 028, the room themes and seven new props; 7: work order 027, the casters from floor 2; 6: work order 017, the elite room; 5: work order 014, fuller rooms and the act boss its own kind
+        // 5: work order 014, fuller rooms and the act boss its own kind; 6: two versions at once, work order 017 (the elite
+        // room) on main and work order 023 (at most three brutes and three shooters a room) on its branch; 7: work
+        // order 030, the two merged (the room mixes capped, and the elite room with its elite counted apart from the caps),
+        // and on another branch at the same time work order 027 (the casters from floor 2); 8: work order 028, the room
+        // themes and seven new props, on that branch; 9: work order 034, the two lines merged (the capped mixes, the
+        // casters behind LevelValues.Casters, off by default, and the themes on).
+        public const int Version = 9;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -344,9 +357,25 @@ namespace Roguelike.Rules
             int rest = total - guards;
             int[] counts = Shares(rest, new[] { mix.Swarmers, mix.Shooters, mix.Brutes });
             int swarmers = counts[0], shooters = counts[1], brutes = counts[2];
+            // Work order 023: at most so many brutes and shooters a room (one more of each in an exit room), the rest
+            // swarmers; the room holds as many as before.
+            int more = kind == RoomKind.Exit ? v.ExitRoomKindMore : 0;
+            if (v.BrutesMostInRoom > 0 && brutes > v.BrutesMostInRoom + more)
+            {
+                swarmers += brutes - (v.BrutesMostInRoom + more);
+                brutes = v.BrutesMostInRoom + more;
+            }
+            if (v.ShootersMostInRoom > 0 && shooters > v.ShootersMostInRoom + more)
+            {
+                swarmers += shooters - (v.ShootersMostInRoom + more);
+                shooters = v.ShootersMostInRoom + more;
+            }
             // The casters (work order 027): out of the room's count, each in place of a shooter or a brute (of the two the
             // kind there are more of, the shooters when as many), a swarmer only when there is neither. No draw: a mix
-            // without casters gives what it gave before.
+            // without casters, or the casters switched off (LevelValues.Casters), gives what it gave before. Work order
+            // 034: AFTER the caps, so a caster takes the place of a shooter or a brute the capped room really holds: the
+            // room's brutes, shooters and casters together are never more than the balance passes' capped room's brutes
+            // and shooters, and the caps still hold (a caster only ever lowers a count).
             int casters = CastersOf(mix, kind, floor, v);
             for (int i = 0; i < casters; i++)
             {

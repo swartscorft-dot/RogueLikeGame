@@ -58,6 +58,7 @@ namespace Roguelike
     {
         /// <summary>The key words and numbers over her go under; a keg's word gets its own, below it.</summary>
         const int HerKey = 0;
+        const int HerHealKey = int.MinValue; // work order 030: her green heal numbers, apart from her red ones
         const float KegHeight = 1f;          // m over a keg's middle: where its bang is drawn
         const float OverHead = 1.7f;         // m over the top of a target: above its mark pips and its stagger bar
         const float NumberSide = 40f;        // px right of a word's place that a number goes, so they do not cover each other
@@ -246,6 +247,18 @@ namespace Roguelike
 
         void OnPlayer(PlayerReport r) => Safely(() => Take(r));
 
+        /// <summary>
+        /// Health she got back (work order 030: a combat room cleared): a green "+8" over her, to the other side from her
+        /// red numbers. Off with the damage numbers.
+        /// </summary>
+        public void ShowHeal(int amount) => Safely(() =>
+        {
+            if (amount <= 0 || !NumbersOn) return;
+            _tally.Add(HerHealKey, amount, NumberKind.Heal, Time.time, MergeWindow, Values.MaxNumbers);
+            if (!_anchors.ContainsKey(HerHealKey) && _player != null)
+                _anchors[HerHealKey] = new Anchor { Her = true, Last = _player.Position, Height = TopOf(_player.gameObject, null) + OverHead };
+        });
+
         void OnHurt(int amount) => Safely(() =>
         {
             if (NumbersOn) _tally.Add(HerKey, amount, NumberKind.Hurt, Time.time, MergeWindow, Values.MaxNumbers);
@@ -295,7 +308,7 @@ namespace Roguelike
                     Fired(r, skill);
                     break;
                 case PlayerReportKind.ShotFired:
-                    Flush(false);
+                    Flush(false, -1); // the basic shot's own hits
                     break;
                 case PlayerReportKind.SkillEnded:
                     // A clean press whose shot never went off (a dash, a teleport) shows nothing.
@@ -323,7 +336,7 @@ namespace Roguelike
                 ShowWord(first, FeedbackRules.Word(FeedbackMoment.Clean));
                 PlayTone(FeedbackTone.Clean);
             }
-            Flush(perfect);
+            Flush(perfect, r.Slot);
         }
 
         /// <summary>Of the hits waiting to be counted, the target nearest her: "the first target it hit". Null for none.</summary>
@@ -341,20 +354,28 @@ namespace Roguelike
             return best;
         }
 
-        /// <summary>Counts the waiting hits into the damage numbers: at the shot that made them, or at the end of the frame.</summary>
-        void Flush(bool perfect)
+        /// <summary>
+        /// Counts the waiting hits into the damage numbers: at the shot that made them, or at the end of the frame. A shot
+        /// takes only its own hits, by its slot (-1 the basic shot; work order 026, the second review of 2026-11-20): a keg
+        /// a Long Shot sets off reports its burst in the middle of the Long Shot's hit, and must not take that hit with it.
+        /// Null takes every one, at the end of the frame.
+        /// </summary>
+        void Flush(bool perfect, int? slot = null)
         {
             if (_pending.Count == 0) return;
             bool shown = NumbersOn;
             int cap = _player != null ? _player.Kit.MaxMarks : 0;
-            foreach (PendingHit hit in _pending)
+            for (int i = 0; i < _pending.Count; i++)
             {
+                PendingHit hit = _pending[i];
+                if (slot.HasValue && hit.Slot != slot.Value) continue;
                 if (!shown || hit.Target == null) continue;
                 NumberKind kind = FeedbackRules.HitKind(perfect, hit.MarksSpent, cap, hit.OnDazed);
                 int key = KeyOf(hit.Target);
                 _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers);
             }
-            _pending.Clear();
+            if (!slot.HasValue) _pending.Clear();
+            else for (int i = _pending.Count - 1; i >= 0; i--) if (_pending[i].Slot == slot.Value) _pending.RemoveAt(i);
             _marksSpent.Clear();
         }
 
@@ -474,17 +495,26 @@ namespace Roguelike
                 if (!used) _scratch.Add(key);
             }
             foreach (int key in _scratch) _anchors.Remove(key);
-            // Targets gone with their level or scene.
-            if (_keys.Count > 64) ForgetGone(_keys);
-            if (_emptiedAt.Count > 64) ForgetGone(_emptiedAt);
-            if (_listening.Count > 64) ForgetGone(_listening);
+            // Targets gone with their level or scene: looked for only when one was destroyed since the last look (work
+            // order 026), not every frame once there are many.
+            if (Damageable.Destroyed != _forgotAt && (_keys.Count > 64 || _emptiedAt.Count > 64 || _listening.Count > 64))
+            {
+                _forgotAt = Damageable.Destroyed;
+                if (_keys.Count > 64) ForgetGone(_keys);
+                if (_emptiedAt.Count > 64) ForgetGone(_emptiedAt);
+                if (_listening.Count > 64) ForgetGone(_listening);
+            }
         }
+
+        int _forgotAt = -1;
+        static readonly List<Damageable> s_Gone = new List<Damageable>();
 
         static void ForgetGone<T>(Dictionary<Damageable, T> map)
         {
-            var gone = new List<Damageable>();
-            foreach (Damageable d in map.Keys) if (d == null) gone.Add(d);
-            foreach (Damageable d in gone) map.Remove(d);
+            s_Gone.Clear();
+            foreach (Damageable d in map.Keys) if (d == null) s_Gone.Add(d);
+            foreach (Damageable d in s_Gone) map.Remove(d);
+            s_Gone.Clear();
         }
 
         FeedbackShown Shown(BoardWord w, float now)
@@ -502,10 +532,12 @@ namespace Roguelike
         FeedbackShown Shown(TallyNumber n, float now)
         {
             _anchors.TryGetValue(n.Target, out Anchor a);
-            if (n.Target == HerKey) a.Her = true;
+            if (n.Target == HerKey || n.Target == HerHealKey) a.Her = true;
+            string text = n.Sum.ToString(CultureInfo.InvariantCulture);
+            if (n.Kind == NumberKind.Heal) text = "+" + text; // work order 030
             return new FeedbackShown
             {
-                Id = n.Id, Text = n.Sum.ToString(CultureInfo.InvariantCulture), Color = ColorOf(FeedbackRules.NumberTint(n.Kind)),
+                Id = n.Id, Text = text, Color = ColorOf(FeedbackRules.NumberTint(n.Kind)),
                 FontSize = n.Kind == NumberKind.Hurt ? Values.HurtNumberSize : FeedbackRules.IsBig(n.Kind) ? Values.BigNumberSize : Values.NumberSize,
                 World = WorldOf(n.Target), Target = a.Target, OverHer = a.Her, Age = now - n.First,
                 Alpha = FeedbackRules.Alpha(now - n.Last, Values.NumberSeconds, Values.FadeFrom),
@@ -555,7 +587,8 @@ namespace Roguelike
                 Draw(cam, scale, w, 0f, Values.WordRise * Mathf.Clamp01(w.Age / Values.WordSeconds));
             foreach (FeedbackShown n in _shownNumbers)
             {
-                float side = n.OverHer ? HerNumberSide : NumberSide + (n.Id % 3) * 10f; // the next number a little aside
+                float side = n.Kind == NumberKind.Heal ? -HerNumberSide // work order 030: her heal to the right of her red numbers
+                           : n.OverHer ? HerNumberSide : NumberSide + (n.Id % 3) * 10f; // the next number a little aside
                 Draw(cam, scale, n, side, Values.NumberRise * Mathf.Clamp01(n.Age / Values.NumberSeconds));
             }
 

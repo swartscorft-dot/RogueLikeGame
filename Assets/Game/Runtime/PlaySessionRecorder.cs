@@ -676,7 +676,24 @@ namespace Roguelike
                     }
                     case PlayerReportKind.FocusPressed:
                         Add(new SessionEvent(t, SessionEventTypes.FocusPress) { Result = Word(r.Result) });
-                        if (r.Result == IntentResult.Started) Add(new SessionEvent(t, SessionEventTypes.FocusSpent));
+                        if (r.Result == IntentResult.Started)
+                        {
+                            // What it was spent as (work order 025): today's full gauge, a part, or Steady Hand's window.
+                            var spent = new SessionEvent(t, SessionEventTypes.FocusSpent);
+                            spent.AddExtra("as", r.FocusMode == FocusMode.HairTrigger ? "part" : r.FocusMode == FocusMode.SteadyHand ? "window" : "today");
+                            Add(spent);
+                        }
+                        break;
+                    case PlayerReportKind.PrimeUsed:
+                        Add(new SessionEvent(t, SessionEventTypes.PrimeUsed, SkillName(r.Slot))
+                        {
+                            Slot = r.Slot,
+                            Result = r.Prime == PrimeUse.CleanPress ? "clean press" : r.Prime == PrimeUse.PerfectRelease ? "perfect release"
+                                   : r.Prime == PrimeUse.SpenderExtraMark ? "a mark more counted" : "a mark more",
+                        });
+                        break;
+                    case PlayerReportKind.PrimeLapsed:
+                        Add(new SessionEvent(t, SessionEventTypes.PrimeLapsed));
                         break;
                     // Taking cover (2026-11-19, an experiment).
                     case PlayerReportKind.CoverEntered:
@@ -887,6 +904,14 @@ namespace Roguelike
 
         public void NoteRewardTaken(int floor, string skill) => Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
 
+        /// <summary>Work order 023: she was healed as floor <paramref name="floor"/>'s reward was taken: what was given, and her health after.</summary>
+        public void NoteFloorHeal(int floor, int healed, int health) =>
+            Note(SessionEventTypes.FloorHeal, null, "floor", Int(floor), "healed", Int(healed), "health", Int(health));
+
+        /// <summary>Every enemy of a combat room is dead and she was healed (work order 030): the room, whether it is the elite room, what was given and her health after.</summary>
+        public void NoteRoomHeal(int floor, int room, bool elite, int healed, int health) =>
+            Note(SessionEventTypes.RoomHeal, null, "floor", Int(floor), "room", Int(room), "elite", elite ? "true" : "false", "healed", Int(healed), "health", Int(health));
+
         /// <summary>A chest opened: what it offered, and what was taken (short forms).</summary>
         public void NoteChestOpened(int floor, int room, IList<string> offered, string taken) =>
             Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered));
@@ -906,6 +931,13 @@ namespace Roguelike
         public void NoteSkillUpgradeTaken(int floor, string fullName, string kind) =>
             Note(SessionEventTypes.SkillUpgradeTake, fullName, "floor", Int(floor), "kind", kind);
 
+        /// <summary>The focus choice offered (work order 025): the two ways, in the order shown.</summary>
+        public void NoteFocusChoiceOffered(int floor, IList<string> offered) =>
+            Note(SessionEventTypes.FocusChoiceOffer, null, "floor", Int(floor), "offered", string.Join(" | ", offered));
+
+        /// <summary>The focus choice taken (work order 025), by its name.</summary>
+        public void NoteFocusChoiceTaken(int floor, string name) => Note(SessionEventTypes.FocusChoiceTake, name, "floor", Int(floor));
+
         /// <summary>The run ended: how (death, act cleared, left), where (floor, room from 1 and its kind), and when.</summary>
         public void NoteRunEnded(string how, int floor, int room, string kind, float seconds)
         {
@@ -924,6 +956,19 @@ namespace Roguelike
                 Fail(e);
             }
         }
+
+        // ---------------- Between runs (work order 029; only with that trial switched on) ----------------
+
+        /// <summary>A run started with the rack switched on: the pieces equipped, the currency then, the budget and the points used.</summary>
+        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used) =>
+            Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
+
+        /// <summary>The run earned currency: how much, from what (floor, elite room, act boss), on which floor.</summary>
+        public void NoteBetweenRunsEarned(int amount, string from, int floor) =>
+            Note(SessionEventTypes.MetaEarn, from, "amount", Int(amount), "floor", Int(floor));
+
+        /// <summary>A feat done for the first time, by its name in the save, when the run ended.</summary>
+        public void NoteBetweenRunsFeat(string feat) => Note(SessionEventTypes.MetaFeat, feat);
 
         void OnDamaged(int amount)
         {

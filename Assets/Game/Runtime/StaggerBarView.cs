@@ -48,18 +48,7 @@ namespace Roguelike
             StaggerBarView view = target.GetComponentInChildren<StaggerBarView>(true);
             if (view != null) return view;
 
-            float top = 2f;
-            Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
-            if (renderers.Length > 0)
-            {
-                top = float.NegativeInfinity;
-                foreach (Renderer r in renderers)
-                    if (!(r is LineRenderer)) top = Mathf.Max(top, r.bounds.max.y);
-                if (float.IsNegativeInfinity(top)) top = 2f;
-                else top -= target.transform.position.y;
-            }
-            // Over an enemy's model, its head (work order 011): a skinned mesh's box is not where its head is.
-            if (target.TryGetComponent(out Enemy enemy) && enemy.ModelHeight > 0f) top = enemy.ModelHeight;
+            float top = TopOf(target);
 
             var go = new GameObject("StaggerBar");
             go.transform.SetParent(target.transform, false);
@@ -74,6 +63,33 @@ namespace Roguelike
             view._renderer.shadowCastingMode = ShadowCastingMode.Off;
             view._renderer.receiveShadows = false;
             return view;
+        }
+
+        /// <summary>The top of what is drawn for a target over its ground point (not its stagger bar), or its model's head.</summary>
+        static float TopOf(Damageable target)
+        {
+            float top = 2f;
+            Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                top = float.NegativeInfinity;
+                foreach (Renderer r in renderers)
+                    if (!(r is LineRenderer) && r.GetComponent<StaggerBarView>() == null) top = Mathf.Max(top, r.bounds.max.y);
+                if (float.IsNegativeInfinity(top)) top = 2f;
+                else top -= target.transform.position.y;
+            }
+            // Over an enemy's model, its head (work order 011): a skinned mesh's box is not where its head is.
+            if (target.TryGetComponent(out Enemy enemy) && enemy.ModelHeight > 0f) top = enemy.ModelHeight;
+            return top;
+        }
+
+        /// <summary>
+        /// Placed again over its target as it is shown now (the second reviews of 2026-11-20, work order 033): a bar made
+        /// before an elite was scaled up sat inside its head.
+        /// </summary>
+        public void PlaceAgain()
+        {
+            if (_target != null) _height = TopOf(_target) + OverHead;
         }
 
         void LateUpdate()

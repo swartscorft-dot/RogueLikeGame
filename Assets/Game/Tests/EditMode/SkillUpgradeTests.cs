@@ -88,8 +88,9 @@ namespace Roguelike.Rules.Tests
                 if (floor == 5) Assert.That(level.ExitRoom.EnemyGroups.Count(g => g.Boss), Is.EqualTo(1), "the act boss as before");
             }
             if (floor == 1) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute }));
-            // Work order 027 changed this on purpose: from floor 3 the elite may be a caster too.
-            else if (floor < v.EliteCasterFromFloor) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }));
+            // Work order 027 changed this on purpose: from floor 3 the elite may be a caster too; work order 034: only with
+            // the casters on, which they are not by default, so the kinds are main's again.
+            else if (floor < v.EliteCasterFromFloor || !v.Casters) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }));
             else Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster }));
         }
 
@@ -108,12 +109,13 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void TheElitesNumbers_FourTimesItsKindsHealth_AQuarterMoreDamage_AThirdLarger_HalfTheGuardsBar()
+        public void TheElitesNumbers_ItsKindsHealthByKind_AQuarterMoreDamage_AThirdLarger_HalfTheGuardsBar()
         {
             var v = new LevelValues();
-            Assert.That(v.EliteHealthOf(EnemyKind.Brute), Is.EqualTo(4 * v.EnemyHealth));
-            Assert.That(v.EliteHealthOf(EnemyKind.Shooter), Is.EqualTo(4 * v.ShooterHealth));
-            Assert.That(v.EliteHealthOf(EnemyKind.Guard), Is.EqualTo(4 * v.GuardHealth));
+            // Work order 030, lever C: by its kind (four times each before).
+            Assert.That(v.EliteHealthOf(EnemyKind.Brute), Is.EqualTo(3 * v.EnemyHealth));
+            Assert.That(v.EliteHealthOf(EnemyKind.Shooter), Is.EqualTo(5 * v.ShooterHealth));
+            Assert.That(v.EliteHealthOf(EnemyKind.Guard), Is.EqualTo(2 * v.GuardHealth));
             Assert.That(v.EliteDamageScale, Is.EqualTo(1.25f));
             Assert.That(v.EliteSizeScale, Is.EqualTo(4f / 3f).Within(1e-6f));
             Assert.That(v.EliteStaggerShare, Is.EqualTo(0.5f));

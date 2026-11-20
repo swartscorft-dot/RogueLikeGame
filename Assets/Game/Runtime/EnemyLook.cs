@@ -109,6 +109,8 @@ namespace Roguelike
         readonly int _shootInput = -1;
 
         public bool IsValid => _graph.IsValid();
+        /// <summary>The times it was shown (<see cref="Tick"/>): for tests (work order 026).</summary>
+        public int Ticks { get; private set; }
         /// <summary>The clip it is playing or blending into.</summary>
         public string Playing => _target >= 0 ? _specs[_target].Name : null;
         /// <summary>Seconds into the clip it is playing or blending into.</summary>
@@ -335,6 +337,7 @@ namespace Roguelike
         public void Tick(Enemy enemy, Vector3 velocity, float now)
         {
             if (!_graph.IsValid()) return;
+            Ticks++;
             float dt = _last < 0f ? 0f : Mathf.Max(0f, now - _last);
             _last = now;
 
