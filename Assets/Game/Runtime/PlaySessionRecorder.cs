@@ -676,7 +676,24 @@ namespace Roguelike
                     }
                     case PlayerReportKind.FocusPressed:
                         Add(new SessionEvent(t, SessionEventTypes.FocusPress) { Result = Word(r.Result) });
-                        if (r.Result == IntentResult.Started) Add(new SessionEvent(t, SessionEventTypes.FocusSpent));
+                        if (r.Result == IntentResult.Started)
+                        {
+                            // What it was spent as (work order 025): today's full gauge, a part, or Steady Hand's window.
+                            var spent = new SessionEvent(t, SessionEventTypes.FocusSpent);
+                            spent.AddExtra("as", r.FocusMode == FocusMode.HairTrigger ? "part" : r.FocusMode == FocusMode.SteadyHand ? "window" : "today");
+                            Add(spent);
+                        }
+                        break;
+                    case PlayerReportKind.PrimeUsed:
+                        Add(new SessionEvent(t, SessionEventTypes.PrimeUsed, SkillName(r.Slot))
+                        {
+                            Slot = r.Slot,
+                            Result = r.Prime == PrimeUse.CleanPress ? "clean press" : r.Prime == PrimeUse.PerfectRelease ? "perfect release"
+                                   : r.Prime == PrimeUse.SpenderExtraMark ? "a mark more counted" : "a mark more",
+                        });
+                        break;
+                    case PlayerReportKind.PrimeLapsed:
+                        Add(new SessionEvent(t, SessionEventTypes.PrimeLapsed));
                         break;
                     // Taking cover (2026-11-19, an experiment).
                     case PlayerReportKind.CoverEntered:
@@ -881,6 +898,13 @@ namespace Roguelike
         /// <summary>A skill upgrade was taken (work order 017): its full name and kind.</summary>
         public void NoteSkillUpgradeTaken(int floor, string fullName, string kind) =>
             Note(SessionEventTypes.SkillUpgradeTake, fullName, "floor", Int(floor), "kind", kind);
+
+        /// <summary>The focus choice offered (work order 025): the two ways, in the order shown.</summary>
+        public void NoteFocusChoiceOffered(int floor, IList<string> offered) =>
+            Note(SessionEventTypes.FocusChoiceOffer, null, "floor", Int(floor), "offered", string.Join(" | ", offered));
+
+        /// <summary>The focus choice taken (work order 025), by its name.</summary>
+        public void NoteFocusChoiceTaken(int floor, string name) => Note(SessionEventTypes.FocusChoiceTake, name, "floor", Int(floor));
 
         /// <summary>The run ended: how (death, act cleared, left), where (floor, room from 1 and its kind), and when.</summary>
         public void NoteRunEnded(string how, int floor, int room, string kind, float seconds)

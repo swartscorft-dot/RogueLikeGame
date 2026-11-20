@@ -226,6 +226,7 @@ namespace Roguelike.PlayModeTests
                     Assert.That(_levels.CanRedraw, Is.False);
                     Assert.That(_levels.RedrawOffer(), Is.False, "no redraw");
                     Assert.That(_levels.PickReward(0), Is.True, "floor " + floor);
+                    if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025)
                     yield return null;
                 }
             }
@@ -296,6 +297,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return FinishTheFloor();
             Assert.That(_levels.PickReward(0), Is.True);
+            if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025)
             yield return null;
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.Earnings.Total(_levels.MetaValues), Is.EqualTo(25), "10 for the floor, 15 for its elite room");
@@ -521,6 +523,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.CanRedraw, Is.False);
             Assert.That(_levels.RedrawOffer(), Is.False, "no redraw without it");
             _levels.PickReward(0);
+            if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025)
             _levels.BackToPracticeRoom();
             yield return null;
 
@@ -554,6 +557,7 @@ namespace Roguelike.PlayModeTests
                     Assert.That(_levels.RedrawOffer(), Is.False, "once a run");
                 }
                 Assert.That(_levels.PickReward(0), Is.True);
+                if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025)
                 yield return null;
             }
             Assert.That(_levels.SkillsTaken, Does.Not.Contain(plain[0]));
@@ -617,6 +621,7 @@ namespace Roguelike.PlayModeTests
                 yield return RunWith(RunSeed);
                 yield return FinishTheFloor();
                 Assert.That(_levels.PickReward(0), Is.True);
+                if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025)
                 yield return null;
                 _levels.BackToPracticeRoom(); // leaving keeps what was earned too
                 yield return null;
@@ -731,6 +736,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return FinishTheFloor();
             _levels.PickReward(0);
+            if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025)
             yield return null;
             _levels.BackToPracticeRoom();
             yield return null;

@@ -203,6 +203,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "the floor's reward, not an upgrade");
             Assert.That(_levels.SkillUpgradeOffers, Is.Zero);
             Assert.That(_levels.PickReward(0), Is.True);
+            Assert.That(_levels.PickFocusChoice(0), Is.True); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
             yield return null;
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.SkillUpgrades.Count, Is.Zero, "the room walked past gave nothing");
@@ -283,6 +284,7 @@ namespace Roguelike.PlayModeTests
                 if (floor < 5)
                 {
                     Assert.That(_levels.PickReward(0), Is.True);
+                    if (floor == 1) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice"); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
                     yield return null;
                 }
             }

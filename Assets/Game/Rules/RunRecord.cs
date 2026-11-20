@@ -15,7 +15,7 @@ namespace Roguelike.Rules
     /// itself (<c>GeneratedLevels</c>): a new record when a run starts, the floor and the room she is in, the skills taken
     /// as floor rewards in order, the chest upgrades taken (short forms), the kills and the time; and how it ended, with
     /// the health she had then. Work order 017: the skill upgrades taken from elite rooms, in order, and whether the room
-    /// she is in is the elite room.
+    /// she is in is the elite room. Work order 025: the focus choice taken after floor 1's reward.
     ///
     /// A kill is an enemy of the run's floors reporting its death: the same report the play session recorder counts
     /// kills from, so the two never disagree on what a kill is. The time is game time from the start of the run, so the
@@ -57,6 +57,8 @@ namespace Roguelike.Rules
         public IReadOnlyList<string> SkillUpgrades => _skillUpgrades;
         public RunOutcome Outcome { get; private set; } = RunOutcome.Going;
         public bool IsOver => Outcome != RunOutcome.Going;
+        /// <summary>The focus choice taken (work order 025), "Hair Trigger"; empty until it is taken.</summary>
+        public string FocusChoice { get; private set; } = "";
         /// <summary>Her health and maximum when the run ended; 0 while it goes on.</summary>
         public int HealthLeft { get; private set; }
         public int MaxHealth { get; private set; }
@@ -97,6 +99,12 @@ namespace Roguelike.Rules
             if (!IsOver) _skillUpgrades.Add(fullName ?? "?");
         }
 
+        /// <summary>The focus choice was taken (work order 025), by its name.</summary>
+        public void TakeFocusChoice(string name)
+        {
+            if (!IsOver) FocusChoice = name ?? "?";
+        }
+
         /// <summary>
         /// An enemy of the run's floors died. Counted also just after the end: the last enemies of the exit room report
         /// their deaths on the frames after the floor is seen to be cleared.
@@ -133,6 +141,9 @@ namespace Roguelike.Rules
 
         /// <summary>The skill upgrades taken in order (work order 017), "Quick Shot: Double Tap, Backstep: Long Step"; "none" without.</summary>
         public string SkillUpgradesText => _skillUpgrades.Count == 0 ? "none" : string.Join(", ", _skillUpgrades);
+
+        /// <summary>The focus choice (work order 025): its name, or "not chosen" before it is taken.</summary>
+        public string FocusChoiceText => FocusChoice.Length == 0 ? "not chosen" : FocusChoice;
     }
 
     /// <summary>The words the HUD and the end screens use (work order 018).</summary>

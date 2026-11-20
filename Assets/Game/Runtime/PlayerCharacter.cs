@@ -75,6 +75,14 @@ namespace Roguelike
     ///   spender does; an earlier one is an ordinary shot that adds its mark. The shot itself does not move her.
     /// - Focus fills from spent marks, clean taps and a trickle of damage; spending it cuts every running cooldown and,
     ///   for its window, makes every basic shot hit mark.
+    /// - The focus choice (decision 0005, his words of 2026-11-19; work order 025, 2026-11-20): how the gauge works is
+    ///   <see cref="FocusMode"/>, the run's choice (<see cref="RunFocus"/>) or in the practice room its own
+    ///   (<see cref="PracticeFocusMode"/>); today's until one is picked. Hair Trigger: the gauge in parts, Z spends one,
+    ///   cuts every running cooldown by a share and primes the next skill started in a few seconds (<see cref="FocusPrime"/>,
+    ///   <see cref="FocusModeRules.UseFor"/>): a clean last press anywhere in the window, a perfect release from half a
+    ///   charge, or a mark more; no window. Steady Hand: a full gauge, a longer window, and in it <see cref="Skills"/> reads
+    ///   Triple Tap two presses longer and Scatter Blast as two blasts (<see cref="SteadyHandView"/>), copies as the
+    ///   upgrades are. Nothing is written to the settings.
     /// - Skill upgrades (work order 017, 2026-11-20): in a run, <see cref="Skills"/> are the run's own copies of the
     ///   skills, patched by the upgrades taken from elite rooms (<see cref="SkillUpgrades"/>); the settings' skills
     ///   (<see cref="SettingsSkills"/>) are never written. What an upgrade changes beyond numbers is a field of the skill
@@ -158,6 +166,11 @@ namespace Roguelike
         readonly SkillDefinition[] _fallbackSkills = SkillDefaults.Create();
         readonly FocusGauge _focus = new FocusGauge();
         readonly IdentityValues _fallbackIdentity = new IdentityValues();
+        // The focus choice (work order 025).
+        readonly FocusPrime _prime = new FocusPrime();
+        readonly SteadyHandView _steadyView = new SteadyHandView();
+        PrimeUse _castPrime;   // what the skill in use gained from Hair Trigger's priming
+        bool _chainPrimed;     // the recast chain running was primed: its last press is clean anywhere in the window
         readonly ShotLook _fallbackBasicLook = ShotFxDefaults.Basic();
         readonly Dictionary<string, ShotLook> _fallbackLooks = new Dictionary<string, ShotLook>();
         readonly Dictionary<string, ShotLook> _borrowedLooks = new Dictionary<string, ShotLook>(); // work order 024: switched off
@@ -183,6 +196,7 @@ namespace Roguelike
             public GroundPoint Centre;
             public float BurstAt;
             public ShotFx Circle;
+            public PrimeUse Prime; // thrown primed (work order 025): its burst adds a mark more
         }
         readonly List<LyingKeg> _kegs = new List<LyingKeg>();
         /// <summary>How near a shot's line must pass a lying keg's middle to set it off, in m (work order 015, a guess).</summary>
@@ -344,9 +358,17 @@ namespace Roguelike
         /// <summary>
         /// The skills as the game reads them, in their list order: <see cref="SettingsSkills"/>, or in a run with skill
         /// upgrades taken the run's own copies of them, patched by the upgrades (work order 017,
-        /// <see cref="RunSkillUpgrades.View"/>). Nothing is written to the settings or to the skills in memory.
+        /// <see cref="RunSkillUpgrades.View"/>). While Steady Hand's window is open, copies of those with the window's two
+        /// changes (work order 025, <see cref="SteadyHandView"/>). Nothing is written to the settings or to the skills in memory.
         /// </summary>
-        public IReadOnlyList<SkillDefinition> Skills => SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills) : SettingsSkills;
+        public IReadOnlyList<SkillDefinition> Skills
+        {
+            get
+            {
+                IReadOnlyList<SkillDefinition> skills = SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills) : SettingsSkills;
+                return IsSteadyHandWindow ? _steadyView.View(skills, FocusModeValues) : skills;
+            }
+        }
 
         /// <summary>
         /// The skills of the settings, in their list order: the settings asset's, and after them, from the start values in
@@ -401,7 +423,8 @@ namespace Roguelike
         public float SkillChargedSeconds => _actionKind == ActionKind.Skill ? _cast.ChargedSeconds(Time.time) : 0f;
         /// <summary>True when the Charge skill in use, let go now, would be a perfect release (work order 015).</summary>
         public bool InPerfectBand => _actionKind == ActionKind.Skill && _cast.Phase(Time.time) == SkillPhase.Channel
-                                     && PoolRules.IsPerfect(_cast.Skill, _cast.ChargedSeconds(Time.time));
+                                     && (PoolRules.IsPerfect(_cast.Skill, _cast.ChargedSeconds(Time.time))
+                                         || (_castPrime == PrimeUse.PerfectRelease && FocusModeRules.PrimedPerfect(_cast.Charge(Time.time), FocusModeValues)));
         /// <summary>Perfect releases so far (work order 015).</summary>
         public int PerfectReleases { get; private set; }
         /// <summary>True while Slide moves her (work order 015).</summary>
@@ -442,6 +465,55 @@ namespace Roguelike
         /// <summary>For the bar, 0 to 1: how full the gauge is, or while empowered how much of the mode is left.</summary>
         public float FocusBarFill => _focus.BarFill(Time.time, Identity);
         public bool IsDashing => _dashing;
+
+        // ---------------- The focus choice (work order 025, 2026-11-20) ----------------
+
+        /// <summary>
+        /// The run's focus choice (<see cref="RunFocusChoice"/>), put on her by the run while it goes on, as its upgrades
+        /// are; null outside a run. In a run before the choice it is today's gauge.
+        /// </summary>
+        [System.NonSerialized] public RunFocusChoice RunFocus;
+        /// <summary>The practice room's own way, set only by its keys (F2, F3, F4); today's unless one was pressed. Not saved anywhere.</summary>
+        public FocusMode PracticeFocusMode { get; set; } = FocusMode.Today;
+        /// <summary>How the gauge works now: the run's choice in a run, else the practice room's.</summary>
+        public FocusMode FocusMode => RunFocus != null ? RunFocus.Mode : PracticeFocusMode;
+        /// <summary>The numbers of the two ways, defaults in code; not serialized, so no scene or asset carries them.</summary>
+        public FocusModeValues FocusModeValues { get; set; } = new FocusModeValues();
+        /// <summary>Hair Trigger's parts; 1 for the whole gauge of the other two.</summary>
+        public int FocusParts => FocusMode == FocusMode.HairTrigger ? Mathf.Max(1, FocusModeValues.Parts) : 1;
+        /// <summary>Full parts of the gauge: Hair Trigger's, 0 to 3; else 1 when it is full.</summary>
+        public int FocusPartsFull => _focus.PartsFull(Identity, FocusParts);
+        /// <summary>True while Hair Trigger's priming waits for the next skill.</summary>
+        public bool IsPrimed => _prime.IsPrimed(Time.time);
+        public float PrimeRemaining => _prime.Remaining(Time.time);
+        /// <summary>True while Steady Hand's window is open: Triple Tap and Scatter Blast read as the window changes them.</summary>
+        public bool IsSteadyHandWindow => FocusMode == FocusMode.SteadyHand && _focus.IsEmpowered(Time.time);
+        /// <summary>What the skill in use gained from the priming; None when it was not primed.</summary>
+        public PrimeUse ActivePrime => _actionKind == ActionKind.Skill ? _castPrime : PrimeUse.None;
+        /// <summary>Primed skills used, and primings that lapsed (for tests and the readout).</summary>
+        public int PrimesUsed { get; private set; }
+        public int PrimesLapsed { get; private set; }
+
+        /// <summary>The share of focus she gains: 1, more with the run's Keen focus (work order 025).</summary>
+        float FocusGainShare => Modifiers != null ? Modifiers.FocusGainShare : 1f;
+
+        /// <summary>Focus from anything, through the run's Keen focus. Returns the focus gained.</summary>
+        float GainFocus(float amount) => _focus.Add(amount * FocusGainShare, Identity, Time.time);
+
+        /// <summary>How far the basic shot reaches: the feel's, and the run's Longer barrel (work order 025).</summary>
+        public float BasicShotRange => Feel.BasicShotRange + (Modifiers != null ? Modifiers.BasicShotRangeBonus : 0f);
+
+        /// <summary>
+        /// Sets the practice room's way (its keys, F2, F3 and F4). Nothing changes in a run, where the run's choice holds.
+        /// A priming waiting is dropped. False in a run.
+        /// </summary>
+        public bool SetPracticeFocusMode(FocusMode mode)
+        {
+            if (RunFocus != null) return false;
+            PracticeFocusMode = mode;
+            _prime.Clear();
+            return true;
+        }
 
         // ---------------- The kit (decision 0005) ----------------
 
@@ -550,7 +622,9 @@ namespace Roguelike
         /// </summary>
         public float RecastCleanShare =>
             _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? Mathf.Clamp01(Kit.CleanShare) : 0f;
+                ? (_chainPrimed ? 1f : Mathf.Clamp01(Kit.CleanShare)) : 0f; // primed (work order 025): all of the window
+        /// <summary>Presses of the recast chain running, or 0 (work order 025: five for Triple Tap in Steady Hand's window).</summary>
+        public int RecastCount => _chain.Slot >= 0 ? _chain.Count : 0;
 
         /// <summary>
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
@@ -738,7 +812,7 @@ namespace Roguelike
             // A recast (decision 0005): inside the window it fires the next shot at once, whatever the cooldown; before
             // the shot it follows has gone off it waits like any press during a skill.
             ExpireChain(Time.time);
-            RecastPress recast = _chain.Judge(slot, Time.time, Kit.CleanShare, RecastChain.HasCleanPress(Skills[slot]));
+            RecastPress recast = JudgeRecast(slot, Time.time);
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 _shotCursor = point;
@@ -770,6 +844,17 @@ namespace Roguelike
             return IntentResult.Started;
         }
 
+        /// <summary>
+        /// What a press of this slot's key is to the recast chain now (decision 0005). A primed chain's press of its last
+        /// shot is clean wherever in the window it falls (Hair Trigger, work order 025).
+        /// </summary>
+        RecastPress JudgeRecast(int slot, float now)
+        {
+            bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
+            RecastPress judged = _chain.Judge(slot, now, Kit.CleanShare, hasClean);
+            return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
+        }
+
         /// <summary>Reports what became of a skill press, and returns it.</summary>
         IntentResult SkillPressed(int slot, IntentResult result, float cooldownLeft)
         {
@@ -785,7 +870,7 @@ namespace Roguelike
         {
             float now = Time.time;
             _chain.Recast();
-            float focus = clean ? _focus.Add(Identity.FocusPerCleanTap, Identity, now) : 0f;
+            float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
             Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus });
             if (_actionKind == ActionKind.Skill)
             {
@@ -819,7 +904,7 @@ namespace Roguelike
         bool StartWaitingSkill(Press press, float now)
         {
             ExpireChain(now);
-            RecastPress recast = _chain.Judge(press.Slot, now, Kit.CleanShare, RecastChain.HasCleanPress(Skills[press.Slot]));
+            RecastPress recast = JudgeRecast(press.Slot, now);
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 Recast(press.Slot, press.Point, recast == RecastPress.Clean);
@@ -865,21 +950,29 @@ namespace Roguelike
 
         /// <summary>
         /// Press: spend a full focus gauge on the empowered mode. It takes no time and locks nothing,
-        /// so it can be pressed in the middle of a skill. Rejected unless the gauge is full.
+        /// so it can be pressed in the middle of a skill. Rejected unless the gauge is full. With Hair Trigger (work order
+        /// 025) it spends one full part instead, rejected with none full, and primes the next skill.
         /// </summary>
         public IntentResult ActivateIdentity()
         {
             float now = Time.time;
-            IntentResult result = _focus.TryActivate(now, Identity) ? IntentResult.Started : IntentResult.Rejected;
-            Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result });
+            FocusMode mode = FocusMode;
+            FocusModeValues ways = FocusModeValues;
+            // Work order 025: Hair Trigger spends one full part, with no window; Steady Hand a full gauge on a longer window.
+            bool started = mode == FocusMode.HairTrigger ? _focus.TrySpendPart(Identity, FocusParts)
+                         : _focus.TryActivate(now, Identity, mode == FocusMode.SteadyHand ? ways.WindowSeconds : Identity.EmpoweredDuration);
+            IntentResult result = started ? IntentResult.Started : IntentResult.Rejected;
+            Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result, FocusMode = mode });
             if (result == IntentResult.Started)
             {
-                // Decision 0005: every running cooldown, the dash's too, is cut by a share of what it has left.
-                float share = Identity.CooldownCut;
+                // Decision 0005: every running cooldown, the dash's too, is cut by a share of what it has left; a part's
+                // share is smaller (work order 025).
+                float share = mode == FocusMode.HairTrigger ? ways.PartCooldownCut : Identity.CooldownCut;
                 var cuts = new float[Skills.Count];
                 for (int slot = 0; slot < cuts.Length; slot++) cuts[slot] = CooldownFor(slot).Cut(now, share);
                 float dashCut = _dash.CutCooldown(now, share);
                 Report(new PlayerReport { Kind = PlayerReportKind.CooldownsCut, Cuts = cuts, DashCut = dashCut });
+                if (mode == FocusMode.HairTrigger) _prime.Prime(now, ways.PrimeSeconds);
             }
             return result;
         }
@@ -944,6 +1037,7 @@ namespace Roguelike
             EndKeyMove();
             ClearKegs();
             _focus.Clear();
+            _prime.Clear(); // and no priming (work order 025)
             _dash.Clear();
             _cooldowns.Clear(); // made again, ready, when next asked for
             // Work order 029 (the rack between runs, only when it is switched on and a piece says so): Spare Step's dash
@@ -966,6 +1060,11 @@ namespace Roguelike
             ApplyMovementFeel(feel);
             ExpireChain(now);
             BurstKegsOnFuse(now);
+            if (_prime.TakeLapsed(now))
+            {
+                PrimesLapsed++;
+                Report(new PlayerReport { Kind = PlayerReportKind.PrimeLapsed }); // Hair Trigger's priming, unused (work order 025)
+            }
 
             if (_dashing)
             {
@@ -1393,7 +1492,7 @@ namespace Roguelike
         {
             Vector3 facing = Flat(transform.forward);
             GroundPoint dir = LineShot.Direction(GroundPosition, new GroundPoint(cursor.x, cursor.z), new GroundPoint(facing.x, facing.z));
-            return transform.position + new Vector3(dir.X, 0f, dir.Z) * Feel.BasicShotRange;
+            return transform.position + new Vector3(dir.X, 0f, dir.Z) * BasicShotRange;
         }
 
         void Halt()
@@ -1460,7 +1559,7 @@ namespace Roguelike
             var centre = new Vector3(c.X, 0f, c.Z);
             LastKegPoint = centre;
             ShotFx circle = ShotFx.Outline(centre, skill.Radius, skill.Fuse, look.Paint, ShotFxMaterial);
-            _kegs.Add(new LyingKeg { Skill = skill, Slot = _castSlot, Centre = c, BurstAt = Time.time + skill.Fuse, Circle = circle });
+            _kegs.Add(new LyingKeg { Skill = skill, Slot = _castSlot, Centre = c, BurstAt = Time.time + skill.Fuse, Circle = circle, Prime = _castPrime });
         }
 
         void BurstKegsOnFuse(float now)
@@ -1493,7 +1592,7 @@ namespace Roguelike
             Vector3 shotPoint = SpawnSkillFx(keg.Skill, look, area);
             PlaySound(look);
             int damage = Mathf.RoundToInt(SkillRules.Damage(keg.Skill, 1f) * damageScale);
-            bool landed = HitArea(keg.Skill, keg.Slot, area, look, shotPoint, damage, keg.Skill.Stagger, clean: false, out _);
+            bool landed = HitArea(keg.Skill, keg.Slot, area, look, shotPoint, damage, keg.Skill.Stagger, clean: false, out _, keg.Prime);
             Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = keg.Slot, Landed = landed, Charge = 1f, Clean = damageScale > 1f, At = keg.Centre });
             if (landed) HitStop.Trigger(Feel.HitStop);
         }
@@ -1644,9 +1743,25 @@ namespace Roguelike
                 EndChain(); // another skill starting ends a chain (decision 0005)
                 _chain.Start(slot, skill.RecastCount, skill.RecastWindow, skill.OpeningMove);
                 CooldownFor(slot).Start(Time.time, CooldownOf(slot));
+                TakePrime(slot, skill);
             }
             _castOpening = !recast && _chain.IsOpeningMove;
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
+        }
+
+        /// <summary>
+        /// A skill starts (not a recast): if Hair Trigger's priming waits and the skill can use it, the skill spends it for
+        /// all of this use (work order 025). One that cannot (Slide, Snap Shot) leaves it for the next.
+        /// </summary>
+        void TakePrime(int slot, SkillDefinition skill)
+        {
+            PrimeUse use = FocusModeRules.UseFor(skill);
+            bool primed = use != PrimeUse.None && _prime.Spend(Time.time);
+            _castPrime = primed ? use : PrimeUse.None;
+            _chainPrimed = primed && use == PrimeUse.CleanPress;
+            if (!primed) return;
+            PrimesUsed++;
+            Report(new PlayerReport { Kind = PlayerReportKind.PrimeUsed, Slot = slot, Prime = use });
         }
 
         void EndAction()
@@ -1689,12 +1804,13 @@ namespace Roguelike
             IReadOnlyList<Damageable> all = Damageable.All;
             _targetScratch.Clear();
             for (int i = 0; i < all.Count; i++) _targetScratch.Add(all[i].Info);
-            float stop = CoverRules.LineStop(origin, aim, feel.BasicShotRange, CoverQuery);
-            int index = LineShot.FirstHit(origin, aim, feel.BasicShotRange, feel.BasicShotHalfWidth, _targetScratch, stop);
+            float range = BasicShotRange; // the run's Longer barrel (work order 025)
+            float stop = CoverRules.LineStop(origin, aim, range, CoverQuery);
+            int index = LineShot.FirstHit(origin, aim, range, feel.BasicShotHalfWidth, _targetScratch, stop);
             Damageable hit = index >= 0 ? all[index] : null;
 
             Vector3 endPoint = hit != null ? hit.transform.position : _aimPoint;
-            bool stopped = hit == null && stop < feel.BasicShotRange;
+            bool stopped = hit == null && stop < range;
             if (stopped) endPoint = NoteCoverStop(origin, aim, stop);
             Vector3 end = new Vector3(endPoint.x, muzzle.y, endPoint.z);
             SpawnFlash(look, muzzle, end - muzzle);
@@ -1703,8 +1819,8 @@ namespace Roguelike
             // A lying keg on the shot's way, up to where it ended, goes off at once (work order 015).
             if (_kegs.Count > 0)
             {
-                float reach = hit != null ? hit.GroundPosition.DistanceTo(origin) : Mathf.Min(stop, feel.BasicShotRange);
-                SetOffKegs(origin, aim, feel.BasicShotRange, feel.BasicShotHalfWidth, reach);
+                float reach = hit != null ? hit.GroundPosition.DistanceTo(origin) : Mathf.Min(stop, range);
+                SetOffKegs(origin, aim, range, feel.BasicShotHalfWidth, reach);
             }
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
@@ -1793,7 +1909,8 @@ namespace Roguelike
             // Work order 029 (Marked Target, a piece of the rack between runs): a hit that marks a target with none gives more.
             if (Modifiers != null && Modifiers.Meta.FirstMarkExtra > 0 && target.MarkCount == 0) marks += Modifiers.Meta.FirstMarkExtra;
             KitValues kit = Kit;
-            int after = target.AddMarks(marks, kit.MaxMarks, kit.MarkLifetime);
+            // The run's Lasting marks (work order 025): they stay longer.
+            int after = target.AddMarks(marks, kit.MaxMarks, kit.MarkLifetime + (Modifiers != null ? Modifiers.MarkLifetimeBonus : 0f));
             MarkPips pips = MarkPips.For(target, ShotFxMaterial);
             if (pips != null) pips.Max = kit.MaxMarks;
             Report(new PlayerReport { Kind = PlayerReportKind.MarkAdded, Slot = slot, Target = target, Marks = marks, MarksAfter = after });
@@ -1804,9 +1921,10 @@ namespace Roguelike
         /// takes the marks and never comes here). A skill with a
         /// mark interval marks a target at most that often in one use (Fan Fire: once a second, not every tick).
         /// </summary>
-        void MarkFromSkill(SkillDefinition skill, Damageable target)
+        void MarkFromSkill(SkillDefinition skill, Damageable target, int primedExtra = 0)
         {
-            int marks = _castClean ? skill.CleanTapMarks : skill.MarksAdded;
+            // Primed (work order 025): a mark more than it would add, on each target it hits; a skill that adds none adds one.
+            int marks = (_castClean ? skill.CleanTapMarks : skill.MarksAdded) + Mathf.Max(0, primedExtra);
             if (marks <= 0) return;
             // A run's upgrade (work order 012): more marks from this skill's hit on a target that has none.
             if (Modifiers != null && target.MarkCount == 0) marks += Modifiers.FirstMarkBonus(skill.Name);
@@ -1844,8 +1962,9 @@ namespace Roguelike
             if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
             damage = target.ScaleForTag(damage); // Tag Round's tag (work order 015)
             bool tagged = target.IsTagged;
+            if (Modifiers != null) stagger *= Modifiers.StaggerShare; // the run's Heavy hits (work order 025)
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
-            focus = _focus.AddDamage(applied, identity, Time.time);
+            focus = applied > 0 ? GainFocus(applied * identity.FocusPerDamage) : 0f; // through the run's Keen focus (work order 025)
             if (tagged && !target.IsAlive) SpreadTag(target); // work order 017
             return applied;
         }
@@ -1869,8 +1988,10 @@ namespace Roguelike
             // Long Shot's perfect band (work order 015): let go by the key inside it, the shot deals the perfect scale
             // times the full-charge damage and stagger, gains focus as a clean tap does, and is drawn that much wider.
             // Snap Shot (work order 017): a skill with no charging is always a perfect release.
+            // Primed by Hair Trigger (work order 025): let go by the key at half a charge or more is perfect too.
             bool perfect = skill.Input == SkillInput.Charge
-                           && (skill.NoCharge || (_cast.ReleasedByKey && PoolRules.IsPerfect(skill, _cast.ChargedSeconds(Time.time))));
+                           && (skill.NoCharge || (_cast.ReleasedByKey && (PoolRules.IsPerfect(skill, _cast.ChargedSeconds(Time.time))
+                                                                          || (_castPrime == PrimeUse.PerfectRelease && FocusModeRules.PrimedPerfect(charge, FocusModeValues)))));
             Look look = LookFor(skill, perfect ? 1f : charge);
             if (perfect) look.Width *= Mathf.Max(1f, skill.PerfectScale);
             // A keg (work order 015) lands and lies on its fuse: nothing is hit yet.
@@ -1891,9 +2012,9 @@ namespace Roguelike
             if (perfect)
             {
                 PerfectReleases++;
-                _focus.Add(Identity.FocusPerCleanTap, Identity, Time.time);
+                GainFocus(Identity.FocusPerCleanTap);
             }
-            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first);
+            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first, _castPrime);
 
             // Tag Round (work order 015): the first target it hit is tagged; a tag on a tagged target starts it again.
             if (skill.TagSeconds > 0f && first != null && first.IsAlive)
@@ -1918,7 +2039,7 @@ namespace Roguelike
         /// True if any took damage. <paramref name="first"/> is the target nearest the area's origin that took damage.
         /// </summary>
         bool HitArea(SkillDefinition skill, int slot, SkillArea area, Look look, Vector3 shotPoint, int damage, float stagger,
-                     bool clean, out Damageable first)
+                     bool clean, out Damageable first, PrimeUse prime = PrimeUse.None)
         {
             first = null;
             float firstDistance = float.PositiveInfinity;
@@ -1939,6 +2060,8 @@ namespace Roguelike
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005);
                 // Breaker Slug's bonus per mark is stagger, not damage (work order 015).
                 int taken = spends ? d.TakeMarks() : 0;
+                // Primed (work order 025): a spender counts a mark more than the target has, up to the cap.
+                if (spends && prime == PrimeUse.SpenderExtraMark) taken = FocusModeRules.SpenderCount(taken, FocusModeValues.PrimedExtraMarks, Kit.MaxMarks);
                 int dealt = spends ? MarkRules.SpenderDamage(damage, taken, bonus) : damage;
                 // Execution (work order 017): more to a dazed target.
                 if (skill.DazedDamageScale != 1f && d.IsDazed) dealt = Mathf.RoundToInt(dealt * Mathf.Max(0f, skill.DazedDamageScale));
@@ -1955,7 +2078,7 @@ namespace Roguelike
                 else if (!wasDazed && d.IsDazed) dazed = true;
                 if (spends)
                 {
-                    float markFocus = _focus.Add(taken * Identity.FocusPerMarkSpent, Identity, Time.time);
+                    float markFocus = GainFocus(taken * Identity.FocusPerMarkSpent);
                     Report(new PlayerReport
                     {
                         Kind = PlayerReportKind.MarksSpent, Slot = slot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
@@ -1966,7 +2089,7 @@ namespace Roguelike
                 SpawnHit(look, d, shotPoint);
                 SkillShotHits++;
                 landed = true;
-                if (!spender) MarkFromSkill(skill, d);
+                if (!spender) MarkFromSkill(skill, d, prime == PrimeUse.ExtraMark ? FocusModeValues.PrimedExtraMarks : 0);
                 float distance = d.GroundPosition.DistanceTo(area.Origin);
                 if (distance < firstDistance)
                 {
@@ -1977,7 +2100,7 @@ namespace Roguelike
             if (countered)
             {
                 Counters++;
-                _focus.Add(Identity.MaxFocus * Mathf.Clamp01(skill.CounterFocus), Identity, Time.time);
+                GainFocus(Identity.MaxFocus * Mathf.Clamp01(skill.CounterFocus));
             }
             if (landed || countered) UseLanded(skill, slot, killed, dazed, countered);
             return landed;

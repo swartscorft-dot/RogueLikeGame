@@ -192,6 +192,9 @@ namespace Roguelike.Rules
         /// <summary>Elite rooms entered and cleared (work order 017), and the seconds each clear took from the first step in.</summary>
         public int ElitesEntered, ElitesCleared;
         public readonly List<float> EliteSeconds = new List<float>();
+        /// <summary>The focus choice taken (work order 025), "" before; and, from then on, the gauge's spends and Hair Trigger's primings.</summary>
+        public string FocusChoice = "";
+        public int FocusSpends, PrimesUsed, PrimesLapsed;
         /// <summary>
         /// What lasts between runs (work order 029), only when the run started with it switched on: the pieces equipped,
         /// the currency earned and from what, in the order first earned, and the feats done for the first time.
@@ -436,6 +439,19 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.SkillUpgradeTake:
                         run.SkillUpgrades.Add(e.Name ?? "?");
+                        break;
+                    // Work order 025.
+                    case SessionEventTypes.FocusChoiceTake:
+                        run.FocusChoice = e.Name ?? "?";
+                        break;
+                    case SessionEventTypes.FocusSpent:
+                        if (run.FocusChoice.Length > 0) run.FocusSpends++;
+                        break;
+                    case SessionEventTypes.PrimeUsed:
+                        run.PrimesUsed++;
+                        break;
+                    case SessionEventTypes.PrimeLapsed:
+                        run.PrimesLapsed++;
                         break;
                     // Work order 029.
                     case SessionEventTypes.MetaLoadout:
@@ -887,6 +903,10 @@ namespace Roguelike.Rules
                 sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
                   .AppendLine(run.EliteSeconds.Count == 0 ? "" : " (" + string.Join(", ", run.EliteSeconds.Select(Duration)) + ")");
                 sb.Append("  skill upgrades   ").AppendLine(run.SkillUpgrades.Count == 0 ? "-" : string.Join(", ", run.SkillUpgrades));
+                // Work order 025: the focus choice, and how the gauge was spent after it.
+                sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
+                    : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0
+                        ? ", primed skills used " + run.PrimesUsed + ", lapsed " + run.PrimesLapsed : ""));
                 // Work order 029: one line, only when the run started with what lasts between runs switched on.
                 if (run.HasMeta)
                     sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)

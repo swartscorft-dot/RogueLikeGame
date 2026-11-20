@@ -497,12 +497,22 @@ namespace Roguelike.PlayModeTests
                 yield return Frames(2);
                 Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "floor " + floor);
                 Assert.That(Count(PlaceholderSound.FloorCleared), Is.EqualTo(floor), "floor " + floor + " cleared, heard with its reward up: " + Heard);
-                Assert.That(Count(PlaceholderSound.ChoiceTaken), Is.EqualTo(floor - 1));
+                // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2,
+                // and its pick is a pick too: one more chord from floor 1 on.
+                int focusPicks = floor > 1 ? 1 : 0;
+                Assert.That(Count(PlaceholderSound.ChoiceTaken), Is.EqualTo(floor - 1 + focusPicks));
                 Assert.That(_levels.PickReward(0), Is.True);
                 yield return Frames(2);
-                Assert.That(Count(PlaceholderSound.ChoiceTaken), Is.EqualTo(floor), "the pick, floor " + floor);
+                Assert.That(Count(PlaceholderSound.ChoiceTaken), Is.EqualTo(floor + focusPicks), "the pick, floor " + floor);
                 // The floors go by far faster than she could clear them: past the cap of two a second on the notes.
                 yield return new WaitForSecondsRealtime(0.6f);
+                if (floor == 1)
+                {
+                    Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice");
+                    yield return Frames(2);
+                    Assert.That(Count(PlaceholderSound.ChoiceTaken), Is.EqualTo(2), "the focus choice's pick");
+                    yield return new WaitForSecondsRealtime(0.6f);
+                }
             }
             Assert.That(Count(PlaceholderSound.ActCleared), Is.EqualTo(0));
             _levels.FinishFloorForTests();

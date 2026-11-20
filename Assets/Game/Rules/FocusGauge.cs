@@ -25,6 +25,7 @@ namespace Roguelike.Rules
     {
         float _focus;
         float _empoweredUntil = float.NegativeInfinity;
+        float _windowSeconds; // how long the window running now was opened for (work order 025: Steady Hand's is longer)
 
         public float Focus => _focus;
 
@@ -46,11 +47,42 @@ namespace Roguelike.Rules
         }
 
         /// <summary>Spends a full gauge on the empowered mode. False, and nothing happens, if it is not full or already running.</summary>
-        public bool TryActivate(float now, IdentityValues values)
+        public bool TryActivate(float now, IdentityValues values) => TryActivate(now, values, values.EmpoweredDuration);
+
+        /// <summary>
+        /// Spends a full gauge on a window of <paramref name="seconds"/> (work order 025: Steady Hand's is longer than
+        /// today's). False, and nothing happens, if it is not full or already running.
+        /// </summary>
+        public bool TryActivate(float now, IdentityValues values, float seconds)
         {
             if (IsEmpowered(now) || !IsFull(values)) return false;
             _focus = 0f;
-            _empoweredUntil = now + Math.Max(0f, values.EmpoweredDuration);
+            _windowSeconds = Math.Max(0f, seconds);
+            _empoweredUntil = now + _windowSeconds;
+            return true;
+        }
+
+        // ---------------- Hair Trigger (work order 025, 2026-11-20): the gauge in parts ----------------
+
+        /// <summary>The focus one part holds when the gauge is in <paramref name="parts"/> parts.</summary>
+        public static float PartSize(IdentityValues values, int parts) => parts <= 0 ? values.MaxFocus : values.MaxFocus / parts;
+
+        /// <summary>How many whole parts are full, 0 to <paramref name="parts"/>.</summary>
+        public int PartsFull(IdentityValues values, int parts)
+        {
+            float size = PartSize(values, parts);
+            if (size <= 0f) return 0;
+            return Math.Min(Math.Max(1, parts), (int)Math.Floor(_focus / size + 1e-4f));
+        }
+
+        /// <summary>
+        /// Spends one full part: a part's worth of focus comes off, and what fills the next part stays. False, and
+        /// nothing happens, with no part full. There is no window.
+        /// </summary>
+        public bool TrySpendPart(IdentityValues values, int parts)
+        {
+            if (PartsFull(values, parts) < 1) return false;
+            _focus = Math.Max(0f, _focus - PartSize(values, parts));
             return true;
         }
 
@@ -62,6 +94,7 @@ namespace Roguelike.Rules
         {
             _focus = 0f;
             _empoweredUntil = float.NegativeInfinity;
+            _windowSeconds = 0f;
         }
 
         public float DamageMultiplier(float now, IdentityValues values) => IsEmpowered(now) ? values.EmpoweredDamage : 1f;
@@ -70,11 +103,14 @@ namespace Roguelike.Rules
         public int Scale(int damage, float now, IdentityValues values) =>
             (int)Math.Round(damage * DamageMultiplier(now, values));
 
-        /// <summary>For the bar, 0 to 1: how full the gauge is, or while empowered how much of the mode is left.</summary>
+        /// <summary>
+        /// For the bar, 0 to 1: how full the gauge is, or while empowered how much of the window is left, of the length it
+        /// was opened for.
+        /// </summary>
         public float BarFill(float now, IdentityValues values)
         {
             if (IsEmpowered(now))
-                return values.EmpoweredDuration <= 0f ? 0f : EmpoweredRemaining(now) / values.EmpoweredDuration;
+                return _windowSeconds <= 0f ? 0f : EmpoweredRemaining(now) / _windowSeconds;
             return values.MaxFocus <= 0f ? 0f : Math.Min(1f, _focus / values.MaxFocus);
         }
     }

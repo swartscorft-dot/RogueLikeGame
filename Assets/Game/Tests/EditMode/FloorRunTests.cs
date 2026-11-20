@@ -169,7 +169,8 @@ namespace Roguelike.Rules.Tests
                     Assert.That(u.Short, Is.Not.Empty);
                 }
             }
-            Assert.That(kinds.Count, Is.EqualTo(6), "every row comes up"); // 5 until work order 017 added the dash's step
+            // Changed deliberately: 5 until work order 017 added the dash's step, 6 until work order 025 added five more rows.
+            Assert.That(kinds.Count, Is.EqualTo(11), "every row comes up");
         }
 
         [Test]
