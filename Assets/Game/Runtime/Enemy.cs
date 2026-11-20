@@ -67,6 +67,12 @@ namespace Roguelike
         /// </summary>
         public static Func<Enemy, EnemyAttackDefinition, float, bool> StrikeDrawer;
 
+        /// <summary>
+        /// The same for a strike that goes off away from where the enemy stands (work order 034: a caster's circle as it
+        /// bursts), asked with the attack and the place on the ground; true when it drew it. Null: the kind's own stand-in.
+        /// </summary>
+        public static Func<Enemy, EnemyAttackDefinition, Vector3, bool> StrikeAtDrawer;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -75,6 +81,7 @@ namespace Roguelike
             Appeared = null;
             Turns.Clear();
             StrikeDrawer = null;
+            StrikeAtDrawer = null;
         }
 
         /// <summary>
@@ -331,7 +338,7 @@ namespace Roguelike
             // An elite takes no turn (work order 023's rule, made so in work order 030 now that elites exist).
             TurnSort sort = TakesTurns && !IsElite ? AttackSort : TurnSort.None;
             if (before == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && distance <= values.LeashRange
-                && _choose(distance, values) != null)
+                && WouldChoose(distance, values) != null)
                 mayAttack = Turns.Ask(Id, sort, now);
             bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose);
             EnemyState state = _brain.State;
@@ -398,6 +405,13 @@ namespace Roguelike
         /// </summary>
         protected virtual EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) =>
             EnemyBrain.AttackFor(distance, values);
+
+        /// <summary>
+        /// The attack <see cref="ChooseAttack"/> would give now, asked for the turns to attack before the brain's step
+        /// (work order 034): the same, unless a kind's choice counts what it gives (the caster's casts), when it must not
+        /// count a question.
+        /// </summary>
+        protected virtual EnemyAttackDefinition WouldChoose(float distance, EnemyValues values) => ChooseAttack(distance, values);
 
         /// <summary>
         /// At the strike, before anything is hit: true when the kind strikes this attack itself, over time (work order

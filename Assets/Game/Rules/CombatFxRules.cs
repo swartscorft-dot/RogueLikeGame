@@ -131,7 +131,8 @@ namespace Roguelike.Rules
             switch (kind)
             {
                 case EnemyKind.Swarmer: return Swarmer;
-                case EnemyKind.Shooter: return Shooter;
+                case EnemyKind.Shooter:
+                case EnemyKind.Caster: return Shooter; // work order 034: a caster's size for the effects is a shooter's
                 case EnemyKind.Guard: return Guard;
                 case EnemyKind.Boss: return Boss;
                 default: return Brute;

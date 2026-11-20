@@ -15,22 +15,28 @@ namespace Roguelike.Rules
         Guard,
         /// <summary>The act boss (work order 014): the crypt knight, with a cleave, a spin and a charge (<see cref="BossValues"/>).</summary>
         Boss,
+        /// <summary>
+        /// Stands off and calls up bursts under her feet that go off after a moment (work order 027, Kristian's request for
+        /// a fifth kind, 2026-11-20): do you keep moving to somewhere new, and can you reach it or silence it? (<see cref="CasterValues"/>)
+        /// </summary>
+        Caster,
     }
 
     public static class EnemyKinds
     {
-        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss".</summary>
+        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss", "caster".</summary>
         public static string Word(EnemyKind kind) =>
             kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter"
-            : kind == EnemyKind.Boss ? "boss" : "guard";
+            : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : "guard";
 
         /// <summary>
         /// The letter for an enemy point on a level's text map: b brute, s swarmer, p a pack of swarmers, h shooter,
-        /// g guard. Small letters, so they do not read as the rooms' capitals. The act boss is G (work order 014).
+        /// g guard, c caster (work order 027; casters never stand in a line). Small letters, so they do not read as the
+        /// rooms' capitals. The act boss is G (work order 014).
         /// </summary>
         public static char Letter(EnemyKind kind, int count) =>
             kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h'
-            : kind == EnemyKind.Boss ? 'G' : 'g';
+            : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : 'g';
     }
 
     /// <summary>

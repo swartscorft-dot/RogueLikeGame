@@ -95,10 +95,13 @@ namespace Roguelike.Rules
 
         static bool Queued(TurnSort sort) => sort == TurnSort.Heavy || sort == TurnSort.Ranged;
 
-        /// <summary>The sort of a kind: heavy for the brute and the guard, ranged for the shooter, light for the swarmer, none for the boss.</summary>
+        /// <summary>
+        /// The sort of a kind: heavy for the brute and the guard, ranged for the shooter and the caster (work order 034: it
+        /// attacks from afar, so it waits with the shooters), light for the swarmer, none for the boss.
+        /// </summary>
         public static TurnSort SortOf(EnemyKind kind) =>
             kind == EnemyKind.Brute || kind == EnemyKind.Guard ? TurnSort.Heavy
-            : kind == EnemyKind.Shooter ? TurnSort.Ranged
+            : kind == EnemyKind.Shooter || kind == EnemyKind.Caster ? TurnSort.Ranged
             : kind == EnemyKind.Swarmer ? TurnSort.Light
             : TurnSort.None;
 

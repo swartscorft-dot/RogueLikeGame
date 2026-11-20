@@ -88,7 +88,10 @@ namespace Roguelike.Rules.Tests
                 if (floor == 5) Assert.That(level.ExitRoom.EnemyGroups.Count(g => g.Boss), Is.EqualTo(1), "the act boss as before");
             }
             if (floor == 1) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute }));
-            else Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }));
+            // Work order 027 changed this on purpose: from floor 3 the elite may be a caster too; work order 034: only with
+            // the casters on, which they are not by default, so the kinds are main's again.
+            else if (floor < v.EliteCasterFromFloor || !v.Casters) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }));
+            else Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster }));
         }
 
         [Test]

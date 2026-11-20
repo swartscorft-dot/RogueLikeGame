@@ -54,9 +54,17 @@ namespace Roguelike.Rules
         public string[] AttackClips = new string[0];
         public EnemyClipSpec[] Clips = new EnemyClipSpec[0];
 
+        /// <summary>
+        /// Work order 027: over 0, its "_emission" map goes on its material in the game's cyan times this, as the crypt
+        /// kit's (<see cref="CryptKitValues.StoneGlow"/>); 0, no glow.
+        /// </summary>
+        public double Glow;
+
         public string ResourcePath => "Enemies/" + Name + "/" + Name;
         /// <summary>The base colour texture of a mesh in the model's folder, by the mesh's name.</summary>
         public string TexturePath(string mesh) => "Enemies/" + Name + "/" + mesh + "_base_color";
+        /// <summary>The emission map beside the model (work order 027), by the model's name.</summary>
+        public string EmissionPath => "Enemies/" + Name + "/" + Name + "_emission";
 
         public EnemyClipSpec Clip(string name)
         {
@@ -147,11 +155,32 @@ namespace Roguelike.Rules
             },
         };
 
-        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss };
+        /// <summary>
+        /// The caster (work order 027, 2026-11-20): the hooded skeleton in a tattered robe, its eyes, palms and amulet
+        /// glowing in the game's cyan. Neither cast fires along the body (the quick one throws the right hand up and out,
+        /// the big one both hands overhead): the spell appears on the ground where it is aimed, so nothing is turned. Each
+        /// cast's release lands on the game's strike: Bone Spikes' burst, and Grave Rain's first burst.
+        /// </summary>
+        public static readonly EnemyModelSpec Caster = new EnemyModelSpec
+        {
+            // As Unity imports it: 1.9 m as bound, 1.83 m standing in the file's pose, 24 bones, the takes as the Blender
+            // report said; the strides measured from the feet, 1.79 and 3.38 m/s (the report: about 1.7 and 5.7).
+            Kind = EnemyKind.Caster, Name = "Crypt_BoneCaster_01", Height = 1.9, HasStagger = true, Glow = 3,
+            WalkStride = 1.79, RunStride = 3.38,
+            AttackClips = new[] { CasterValues.BoneSpikes, "Cast", CasterValues.GraveRain, "CastBig" },
+            Clips = new[]
+            {
+                new EnemyClipSpec("Idle", 3.967, true), new EnemyClipSpec("Walk", 1.000, true), new EnemyClipSpec("Run", 0.600, true),
+                new EnemyClipSpec("Cast", 1.967, false, 0.600), new EnemyClipSpec("CastBig", 2.667, false, 1.733),
+                new EnemyClipSpec("Stagger", 1.500, false), new EnemyClipSpec("Death", 1.533, false),
+            },
+        };
+
+        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster };
 
         public static EnemyModelSpec Of(EnemyKind kind) =>
             kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard
-            : kind == EnemyKind.Boss ? Boss : Brute;
+            : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : Brute;
 
         /// <summary>
         /// The clip's own name in a take name as an exporter writes it: "Armature|Idle" is "Idle". The part after the

@@ -18,7 +18,8 @@ namespace Roguelike
     /// the game reports (<see cref="Enemy.Reported"/>, <see cref="Enemy.Appeared"/>, <see cref="PlayerCharacter.Reported"/>,
     /// <see cref="PlayerHealth.Damaged"/>) and what it shows (the boss's charge, a chest opened, a pick in the run's
     /// record), so a sound and its effect come together; and it changes nothing in a fight. Two hooks only: it draws an
-    /// enemy's strike in place of the flat stand-in (<see cref="Enemy.StrikeDrawer"/>), and while it is switched off the
+    /// enemy's strike in place of the flat stand-in (<see cref="Enemy.StrikeDrawer"/>, and for a strike away from the enemy,
+    /// a caster's circle bursting, <see cref="Enemy.StrikeAtDrawer"/>: work order 034), and while it is switched off the
     /// four pool skills borrow their nearest's look again (<see cref="PoolLooksBorrowed"/>).
     ///
     /// The limits (<see cref="FxBudget"/>): at most so many pieces live, the least going first; a kind that comes many
@@ -95,6 +96,7 @@ namespace Roguelike
         readonly List<PendingHit> _hits = new List<PendingHit>();
         readonly HashSet<int> _chestsSeen = new HashSet<int>();
         Func<Enemy, EnemyAttackDefinition, float, bool> _drawer;
+        Func<Enemy, EnemyAttackDefinition, Vector3, bool> _drawerAt; // work order 034
         int _nextId = 1;
 
         PlayerCharacter _player;
@@ -142,6 +144,8 @@ namespace Roguelike
             Enemy.Appeared += OnAppeared;
             _drawer = DrawStrike;
             Enemy.StrikeDrawer = _drawer;
+            _drawerAt = DrawStrikeAt; // work order 034: the caster's circles, where they burst
+            Enemy.StrikeAtDrawer = _drawerAt;
             CombatFx.Ended += OnEnded;
             Safely(Find);
         }
@@ -150,6 +154,7 @@ namespace Roguelike
         {
             Enemy.Appeared -= OnAppeared;
             if (_drawer != null && Enemy.StrikeDrawer == _drawer) Enemy.StrikeDrawer = null;
+            if (_drawerAt != null && Enemy.StrikeAtDrawer == _drawerAt) Enemy.StrikeAtDrawer = null;
             CombatFx.Ended -= OnEnded;
             Listen(null, null);
             foreach (KeyValuePair<Enemy, Action<EnemyReport>> pair in _enemies)
@@ -417,7 +422,7 @@ namespace Roguelike
             {
                 case EnemyReportKind.AttackStarted: Windup(enemy); break;
                 case EnemyReportKind.Struck:
-                    if (r.Outcome == StrikeOutcome.Landed) StrikeOnHer(enemy);
+                    if (r.Outcome == StrikeOutcome.Landed) StrikeOnHer(enemy, r.Attack);
                     break;
                 case EnemyReportKind.Died:
                     if (enemy.Kind == EnemyKind.Boss) BossDeath(enemy);
@@ -438,7 +443,17 @@ namespace Roguelike
         /// 1. A strike, in place of the flat stand-in: asked by the enemy as it strikes (<see cref="Enemy.StrikeDrawer"/>).
         /// False leaves the stand-in: switched off, or nothing to draw with.
         /// </summary>
-        bool DrawStrike(Enemy e, EnemyAttackDefinition a, float reach)
+        bool DrawStrike(Enemy e, EnemyAttackDefinition a, float reach) => e != null && DrawStrikeFrom(e, a, reach, Feet(e));
+
+        /// <summary>
+        /// 1. A strike that goes off away from where the enemy stands (work order 034: a caster's circle as it bursts), drawn
+        /// at <paramref name="at"/> as a strike of its shape is, red or blue as its telegraph: asked by the enemy
+        /// (<see cref="Enemy.StrikeAtDrawer"/>). False leaves the enemy's own stand-in.
+        /// </summary>
+        bool DrawStrikeAt(Enemy e, EnemyAttackDefinition a, Vector3 at) =>
+            e != null && a != null && DrawStrikeFrom(e, a, a.Length, new Vector3(at.x, Feet(e).y, at.z));
+
+        bool DrawStrikeFrom(Enemy e, EnemyAttackDefinition a, float reach, Vector3 o)
         {
             try
             {
@@ -448,7 +463,7 @@ namespace Roguelike
                 if (!Ask(FxMoment.EnemyStruck, FxTier.Plain)) return true; // capped: drawn by none, the stand-in neither
                 bool blue = PoolRules.IsCounterable(a);
                 Color rim = blue ? Values.CounterRim : Values.StrikeRim, core = blue ? Values.CounterCore : Values.StrikeCore;
-                Vector3 o = Feet(e), dir = AimOf(e);
+                Vector3 dir = AimOf(e);
                 float k = KindScale(e.Kind);
                 switch (a.Shape)
                 {
@@ -505,13 +520,16 @@ namespace Roguelike
         }
 
         /// <summary>1. A strike that hurt her: a spark on her in its colours, sized by the hit. It is her hurt spark for that hit.</summary>
-        void StrikeOnHer(Enemy e)
+        void StrikeOnHer(Enemy e, string attack)
         {
             if (_hurtFrame != Time.frameCount || _hurt <= 0 || _player == null) return;
             int amount = _hurt;
             _hurt = 0;
             if (!Ask(FxMoment.StrikeHitHer, FxTier.Plain)) return;
-            bool blue = PoolRules.IsCounterable(e.Attack);
+            // A caster's circle bursts on its own time, after the cast or the caster itself is over: its colour is that of
+            // the cast it belongs to, by the report's name (work order 034).
+            EnemyAttackDefinition a = e is EnemyCaster caster ? CasterTactics.Find(caster.Tuning.Enemy, attack) ?? e.Attack : e.Attack;
+            bool blue = PoolRules.IsCounterable(a);
             FxPiece p = Piece(FxShape.Spark, FxMoment.StrikeHitHer, FxTier.Plain, HerChest,
                               Sizes.HurtSize(amount, _health != null ? _health.Max : Placeholders.PlayerHealth), Values.HurtSeconds,
                               blue ? Values.CounterRim : Values.StrikeRim, blue ? Values.CounterCore : Values.StrikeCore);

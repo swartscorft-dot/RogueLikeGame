@@ -224,6 +224,11 @@ namespace Roguelike.PlayModeTests
                 { EnemyReportKind.StaggerTaken, null }, { EnemyReportKind.Dazed, FxMoment.EnemyDazed },
                 { EnemyReportKind.DazeEnded, null }, { EnemyReportKind.Charged, FxMoment.BossChargeStep },
                 { EnemyReportKind.CalledPack, FxMoment.BossCalled }, { EnemyReportKind.Angered, FxMoment.BossAngered },
+                // Work order 034, added on purpose: work order 027's caster reports have no effect of their own (its cast
+                // is AttackStarted, each burst is drawn at its circle as it goes off and Struck when it lands, the
+                // counter's daze is Dazed).
+                { EnemyReportKind.CirclePlaced, null }, { EnemyReportKind.CircleOffGround, null },
+                { EnemyReportKind.CircleFaded, null }, { EnemyReportKind.Countered, null },
             };
             foreach (EnemyReportKind kind in Enum.GetValues(typeof(EnemyReportKind)))
             {

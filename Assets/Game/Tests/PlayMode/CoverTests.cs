@@ -322,7 +322,7 @@ namespace Roguelike.PlayModeTests
             PropValues values = level.Values.PropRules;
             foreach (GeneratedLevel.PlacedProp p in level.Props)
             {
-                bool tall = p.Prop.Height >= values.CoverHeight - 1e-3;
+                bool tall = p.Prop.Height >= values.CoverHeight - 1e-3 && !p.Prop.Slender; // work order 028: a slender prop is never cover
                 Assert.That(p.IsCover, Is.EqualTo(tall), p.Prop.ToString());
                 Assert.That(p.Object.GetComponent<Cover>() != null, Is.EqualTo(tall), "cover as tall as " + values.CoverHeight + " m: " + p.Prop);
             }

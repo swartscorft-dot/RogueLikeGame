@@ -73,7 +73,12 @@ namespace Roguelike.Rules.Tests
             var v = new PropValues();
             PropModel[] cover = Enum.GetValues(typeof(PropModel)).Cast<PropModel>()
                                     .Where(m => LevelProp.Make(m, new LevelPoint(0, 0), 0, PropPlace.Floor).IsCover(v)).ToArray();
-            Assert.That(cover, Is.EquivalentTo(new[] { PropModel.Altar, PropModel.GraveMarker, PropModel.Pillar, PropModel.PillarBroken, PropModel.Statue }));
+            // Work order 028 added the bone throne, the bookshelf and the cage; the candelabra is tall but slender, and not cover.
+            Assert.That(cover, Is.EquivalentTo(new[] { PropModel.Altar, PropModel.GraveMarker, PropModel.Pillar, PropModel.PillarBroken, PropModel.Statue,
+                                                       PropModel.BoneThrone, PropModel.Bookshelf, PropModel.Cage }));
+            LevelProp candelabra = LevelProp.Make(PropModel.Candelabra, new LevelPoint(0, 0), 0, PropPlace.Set);
+            Assert.That(candelabra.Height, Is.GreaterThan(v.CoverHeight), "the candelabra is tall");
+            Assert.That(candelabra.Slender && !candelabra.IsCover(v), "and slender: no cover");
             v.CoverHeight = 2f;
             Assert.That(LevelProp.Make(PropModel.PillarBroken, new LevelPoint(0, 0), 0, PropPlace.Floor).IsCover(v), Is.False, "it follows the level's value");
         }

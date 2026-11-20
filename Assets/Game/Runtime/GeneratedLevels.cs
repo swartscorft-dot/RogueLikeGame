@@ -50,7 +50,7 @@ namespace Roguelike
     /// <see cref="Build"/> builds one floor alone, outside a run (work order 006).
     ///
     /// In the practice room (work order 008), under the same rule: F9 spawns a pack of swarmers, F10 a shooter, F11 a
-    /// guard, F8 the act boss with a third of its health (work order 014), each about <see cref="SpawnDistance"/> from her on the practice floor, and F12 removes everything spawned
+    /// guard, F8 the act boss with a third of its health (work order 014), C a caster (work order 027; F4 until work order 034), each about <see cref="SpawnDistance"/> from her on the practice floor, and F12 removes everything spawned
     /// this way. They stay dead when killed. The intents are <see cref="SpawnPractice"/> and <see cref="ClearSpawned"/>.
     /// Nothing is spawned while she is in a generated level.
     ///
@@ -81,6 +81,12 @@ namespace Roguelike
         public const Key ShooterKey = Key.F10;
         public const Key GuardKey = Key.F11;
         public const Key ClearSpawnsKey = Key.F12;
+        /// <summary>
+        /// Work order 027: a caster in the practice room (F8 to F11 were taken). F4 until work order 034 (2026-11-20), when
+        /// main's focus choice took F4 for today's gauge and no F-key was left: C, the caster's letter on the text map, which
+        /// no binding of <see cref="InputBindings"/> uses and no Editor shortcut takes while the Game view has the keys.
+        /// </summary>
+        public const Key CasterKey = Key.C;
         /// <summary>Metres from her that a spawned enemy (or a pack's middle) stands.</summary>
         public const float SpawnDistance = 12f;
 
@@ -800,6 +806,7 @@ namespace Roguelike
                 else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
                 else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
+                else if (keyboard[CasterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Caster);
                 else if (keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
                 else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
                 else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);
@@ -873,7 +880,7 @@ namespace Roguelike
             CurrentRoom = room;
             _entered.Add(room.Order);
             if (InRun) Record?.EnterRoom(room.Order, room.Kind, room.Elite);
-            PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant());
+            PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant(), RoomThemes.Word(room.Theme)); // work order 028: and its theme
             if (room.Elite && !EliteRoomEntered)
             {
                 EliteRoomEntered = true;
@@ -976,6 +983,7 @@ namespace Roguelike
             {
                 string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
                             + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
+                            + "\n" + CasterKey + " caster" // work order 034: its own line, the line above being full
                             + "\n" + PracticeFocusLine() // work order 025
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);

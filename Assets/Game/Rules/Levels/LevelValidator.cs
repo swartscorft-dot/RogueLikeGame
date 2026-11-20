@@ -27,7 +27,12 @@ namespace Roguelike.Rules
     /// keeps every rule of <see cref="PropRules"/>; no room holds more than its kind may; and every room keeps its
     /// clear lane. Since work order 017 the elite room: exactly the combat room of the chain the plan names
     /// (<see cref="LevelPlan.EliteRoomNumber"/>) is marked elite, and it alone holds an elite: one, of a kind its floor can
-    /// have, counted apart from the room's range, kinds and guards, with its larger body's room round it.
+    /// have, counted apart from the room's range, kinds and guards, with its larger body's room round it. Since work order
+    /// 027 the casters: no more in a room than its floor allows (<see cref="LevelValues.CastersMost"/>), each alone, and
+    /// <see cref="LevelValues.CasterSpacing"/> apart. Since work order 028 the rooms' themes: each one its kind of room may
+    /// have, no two combat rooms next to each other on the chain of the same theme, a themed room's props only of its
+    /// recipe's models and no more than it holds, the wall pieces' rules of <see cref="PropRules"/> (the crypt kit's niches
+    /// read from its plan), and every combat room with at least <see cref="PropValues.MinWalkable"/> of its floor walkable.
     /// </summary>
     public static class LevelValidator
     {
@@ -222,22 +227,46 @@ namespace Roguelike.Rules
 
             // The props (work order 009).
             PropValues pv = values.PropRules;
+            // Work order 028: the rooms' themes, each one its kind may have, and no combat theme twice in a row on the chain.
             foreach (LevelRoom r in rooms)
             {
-                PropModel[] allowed = PropRules.ModelsFor(r.Kind, pv);
-                if (r.Props.Count > PropRules.MostIn(r.Kind, pv))
-                    faults.Add($"{Name(r)} has {r.Props.Count} props, a {r.Kind} room at most {PropRules.MostIn(r.Kind, pv)}");
+                if (r.Theme == RoomTheme.None) continue;
+                if (Array.IndexOf(RoomThemes.ThemesFor(r.Kind), r.Theme) < 0 || values.ThemeRules?.Of(r.Theme, r.Kind) == null)
+                    faults.Add($"{Name(r)} is a {RoomThemes.Word(r.Theme)}, which a {r.Kind} room is never");
+            }
+            List<LevelRoom> combatChain = path.Where(r => r.Kind == RoomKind.Combat).ToList();
+            for (int i = 1; i < combatChain.Count; i++)
+                if (combatChain[i].Theme != RoomTheme.None && combatChain[i].Theme == combatChain[i - 1].Theme)
+                    faults.Add($"{Name(combatChain[i - 1])} and {Name(combatChain[i])}, next to each other on the chain, are both a {RoomThemes.Word(combatChain[i].Theme)}");
+            CryptKitPlan kit = null; // where the kit's niches are, read only when a wall piece stands somewhere
+            foreach (LevelRoom r in rooms)
+            {
+                PropModel[] allowed = PropRules.ModelsFor(r, values);
+                int mostIn = PropRules.MostIn(r, values);
+                string what = r.Theme == RoomTheme.None ? $"a {r.Kind} room" : $"a {RoomThemes.Word(r.Theme)}";
+                if (r.Props.Count > mostIn)
+                    faults.Add($"{Name(r)} has {r.Props.Count} props, {what} at most {mostIn}");
+                List<PropRules.WallSpan> niches = null;
+                if (r.Props.Any(p => PropSize.Of(p.Model).WallPiece))
+                    niches = PropRules.NichesOf(level, r, kit = kit ?? PropRules.KitPlanForProps(level));
                 for (int i = 0; i < r.Props.Count; i++)
                 {
                     LevelProp p = r.Props[i];
                     string label = $"{Name(r)}'s prop {i} ({p.Model} at {p.Position})";
-                    if (Array.IndexOf(allowed, p.Model) < 0) faults.Add($"{label} does not belong in a {r.Kind} room");
+                    if (Array.IndexOf(allowed, p.Model) < 0) faults.Add($"{label} does not belong in {what}");
                     LevelProp table = LevelProp.Make(p.Model, p.Position, p.Rotation, p.Place);
-                    if (p.Shape != table.Shape || p.Width != table.Width || p.Depth != table.Depth || p.Radius != table.Radius || p.Height != table.Height)
+                    if (p.Shape != table.Shape || p.Width != table.Width || p.Depth != table.Depth || p.Radius != table.Radius || p.Height != table.Height
+                        || p.Slender != table.Slender)
                         faults.Add($"{label} has a footprint that is not its model's");
                     var broken = new List<string>();
-                    PropRules.Fault(level, r, p, r.Props, pv, broken);
+                    PropRules.Fault(level, r, p, r.Props, pv, broken, niches);
                     foreach (string fault in broken) faults.Add(label + " " + fault);
+                }
+                // Work order 028: a combat room keeps two thirds of its floor walkable.
+                if (r.Kind == RoomKind.Combat && r.Props.Count > 0)
+                {
+                    double share = PropRules.WalkableShare(level, r, pv);
+                    if (share < pv.MinWalkable - Slack) faults.Add($"{Name(r)} keeps {share:P0} of its floor walkable, less than {pv.MinWalkable:P0}");
                 }
                 var lane = new PropRules.Lane(level, r, pv);
                 foreach (LevelProp p in r.Props) lane.Block(p.Footprint);
@@ -273,6 +302,15 @@ namespace Roguelike.Rules
             int guards = groups.Where(g => g.Kind == EnemyKind.Guard && !g.Elite).Sum(g => g.Count);
             int guardsMost = values.GuardsMost(r.Kind, floor);
             if (guards > guardsMost) faults.Add($"{name} holds {guards} guards, floor {floor} at most {guardsMost} in a {r.Kind} room");
+            // The casters (work order 027): no more than the floor allows, the elite apart; each alone, and far from each other.
+            int casters = groups.Where(g => g.Kind == EnemyKind.Caster && !g.Elite).Sum(g => g.Count);
+            int castersMost = values.CastersMost(r.Kind, floor);
+            if (casters > castersMost) faults.Add($"{name} holds {casters} casters, floor {floor} at most {castersMost} in a {r.Kind} room");
+            for (int i = 0; i < r.EnemyPoints.Count && i < r.EnemyGroups.Count; i++)
+                for (int j = i + 1; j < r.EnemyPoints.Count && j < r.EnemyGroups.Count; j++)
+                    if (r.EnemyGroups[i]?.Kind == EnemyKind.Caster && r.EnemyGroups[j]?.Kind == EnemyKind.Caster
+                        && r.EnemyPoints[i].DistanceTo(r.EnemyPoints[j]) < values.CasterSpacing - Slack)
+                        faults.Add($"{name}'s casters {i} and {j} are nearer each other than {values.CasterSpacing} m");
             int bosses = groups.Count(g => g.Boss);
             bool wantsBoss = r.Kind == RoomKind.Exit && floor >= values.FloorsPerAct;
             if (bosses != (wantsBoss ? 1 : 0)) faults.Add($"{name} holds {bosses} act bosses, not {(wantsBoss ? 1 : 0)}");

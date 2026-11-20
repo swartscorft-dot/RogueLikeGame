@@ -84,9 +84,13 @@ namespace Roguelike
     /// What an enemy reports. Removed: it was taken out of the game alive (its level or the practice spawns went), and
     /// counts as giving up. StaggerTaken, Dazed and DazeEnded come from its stagger bar (work order 008). The boss's
     /// (work order 014): Charged, its charge began to run (Attack names it); CalledPack, it called a pack (Count how many
-    /// came); Angered, it turned angry.
+    /// came); Angered, it turned angry. The caster's (work order 027; its casts are AttackStarted and each circle's burst a
+    /// Struck, as every enemy's): CirclePlaced, a circle of its cast was placed on the ground (Attack names the cast, Count
+    /// which circle, from 1); CircleOffGround, one was not, its place being off the walkable ground; CircleFaded, one of a
+    /// countered Grave Rain faded without bursting; Countered, Stopping Shot dropped its cast.
     /// </summary>
-    public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded, Charged, CalledPack, Angered }
+    public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded, Charged, CalledPack, Angered,
+                                  CirclePlaced, CircleOffGround, CircleFaded, Countered }
 
     /// <summary>How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment, 2026-11-19).</summary>
     public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect, StoppedByCover }
@@ -107,7 +111,7 @@ namespace Roguelike
         public EnemyKind EnemyKind;
         public float Stagger;
         public float StaggerLeft;
-        public int Count;             // CalledPack: the enemies that came (work order 014)
+        public int Count;             // CalledPack: the enemies that came (work order 014); the caster's circle reports: which circle (work order 027)
         public bool Elite;            // the elite of an elite room (work order 017): the log names it "elite brute"
     }
 }

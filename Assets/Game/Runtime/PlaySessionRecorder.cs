@@ -785,6 +785,26 @@ namespace Roguelike
                     case EnemyReportKind.Angered:
                         Add(Of(SessionEventTypes.BossAnger));
                         break;
+                    // The caster (work order 027).
+                    case EnemyReportKind.CirclePlaced:
+                    case EnemyReportKind.CircleOffGround:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.CasterCircle, r.Attack);
+                        e.Result = r.Kind == EnemyReportKind.CirclePlaced ? SessionWords.Placed : SessionWords.OffTheGround;
+                        e.AddExtra("circle", r.Count.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.CircleFaded:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.CasterCircleFaded, r.Attack);
+                        e.AddExtra("circle", r.Count.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.Countered:
+                        Add(Of(SessionEventTypes.EnemyCountered, r.Attack));
+                        break;
                 }
             }
             catch (Exception e)
@@ -829,14 +849,18 @@ namespace Roguelike
             }
         }
 
-        /// <summary>She entered a room of the generated level: its place in the run (from 0) and its kind.</summary>
-        public void NoteRoomEntered(int room, string kind)
+        /// <summary>
+        /// She entered a room of the generated level: its place in the run (from 0) and its kind, and (work order 028) its
+        /// theme in words when it has one.
+        /// </summary>
+        public void NoteRoomEntered(int room, string kind, string theme = null)
         {
             if (!_recording) return;
             try
             {
                 var e = new SessionEvent(Now(), SessionEventTypes.RoomEntered, kind);
                 e.AddExtra("room", room.ToString(CultureInfo.InvariantCulture));
+                if (!string.IsNullOrEmpty(theme)) e.AddExtra("theme", theme);
                 Add(e);
             }
             catch (Exception e)

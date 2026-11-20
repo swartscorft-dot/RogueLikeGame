@@ -606,11 +606,13 @@ namespace Roguelike.PlayModeTests
 
         [UnityTest, Timeout(180000)]
         public IEnumerator AnEnemyKilledInADoorway_DoesNotBlockHer_OnceItsBodyIsHidden(
-            [Values("guard", "elite guard", "brute", "elite brute", "elite shooter", "boss", "swarmer")] string which)
+            [Values("guard", "elite guard", "brute", "elite brute", "elite shooter", "boss", "swarmer", "caster", "elite caster")] string which)
         {
+            // Work order 034: the caster and the elite caster added, on purpose: a dead caster is no obstacle either.
             bool elite = which.StartsWith("elite ");
             EnemyKind kind = which.EndsWith("guard") ? EnemyKind.Guard : which.EndsWith("brute") ? EnemyKind.Brute
-                           : which.EndsWith("shooter") ? EnemyKind.Shooter : which == "boss" ? EnemyKind.Boss : EnemyKind.Swarmer;
+                           : which.EndsWith("shooter") ? EnemyKind.Shooter : which.EndsWith("caster") ? EnemyKind.Caster
+                           : which == "boss" ? EnemyKind.Boss : EnemyKind.Swarmer;
             GeneratedLevel level = FloorWithNobody(out Vector3 middle, out Vector3 through);
             yield return null;
             Enemy dead = MakeIn(level, kind, middle, elite);
