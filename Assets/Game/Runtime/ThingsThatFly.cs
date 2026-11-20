@@ -367,12 +367,13 @@ namespace Roguelike
             for (int pass = 0; pass < 3 && left > 0f; pass++)
             {
                 // What she is in cover against stops it as it stops a shot today, when it covers her from where it left.
-                // The wave runs along the ground under it: props do not stop it.
+                // The wave runs along the ground under it: props do not stop it. Down in a quick duck (work order 043) the
+                // prop she ducked at stops an arrow the same way; an orb passes over it (ShieldsFrom by its kind).
                 float coverEntry = float.PositiveInfinity;
-                if (!s.Told && s.P.Kind != ProjectileKind.Wave && _player != null && _player.IsInCover)
+                if (!s.Told && s.P.Kind != ProjectileKind.Wave && _player != null && _player.HidesBehindSomething)
                 {
                     var origin = new Vector3(s.P.Origin.X, 0f, s.P.Origin.Z);
-                    if (_player.ShieldsFrom(origin))
+                    if (_player.ShieldsFrom(origin, s.P.Kind))
                         coverEntry = _player.CoverEntry(new Vector3(s.P.At.X, 0f, s.P.At.Z), new Vector3(s.P.Dir.X, 0f, s.P.Dir.Z),
                                                         s.P.Speed * left + 1f);
                 }
@@ -409,6 +410,8 @@ namespace Roguelike
                         End(s, puff: true, cam);
                         return;
                     case ProjectileHit.HerCover:
+                        // Where it ended, for a quick duck's spark (work order 043), told before its end is.
+                        if (step.WouldHaveMetHer && _player != null && !s.Told) _player.NoteCoverStopAt(new Vector3(s.P.At.X, 0f, s.P.At.Z));
                         Tell(s, step.WouldHaveMetHer ? ProjectileEnd.StoppedByCover : ProjectileEnd.StoppedByWall);
                         End(s, puff: true, cam);
                         return;

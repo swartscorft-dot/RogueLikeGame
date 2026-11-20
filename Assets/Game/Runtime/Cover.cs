@@ -1,3 +1,4 @@
+using System;
 using Roguelike.Rules;
 using UnityEngine;
 
@@ -30,12 +31,29 @@ namespace Roguelike
         /// <summary>The query for the rules: how far from one ground point toward another before cover.</summary>
         public static readonly CoverLine Line = ClearDistance;
 
+        /// <summary>
+        /// A prop that stops shots by its height but that the quick duck sorts low (work order 043,
+        /// <see cref="PropSort.LowerUnderTheDuck"/>: the altar, the grave marker, the broken pillar): while the duck's sort is
+        /// on (<see cref="QuickDuckSort"/>) it stops nothing, and she can duck behind it. A level sets it as it builds.
+        /// </summary>
+        public bool LowUnderQuickDuck;
+
+        /// <summary>
+        /// Is the quick duck's sort of the props on now (work order 043)? The character answers it from her switch, read
+        /// live; null (no character) is off: every cover stops as before.
+        /// </summary>
+        public static Func<bool> QuickDuckSort;
+
+        /// <summary>True when it stops shots now: switched on, and not a prop the quick duck sorts low while that is on.</summary>
+        public bool Stops => enabled && !(LowUnderQuickDuck && QuickDuckSort != null && QuickDuckSort());
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             s_count = 0;
             s_layers = 0;
             s_unsynced = false;
+            QuickDuckSort = null;
         }
 
         /// <summary>True while any cover is in the scene.</summary>
@@ -80,7 +98,7 @@ namespace Roguelike
                 Collider c = s_hits[i].collider;
                 if (c == null || s_hits[i].distance >= nearest) continue;
                 Cover cover = c.GetComponentInParent<Cover>();
-                if (cover == null || !cover.enabled) continue;
+                if (cover == null || !cover.Stops) continue; // work order 043: a prop the quick duck sorts low stops nothing
                 nearest = s_hits[i].distance;
             }
             return nearest;

@@ -50,6 +50,16 @@ namespace Roguelike.Rules
         public float CoverSlideAngle = 60f;       // degrees: a move key further off its face than this does nothing while the key is held
         public float CoverPeekTime = 0.25f;       // s she stays up after a shot or a skill from cover before she ducks again
 
+        // The quick duck (Kristian's answer of 2026-11-20 to the cover report, proposal C; work order 043; first guesses).
+        // In place of taking cover while it is on: a tap of the cover key beside a low prop drops her where she stands for a
+        // moment (QuickDuck). Not in the feel spec's table nor in the settings asset: these defaults are what the game reads.
+        public bool QuickDuck = true;             // the switch; off, the cover key takes cover as above, exactly as before
+        public float DuckReach = 1f;              // m from her middle to the edge of a low prop, within which a tap ducks her
+        public float DuckSeconds = 0.5f;          // s she stays down; she rises by herself
+        public float DuckWait = 1f;               // s from the moment she is up again until the key works again
+        public bool DuckPeekShot = true;          // her first basic shot soon after a duck that stopped something staggers as Scatter Blast's hit does
+        public float DuckPeekWindow = 0.4f;       // s after she rose in which that shot must start
+
         // Aiming and shooting on the move (basic shot only)
         public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)
         public float ShotTurnTime = 0.2f;         // s for a half turn of the body to a shot aimed outside the front angle, and back to the run after

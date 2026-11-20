@@ -720,6 +720,24 @@ namespace Roguelike
                                    : SessionWords.Other,
                         });
                         break;
+                    // The quick duck (work order 043).
+                    case PlayerReportKind.Ducked:
+                        Add(new SessionEvent(t, SessionEventTypes.Duck, r.By));
+                        break;
+                    case PlayerReportKind.DuckEnded:
+                    {
+                        var e = new SessionEvent(t, SessionEventTypes.DuckEnd)
+                        {
+                            Result = r.DuckEnd == DuckEnd.Rose ? SessionWords.Rose : r.DuckEnd == DuckEnd.Moved ? SessionWords.Moved
+                                   : r.DuckEnd == DuckEnd.Dashed ? SessionWords.DashLeft : SessionWords.Other,
+                        };
+                        e.AddExtra("stopped", r.Shot.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case PlayerReportKind.DuckNothing:
+                        Add(new SessionEvent(t, SessionEventTypes.DuckNothing));
+                        break;
                 }
             }
             catch (Exception e)
