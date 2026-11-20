@@ -92,6 +92,14 @@ namespace Roguelike.Rules
         /// <summary>Things that flew at her that a wall or a prop stopped (work order 036).</summary>
         public int StrikesStoppedByWall;
 
+        // The quick duck (work order 043), in place of taking cover while its switch is on.
+        /// <summary>Ducks she took; of them, those that stopped something; taps with no low prop in reach.</summary>
+        public int Ducks;
+        public int DucksThatStopped;
+        public int DuckTapsWithNothing;
+        /// <summary>Things a duck stopped: with the switch on, the strikes stopped by what she was behind.</summary>
+        public int StoppedByDuck;
+
         // Melee you read (work order 035): two things that happen to her.
         /// <summary>Times she was stunned, and times she was pulled in, in this scope.</summary>
         public int Stuns;
@@ -183,6 +191,11 @@ namespace Roguelike.Rules
         public readonly List<KeyValuePair<double, double>> CoverSpans = new List<KeyValuePair<double, double>>();
         /// <summary>True when the log has anything of taking cover: the summary then gives its lines.</summary>
         public bool HasCover;
+        /// <summary>
+        /// True when the quick duck's switch was on in the session (its start says so) or the log has a duck in it (work
+        /// order 043): the summary then gives the duck's lines in place of taking cover's.
+        /// </summary>
+        public bool HasDuck;
         /// <summary>True when she was stunned or pulled in the session (work order 035): the summary then gives its line.</summary>
         public bool HasHeld;
     }
@@ -253,7 +266,9 @@ namespace Roguelike.Rules
     ///
     /// Taking cover (Kristian 2026-11-19, an experiment): a log with any cover in it gets two lines, the time in cover
     /// and its share of the time (of the fights' time in the "In fights" column), and under the defence the enemy shots
-    /// that what she was in cover behind stopped.
+    /// that what she was in cover behind stopped. The quick duck (work order 043): in a log whose start has its switch on, or
+    /// that has a duck in it, those two lines give way to the ducks and those that stopped something, the taps with no low
+    /// prop in reach, and under the defence the things a duck stopped.
     /// </summary>
     public static class SessionSummary
     {
@@ -347,6 +362,9 @@ namespace Roguelike.Rules
             stats.HasCover = events.Any(e => e.Type == SessionEventTypes.CoverEnter
                                              || (e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover));
             stats.HasHeld = events.Any(e => e.Type == SessionEventTypes.PlayerStunned || e.Type == SessionEventTypes.PlayerPulled);
+            // The quick duck (work order 043): its switch on at the start (with taking cover's), or any duck in the log.
+            stats.HasDuck = (start != null && start.ExtraValue("feel.QuickDuck") == "true" && start.ExtraValue("feel.TakeCover") != "false")
+                            || events.Any(e => e.Type == SessionEventTypes.Duck || e.Type == SessionEventTypes.DuckEnd || e.Type == SessionEventTypes.DuckNothing);
 
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
@@ -842,6 +860,13 @@ namespace Roguelike.Rules
             s.StrikesStoppedByCover = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover);
             s.StrikesStoppedByWall = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByWall);
 
+            // The quick duck (work order 043). With its switch on nothing else stops a strike "by cover", so those are the duck's.
+            s.Ducks = events.Count(e => e.Type == SessionEventTypes.Duck);
+            s.DucksThatStopped = events.Count(e => e.Type == SessionEventTypes.DuckEnd
+                                                   && int.TryParse(e.ExtraValue("stopped"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) && n > 0);
+            s.DuckTapsWithNothing = events.Count(e => e.Type == SessionEventTypes.DuckNothing);
+            s.StoppedByDuck = s.StrikesStoppedByCover;
+
             // Stunned and pulled (work order 035).
             s.Stuns = events.Count(e => e.Type == SessionEventTypes.PlayerStunned);
             s.Pulls = events.Count(e => e.Type == SessionEventTypes.PlayerPulled);
@@ -962,8 +987,14 @@ namespace Roguelike.Rules
             t.Add("Free over 1 s: count, total", a.GapsOver1 + ", " + Seconds(a.GapsOver1Seconds), fights ? f.GapsOver1 + ", " + Seconds(f.GapsOver1Seconds) : "-");
             t.Add("Free over 2 s: count, total", a.GapsOver2 + ", " + Seconds(a.GapsOver2Seconds), fights ? f.GapsOver2 + ", " + Seconds(f.GapsOver2Seconds) : "-");
             t.Add("Time on the move", Percent(a.MovingShare), fights ? Percent(f.MovingShare) : "-");
-            // Taking cover (2026-11-19, an experiment), only in a log that has any.
-            if (stats.HasCover)
+            // The quick duck (work order 043) in place of taking cover while its switch is on; else taking cover
+            // (2026-11-19, an experiment), only in a log that has any.
+            if (stats.HasDuck)
+            {
+                t.Add("Quick ducks / that stopped something", a.Ducks + " / " + a.DucksThatStopped, fights ? f.Ducks + " / " + f.DucksThatStopped : "-");
+                t.Add("  taps with no low prop in reach", Int(a.DuckTapsWithNothing), fights ? Int(f.DuckTapsWithNothing) : "-");
+            }
+            else if (stats.HasCover)
                 t.Add("Time in cover, share of the time", Duration(a.CoverSeconds) + ", " + Percent(a.CoverShare),
                       fights ? Duration(f.CoverSeconds) + ", " + Percent(f.CoverShare) : "-");
             t.Add("Damage dealt", a.TotalDamage.ToString(CultureInfo.InvariantCulture), fights ? f.TotalDamage.ToString(CultureInfo.InvariantCulture) : "-");
@@ -1034,7 +1065,9 @@ namespace Roguelike.Rules
             d.Add("  landed", Int(a.StrikesLanded), fights ? Int(f.StrikesLanded) : "-");
             d.Add("  avoided by moving out of the area", Int(a.StrikesOutOfArea), fights ? Int(f.StrikesOutOfArea) : "-");
             d.Add("  avoided by the dash", Int(a.StrikesAvoidedByDash), fights ? Int(f.StrikesAvoidedByDash) : "-");
-            if (stats.HasCover)
+            if (stats.HasDuck) // work order 043
+                d.Add("  stopped by a quick duck", Int(a.StoppedByDuck), fights ? Int(f.StoppedByDuck) : "-");
+            else if (stats.HasCover)
                 d.Add("  stopped by the cover she ducked behind", Int(a.StrikesStoppedByCover), fights ? Int(f.StrikesStoppedByCover) : "-");
             if (a.StrikesStoppedByWall > 0) // work order 036, only in a log that has any
                 d.Add("  stopped by a wall or prop", Int(a.StrikesStoppedByWall), fights ? Int(f.StrikesStoppedByWall) : "-");

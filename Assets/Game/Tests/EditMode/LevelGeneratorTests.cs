@@ -126,13 +126,18 @@ namespace Roguelike.Rules.Tests
         // ---------------- A thousand seeds ----------------
 
         /// <summary>
-        /// The longest one generation may take, in milliseconds. Measured: see the output of the test (work order 012:
-        /// about 19 ms at the slowest of a thousand seeds per floor number, 6 ms on the mean).
+        /// How long generations may take, in milliseconds. Measured: see the output of the test (work order 012: about
+        /// 19 ms at the slowest of a thousand seeds per floor number, 6 ms on the mean).
+        ///
+        /// The median of the thousand is held to a strict bound: it is what generation costs, and a load on the machine
+        /// moves it little, since it takes most of the thousand to move it. The slowest one is held only to a loose bound:
+        /// it is a single generation, and on a busy machine it is whatever moment another program took the processor
+        /// (the slowest's bound was 50 ms until 2026-11-20, then 150 ms, and both failed under load alone, the last on the
+        /// evening of 2026-11-20 with five jobs running; work order 039). A second for one floor still catches generation
+        /// going wrong, which takes seconds.
         /// </summary>
-        // 50 until 2026-11-20: a floor takes about 40 ms at its slowest on a quiet machine, and with four copies of the
-        // project under test at once it measured 50 to 63 and failed for load alone, five times in a day. The bound is
-        // there to catch generation going wrong (seconds), not to time the machine.
-        const double SlowestAllowedMs = 150;
+        const double MedianAllowedMs = 40;
+        const double SlowestAllowedMs = 1000;
 
         // Work order 012: a thousand seeds for each floor number of the act.
         [TestCase(1)]
@@ -153,6 +158,7 @@ namespace Roguelike.Rules.Tests
             int fewestCombat = int.MaxValue, mostCombat = 0, fewestExit = int.MaxValue, mostExit = 0;
             long combatHealth = 0, exitHealth = 0, combatRooms = 0, exitRooms = 0;
             var timer = new Stopwatch();
+            var times = new List<double>(1000);
             for (ulong s = 0; s < 1000; s++)
             {
                 timer.Restart();
@@ -177,6 +183,7 @@ namespace Roguelike.Rules.Tests
                     else Assert.That(r.EnemyPoints, Is.Empty, "no enemies in the entrance or a treasure room");
                 }
                 double ms = timer.Elapsed.TotalMilliseconds;
+                times.Add(ms);
                 total += ms;
                 if (ms > slowest) { slowest = ms; slowestSeed = s; }
 
@@ -194,16 +201,19 @@ namespace Roguelike.Rules.Tests
                 if (w * h > largest) { largest = w * h; largestSize = w + " x " + h + " m (seed " + s + ")"; }
             }
             double distinct = layouts.Count / 1000.0;
+            times.Sort();
+            double median = (times[499] + times[500]) * 0.5;
             TestContext.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "LEVELSTATS floor {9} seeds 0-999: needed a second attempt {0}, most attempts {1}; slowest {2:0.00} ms (seed {3}), mean {4:0.000} ms; " +
+                "LEVELSTATS floor {9} seeds 0-999: needed a second attempt {0}, most attempts {1}; slowest {2:0.00} ms (seed {3}), mean {4:0.000} ms, median {16:0.000} ms; " +
                 "distinct layouts {5} ({6:P1}); smallest {7}; largest {8}; combat rooms {10} to {11} enemies, mean health {12:0}; " +
                 "exit rooms {13} to {14} enemies (act boss apart), mean health {15:0}",
                 retried, mostAttempts, slowest, slowestSeed, total / 1000, layouts.Count, distinct, smallestSize, largestSize, floor,
-                fewestCombat, mostCombat, combatHealth / (double)combatRooms, fewestExit, mostExit, exitHealth / (double)exitRooms));
+                fewestCombat, mostCombat, combatHealth / (double)combatRooms, fewestExit, mostExit, exitHealth / (double)exitRooms, median));
             values.EnemyRange(RoomKind.Combat, floor, out int f, out int m);
             Assert.That(fewestCombat, Is.GreaterThanOrEqualTo(f));
             Assert.That(mostCombat, Is.LessThanOrEqualTo(m));
-            Assert.That(slowest, Is.LessThan(SlowestAllowedMs), "slowest generation, ms");
+            Assert.That(median, Is.LessThan(MedianAllowedMs), "median generation, ms");
+            Assert.That(slowest, Is.LessThan(SlowestAllowedMs), "slowest generation, ms (seed " + slowestSeed + ")");
             Assert.That(distinct, Is.GreaterThanOrEqualTo(0.99), "share of distinct layouts");
         }
 

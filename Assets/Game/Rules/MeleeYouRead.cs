@@ -18,6 +18,7 @@ namespace Roguelike.Rules
     /// a wind-up so short that its animation is the warning, and one or two skills on their own cooldowns. The order's
     /// first guesses, tuned so that an enemy left to attack her freely deals about what it dealt before, or up to a third
     /// more (work order 035, "Keeping it hard"): the bite 5 (6 asked), the stroke 13 (10 asked), the fist 24 (18 asked).
+    /// The bite is 2, three times a second, since work order 039 (<see cref="Swarmer"/>).
     /// The attacks from before stay as they were, in the kinds' values, for the switch's off position
     /// (<see cref="MeleeYouReadRules"/>).
     /// </summary>
@@ -32,15 +33,21 @@ namespace Roguelike.Rules
         public const string Crush = "Crush";
 
         /// <summary>
-        /// The swarmer: it bites as it clings, twice a second, never stopping to wind up (it keeps moving with her); and
-        /// from 4 to 7 m it crouches and hops to her, aimed where she was as it leaves the ground, biting on landing.
+        /// The swarmer: it bites as it clings, about three times a second for 2, never stopping to wind up (it keeps moving
+        /// with her); and, only when it <see cref="SwarmerValues.Leaps"/> (off by default since work order 039), from 4 to
+        /// 7 m it crouches and hops to her, aimed where she was as it leaves the ground, biting on landing.
+        ///
+        /// The bite was 5, twice a second (work order 035). Kristian's second session of 2026-11-20 had the Bite land 41
+        /// of 47 times, since it lands whenever one is in reach as it chases; and he asked that the small ones "just run fast
+        /// and hammer away when they are close" (work order 039): 2, three times a second. Standing still before one she
+        /// takes about 60 in ten seconds at floor 5's damage scale; at floor 1's (0.7) a bite of 2 comes to 1, about 30.
         /// </summary>
         public static EnemyAttackDefinition[] Swarmer() => new[]
         {
             new EnemyAttackDefinition
             {
                 Name = Bite, Shape = EnemyAttackShape.Cone, MinDistance = 0f, MaxDistance = 1.6f,
-                Windup = 0.15f, Recovery = 0.35f, Damage = 5, Length = 1.6f, Angle = 140f, Ordinary = true,
+                Windup = 0.11f, Recovery = 0.2f, Damage = 2, Length = 1.6f, Angle = 140f, Ordinary = true,
             },
             new EnemyAttackDefinition
             {
@@ -196,6 +203,28 @@ namespace Roguelike.Rules
 
         /// <summary>A skill's glint grows through its windup and snaps at the strike; an ordinary attack's is one small flick.</summary>
         public static bool GlintGrows(EnemyAttackDefinition attack) => attack != null && !attack.Ordinary;
+
+        /// <summary>
+        /// s: the least time between two flicks on one enemy (work order 039). The swarmer's bite comes three times a second,
+        /// and eight swarmers on her flicking at every bite would strobe: a flick shows on every bite of an attack whose cycle
+        /// is this long or longer, and on every n-th of a faster one (every other bite).
+        /// </summary>
+        public const float FlickGap = 0.5f;
+
+        /// <summary>Is it an ordinary attack faster than <see cref="FlickGap"/> a cycle (the swarmer's bite)?</summary>
+        public static bool IsRapid(EnemyAttackDefinition attack) =>
+            attack != null && attack.Ordinary && attack.Windup + attack.Recovery < FlickGap - 1e-4f;
+
+        /// <summary>The flick shows on every this-many-th of an attack: 1 for a skill and an attack at least <see cref="FlickGap"/> a cycle.</summary>
+        public static int FlickEvery(EnemyAttackDefinition attack)
+        {
+            if (!IsRapid(attack)) return 1;
+            float cycle = Math.Max(1e-3f, attack.Windup + attack.Recovery);
+            return Math.Max(1, (int)Math.Ceiling(FlickGap / cycle - 1e-4f));
+        }
+
+        /// <summary>Does the flick of the <paramref name="number"/>-th (from 1) ordinary attack an enemy begins show? The first always does.</summary>
+        public static bool FlickShows(EnemyAttackDefinition attack, int number) => number <= 1 || (number - 1) % FlickEvery(attack) == 0;
 
         /// <summary>Where a leap from <paramref name="from"/> lands: <paramref name="shortBy"/> short of where she stands as it leaves the ground.</summary>
         public static GroundPoint LeapLanding(GroundPoint from, GroundPoint her, float shortBy = LeapShort)

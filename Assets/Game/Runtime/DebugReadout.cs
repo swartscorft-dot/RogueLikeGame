@@ -26,7 +26,7 @@ namespace Roguelike
 
             _text.Clear();
             if (_driver == null && _player != null) _driver = _player.GetComponent<PlayerInputDriver>();
-            _text.AppendLine(_driver != null ? _driver.ActiveBindings.HelpLine() : "");
+            _text.AppendLine(_driver != null ? _driver.ActiveBindings.HelpLine(_player != null && _player.QuickDuckOn) : ""); // work order 043
             int lines = 2;
             if (_player != null)
             {

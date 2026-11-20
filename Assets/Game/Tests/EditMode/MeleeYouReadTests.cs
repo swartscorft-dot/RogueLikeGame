@@ -55,8 +55,9 @@ namespace Roguelike.Rules.Tests
             EnemyAttackDefinition bite = Of(MeleeAttacks.Swarmer(), MeleeAttacks.Bite);
             EnemyAttackDefinition stroke = Of(MeleeAttacks.Brute(), MeleeAttacks.Stroke);
             EnemyAttackDefinition fist = Of(MeleeAttacks.Guard(), MeleeAttacks.Fist);
-            Assert.That(bite.Windup + bite.Recovery, Is.EqualTo(0.5f).Within(1e-4f), "twice a second");
-            Assert.That(bite.Windup, Is.EqualTo(0.15f).Within(1e-4f));
+            // Work order 039: the bite hammers, about three times a second (it was twice, from a windup of 0.15 s).
+            Assert.That(bite.Windup + bite.Recovery, Is.EqualTo(0.31f).Within(1e-4f), "about three times a second (a frame more between two, as the brain goes)");
+            Assert.That(bite.Windup, Is.EqualTo(0.11f).Within(1e-4f));
             Assert.That(stroke.Windup + stroke.Recovery, Is.EqualTo(1.1f).Within(1e-4f), "about every 1.1 s");
             Assert.That(stroke.Windup, Is.EqualTo(0.35f).Within(1e-4f));
             Assert.That(fist.Windup + fist.Recovery, Is.EqualTo(1.8f).Within(1e-4f), "about every 1.8 s");
@@ -462,11 +463,14 @@ namespace Roguelike.Rules.Tests
                     Assert.That(plan.InWindup(a.Windup), Is.EqualTo(clip.Strike).Within(1e-9), a.Name + ": the clip's strike on the game's");
                     Assert.That(plan.WindupSpeed, Is.InRange(0.5, most), a.Name);
                 }
-            // The bite's whole clip plays for each bite at up to four times its speed.
+            // The bite's clip plays at four times its speed, the most an ordinary attack's may. At three bites a second that
+            // is not the whole clip (work order 039; it was at two): its strike lands on the game's, and the next bite starts
+            // it again before the rest after the strike has played out.
             EnemyAttackDefinition bite = Of(MeleeAttacks.Swarmer(), MeleeAttacks.Bite);
             AttackClipPlan bitePlan = AttackClipPlan.For(bite.Windup, bite.Recovery, 1.233, 2.467, maxSpeed: EnemyModelSpec.OrdinaryMaxAttackSpeed);
             Assert.That(bitePlan.WindupSpeed, Is.EqualTo(4.0));
-            Assert.That(bitePlan.RecoverySpeed, Is.LessThan(4.0), "the rest of the clip ends with the recovery");
+            Assert.That(bitePlan.RecoverySpeed, Is.EqualTo(4.0), "the rest after the strike at the most too");
+            Assert.That(bitePlan.Strike + bite.Recovery * bitePlan.RecoverySpeed, Is.LessThan(2.467), "cut short by the next bite");
         }
 
         [Test]
@@ -529,6 +533,87 @@ namespace Roguelike.Rules.Tests
             SessionStats stats = SessionSummary.Compute(events);
             Assert.That(stats.HasHeld, Is.False);
             StringAssert.DoesNotContain("Stunned / pulled", SessionSummary.Format(stats));
+        }
+
+        // ---------------- The swarmer that hammers (work order 039) ----------------
+
+        /// <summary>
+        /// Kristian after his second session of 2026-11-20: "I did not mean that the small ones should charge in addition to
+        /// running fast. They just run fast and hammer away when they are close." No Leap unless its flag is on; with it on,
+        /// the Leap as work order 035 built it, at the damage it had.
+        /// </summary>
+        [Test]
+        public void TheSwarmer_HasNoLeap_UnlessItsFlagIsOn_AndThenTheLeapAsItWas()
+        {
+            var v = new SwarmerValues();
+            Assert.That(v.Leaps, Is.False, "off by default");
+            Assert.That(v.MeleeNow.Select(a => a.Name), Is.EqualTo(new[] { MeleeAttacks.Bite }), "the bite alone: no skill at all");
+            Assert.That(v.MeleeNow, Is.SameAs(v.MeleeNow), "made once, not per question");
+            var t = new MeleeTactics();
+            foreach (float d in new[] { 4f, 5f, 7f }) Assert.That(t.Choose(0f, d, v.MeleeNow), Is.Null, "nothing to do at " + d + " m but run");
+            Assert.That(t.Choose(0f, 1f, v.MeleeNow).Name, Is.EqualTo(MeleeAttacks.Bite));
+            v.Leaps = true;
+            Assert.That(v.MeleeNow, Is.SameAs(v.Melee));
+            EnemyAttackDefinition leap = Of(v.MeleeNow, MeleeAttacks.Leap);
+            Assert.That((leap.Damage, leap.Cooldown, leap.MinDistance, leap.MaxDistance), Is.EqualTo((10, 4f, 4f, 7f)), "as 035 built it");
+            Assert.That(t.Choose(0f, 5f, v.MeleeNow).Name, Is.EqualTo(MeleeAttacks.Leap));
+            Assert.That(new SwarmerValues().Enemy.MoveSpeed, Is.EqualTo(5f), "it runs as fast as before");
+            Assert.That(new SwarmerValues().Enemy.Health, Is.EqualTo(300), "and dies as fast");
+        }
+
+        /// <summary>
+        /// The bite: about three a second for 2 (it was two a second for 5). Standing still in front of one she takes, in ten
+        /// seconds, about 60 at floor 5's damage scale and about 30 at floor 1's, where 2 times 0.7 comes to 1 (work order
+        /// 039 asked about 45 there: with whole numbers of damage no bite of about 2 gives it).
+        /// </summary>
+        [Test]
+        public void TheBite_IsAbout2_AboutThreeTimesASecond_AndDealsAbout30And60InTenSeconds()
+        {
+            EnemyAttackDefinition bite = Of(MeleeAttacks.Swarmer(), MeleeAttacks.Bite);
+            Assert.That(bite.Damage, Is.EqualTo(2));
+            float perSecond = 1f / (bite.Windup + bite.Recovery);
+            Assert.That(perSecond, Is.InRange(2.8f, 3.4f), "about three a second");
+            var levels = new LevelValues();
+            foreach ((int floor, float about) in new[] { (1, 30f), (5, 60f) })
+            {
+                // As Enemy deals it: the damage times the floor's scale, rounded as Mathf.RoundToInt rounds.
+                int each = (int)System.Math.Round(bite.Damage * levels.DamageScaleOf(floor), System.MidpointRounding.ToEven);
+                Assert.That(each * perSecond * 10f, Is.EqualTo(about).Within(about * 0.1f), "floor " + floor);
+            }
+        }
+
+        /// <summary>
+        /// Eight swarmers biting three times a second must not strobe or buzz (work order 039): the flick of a rapid ordinary
+        /// attack shows on every other bite only; every other attack's on each; and the strike sound of a rapid one is heard,
+        /// across all of them, no more often than RapidStrikeGap.
+        /// </summary>
+        [Test]
+        public void TheBitesFlick_ShowsOnEveryOtherBite_AndItsSoundAtMostAFewTimesASecond()
+        {
+            EnemyAttackDefinition bite = Of(MeleeAttacks.Swarmer(), MeleeAttacks.Bite);
+            Assert.That(MeleeYouReadRules.IsRapid(bite), Is.True);
+            Assert.That(MeleeYouReadRules.FlickEvery(bite), Is.EqualTo(2));
+            Assert.That(Enumerable.Range(1, 6).Select(n => MeleeYouReadRules.FlickShows(bite, n)), Is.EqualTo(new[] { true, false, true, false, true, false }));
+            foreach (EnemyAttackDefinition a in MeleeAttacks.Brute().Concat(MeleeAttacks.Guard()).Concat(new[] { Of(MeleeAttacks.Swarmer(), MeleeAttacks.Leap) }))
+            {
+                Assert.That(MeleeYouReadRules.IsRapid(a), Is.False, a.Name);
+                Assert.That(MeleeYouReadRules.FlickShows(a, 2), Is.True, a.Name + ": every one, as before");
+            }
+            float perSecond = 1f / (bite.Windup + bite.Recovery);
+            Assert.That(perSecond / MeleeYouReadRules.FlickEvery(bite), Is.LessThanOrEqualTo(1f / MeleeYouReadRules.FlickGap + 1e-3f), "a flick at most twice a second on one");
+
+            var values = new PlaceholderSoundValues();
+            var gate = new RapidStrikeGate();
+            int heard = 0;
+            // Eight swarmers, three bites a second each, for ten seconds, in frames of a sixtieth.
+            for (int frame = 0; frame < 600; frame++)
+            {
+                float now = frame / 60f;
+                for (int i = 0; i < 8; i++)
+                    if ((frame + i * 3) % 20 == 0 && gate.Ask(now, values.RapidStrikeGap)) heard++;
+            }
+            Assert.That(heard / 10f, Is.InRange(2f, 1f / values.RapidStrikeGap + 0.01f), "a few times a second, not twenty-four");
+            Assert.That(new RapidStrikeGate().Ask(0f, values.RapidStrikeGap), Is.True, "the first is heard");
         }
     }
 }

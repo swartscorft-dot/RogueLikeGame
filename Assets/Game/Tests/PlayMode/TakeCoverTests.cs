@@ -34,7 +34,7 @@ namespace Roguelike.PlayModeTests
         PlayerInputDriver _driver;
         PlayerHealth _health;
         FeelValues _feel;
-        bool _takeCoverWas, _coverStopsWas;
+        bool _takeCoverWas, _coverStopsWas, _quickDuckWas;
         Vector3 _ahead, _side;
         GeneratedLevels _levels;
         PlaySessionRecorder _recorder;
@@ -62,6 +62,7 @@ namespace Roguelike.PlayModeTests
             _coverStopsWas = _feel.CoverStopsShots;
             _feel.TakeCover = true;
             _feel.CoverStopsShots = true;
+            _quickDuckWas = _feel.QuickDuck; _feel.QuickDuck = false; // work order 043: taking cover as it was, the quick duck off
             _reports.Clear();
             _frames.Clear();
             _idle = default;
@@ -93,6 +94,7 @@ namespace Roguelike.PlayModeTests
             {
                 _feel.TakeCover = _takeCoverWas; // the feel values live in an asset
                 _feel.CoverStopsShots = _coverStopsWas;
+                _feel.QuickDuck = _quickDuckWas;
             }
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;

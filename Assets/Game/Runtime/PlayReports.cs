@@ -34,6 +34,11 @@ namespace Roguelike
         // Melee you read (work order 035, 2026-11-20): two things that happen to her.
         Stunned,        // Seconds, By: a stun began
         Pulled,         // Seconds, By: a pull began
+        // The quick duck (work order 043, Kristian's answer of 2026-11-20 to the cover report).
+        Ducked,         // By (what she ducked beside): a tap ducked her
+        DuckEnded,      // DuckEnd (how), Shot (what it stopped)
+        DuckNothing,    // a tap with no low prop in reach: nothing happened
+        DuckStopped,    // At: the duck stopped a thing that flew at her there
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -86,6 +91,8 @@ namespace Roguelike
         public string By;             // Stunned, Pulled: the attack that did it
         // Work order 040.
         public bool Late;             // RecastPressed: not clean, and after the clean part of its window (it comes early now)
+        // Work order 043.
+        public DuckEnd DuckEnd;       // DuckEnded: how the duck ended
     }
 
     /// <summary>

@@ -127,6 +127,9 @@ namespace Roguelike.PlayModeTests
             _player = player;
             _health = health;
             _levels = levels;
+            // Work order 042: a reward lies on the ground until she picks it up with the interact key. The pilot presses no such key,
+            // and a flight measures the fights, so in a flight the choice comes up by itself as it did before.
+            if (_levels != null) _levels.DropValues.On = false;
             TimeScale = timeScale > 0f ? timeScale : Scale;
         }
 

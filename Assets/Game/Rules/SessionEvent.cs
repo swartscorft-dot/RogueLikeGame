@@ -95,6 +95,10 @@ namespace Roguelike.Rules
         // Taking cover (Kristian 2026-11-19, an experiment). A shot it stopped is an enemy_strike with result "stopped by cover".
         public const string CoverEnter = "cover_enter";       // she took cover: name is "tall" or "low", what she is behind
         public const string CoverLeave = "cover_leave";       // she left cover: result says how (released, dash, moving skill, other)
+        // The quick duck (work order 043). What a duck stopped is an enemy_strike with result "stopped by cover", as before.
+        public const string Duck = "duck";                    // a tap ducked her: name what she ducked beside
+        public const string DuckEnd = "duck_end";             // the duck ended: result how (rose, moved, dash, other), stopped how many it stopped
+        public const string DuckNothing = "duck_nothing";     // a tap with no low prop in reach: nothing happened
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>
@@ -142,6 +146,9 @@ namespace Roguelike.Rules
         public const string DashLeft = "dash";
         public const string MovingSkill = "moving skill";
         public const string Other = "other";
+        // The quick duck (work order 043): how a duck ended, besides "dash" and "other".
+        public const string Rose = "rose";
+        public const string Moved = "moved";
     }
 
     /// <summary>

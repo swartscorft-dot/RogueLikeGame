@@ -28,8 +28,12 @@ namespace Roguelike
 
         void OnDisable() => s_all.Remove(this);
 
-        /// <summary>True when it stops shots for anyone, standing or ducked: it carries <see cref="Cover"/>.</summary>
-        public bool IsTall => TryGetComponent(out Cover cover) && cover.enabled;
+        /// <summary>
+        /// True when it stops shots for anyone, standing or ducked: it carries <see cref="Cover"/> that stops now (work
+        /// order 043: not a prop the quick duck sorts low while its switch is on, <see cref="Cover.Stops"/>). A shelter
+        /// that is not tall is a low prop: the quick duck works beside it.
+        /// </summary>
+        public bool IsTall => TryGetComponent(out Cover cover) && cover.Stops;
 
         /// <summary>Its footprint on the ground, from its box or upright capsule collider; false with neither.</summary>
         public bool TryShape(out CoverShape shape)

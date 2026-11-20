@@ -27,9 +27,13 @@ namespace Roguelike
     /// Every scenario is the same each time: the floors are those of <see cref="RunSeed"/> (floor n's seed is
     /// <see cref="RunSeeds.FloorSeed"/> of it and n), built alone outside a run with <see cref="GeneratedLevels.Build"/>
     /// (so no reward, chest or heal comes up), and the room is the combat room with the most enemies (the first of them
-    /// in the floor's order when two hold as many; not the elite room), or floor 5's exit room. She stands in the
-    /// room's middle (the boss's room: <see cref="BossStandBack"/> south of it, toward the camera, so she is not inside
-    /// the boss), cannot be hurt (<see cref="PlayerHealth.Untouchable"/>), and presses the basic shot every frame
+    /// in the floor's order when two hold as many; not the elite room), or floor 5's exit room. She stands where the
+    /// fight is (<see cref="StandFor"/>): the place of the room, on its NavMesh, nearest to the farthest of its enemies,
+    /// and clear of each of them (the boss too), so that every one of them is within its leash and comes for her when
+    /// woken (an enemy farther than its <see cref="EnemyValues.LeashRange"/> from her is not woken by
+    /// <see cref="Enemy.Provoke"/>: the game's rule; on a floor in one row, work order 041, a pack of floor 5's exit room
+    /// stood 22.5 m from the room's middle less 6 m, where she stood before). She cannot be hurt
+    /// (<see cref="PlayerHealth.Untouchable"/>), and presses the basic shot every frame
     /// toward the nearest living enemy of the scenario, through the input driver as the mouse would: a press while she
     /// cannot shoot waits for the next shot, so she fires as fast as the shot fires. The camera is the game's own.
     ///
@@ -47,8 +51,10 @@ namespace Roguelike
         public const int EnemyHealth = 100000000;
         /// <summary>The share of its health the boss is left with: under its second call at one third.</summary>
         public const float BossShareLeft = 0.3f;
-        /// <summary>Metres south of the exit room's middle she stands in the boss scenario.</summary>
-        public const float BossStandBack = 6f;
+        /// <summary>Metres she stands at least from the edge of any enemy's body (<see cref="Damageable.Radius"/>).</summary>
+        public const float StandClear = 2.5f;
+        /// <summary>Metres between the places of the room tried for her stand.</summary>
+        public const float StandStep = 1f;
 
         public BenchmarkScenario Scenario { get; private set; }
         public PlayerCharacter Player { get; private set; }
@@ -102,9 +108,7 @@ namespace Roguelike
                 stage.Level = levels.Build(RunSeeds.FloorSeed(RunSeed, floor), floor);
                 if (stage.Level == null) return stage;
                 stage.Room = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Layout.ExitRoom : FullestCombatRoom(stage.Level);
-                Vector3 middle = stage.Room != null ? stage.Level.Middle(stage.Room) : stage.Level.PlayerStart;
-                if (scenario == BenchmarkScenario.Floor5Boss) middle += Vector3.back * BossStandBack;
-                stage.Stand = OnNavMesh(middle);
+                stage.Stand = stage.Room != null ? StandFor(stage.Level, stage.Room) : OnNavMesh(stage.Level.PlayerStart);
                 player.Teleport(stage.Stand);
                 stage.Boss = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Boss as EnemyBoss : null;
             }
@@ -128,6 +132,47 @@ namespace Roguelike
                 {
                     most = count;
                     best = room;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// Where she stands in a room (work order 032, as amended for the floor in one row of work order 041): of the
+        /// places of the room <see cref="StandStep"/> apart, those on its NavMesh, in the room and at least
+        /// <see cref="StandClear"/> from every enemy's body, the one whose farthest enemy of the room is nearest (the first
+        /// of them, west to east and south to north). The room's middle, on the NavMesh, when none fits or it has no enemy.
+        /// </summary>
+        public static Vector3 StandFor(GeneratedLevel level, LevelRoom room)
+        {
+            Vector3 middle = OnNavMesh(level.Middle(room));
+            if (!level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> enemies) || enemies.Count == 0) return middle;
+            double cs = level.Layout.CellSize;
+            Vector3 lo = level.ToWorld(new LevelPoint(room.Rect.X * cs, room.Rect.Y * cs));
+            Vector3 hi = level.ToWorld(new LevelPoint(room.Rect.Right * cs, room.Rect.Top * cs));
+            Vector3 best = middle;
+            float bestFarthest = float.PositiveInfinity;
+            for (float z = lo.z + StandStep; z < hi.z; z += StandStep)
+            {
+                for (float x = lo.x + StandStep; x < hi.x; x += StandStep)
+                {
+                    var p = new Vector3(x, 0f, z);
+                    if (level.RoomAt(p) != room) continue;
+                    if (!NavMesh.SamplePosition(p, out NavMeshHit hit, 0.3f, NavMesh.AllAreas)) continue;
+                    float farthest = 0f;
+                    bool clear = true;
+                    foreach (Enemy e in enemies)
+                    {
+                        if (e == null) continue;
+                        Vector3 d = e.transform.position - p;
+                        float flat = new Vector2(d.x, d.z).magnitude;
+                        float body = e.Body != null ? e.Body.Radius : 0.5f;
+                        if (flat < body + StandClear) { clear = false; break; }
+                        farthest = Mathf.Max(farthest, flat);
+                    }
+                    if (!clear || farthest >= bestFarthest) continue;
+                    bestFarthest = farthest;
+                    best = new Vector3(hit.position.x, 0f, hit.position.z);
                 }
             }
             return best;

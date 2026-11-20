@@ -69,6 +69,10 @@ namespace Roguelike
     ///
     /// What lasts between runs (work order 029, decision 0009, a proposal he has not ruled on) is in
     /// GeneratedLevelsBetweenRuns.cs, behind a switch that is off by default; off, none of it does anything.
+    ///
+    /// A reward on the ground and the guard on every choice (work order 042, Kristian's answers of 2026-11-20) are in
+    /// GeneratedLevelsDrops.cs: the elite room's upgrade and the floor's reward land as a drop she picks up with the
+    /// interact key, and no choice takes a key or a click in its first 0.35 s, nor one that went down before.
     /// </summary>
     public sealed partial class GeneratedLevels : MonoBehaviour
     {
@@ -547,6 +551,7 @@ namespace Roguelike
         /// </summary>
         public bool PickReward(int index)
         {
+            PickUpForAPick(ChoiceKind.FloorReward); // work order 042: its drop, if it lies, is picked up first
             if (Choice != ChoiceKind.FloorReward || index < 0 || index >= _offeredSkills.Count) return false;
             PlayerCharacter player = FindPlayer();
             int slot = _offeredSkills[index];
@@ -689,12 +694,13 @@ namespace Roguelike
         /// </summary>
         public bool PickSkillUpgrade(int index)
         {
+            PickUpForAPick(ChoiceKind.SkillUpgrade); // work order 042: its drop, if it lies, is picked up first
             if (Choice != ChoiceKind.SkillUpgrade || index < 0 || index >= _offeredSkillUpgrades.Count) return false;
             SkillUpgradeDefinition u = _offeredSkillUpgrades[index];
             SkillUpgrades.Take(u);
             Record?.TakeSkillUpgrade(u.FullName);
             PlaySessionRecorder.Current?.NoteSkillUpgradeTaken(Floor, u.FullName, u.KindWord);
-            CloseChoice();
+            if (!FloorRewardFollows()) CloseChoice(); // work order 042: the floor's reward, when it was picked up with this one
             return true;
         }
 
@@ -702,6 +708,7 @@ namespace Roguelike
         public void FinishEliteRoomForTests()
         {
             if (_level == null) return;
+            FinishedForTests(true); // work order 042: its choice comes up as before, without a drop
             foreach (Enemy e in _level.EliteRoomEnemies)
                 if (e != null && !e.IsDead) e.GetComponent<Damageable>().TakeHit(100000000);
         }
@@ -717,16 +724,19 @@ namespace Roguelike
         public void FinishFloorForTests()
         {
             if (_level == null) return;
+            FinishedForTests(false); // work order 042: its choice comes up as before, without a drop
             foreach (Enemy e in _level.ExitEnemies)
                 if (e != null && !e.IsDead) e.GetComponent<Damageable>().TakeHit(1000000);
         }
 
         void OpenChoice(ChoiceKind kind)
         {
+            if (LeaveADrop(kind)) return; // work order 042: what she earns by killing lands on the ground first (GeneratedLevelsDrops.cs)
             if (Choice == ChoiceKind.None) _timeScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f; // a hit stop's 0 is not kept
             Choice = kind;
             Time.timeScale = 0f;
             PlayerInputDriver.HeldByChoice = true;
+            GuardTheChoice(); // work order 042: no key or click picks for a moment, and only a fresh press then
         }
 
         void CloseChoice()
@@ -777,12 +787,12 @@ namespace Roguelike
             if (Choice != ChoiceKind.None)
             {
                 Time.timeScale = 0f; // a hit stop that ends while the choice is up must not start the game again
-                if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard choiceKeys)
+                if (ChoiceKeys is Keyboard choiceKeys) // the real keyboard, or a test's (work order 042)
                 {
                     // 4 for a fourth line, which only the rack between runs gives (work order 029: Knight's Trophy).
                     int pick = choiceKeys.digit1Key.wasPressedThisFrame ? 0 : choiceKeys.digit2Key.wasPressedThisFrame ? 1
                              : choiceKeys.digit3Key.wasPressedThisFrame ? 2 : choiceKeys.digit4Key.wasPressedThisFrame ? 3 : -1;
-                    if (pick >= 0)
+                    if (pick >= 0 && ChoiceKeyMayPick) // work order 042: a press inside the guard picks nothing
                     {
                         if (Choice == ChoiceKind.FloorReward) PickReward(pick);
                         else if (Choice == ChoiceKind.SkillUpgrade) PickSkillUpgrade(pick);
@@ -796,7 +806,7 @@ namespace Roguelike
             }
             HoldScreens();
             if (InRun) Record?.SetTime(Time.time - _runStartedAt);
-            if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard keyboard)
+            if (ChoiceKeys is Keyboard keyboard)
             {
                 if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
                 else if (keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
@@ -811,7 +821,7 @@ namespace Roguelike
                 else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
                 else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);
                 else if (keyboard[TodaysFocusKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.Today);
-                else if (keyboard[InteractKey].wasPressedThisFrame && !PlayerInputDriver.LetGoThisFrame) OpenChest(); // work order 026
+                else if (keyboard[InteractKey].wasPressedThisFrame && !PlayerInputDriver.LetGoThisFrame) Interact(); // work order 026; a drop first (042)
             }
             if (_level == null)
             {
@@ -988,7 +998,7 @@ namespace Roguelike
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
             }
-            if (Choice != ChoiceKind.None) DrawChoice(viewWidth);
+            if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
             else if (Notice.Length > 0)
             {
                 if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };

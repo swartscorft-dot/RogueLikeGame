@@ -81,6 +81,11 @@ namespace Roguelike.Rules
         public float HurtSmallest = 0.65f;
         /// <summary>...and at full for a hit of this share of her maximum health or more.</summary>
         public float HurtFullAt = 0.25f;
+        /// <summary>
+        /// s: the strikes of a rapid ordinary attack (the swarmer's bite, three a second; work order 039) are heard, across
+        /// all enemies, no more often than this: eight swarmers on her would otherwise be a buzz. Other strikes as before.
+        /// </summary>
+        public float RapidStrikeGap = 0.3f;
 
         /// <summary>Each sound's volume and cap per second.</summary>
         public PlaceholderSoundSetting[] Sounds = Defaults();
@@ -198,6 +203,27 @@ namespace Roguelike.Rules
             count <= 1 ? 1f : Math.Min(Math.Max(1f, most), 1f + Math.Max(0f, step) * (count - 1));
 
         static float Clamp01(float v) => v < 0f ? 0f : v > 1f ? 1f : v;
+    }
+
+    /// <summary>
+    /// The thinning of rapid strikes (work order 039): the strike of a rapid ordinary attack
+    /// (<see cref="MeleeYouReadRules.IsRapid"/>) is heard only when the last one heard, of any enemy, was at least
+    /// <see cref="PlaceholderSoundValues.RapidStrikeGap"/> before. Time is passed in, in seconds.
+    /// </summary>
+    public sealed class RapidStrikeGate
+    {
+        float _last = float.NegativeInfinity;
+
+        /// <summary>May one be heard now? If so, it counts as heard.</summary>
+        public bool Ask(float now, float gap)
+        {
+            if (now < _last) _last = float.NegativeInfinity; // a clock that went back: a new start
+            if (now - _last < Math.Max(0f, gap) - 1e-4f) return false;
+            _last = now;
+            return true;
+        }
+
+        public void Clear() => _last = float.NegativeInfinity;
     }
 
     /// <summary>One play the crowd rule lets through: the sound, how many asked for it this frame, and its gain.</summary>
