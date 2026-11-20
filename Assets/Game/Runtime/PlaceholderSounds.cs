@@ -134,6 +134,12 @@ namespace Roguelike
         /// <summary>True when a sound plays a recorded clip from the Resources folder.</summary>
         public bool IsRecorded(PlaceholderSound sound) => _recorded[(int)sound];
 
+        /// <summary>
+        /// A sound asked for by another of the game's signs (work order 037: the clean window's tick), under the same rules
+        /// as its own: nothing while it is off or the game is paused, and the crowd rule at the end of the frame.
+        /// </summary>
+        public void AskFor(PlaceholderSound sound, float gain = 1f) => Safely(() => Ask(sound, gain));
+
         void Awake()
         {
             MakeClips();
