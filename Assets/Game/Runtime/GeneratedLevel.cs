@@ -118,6 +118,7 @@ namespace Roguelike
 
             // Work order 016: the kit is put in only once the NavMesh is built, so nothing of it can be in it.
             if (values.CryptKit) level.DressInCryptKit();
+            if (values.DoorSigns) DoorSigns.Add(level); // work order 041: the doors that say what is behind them
 
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
             return level;

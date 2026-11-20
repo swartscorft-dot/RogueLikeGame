@@ -33,6 +33,11 @@ namespace Roguelike.Rules
     /// have, no two combat rooms next to each other on the chain of the same theme, a themed room's props only of its
     /// recipe's models and no more than it holds, the wall pieces' rules of <see cref="PropRules"/> (the crypt kit's niches
     /// read from its plan), and every combat room with at least <see cref="PropValues.MinWalkable"/> of its floor walkable.
+    /// Since work order 041 a floor in a line (<see cref="LevelLayout.InALine"/>, as the values' <see cref="LevelValues.InALine"/>
+    /// must say): the main path is every room, in the order of <see cref="LevelPlan.LineBetween"/> between the entrance and
+    /// the exit, the treasure rooms on it; each room has a door in and a door out (the entrance one out, the exit one in),
+    /// so none has three and none is a dead end; every door joins two neighbours of the row; and the chain's way on holds
+    /// for every room of it, the treasure rooms too. The side rooms' rules are not asked of it.
     /// </summary>
     public static class LevelValidator
     {
@@ -41,6 +46,19 @@ namespace Roguelike.Rules
         public static List<string> Validate(LevelLayout level, LevelValues values = null)
         {
             values = values ?? new LevelValues();
+            List<string> faults = Check(level, values);
+            // Work order 041: the values say which rules a floor keeps, and the floor says which it was made by.
+            if (level != null && level.InALine != values.InALine)
+                faults.Add(level.InALine ? "the floor is in a line and the values' InALine is off" : "the floor has side rooms and the values' InALine is on");
+            return faults;
+        }
+
+        /// <summary>
+        /// Every fault of the floor by the rules it says it keeps (<see cref="LevelLayout.InALine"/>), whatever the values'
+        /// switch: <see cref="Validate"/> without its last check, for the generator's floor of version 9 (work order 041).
+        /// </summary>
+        internal static List<string> Check(LevelLayout level, LevelValues values)
+        {
             var faults = new List<string>();
             if (level == null)
             {
@@ -134,10 +152,21 @@ namespace Roguelike.Rules
             // The main path.
             List<LevelRoom> path = LevelGeometry.MainPath(level);
             var wantedPath = new List<RoomKind> { RoomKind.Entrance };
-            wantedPath.AddRange(Enumerable.Repeat(RoomKind.Combat, plan.CombatRooms));
+            if (level.InALine) wantedPath.AddRange(plan.LineBetween()); // work order 041: the row, the treasure rooms on it
+            else wantedPath.AddRange(Enumerable.Repeat(RoomKind.Combat, plan.CombatRooms));
             wantedPath.Add(RoomKind.Exit);
             if (!path.Select(r => r.Kind).SequenceEqual(wantedPath))
-                faults.Add("the main path runs " + string.Join(" ", path.Select(Name)) + ", not entrance, " + plan.CombatRooms + " combat rooms, exit");
+                faults.Add("the main path runs " + string.Join(" ", path.Select(Name)) + ", not "
+                           + (level.InALine ? string.Join(" ", wantedPath.Select(LevelRoom.KindLetter)) + " (the row of work order 041)"
+                                            : "entrance, " + plan.CombatRooms + " combat rooms, exit"));
+            // The row (work order 041): every room has a door in and a door out, the entrance only out and the exit only in.
+            if (level.InALine)
+                foreach (LevelRoom r in rooms)
+                {
+                    int doors = level.DoorsOf(r.Order).Count();
+                    int wanted = r.Kind == RoomKind.Entrance || r.Kind == RoomKind.Exit ? 1 : 2;
+                    if (doors != wanted) faults.Add($"{Name(r)} has {doors} doors, and a room of the row has {wanted}");
+                }
             bool Joined(int x, int y) => level.Doors.Any(d => d.Joins(x) && d.Other(x) == y);
             for (int i = 1; i < path.Count; i++)
                 if (!Joined(path[i - 1].Order, path[i].Order)) faults.Add($"no door from {Name(path[i - 1])} to {Name(path[i])} on the main path");
@@ -171,9 +200,9 @@ namespace Roguelike.Rules
                 if (inWall >= 0 && inWall == outWall) faults.Add($"{Name(r)}'s door out is on the wall of its door in");
             }
 
-            // The treasure rooms.
+            // The treasure rooms off the sides (in a line, work order 041, they are rooms of the row, checked with it).
             var treasuresOf = new Dictionary<int, int>();
-            foreach (LevelRoom r in rooms.Where(x => x.Kind == RoomKind.Treasure))
+            foreach (LevelRoom r in rooms.Where(x => x.Kind == RoomKind.Treasure && !level.InALine))
             {
                 List<LevelDoor> doors = level.DoorsOf(r.Order).ToList();
                 if (doors.Count != 1)
@@ -203,7 +232,7 @@ namespace Roguelike.Rules
             {
                 if (!Known(d.RoomA) || !Known(d.RoomB)) continue;
                 LevelRoom a = rooms[d.RoomA], b = rooms[d.RoomB];
-                if (a.Kind == RoomKind.Treasure || b.Kind == RoomKind.Treasure) continue; // checked above
+                if (!level.InALine && (a.Kind == RoomKind.Treasure || b.Kind == RoomKind.Treasure)) continue; // checked above
                 int ia = path.IndexOf(a), ib = path.IndexOf(b);
                 if (ia < 0 || ib < 0 || Math.Abs(ia - ib) != 1) faults.Add($"door {d.RoomA}-{d.RoomB} joins rooms that are not neighbours on the main path");
             }
