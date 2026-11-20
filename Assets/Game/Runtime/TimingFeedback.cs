@@ -314,6 +314,9 @@ namespace Roguelike
                     // A clean press whose shot never went off (a dash, a teleport) shows nothing.
                     if (r.Ending != SkillEnding.RanOut) _cleanPending.Remove(r.Slot);
                     break;
+                // Work order 035: two things that happen to her, a word over her each.
+                case PlayerReportKind.Stunned: ShowWord(null, FeedbackRules.Word(FeedbackMoment.Stunned)); break;
+                case PlayerReportKind.Pulled: ShowWord(null, FeedbackRules.Word(FeedbackMoment.Pulled)); break;
             }
         }
 

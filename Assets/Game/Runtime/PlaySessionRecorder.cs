@@ -695,6 +695,15 @@ namespace Roguelike
                     case PlayerReportKind.PrimeLapsed:
                         Add(new SessionEvent(t, SessionEventTypes.PrimeLapsed));
                         break;
+                    // Melee you read (work order 035): two things that happen to her.
+                    case PlayerReportKind.Stunned:
+                    case PlayerReportKind.Pulled:
+                    {
+                        var e = new SessionEvent(t, r.Kind == PlayerReportKind.Stunned ? SessionEventTypes.PlayerStunned : SessionEventTypes.PlayerPulled, r.By);
+                        e.AddExtra("seconds", Text(r.Seconds));
+                        Add(e);
+                        break;
+                    }
                     // Taking cover (2026-11-19, an experiment).
                     case PlayerReportKind.CoverEntered:
                         Add(new SessionEvent(t, SessionEventTypes.CoverEnter, r.Tall ? SessionWords.Tall : SessionWords.Low));

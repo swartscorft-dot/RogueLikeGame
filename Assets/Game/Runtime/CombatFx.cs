@@ -46,6 +46,11 @@ namespace Roguelike
         public float Spin;
         /// <summary>A trailing streak: the most metres it trails behind what it follows.</summary>
         public float TrailLength;
+        /// <summary>
+        /// A star held (<see cref="Holds"/>) grows while it holds, from a fifth of its size to the size its pop starts at,
+        /// by this, 0 to 1 (work order 035: the glint of a skill grows through its windup); then it snaps as any star does.
+        /// </summary>
+        public Func<float> Grow;
     }
 
     /// <summary>
@@ -319,6 +324,7 @@ namespace Roguelike
                 case FxShape.Diamond:
                     // A quick pop to full size, then a shrink to nothing, as the shot effects' flash and spark.
                     float pop = t < 0.2f ? Mathf.Lerp(0.7f, 1.1f, t / 0.2f) : 1.1f * (1f - Sq((t - 0.2f) / 0.8f));
+                    if (_holding && _p.Grow != null) pop = Mathf.Lerp(0.2f, 0.7f, Grown()); // work order 035: the glint grows
                     transform.localScale = Vector3.one * (_p.Size * pop);
                     break;
                 case FxShape.Streak:
@@ -373,6 +379,12 @@ namespace Roguelike
                     transform.localScale = new Vector3(Mathf.Max(1e-3f, _p.Angle * out_), 1f, _p.Size);
                     break;
             }
+        }
+
+        float Grown()
+        {
+            try { return Mathf.Clamp01(_p.Grow()); }
+            catch (Exception) { return 1f; }
         }
 
         Vector3 TowardCameraOffset()

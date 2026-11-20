@@ -287,7 +287,9 @@ namespace Roguelike
             if (!moment.HasValue) return;
             // The windup's attack is the enemy's own at its report: blue when it can be countered (work order 015).
             bool counterable = r.Kind == EnemyReportKind.AttackStarted && enemy != null && PoolRules.IsCounterable(enemy.Attack);
-            Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable));
+            // An ordinary attack's windup is silent (work order 035): the windup sounds mean a skill.
+            bool ordinary = r.Kind == EnemyReportKind.AttackStarted && enemy != null && enemy.Attack != null && enemy.Attack.Ordinary;
+            Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable, ordinary));
         });
 
         void OnPlayer(PlayerReport r) => Safely(() =>

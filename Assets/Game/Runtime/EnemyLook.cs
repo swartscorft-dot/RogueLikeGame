@@ -381,7 +381,9 @@ namespace Roguelike
                     {
                         _mode = Mode.Attack;
                         _attack = attack;
-                        _plan = AttackClipPlan.For(attack.Windup, attack.Recovery, clip.Strike, clip.Length);
+                        // An ordinary attack's clip may play faster (work order 035), so the whole of it plays for each blow.
+                        _plan = AttackClipPlan.For(attack.Windup, attack.Recovery, clip.Strike, clip.Length,
+                                                   maxSpeed: attack.Ordinary ? EnemyModelSpec.OrdinaryMaxAttackSpeed : EnemyModelSpec.MaxAttackSpeed);
                         _windupAt = now;
                         _strikeAt = now;
                         Show(input, false, restart: true);

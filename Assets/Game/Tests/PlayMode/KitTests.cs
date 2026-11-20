@@ -42,6 +42,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
 
             _player = Object.FindAnyObjectByType<PlayerCharacter>();
+            _player.MeleeYouRead = false; // work order 035: these tests are of the swarmer's, brute's and guard's attacks from before
             _driver = Object.FindAnyObjectByType<PlayerInputDriver>();
             _enemy = Object.FindAnyObjectByType<EnemyBrute>();
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
