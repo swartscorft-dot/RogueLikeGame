@@ -443,6 +443,18 @@ namespace Roguelike
             return lines;
         }
 
+        /// <summary>
+        /// Her stats in the run for the pause menu (work order 050, decision 0012), a line each: the value now and, in
+        /// brackets, what she started the run with (<see cref="HerStats.Lines"/>). Empty outside a run and with the stats off.
+        /// </summary>
+        public List<string> StatLines()
+        {
+            RunModifiers m = _player != null ? _player.Modifiers : null;
+            if (m == null || !m.StatsAndTiers || _levels == null || !_levels.InRun) return new List<string>();
+            FeelValues f = _player.Feel;
+            return m.Stats.Lines(f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery, f.BasicShotRange, _health != null ? _health.MaxHealth : 100);
+        }
+
         // ---------------- Drawing ----------------
 
         float RunBoxHeight() => 14f + 24f + (_runBox.Count - 2) * 18f + 16f;
@@ -600,9 +612,10 @@ namespace Roguelike
         {
             Fill(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), s_Dim);
             List<string> keys = KeyLines();
+            List<string> stats = StatLines(); // work order 050
             const float w = 560f, rowH = 34f, gap = 6f;
-            int keyRows = (keys.Count + 1) / 2;
-            float h = 64f + _menu.Count * (rowH + gap) + 18f + keyRows * 17f + 20f;
+            int keyRows = (keys.Count + 1) / 2, statRows = (stats.Count + 1) / 2;
+            float h = 64f + _menu.Count * (rowH + gap) + 18f + keyRows * 17f + 20f + (statRows > 0 ? 24f + statRows * 17f : 0f);
             var r = new Rect((viewWidth - w) * 0.5f, Mathf.Max(10f, (SkillBar.LayoutHeight - h) * 0.5f), w, h);
             Fill(r, s_Back);
             Frame(r, s_Accent);
@@ -638,6 +651,11 @@ namespace Roguelike
                 int col = i < keyRows ? 0 : 1, rowIndex = i < keyRows ? i : i - keyRows;
                 GUI.Label(new Rect(r.x + 30f + col * colW, y + rowIndex * 17f, colW, 17f), keys[i], _keys);
             }
+            if (statRows == 0) return;
+            y += keyRows * 17f + 6f; // work order 050: her stats, under the keys, the same way
+            GUI.Label(new Rect(r.x + 30f, y, w - 60f, 16f), "Her stats in this run   (in brackets: at its start)", _small);
+            for (int i = 0; i < stats.Count; i++)
+                GUI.Label(new Rect(r.x + 30f + (i < statRows ? 0f : colW), y + 18f + (i < statRows ? i : i - statRows) * 17f, colW, 17f), stats[i], _keys);
         }
     }
 }

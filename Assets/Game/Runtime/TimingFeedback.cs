@@ -121,6 +121,7 @@ namespace Roguelike
             public int Damage;
             public int MarksSpent;
             public bool OnDazed;
+            public bool Crit; // work order 050: shown as the strong kind, the perfect release's
         }
 
         readonly WordBoard _board = new WordBoard();
@@ -293,7 +294,7 @@ namespace Roguelike
                     // A hit on a dazed target hits harder (StaggerBar.Scale); the hit that emptied the bar did not.
                     bool onDazed = r.Target.Stagger != null && r.Target.Stagger.IsDazed(Time.time)
                                    && !(_emptiedAt.TryGetValue(r.Target, out int frame) && frame == Time.frameCount);
-                    _pending.Add(new PendingHit { Slot = r.Slot, Target = r.Target, Damage = r.Damage, MarksSpent = spent, OnDazed = onDazed });
+                    _pending.Add(new PendingHit { Slot = r.Slot, Target = r.Target, Damage = r.Damage, MarksSpent = spent, OnDazed = onDazed, Crit = r.Crit });
                     if (r.Countered)
                     {
                         ShowWord(r.Target, FeedbackRules.Word(FeedbackMoment.Counter));
@@ -375,7 +376,7 @@ namespace Roguelike
                 PendingHit hit = _pending[i];
                 if (slot.HasValue && hit.Slot != slot.Value) continue;
                 if (!shown || hit.Target == null) continue;
-                NumberKind kind = FeedbackRules.HitKind(perfect, hit.MarksSpent, cap, hit.OnDazed);
+                NumberKind kind = FeedbackRules.HitKind(perfect || hit.Crit, hit.MarksSpent, cap, hit.OnDazed); // a crit as a perfect hit's (work order 050)
                 int key = KeyOf(hit.Target);
                 _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers);
             }
