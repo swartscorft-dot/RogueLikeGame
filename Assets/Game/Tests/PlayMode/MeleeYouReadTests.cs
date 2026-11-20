@@ -669,6 +669,33 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.IsHeld, Is.False);
         }
 
+        /// <summary>
+        /// Found merging work orders 035 and 038 (2026-11-20): a pull that dropped Triple Tap's first shot before it went
+        /// off left its chain waiting for a window that never opened, and nothing new could start while it waited (the
+        /// Ace of PilotTests stood so for the rest of its fight). Such a chain ends, as a teleport ends it; a chain whose
+        /// window is already open runs on through a hold, as before.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator APullOrAStun_BeforeAChainsShotWentOff_EndsTheChain_AnOpenWindowRunsOn()
+        {
+            yield return null;
+            int tap = Slot("Triple Tap"), step = Slot("Backstep");
+            Vector3 aim = _player.Position + Vector3.forward * 6f;
+            Assert.That(_player.PressSkill(tap, aim), Is.EqualTo(IntentResult.Started), "Triple Tap's first press");
+            Assume.That(_player.RecastSlot == tap && !_player.IsRecastWindowOpen, Is.True, "its shot not gone off yet");
+            Assert.That(_player.Pull(_player.Position + Vector3.right * 3f, 0.3f, "test"), Is.True);
+            Assert.That(_player.RecastSlot, Is.EqualTo(-1), "the chain whose shot was dropped is over");
+            yield return Until(() => !_player.IsHeld, 2f);
+            yield return For(HeldState.StunGrace + 0.2f);
+            Assert.That(_player.PressSkill(step, aim), Is.EqualTo(IntentResult.Started), "another skill starts: nothing waits on the old chain");
+
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            Assume.That(_player.RecastSlot, Is.EqualTo(step));
+            Assert.That(_player.Stun(0.2f, "test"), Is.True);
+            Assert.That(_player.RecastSlot, Is.EqualTo(step), "a chain whose window is open runs on through a hold");
+            Assert.That(_player.IsRecastWindowOpen, Is.True);
+        }
+
         // ---------------- The recorder ----------------
 
         [UnityTest]

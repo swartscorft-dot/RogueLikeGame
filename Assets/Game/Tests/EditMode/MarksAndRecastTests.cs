@@ -338,4 +338,111 @@ namespace Roguelike.Rules.Tests
             Assert.That(RecastChain.IsClean(0.61f, Window, Share), Is.False);
         }
     }
+
+    /// <summary>
+    /// Work order 038 (Kristian's answer of 2026-11-20: the recast window runs on real time). Which seconds an open window
+    /// counts: a hit stop's real seconds do, slowed with a slow-down and never sped up; a pause does not; a frame that ran counts its game time.
+    /// </summary>
+    public class RecastClockTests
+    {
+        const float Window = 0.6f;
+        const float Share = 1f / 3f;
+        const float Frame = 0.0167f;
+
+        [Test]
+        public void TheSwitch_IsOnByDefault()
+        {
+            Assert.That(new KitValues().RecastOnRealTime, Is.True);
+        }
+
+        [Test]
+        public void AFrameAHitStopFroze_CountsItsRealSeconds()
+        {
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, hitStopHolds: true, screenHolds: false, paceBefore: 1f),
+                        Is.EqualTo(Frame).Within(1e-7f));
+        }
+
+        [Test]
+        public void APause_StopsIt_EvenOverAHitStop()
+        {
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, hitStopHolds: false, screenHolds: true, paceBefore: 1f), Is.EqualTo(0f), "the pause menu, a choice, a screen");
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, hitStopHolds: true, screenHolds: true, paceBefore: 1f), Is.EqualTo(0f), "paused during a hit stop");
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, hitStopHolds: false, screenHolds: false, paceBefore: 1f), Is.EqualTo(0f), "a time scale of 0 that is no hit stop");
+        }
+
+        [Test]
+        public void AFrameThatRan_AddsNothing_ItsGameTimeIsTheWindowsAlready()
+        {
+            Assert.That(RecastClock.HitStopSeconds(true, Frame, Frame, hitStopHolds: true, screenHolds: false, paceBefore: 1f), Is.EqualTo(0f),
+                        "the frame the hit stop began in ran");
+            Assert.That(RecastClock.HitStopSeconds(true, Frame * 0.5f, Frame, hitStopHolds: false, screenHolds: false, paceBefore: 0.5f), Is.EqualTo(0f),
+                        "a slow-down: its game seconds, slowed, and nothing more");
+        }
+
+        [Test]
+        public void AHitStop_IsSlowedWithASlowDown_AndAtAFasterGameCostsTheWindowWhatItCostsAtScale1()
+        {
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 0.5f), Is.EqualTo(Frame * 0.5f).Within(1e-7f), "a slow-down slows it");
+            // Changed after the evening's merge (work order 038): it was Frame * 8, the faster game's pace. A hit stop is
+            // its real length at any scale; unscaled, it costs the window the same share of itself as at scale 1.
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 4f), Is.EqualTo(Frame).Within(1e-7f), "at 4: its real seconds, unscaled");
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 8f), Is.EqualTo(Frame).Within(1e-7f), "at 8 too");
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 0f), Is.EqualTo(0f), "a hit stop that began paused");
+            // The share of Triple Tap's window (0.6 s of game time) a hit stop of 0.05 s of real time costs, at 1 and at 4.
+            float atOne = RecastClock.HitStopSeconds(true, 0f, 0.05f, true, false, 1f) / Window;
+            float atFour = RecastClock.HitStopSeconds(true, 0f, 0.05f, true, false, 4f) / Window;
+            Assert.That(atFour, Is.EqualTo(atOne).Within(1e-6f), "the same share at a faster game");
+        }
+
+        [Test]
+        public void Off_NothingCounts()
+        {
+            Assert.That(RecastClock.HitStopSeconds(false, 0f, Frame, true, false, 1f), Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void AWindowRunOnThroughAHitStop_IsCleanAtTheSameRealMoment()
+        {
+            // The window opens at 1.0 game time; a hit stop of 0.2 s of real time lands at 1.05 (game time stands at 1.05
+            // for it). A press 0.5 s of real time after the window opened is at 1.3 game time.
+            RecastChain Open()
+            {
+                var chain = new RecastChain();
+                chain.Start(7, 2, Window);
+                chain.ShotWentOff(1f);
+                return chain;
+            }
+            RecastChain none = Open(), ranOn = Open(), asBefore = Open();
+            ranOn.RunOn(0.2f);
+            Assert.That(none.Judge(7, 1.5f, Share, true), Is.EqualTo(RecastPress.Clean), "no hit stop: 0.5 s in, clean");
+            Assert.That(ranOn.Judge(7, 1.3f, Share, true), Is.EqualTo(RecastPress.Clean), "run on: clean at the same real moment");
+            Assert.That(asBefore.Judge(7, 1.3f, Share, true), Is.EqualTo(RecastPress.Shot), "held as before: 0.3 s in, not clean");
+            Assert.That(ranOn.SinceOpened(1.3f), Is.EqualTo(0.5f).Within(1e-5f));
+            Assert.That(ranOn.WindowLeft(1.3f), Is.EqualTo(none.WindowLeft(1.5f)).Within(1e-5f), "the bar the same");
+            Assert.That(ranOn.Judge(7, 1.05f, Share, true), Is.EqualTo(RecastPress.Shot), "early stays early: 0.25 s in");
+            Assert.That(ranOn.Expired(1.39f), Is.False);
+            Assert.That(ranOn.Expired(1.41f), Is.True, "it runs out 0.6 s of real time after it opened");
+            Assert.That(ranOn.IsWindowOpen(1.41f), Is.False);
+            Assert.That(asBefore.Expired(1.41f), Is.False, "held, it ran out 0.2 s later");
+        }
+
+        [Test]
+        public void BeforeItOpens_NothingRunsOn_AndTheNextWindowStartsFromNothing()
+        {
+            var chain = new RecastChain();
+            chain.Start(7, 3, Window);
+            chain.RunOn(0.3f); // a hit stop before its shot has gone off
+            Assert.That(chain.Judge(7, 0.1f, Share, true), Is.EqualTo(RecastPress.Early), "still early");
+            chain.ShotWentOff(0.2f);
+            Assert.That(chain.SinceOpened(0.2f), Is.EqualTo(0f), "its clock starts when it opens");
+            chain.RunOn(0.1f);
+            Assert.That(chain.SinceOpened(0.3f), Is.EqualTo(0.2f).Within(1e-5f));
+            chain.Recast();
+            chain.ShotWentOff(0.5f);
+            Assert.That(chain.SinceOpened(0.5f), Is.EqualTo(0f), "the next window starts from nothing");
+            chain.End();
+            chain.RunOn(0.1f);
+            Assert.That(chain.SinceOpened(1f), Is.EqualTo(-1f), "no chain, no clock");
+        }
+    }
 }
