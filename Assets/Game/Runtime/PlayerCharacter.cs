@@ -205,6 +205,7 @@ namespace Roguelike
         bool _castClean; // the shot of the skill in use came from a clean press: a clean tap or a clean spend
         bool _castMoves;   // the skill in use moves her over its startup (MoveDistance): not the shot after an opening move
         bool _castOpening; // the skill in use is a chain's opening move: it fires nothing (Backstep's hop)
+        bool _useKillCut, _useDazeCut; // the use going on has had its cut for a kill, for a daze (work order 033)
 
         NavMeshAgent _agent;
 
@@ -1040,10 +1041,29 @@ namespace Roguelike
             _prime.Clear(); // and no priming (work order 025)
             _dash.Clear();
             _cooldowns.Clear(); // made again, ready, when next asked for
+            // The basic shot too (the second reviews of 2026-11-20, work order 033): no hits counted toward its next mark,
+            // no wait for its next shot, the first from the right hand, and no slow of a shot on the move or turn held
+            // from the last one.
+            _basicMarks.Reset();
+            _nextShotAt = float.NegativeInfinity;
+            _leftHandNext = false;
+            _easing = false;
+            _shotFacing.End(turnBack: false);
+            _backpedalCap.Reset();
             // Work order 029 (the rack between runs, only when it is switched on and a piece says so): Spare Step's dash
             // charges, and Steady Start's focus.
             _dash.MaxCharges = Modifiers != null ? Modifiers.Meta.DashCharges : 1;
             if (Modifiers != null && Modifiers.Meta.StartFocusShare > 0f) _focus.Add(Identity.MaxFocus * Modifiers.Meta.StartFocusShare, Identity, Time.time);
+        }
+
+        /// <summary>
+        /// Ends a focus window that runs, and any priming, keeping the gauge's focus (the second reviews of 2026-11-20,
+        /// work order 033): called when the run's focus choice is taken.
+        /// </summary>
+        public void EndFocusWindow()
+        {
+            _focus.EndWindow();
+            _prime.Clear();
         }
 
         /// <summary>Dashes ready now (work order 029: two with Spare Step); 1 or 0 otherwise.</summary>
@@ -1744,6 +1764,7 @@ namespace Roguelike
                 _chain.Start(slot, skill.RecastCount, skill.RecastWindow, skill.OpeningMove);
                 CooldownFor(slot).Start(Time.time, CooldownOf(slot));
                 TakePrime(slot, skill);
+                _useKillCut = _useDazeCut = false; // a new use: its kill and daze cuts may come once (work order 033)
             }
             _castOpening = !recast && _chain.IsOpeningMove;
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
@@ -1864,8 +1885,18 @@ namespace Roguelike
                 int cut = string.IsNullOrEmpty(skill.HitCutsSkill) ? slot : SlotOf(skill.HitCutsSkill);
                 if (cut >= 0) CooldownFor(cut).CutSeconds(now, skill.HitCooldownCut);
             }
-            if (slot >= 0 && killed && skill.KillCooldownCut > 0f) CooldownFor(slot).CutSeconds(now, CooldownOf(slot) * Mathf.Clamp01(skill.KillCooldownCut));
-            if (slot >= 0 && dazed && skill.DazeCooldownCut > 0f) CooldownFor(slot).CutSeconds(now, CooldownOf(slot) * Mathf.Clamp01(skill.DazeCooldownCut));
+            // Once a use, however many blasts or hits it has (the second reviews of 2026-11-20, work order 033: Steady Hand's
+            // second Scatter Blast with Fresh Shells made it ready again at once).
+            if (slot >= 0 && killed && skill.KillCooldownCut > 0f && !_useKillCut)
+            {
+                _useKillCut = true;
+                CooldownFor(slot).CutSeconds(now, CooldownOf(slot) * Mathf.Clamp01(skill.KillCooldownCut));
+            }
+            if (slot >= 0 && dazed && skill.DazeCooldownCut > 0f && !_useDazeCut)
+            {
+                _useDazeCut = true;
+                CooldownFor(slot).CutSeconds(now, CooldownOf(slot) * Mathf.Clamp01(skill.DazeCooldownCut));
+            }
             if (countered && !string.IsNullOrEmpty(skill.CounterReadies))
             {
                 int ready = SlotOf(skill.CounterReadies);
@@ -2060,6 +2091,7 @@ namespace Roguelike
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005);
                 // Breaker Slug's bonus per mark is stagger, not damage (work order 015).
                 int taken = spends ? d.TakeMarks() : 0;
+                int had = taken; // the marks it really had: only these give focus (the second reviews of 2026-11-20, work order 033)
                 // Primed (work order 025): a spender counts a mark more than the target has, up to the cap.
                 if (spends && prime == PrimeUse.SpenderExtraMark) taken = FocusModeRules.SpenderCount(taken, FocusModeValues.PrimedExtraMarks, Kit.MaxMarks);
                 int dealt = spends ? MarkRules.SpenderDamage(damage, taken, bonus) : damage;
@@ -2078,7 +2110,9 @@ namespace Roguelike
                 else if (!wasDazed && d.IsDazed) dazed = true;
                 if (spends)
                 {
-                    float markFocus = GainFocus(taken * Identity.FocusPerMarkSpent);
+                    // The primed extra mark counts for the damage (or Breaker Slug's stagger) only: a primed spender must
+                    // not pay for its own part with focus (work order 033).
+                    float markFocus = GainFocus(had * Identity.FocusPerMarkSpent);
                     Report(new PlayerReport
                     {
                         Kind = PlayerReportKind.MarksSpent, Slot = slot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,

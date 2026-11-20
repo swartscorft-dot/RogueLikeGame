@@ -67,6 +67,9 @@ namespace Roguelike
             Record?.TakeFocusChoice(name);
             PlaySessionRecorder.Current?.NoteFocusChoiceTaken(Floor, name);
             Debug.Log("Focus choice: " + name);
+            // A window opened on floor 1 ends here, and any priming (the second reviews of 2026-11-20, work order 033): it
+            // must not carry into the way picked, as a free Steady Hand window or a gauge refusing focus. The focus stays.
+            FindPlayer()?.EndFocusWindow();
             CloseChoice();
             EnterFloor(Floor + 1);
             return true;

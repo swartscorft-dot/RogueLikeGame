@@ -94,6 +94,12 @@ namespace Roguelike
         uint _seed;
         Vector3 _velocity;
         Quaternion _facing;
+        // A shape rebuilt as it plays keeps its buffers and its index list (the second reviews of 2026-11-20, work order
+        // 033): the vertices only are filled and uploaded again, and only when its time has moved since the last build.
+        Vector3[] _vertices;
+        Color[] _colors;
+        int[] _triangles;
+        float _builtT = float.NaN;
 
         public int Id { get; private set; }
         /// <summary>What it was made as.</summary>
@@ -102,6 +108,9 @@ namespace Roguelike
         public FxMoment Moment => _p.Moment;
         public float Age => _age;
         public bool IsHolding => _holding;
+        /// <summary>For tests (work order 033): how many times its geometry was uploaded, and its index list.</summary>
+        public int Builds { get; private set; }
+        public int IndexUploads { get; private set; }
         /// <summary>The brightest channel of its core colour as drawn, in linear light. Above 1 it glows under bloom.</summary>
         public float CoreBrightness => Mathf.Max(_core.r, Mathf.Max(_core.g, _core.b));
 
@@ -328,25 +337,31 @@ namespace Roguelike
                     }
                     break;
                 case FxShape.Wedge:
+                    if (Unchanged(t)) break;
                     float outer = _p.Size * Mathf.Lerp(0.55f, 1f, EaseOut(Mathf.Clamp01(t / 0.35f)));
                     BuildBand(outer * Mathf.Pow(t, 1.5f), outer, _p.Angle, jagged: true, coreShare: 0.12f);
                     break;
                 case FxShape.Ring:
+                    if (Unchanged(t)) break;
                     float edge = _p.Size * Mathf.Lerp(0.25f, 1f, EaseOut(t));
                     BuildBand(edge - _p.Size * 0.35f * (1f - t), edge, 360f, jagged: false);
                     break;
                 case FxShape.Outline:
+                    if (Unchanged(t)) break;
                     BuildBand(_p.Size - Mathf.Min(_p.Size, OutlineWidth) * (1f - t * t), _p.Size, 360f, jagged: false);
                     break;
                 case FxShape.Closing:
+                    if (Unchanged(t)) break;
                     // Closing in to its centre over its whole time, as thin as an outline.
                     float rim = _p.Size * (1f - t);
                     BuildBand(rim - Mathf.Min(rim, OutlineWidth), rim, 360f, jagged: false, coreShare: 0.4f);
                     break;
                 case FxShape.Shards:
+                    if (Unchanged(t)) break;
                     BuildShards(t);
                     break;
                 case FxShape.Converge:
+                    if (Unchanged(t)) break;
                     BuildConverge(t);
                     break;
                 case FxShape.Orbit:
@@ -437,9 +452,10 @@ namespace Roguelike
             int segments = Mathf.Max(8, Mathf.CeilToInt(angle / 4f));
             bool closed = angle >= 359.9f;
             Vector3 forward = Flat(_p.Direction).sqrMagnitude > 1e-6f ? Flat(_p.Direction).normalized : Vector3.forward;
-            var vertices = new Vector3[(segments + 1) * 4];
-            var colors = new Color[vertices.Length];
-            var triangles = new int[segments * 12];
+            bool fresh = Buffers((segments + 1) * 4, segments * 12);
+            Vector3[] vertices = _vertices;
+            Color[] colors = _colors;
+            int[] triangles = _triangles;
             int tri = 0;
             for (int i = 0; i <= segments; i++)
             {
@@ -461,7 +477,7 @@ namespace Roguelike
                     triangles[tri++] = a; triangles[tri++] = c + 1; triangles[tri++] = c;
                 }
             }
-            SetMesh(vertices, colors, triangles);
+            SetMesh(vertices, colors, triangles, fresh);
         }
 
         /// <summary>
@@ -471,9 +487,10 @@ namespace Roguelike
         void BuildShards(float t)
         {
             int n = Mathf.Max(1, _p.Count);
-            var vertices = new Vector3[n * 6];
-            var colors = new Color[vertices.Length];
-            var triangles = new int[n * 6];
+            bool fresh = Buffers(n * 6, n * 6);
+            Vector3[] vertices = _vertices;
+            Color[] colors = _colors;
+            int[] triangles = _triangles;
             uint seed = (uint)Id * 747796405u + 2891336453u;
             float fly = EaseOut(t);
             float shrink = 1f - t * t;
@@ -500,7 +517,7 @@ namespace Roguelike
                     triangles[v + 2] = v + 2;
                 }
             }
-            SetMesh(vertices, colors, triangles);
+            SetMesh(vertices, colors, triangles, fresh);
         }
 
         /// <summary>
@@ -511,9 +528,10 @@ namespace Roguelike
         void BuildConverge(float t)
         {
             int n = Mathf.Max(3, _p.Count);
-            var vertices = new Vector3[n * 6];
-            var colors = new Color[vertices.Length];
-            var triangles = new int[n * 6];
+            bool fresh = Buffers(n * 6, n * 6);
+            Vector3[] vertices = _vertices;
+            Color[] colors = _colors;
+            int[] triangles = _triangles;
             float p = t * t; // slow, then fast: pulled in
             float tip = _p.Size * 0.3f * (1f - p);
             float tail = _p.Size * (1f - 0.85f * p);
@@ -537,7 +555,7 @@ namespace Roguelike
                     triangles[v + 2] = v + 2;
                 }
             }
-            SetMesh(vertices, colors, triangles);
+            SetMesh(vertices, colors, triangles, fresh);
         }
 
         /// <summary>
@@ -611,8 +629,37 @@ namespace Roguelike
             SetMesh(vertices.ToArray(), colors.ToArray(), triangles.ToArray());
         }
 
-        void SetMesh(Vector3[] vertices, Color[] colors, int[] triangles)
+        /// <summary>
+        /// The buffers of a shape rebuilt as it plays, made the first time (work order 033). True when they were just made:
+        /// the colours and the index list are uploaded then, and only the vertices after.
+        /// </summary>
+        bool Buffers(int vertexCount, int indexCount)
         {
+            if (_vertices != null && _vertices.Length == vertexCount && _triangles.Length == indexCount) return false;
+            _vertices = new Vector3[vertexCount];
+            _colors = new Color[vertexCount];
+            _triangles = new int[indexCount];
+            return true;
+        }
+
+        /// <summary>True when its time has not moved since it was last built (a pause, a hit stop): nothing to build (work order 033).</summary>
+        bool Unchanged(float t)
+        {
+            if (t == _builtT) return true;
+            _builtT = t;
+            return false;
+        }
+
+        void SetMesh(Vector3[] vertices, Color[] colors, int[] triangles, bool fresh = true)
+        {
+            Builds++;
+            if (!fresh)
+            {
+                _mesh.vertices = vertices; // the same count: its colours and index list stay
+                _mesh.RecalculateBounds();
+                return;
+            }
+            IndexUploads++;
             _mesh.Clear();
             _mesh.vertices = vertices;
             _mesh.colors = colors;

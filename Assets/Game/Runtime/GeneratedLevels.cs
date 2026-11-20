@@ -471,7 +471,7 @@ namespace Roguelike
 
         void OnDied()
         {
-            if (InRun) _diedPending = true; // handled in the next Update, out of the enemy's strike that killed her
+            if (InRun) _diedPending = true; // handled at the frame's end or the next Update (Settle), out of the enemy's strike that killed her
         }
 
         /// <summary>The floor is finished: a floor reward to choose on floors 1 to 4, the act cleared after the last.</summary>
@@ -714,6 +714,9 @@ namespace Roguelike
         void CloseChoice()
         {
             if (Choice == ChoiceKind.None) return;
+            // A chest whose choice closes without a pick (an end screen) is not used up (the second reviews of 2026-11-20,
+            // work order 033). A pick lets go of the chest first.
+            if (Choice == ChoiceKind.Chest && _openChest != null) _chestsOpened.Remove(_openChest.Room.Order);
             Choice = ChoiceKind.None;
             _offeredSkills.Clear();
             _offeredUpgrades.Clear();
@@ -752,14 +755,7 @@ namespace Roguelike
             if (FindPlayer() == null) return;
             // Death first (work order 026, the second review of 2026-11-20): before a choice (a chest opened on the frame
             // of the lethal hit), whose screen the death screen closes, and before the interact key.
-            if (_diedPending)
-            {
-                _diedPending = false;
-                string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
-                EndRun("death", line);
-                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
-                if (_level != null) OpenEnding(EndKind.Died);
-            }
+            SettleDeath();
             if (Choice != ChoiceKind.None)
             {
                 Time.timeScale = 0f; // a hit stop that ends while the choice is up must not start the game again
@@ -782,7 +778,6 @@ namespace Roguelike
             }
             HoldScreens();
             if (InRun) Record?.SetTime(Time.time - _runStartedAt);
-            if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat
             if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard keyboard)
             {
                 if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
@@ -805,6 +800,27 @@ namespace Roguelike
                 return;
             }
             TrackRoom();
+            if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat; after the room is tracked (work order 033)
+        }
+
+        // A hit stop puts back the time scale it found when it ends, in its own Update: the choice holds the pause after it.
+        void LateUpdate()
+        {
+            if (FindPlayer() != null) Settle();
+            if (Choice != ChoiceKind.None) Time.timeScale = 0f;
+            else HoldScreens(); // and the pause menu's, and the end's slow-down (work order 018)
+        }
+
+        /// <summary>
+        /// One place decides what a frame brings, in a fixed priority (the second reviews of 2026-11-20, work order 033): her
+        /// death, then the pause, then a cleared room. It runs after every Update of the frame, so Esc's pause (the HUD's, in
+        /// its own Update) and a chest opened with the interact key are seen here whichever Update ran first; a cleared room
+        /// waits while a choice, the pause menu or an end screen is up, and comes when it has closed.
+        /// </summary>
+        void Settle()
+        {
+            SettleDeath();
+            if (_level == null || Choice != ChoiceKind.None) return;
             // The elite room first (work order 017): its choice comes up, and the floor's waits for the next frame.
             // One screen at a time (work order 026): while paused, both wait until the game resumes.
             if (InRun && !EliteRoomDone && !Paused && _level.EliteRoomCleared)
@@ -815,11 +831,15 @@ namespace Roguelike
             if (!Cleared && !Paused && _level.ExitRoomCleared) FloorFinished();
         }
 
-        // A hit stop puts back the time scale it found when it ends, in its own Update: the choice holds the pause after it.
-        void LateUpdate()
+        /// <summary>Her death in a run, once: the run ends, and the death screen comes (work orders 018 and 026).</summary>
+        void SettleDeath()
         {
-            if (Choice != ChoiceKind.None) Time.timeScale = 0f;
-            else HoldScreens(); // and the pause menu's, and the end's slow-down (work order 018)
+            if (!_diedPending) return;
+            _diedPending = false;
+            string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
+            EndRun("death", line);
+            // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
+            if (_level != null) OpenEnding(EndKind.Died);
         }
 
         Key InteractKey

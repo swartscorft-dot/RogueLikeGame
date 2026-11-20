@@ -17,6 +17,12 @@ namespace Roguelike.Rules
         Damaged,
         /// <summary>A save of a newer version: kept beside the new one, renamed, and an empty save given.</summary>
         Newer,
+        /// <summary>
+        /// A file that is there but could not be read now (locked for a moment by another program): not an empty save, and
+        /// nothing may be saved over it (the second reviews of 2026-11-20, work order 033). It is left alone, and tried
+        /// again the next time the save is needed.
+        /// </summary>
+        Unreadable,
     }
 
     /// <summary>
@@ -25,12 +31,48 @@ namespace Roguelike.Rules
     /// temporary one). It holds the version, the currency, what is owned, what is equipped, the feats done and the pool
     /// skill struck out. Reading never throws: a missing file is an empty save; a damaged one, or one of a newer version,
     /// is renamed beside it (never deleted) and gives an empty save. Writing goes through a temporary file, so a write cut
-    /// short leaves the last save whole; a write that fails says why and throws nothing.
+    /// short leaves the last save whole; a write that fails says why and throws nothing. Work order 033: a file that is
+    /// there but cannot be read now is not an empty save, and a replace that fails keeps the last good save and the new
+    /// one beside it.
     /// </summary>
     public static class MetaSaveFile
     {
-        /// <summary>Reads the save at <paramref name="path"/>, tidied against the values. Never throws.</summary>
+        /// <summary>
+        /// Where a new save is kept beside the last good one when replacing that one failed (work order 033): read by
+        /// <see cref="Load"/> when it is the newer of the two.
+        /// </summary>
+        public static string BesidePath(string path) => path + ".new";
+
+        /// <summary>
+        /// Reads the save at <paramref name="path"/>, tidied against the values. Never throws. Work order 033 (the second
+        /// reviews of 2026-11-20): a save kept beside it (<see cref="BesidePath"/>) is read too, the newer of the two first,
+        /// and the other when that one is missing, damaged or newer than this game; but never past one that is there and
+        /// cannot be read now (<see cref="MetaLoad.Unreadable"/>), so an older one is never read and then saved over it.
+        /// </summary>
         public static MetaState Load(string path, MetaValues values, out MetaLoad how, out string keptAs)
+        {
+            string beside = string.IsNullOrEmpty(path) ? null : BesidePath(path);
+            bool besideFirst = false;
+            try
+            {
+                besideFirst = beside != null && File.Exists(beside)
+                              && (!File.Exists(path) || File.GetLastWriteTimeUtc(beside) >= File.GetLastWriteTimeUtc(path));
+            }
+            catch (Exception)
+            {
+                besideFirst = false;
+            }
+            MetaState first = LoadOne(besideFirst ? beside : path, values, out how, out keptAs);
+            if (how == MetaLoad.Read || how == MetaLoad.Unreadable || beside == null) return first;
+            MetaState other = LoadOne(besideFirst ? path : beside, values, out MetaLoad otherHow, out string otherKept);
+            if (otherHow == MetaLoad.Missing) return first;
+            if (keptAs.Length == 0) keptAs = otherKept;
+            how = otherHow;
+            return otherHow == MetaLoad.Read ? other : first;
+        }
+
+        /// <summary>Reads one file: as <see cref="Load"/> did before work order 033, but a file that cannot be read is Unreadable.</summary>
+        static MetaState LoadOne(string path, MetaValues values, out MetaLoad how, out string keptAs)
         {
             keptAs = "";
             how = MetaLoad.Missing;
@@ -63,8 +105,9 @@ namespace Roguelike.Rules
             }
             catch (Exception)
             {
-                // A file that cannot be read at all (locked, no rights): an empty save, and the file is left alone.
-                how = MetaLoad.Damaged;
+                // A file that is there and cannot be read now (locked, no rights): left alone, and not an empty save that
+                // could be written over it (work order 033).
+                how = MetaLoad.Unreadable;
                 return empty;
             }
         }
@@ -86,11 +129,26 @@ namespace Roguelike.Rules
                     {
                         File.Replace(temp, path, null);
                     }
-                    catch (IOException)
+                    catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is PlatformNotSupportedException)
                     {
-                        File.Delete(path);
-                        File.Move(temp, path);
+                        // Work order 033 (the second reviews of 2026-11-20): the last good save is never deleted before the new
+                        // one is in place. It stays as it is, the new one is kept beside it (read by Load as the newer), and
+                        // the failure is said.
+                        string beside = BesidePath(path);
+                        File.Copy(temp, beside, true);
+                        File.Delete(temp);
+                        error = "could not replace " + path + " (" + e.Message + "); the new save is kept beside it as " + beside;
+                        return false;
                     }
+                }
+                // In place: one kept beside before is older now, and not needed.
+                try
+                {
+                    if (File.Exists(BesidePath(path))) File.Delete(BesidePath(path));
+                }
+                catch (Exception)
+                {
+                    // Left: Load reads the newer of the two.
                 }
                 return true;
             }

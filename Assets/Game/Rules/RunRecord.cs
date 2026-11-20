@@ -59,6 +59,12 @@ namespace Roguelike.Rules
         public bool IsOver => Outcome != RunOutcome.Going;
         /// <summary>The focus choice taken (work order 025), "Hair Trigger"; empty until it is taken.</summary>
         public string FocusChoice { get; private set; } = "";
+        /// <summary>
+        /// Every pick of the run: the skills, the chest upgrades, the skill upgrades and the focus choice. The one count by
+        /// which the placeholder sounds and the effects both find a pick (the second reviews of 2026-11-20, work order
+        /// 033: the effects did not count the skill upgrades), so the two cannot drift apart again.
+        /// </summary>
+        public int Picks => _skills.Count + _upgrades.Count + _skillUpgrades.Count + (FocusChoice.Length > 0 ? 1 : 0);
         /// <summary>Her health and maximum when the run ended; 0 while it goes on.</summary>
         public int HealthLeft { get; private set; }
         public int MaxHealth { get; private set; }
