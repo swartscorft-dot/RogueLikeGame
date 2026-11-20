@@ -65,6 +65,8 @@ namespace Roguelike
                     if (r.GetComponent<StaggerBarView>() == null) top = Mathf.Max(top, r.bounds.max.y);
                 top -= target.transform.position.y;
             }
+            // Over an enemy's model, its head (work order 011): a skinned mesh's box is not where its head is.
+            if (target.TryGetComponent(out Enemy enemy) && enemy.ModelHeight > 0f) top = enemy.ModelHeight;
 
             var go = new GameObject("MarkPips");
             go.transform.SetParent(target.transform, false);

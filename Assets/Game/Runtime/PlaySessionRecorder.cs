@@ -673,6 +673,19 @@ namespace Roguelike
                         Add(new SessionEvent(t, SessionEventTypes.FocusPress) { Result = Word(r.Result) });
                         if (r.Result == IntentResult.Started) Add(new SessionEvent(t, SessionEventTypes.FocusSpent));
                         break;
+                    // Taking cover (2026-11-19, an experiment).
+                    case PlayerReportKind.CoverEntered:
+                        Add(new SessionEvent(t, SessionEventTypes.CoverEnter, r.Tall ? SessionWords.Tall : SessionWords.Low));
+                        break;
+                    case PlayerReportKind.CoverLeft:
+                        Add(new SessionEvent(t, SessionEventTypes.CoverLeave)
+                        {
+                            Result = r.Leaving == CoverLeaving.Released ? SessionWords.Released
+                                   : r.Leaving == CoverLeaving.Dash ? SessionWords.DashLeft
+                                   : r.Leaving == CoverLeaving.MovingSkill ? SessionWords.MovingSkill
+                                   : SessionWords.Other,
+                        });
+                        break;
                 }
             }
             catch (Exception e)
@@ -704,6 +717,7 @@ namespace Roguelike
                         e.Result = r.Outcome == StrikeOutcome.Landed ? SessionWords.Landed
                                  : r.Outcome == StrikeOutcome.OutOfArea ? SessionWords.OutOfArea
                                  : r.Outcome == StrikeOutcome.AvoidedByDash ? SessionWords.AvoidedByDash
+                                 : r.Outcome == StrikeOutcome.StoppedByCover ? SessionWords.StoppedByCover
                                  : SessionWords.NoEffect;
                         e.Damage = r.Damage > 0 ? r.Damage : (int?)null;
                         Add(e);
@@ -788,6 +802,64 @@ namespace Roguelike
             {
                 var e = new SessionEvent(Now(), SessionEventTypes.RoomEntered, kind);
                 e.AddExtra("room", room.ToString(CultureInfo.InvariantCulture));
+                Add(e);
+            }
+            catch (Exception e)
+            {
+                Fail(e);
+            }
+        }
+
+        // ---------------- Runs (work order 012) ----------------
+
+        void Note(string type, string name, params string[] extras)
+        {
+            if (!_recording) return;
+            try
+            {
+                var e = new SessionEvent(Now(), type, name);
+                for (int i = 0; i + 1 < extras.Length; i += 2) e.AddExtra(extras[i], extras[i + 1]);
+                Add(e);
+            }
+            catch (Exception e)
+            {
+                Fail(e);
+            }
+        }
+
+        static string Int(int v) => v.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>A run started, with this seed.</summary>
+        public void NoteRunStarted(string runSeed) => Note(SessionEventTypes.RunStart, runSeed);
+
+        /// <summary>She entered floor <paramref name="floor"/> of the run, of this seed.</summary>
+        public void NoteFloorEntered(int floor, string seed) => Note(SessionEventTypes.FloorEnter, seed, "floor", Int(floor));
+
+        /// <summary>The floor's exit room was cleared: how long the floor took (game time: a choice's pause does not count) and the health she had left.</summary>
+        public void NoteFloorFinished(int floor, float seconds, int health) =>
+            Note(SessionEventTypes.FloorFinish, null, "floor", Int(floor), "seconds", Text(seconds), "health", Int(health));
+
+        /// <summary>The floor reward offered: the skills, in the order shown.</summary>
+        public void NoteRewardOffered(int floor, IList<string> skills) =>
+            Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills));
+
+        public void NoteRewardTaken(int floor, string skill) => Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
+
+        /// <summary>A chest opened: what it offered, and what was taken (short forms).</summary>
+        public void NoteChestOpened(int floor, int room, IList<string> offered, string taken) =>
+            Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered));
+
+        /// <summary>The run ended: how (death, act cleared, left), where (floor, room from 1 and its kind), and when.</summary>
+        public void NoteRunEnded(string how, int floor, int room, string kind, float seconds)
+        {
+            if (!_recording) return;
+            try
+            {
+                var e = new SessionEvent(Now(), SessionEventTypes.RunEnd) { Result = how };
+                e.AddExtra("floor", Int(floor));
+                e.AddExtra("room", Int(room));
+                if (!string.IsNullOrEmpty(kind)) e.AddExtra("kind", kind);
+                e.AddExtra("seconds", Text(seconds));
                 Add(e);
             }
             catch (Exception e)

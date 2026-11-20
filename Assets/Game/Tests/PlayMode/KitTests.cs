@@ -368,9 +368,16 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return null;
             Assert.That(_enemy.IsDead, Is.True);
-            Assert.That(_enemy.GetComponentInChildren<MeshRenderer>().enabled, Is.False, "a dead enemy is not shown");
+            // Work order 011: its model plays Death and lies there a moment before it is gone (the capsule went at once).
+            float shown = _enemy.ShownDeadFor(_enemy.Values);
+            if (_enemy.Look != null) Assert.That(_enemy.Look.Playing, Is.EqualTo("Death"), "it falls");
+            yield return new WaitForSeconds(shown);
+            yield return null;
+            Assert.That(_enemy.IsDead, Is.True);
+            foreach (Renderer r in _enemy.GetComponentsInChildren<Renderer>())
+                if (!(r is LineRenderer)) Assert.That(r.enabled, Is.False, "a dead enemy is not shown: " + r.name);
 
-            yield return new WaitForSeconds(_enemy.Values.RespawnDelay + 0.5f);
+            yield return new WaitForSeconds(_enemy.Values.RespawnDelay - shown + 0.5f);
             Assert.That(_enemy.IsDead, Is.False);
             Assert.That(_enemyBody.CurrentHealth, Is.EqualTo(_enemyBody.MaxHealth));
             Assert.That(FlatDistance(_enemy.transform.position, _enemy.Home), Is.LessThan(0.3f), "back at home");

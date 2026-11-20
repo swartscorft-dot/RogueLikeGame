@@ -57,7 +57,8 @@ namespace Roguelike
     /// <summary>
     /// The keys and buttons, in one asset Kristian can edit (decision 0003, Kristian 2026-11-18: "I feel that WASD
     /// movement would be nice. Then Q-1-2-3-4-R-F and right click are abilities."). W A S D move relative to the screen,
-    /// the left button shoots at the cursor, Space dashes (toward the cursor, or the way she moves: DashDirection), Z spends the focus gauge, and one binding
+    /// the left button shoots at the cursor, Space dashes (toward the cursor, or the way she moves: DashDirection), Z spends the focus gauge,
+    /// Left Ctrl held takes cover (Kristian 2026-11-19, an experiment), and one binding
     /// per skill slot, in slot order. The skill bar and the help line show what is here. The builder creates the asset
     /// with these start values when it is missing and never overwrites it.
     /// </summary>
@@ -76,6 +77,10 @@ namespace Roguelike
         [Tooltip("Toward the cursor, or the way she moves (the way she faces when no move key is held).")]
         public DashDirection DashDirection = DashDirection.TowardCursor;
         public Key Focus = Key.Z;
+        [Tooltip("Opens a chest she stands by (work order 012).")]
+        public Key Interact = Key.E;
+        [Tooltip("Held: take cover against a wall or prop in reach (Kristian 2026-11-19, an experiment). An asset made before it has no such line and gets Left Ctrl.")]
+        public Key TakeCover = Key.LeftCtrl;
 
         [Header("Skills, one per slot in order")]
         [Tooltip("Slot 1 is the first skill in Skills.asset (Quick Shot), slot 2 the second, and so on.")]
@@ -102,7 +107,8 @@ namespace Roguelike
             if (Skills != null)
                 foreach (InputBinding b in Skills) { if (skills.Length > 0) skills.Append(' '); skills.Append(b.Label); }
             return Name(MoveUp) + Name(MoveLeft) + Name(MoveDown) + Name(MoveRight) + " move  |  " + Shoot.Label + " shoot at the cursor  |  "
-                 + Name(Dash) + (DashDirection == DashDirection.TowardMovement ? " dash the way you move" : " dash to the cursor") + "  |  " + skills + " skills  |  " + Name(Focus) + " focus";
+                 + Name(Dash) + (DashDirection == DashDirection.TowardMovement ? " dash the way you move" : " dash to the cursor") + "  |  " + skills + " skills  |  " + Name(Focus) + " focus"
+                 + (TakeCover != Key.None ? "  |  " + Name(TakeCover) + " hold to take cover" : "");
         }
 
         [ContextMenu("Reset to the start values")]
@@ -110,7 +116,7 @@ namespace Roguelike
         {
             MoveUp = Key.W; MoveDown = Key.S; MoveLeft = Key.A; MoveRight = Key.D;
             Shoot = new InputBinding(BindingSource.LeftMouse);
-            Dash = Key.Space; Focus = Key.Z;
+            Dash = Key.Space; Focus = Key.Z; Interact = Key.E; TakeCover = Key.LeftCtrl;
             DashDirection = DashDirection.TowardCursor;
             Skills = DefaultSkills();
         }

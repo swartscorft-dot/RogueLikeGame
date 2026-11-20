@@ -13,7 +13,7 @@ namespace Roguelike
     /// <summary>
     /// The player character. Everything that drives it goes through the intent API:
     /// <see cref="Steer"/>, <see cref="Shoot"/>, <see cref="DashToward"/>, <see cref="PressSkill"/>,
-    /// <see cref="ReleaseSkill"/>, <see cref="AimAt"/>, <see cref="ActivateIdentity"/> and <see cref="Stop"/>.
+    /// <see cref="ReleaseSkill"/>, <see cref="AimAt"/>, <see cref="ActivateIdentity"/>, <see cref="HoldCover"/> and <see cref="Stop"/>.
     /// Input and tests both call these; nothing else moves the character.
     ///
     /// Movement is a direction the input gives every frame (W A S D, decision 0003): she moves that way at run speed
@@ -82,6 +82,25 @@ namespace Roguelike
     /// too, with a hit spark there; a cone hits only what it sees from her; a circle lands short of cover in its way and
     /// hits only what it sees from its centre. What cover saves takes no damage, stagger, marks or focus.
     /// <see cref="FeelValues.CoverStopsShots"/> off, nothing stops them.
+    ///
+    /// Taking cover (Kristian, 2026-11-19, an experiment: "med control-knappen, lene seg inntil vegger/props med litt
+    /// høyde for å dukke unna skudd som kommer på avstand", with the control key, lean against walls and props to duck
+    /// shots from afar; something she shoots from in bursts, not a place to sit). <see cref="HoldCover"/> is held:
+    /// - While it is held and she is free (not dashing, not in a skill) and within <see cref="FeelValues.CoverReach"/> of a
+    ///   wall or a prop that blocks walking (<see cref="Shelter"/>), she moves to stand against it on her side over
+    ///   <see cref="FeelValues.CoverSnapTime"/> (<see cref="TakeCoverRules.StandPlace"/>) and ducks. Nothing in reach,
+    ///   nothing happens.
+    /// - Ducked, the thing she is against covers her against the shooter's sight and shot when it lies between them, a
+    ///   low prop too (<see cref="ShieldsFrom"/>, <see cref="TakeCoverRules.Shields"/>). Strikes on the ground ignore it.
+    /// - The move keys slide her along it at <see cref="FeelValues.CoverMoveShare"/> of run speed, staying against it; a
+    ///   key more than <see cref="FeelValues.CoverSlideAngle"/> off its face does nothing (<see cref="TakeCoverRules.Slide"/>).
+    ///   In cover she is never <see cref="IsMoving"/>: a shot from cover is a standing shot.
+    /// - A basic shot or a skill stands her up, where she is, for as long as it lasts and
+    ///   <see cref="FeelValues.CoverPeekTime"/> after; then she ducks again. Standing, a low prop does not cover her.
+    /// - The key going up stands her up and gives the move keys back at once, at full speed. The dash, and a skill that
+    ///   moves her itself (Backstep's hop), leave cover at once. With the key still held she takes cover again when she
+    ///   is free and something is in reach.
+    /// <see cref="FeelValues.TakeCover"/> off, the key does nothing.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
@@ -185,6 +204,19 @@ namespace Roguelike
         float _riseStartedAt;
         Vector3 _lastVelocity;  // her velocity in the last frame that time ran, for a press during a hit stop
 
+        // Taking cover (Kristian 2026-11-19, an experiment).
+        bool _coverHeld;        // the key is held
+        bool _inCover;
+        Shelter _shelter;       // what she is in cover against
+        CoverShape _coverShape; // its footprint when she took cover there
+        bool _coverTall;
+        bool _snapping;         // moving to stand against it
+        Vector3 _snapFrom, _snapTo;
+        float _snapStartedAt;
+        float _peekUntil = float.NegativeInfinity; // stood up by a shot or a skill: ducked again from this moment
+        Vector3 _coverLastPos;
+        Vector3 _coverVelocity; // how fast she moved in cover over the last frame: the agent's own velocity stays 0 there
+
         // ---------------- State, for the readout and for tests ----------------
 
         public FeelValues Feel => Settings != null ? Settings.Values : _fallbackFeel;
@@ -196,13 +228,59 @@ namespace Roguelike
         public CoverLine CoverQuery => Feel.CoverStopsShots && Cover.Any ? Cover.Line : null;
         public Vector3 Position => transform.position;
         public GroundPoint GroundPosition => new GroundPoint(transform.position.x, transform.position.z);
-        public float Speed => _agent.velocity.magnitude;
-        public Vector3 Velocity => _agent.velocity;
+        public float Speed => _inCover ? _coverVelocity.magnitude : _agent.velocity.magnitude;
+        public Vector3 Velocity => _inCover ? _coverVelocity : _agent.velocity;
 
         /// <summary>The direction the input holds now: flat, of length 1, or zero when no move key is held.</summary>
         public Vector3 MoveInput => _moveInput;
-        /// <summary>True while a move key is held and she is free to move: not dashing and not in a skill, or in a light one.</summary>
-        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && (_actionKind != ActionKind.Skill || IsInLightSkill);
+        /// <summary>
+        /// True while a move key is held and she is free to move: not dashing and not in a skill, or in a light one. Never
+        /// in cover, where the keys slide her along it instead.
+        /// </summary>
+        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && !_inCover && (_actionKind != ActionKind.Skill || IsInLightSkill);
+
+        // ---------------- Taking cover (Kristian 2026-11-19, an experiment) ----------------
+
+        /// <summary>True while the cover key is held (<see cref="HoldCover"/>), whether or not she is in cover.</summary>
+        public bool IsCoverHeld => _coverHeld;
+        /// <summary>True while she is in cover against a wall or a prop: moving there, ducked, or stood up by a shot or a skill.</summary>
+        public bool IsInCover => _inCover;
+        /// <summary>True while she is ducked in cover: there, and no shot or skill or its peek time stands her up.</summary>
+        public bool IsDucked => _inCover && !_snapping && !StoodUpInCover;
+        bool StoodUpInCover => _actionKind != ActionKind.None || Time.time < _peekUntil;
+        /// <summary>True when what she is in cover against is tall cover (it stops shots for anyone).</summary>
+        public bool CoverIsTall => _inCover && _coverTall;
+        /// <summary>What she is in cover against, or null.</summary>
+        public Shelter CoverObject => _inCover ? _shelter : null;
+        /// <summary>The way from what she is in cover against to her, flat and of length 1; zero out of cover.</summary>
+        public Vector3 CoverOutward
+        {
+            get
+            {
+                if (!_inCover) return Vector3.zero;
+                GroundPoint n = _coverShape.Outward(GroundPosition);
+                return new Vector3(n.X, 0f, n.Z);
+            }
+        }
+        /// <summary>Times she took cover.</summary>
+        public int CoversTaken { get; private set; }
+        /// <summary>Enemy shots that what she was in cover against stopped (<see cref="NoteEnemyShotStoppedByCover"/>).</summary>
+        public int EnemyShotsStoppedByCover { get; private set; }
+
+        /// <summary>
+        /// Is she covered against a shot from this point by what she is in cover against? Only in cover, only when it lies
+        /// between them, and a low prop only while she is ducked (<see cref="TakeCoverRules.Shields"/>). Walls and tall
+        /// props stop shots for anyone as well, through <see cref="Cover"/>; this is the part that is hers.
+        /// </summary>
+        public bool ShieldsFrom(Vector3 shooter) =>
+            _inCover && TakeCoverRules.Shields(_coverShape, _coverTall, IsDucked, GroundPosition, new GroundPoint(shooter.x, shooter.z));
+
+        /// <summary>Metres from a point along a flat direction before what she is in cover against; <paramref name="max"/> when not.</summary>
+        public float CoverEntry(Vector3 from, Vector3 direction, float max) =>
+            _inCover ? _coverShape.Entry(new GroundPoint(from.x, from.z), new GroundPoint(direction.x, direction.z), max) : max;
+
+        /// <summary>An enemy shot was stopped by what she is in cover against: counted, for the readout and tests.</summary>
+        public void NoteEnemyShotStoppedByCover() => EnemyShotsStoppedByCover++;
         /// <summary>True while a light skill runs (decision 0005): she moves under it as under a basic shot.</summary>
         public bool IsInLightSkill => _actionKind == ActionKind.Skill && _cast.Skill != null && _cast.Skill.Lock == SkillLock.Light;
         /// <summary>True once the cursor has been reported; <see cref="LookPoint"/> is then where it is on the ground.</summary>
@@ -297,6 +375,24 @@ namespace Roguelike
 
         /// <summary>Back to the skills a run starts with. For tests and tools.</summary>
         public void EquipStartSkills() => _equipped.Clear();
+
+        /// <summary>
+        /// The run's upgrades (work order 012, <see cref="RunModifiers"/>), read where the values are used: damage dealt,
+        /// a skill's cooldown, run speed, Quick Shot's first mark (and maximum health, by <see cref="PlayerHealth"/>).
+        /// Null outside a run: the settings' values as they are. Nothing here writes to the settings.
+        /// </summary>
+        [System.NonSerialized] public RunModifiers Modifiers;
+
+        /// <summary>The slot's cooldown as it runs now: the skill's, less the run's cuts to it.</summary>
+        public float CooldownOf(int slot)
+        {
+            if (slot < 0 || slot >= Skills.Count || Skills[slot] == null) return 0f;
+            SkillDefinition skill = Skills[slot];
+            return Modifiers != null ? skill.Cooldown * Modifiers.CooldownShare(skill.Name) : skill.Cooldown;
+        }
+
+        /// <summary>The share of the feel's run speed she runs at: 1, more with the run's upgrades.</summary>
+        public float RunSpeedShare => Modifiers != null ? Modifiers.RunSpeedShare : 1f;
 
         /// <summary>Basic shot hits counted toward the next mark.</summary>
         public int BasicShotsTowardMark => _basicMarks.Counted;
@@ -409,6 +505,17 @@ namespace Roguelike
             }
             Report(new PlayerReport { Kind = PlayerReportKind.ShotClicked, Result = IntentResult.Started });
             StartBasicShot(Feel, onTheMove: IsMoving);
+        }
+
+        /// <summary>
+        /// The cover key (Left Ctrl to start with; Kristian 2026-11-19, an experiment): held or not. Given every frame by
+        /// the input; it holds until it is changed. Held, she takes cover against a wall or prop in reach when she is free;
+        /// let go, she leaves cover at once and the move keys work at full speed from this frame on.
+        /// </summary>
+        public void HoldCover(bool held)
+        {
+            _coverHeld = held;
+            if (!held && _inCover) LeaveCover(CoverLeaving.Released);
         }
 
         /// <summary>True while she cannot start a basic shot now: a shot, a skill or a dash is going.</summary>
@@ -663,6 +770,9 @@ namespace Roguelike
             _skillGateUntil = float.NegativeInfinity;
             _moveInput = Vector3.zero;
             EndChain();
+            if (_inCover) LeaveCover(CoverLeaving.Other);
+            _coverHeld = false;
+            _peekUntil = float.NegativeInfinity;
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
         }
@@ -684,6 +794,7 @@ namespace Roguelike
                 if (_dash.IsDashing(now)) return;
                 _dashing = false;
             }
+            UpdateCover(feel, now);
 
             if (_actionKind == ActionKind.BasicShot)
             {
@@ -723,7 +834,7 @@ namespace Roguelike
                         // zero. The limit ApplyMovementFeel set at the top of this frame was for a stand with no slow, so
                         // it is set again from the curve before she moves.
                         StartEasing(feel, Mathf.Min(CurrentSpeedShare(feel), ActualSpeedShare(feel)));
-                        _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
+                        _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
                         Walk();
                         UpdateFacing(feel);
                         return;
@@ -843,12 +954,110 @@ namespace Roguelike
         void Walk()
         {
             if (!_agent.isOnNavMesh) return;
+            if (_inCover)
+            {
+                CoverSlide();
+                return;
+            }
             if (_moveInput == Vector3.zero)
             {
                 if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
                 return;
             }
             MoveAlong(_moveInput, _agent.speed);
+        }
+
+        // ---------------- Taking cover (Kristian 2026-11-19, an experiment) ----------------
+
+        /// <summary>
+        /// Every frame she is not dashing: leaves cover when the key is up, the switch is off or the thing is gone; takes
+        /// cover when the key is held, she is free and something is in reach; and moves her to stand against it.
+        /// </summary>
+        void UpdateCover(FeelValues feel, float now)
+        {
+            if (_inCover && (!feel.TakeCover || !_coverHeld || _shelter == null || !_shelter.isActiveAndEnabled))
+                LeaveCover(_coverHeld ? CoverLeaving.Other : CoverLeaving.Released);
+            if (!_inCover && feel.TakeCover && _coverHeld && !IsLocked) TryTakeCover(feel, now);
+            if (!_inCover) return;
+
+            Vector3 at = transform.position;
+            float dt = Time.deltaTime;
+            if (dt > 0f) _coverVelocity = Flat(at - _coverLastPos) / dt;
+            _coverLastPos = at;
+            if (_snapping)
+            {
+                float k = feel.CoverSnapTime > 0f ? Mathf.Clamp01((now - _snapStartedAt) / feel.CoverSnapTime) : 1f;
+                MoveInCover(Vector3.Lerp(_snapFrom, _snapTo, k));
+                if (k >= 1f) _snapping = false;
+            }
+        }
+
+        /// <summary>Takes cover against the nearest wall or prop that blocks walking within reach, if there is one.</summary>
+        void TryTakeCover(FeelValues feel, float now)
+        {
+            GroundPoint her = GroundPosition;
+            Shelter best = null;
+            CoverShape bestShape = default;
+            float bestDistance = feel.CoverReach;
+            IReadOnlyList<Shelter> all = Shelter.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i] == null || !all[i].TryShape(out CoverShape shape)) continue;
+                float distance = shape.Distance(her);
+                if (distance > bestDistance) continue;
+                best = all[i];
+                bestShape = shape;
+                bestDistance = distance;
+            }
+            if (best == null) return;
+
+            _inCover = true;
+            _shelter = best;
+            _coverShape = bestShape;
+            _coverTall = best.IsTall;
+            GroundPoint place = TakeCoverRules.StandPlace(bestShape, her, feel.CoverStandOff);
+            _snapFrom = transform.position;
+            _snapTo = new Vector3(place.X, _snapFrom.y, place.Z);
+            _snapStartedAt = now;
+            _snapping = true;
+            _coverLastPos = transform.position;
+            _coverVelocity = Vector3.zero;
+            Halt();
+            CoversTaken++;
+            Report(new PlayerReport { Kind = PlayerReportKind.CoverEntered, Tall = _coverTall });
+        }
+
+        void LeaveCover(CoverLeaving why)
+        {
+            if (!_inCover) return;
+            _inCover = false;
+            _shelter = null;
+            _snapping = false;
+            _coverVelocity = Vector3.zero;
+            // The key going up gives the move keys back at once, at full speed: no ease up from a skill used in cover.
+            if (why == CoverLeaving.Released) _rising = false;
+            Report(new PlayerReport { Kind = PlayerReportKind.CoverLeft, Leaving = why });
+        }
+
+        /// <summary>
+        /// The move keys in cover: ducked, they slide her along it at the cover share of run speed, staying against it
+        /// (<see cref="TakeCoverRules.Slide"/>); stood up by a shot or a skill, or on her way there, she stays where she is.
+        /// </summary>
+        void CoverSlide()
+        {
+            if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
+            if (_snapping || StoodUpInCover || _moveInput == Vector3.zero) return;
+            FeelValues feel = Feel;
+            GroundPoint next = TakeCoverRules.Slide(_coverShape, GroundPosition, new GroundPoint(_moveInput.x, _moveInput.z),
+                                                    feel.RunSpeed * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
+            MoveInCover(new Vector3(next.X, transform.position.y, next.Z));
+        }
+
+        /// <summary>Moves her to a point in cover by the NavMesh agent, so she stays on the NavMesh.</summary>
+        void MoveInCover(Vector3 point)
+        {
+            Vector3 d = Flat(point - transform.position);
+            if (d.sqrMagnitude > 1e-10f && _agent.isOnNavMesh) _agent.Move(d);
         }
 
         /// <summary>Moves her along a flat direction of length 1 at this speed, steering the agent a little way ahead.</summary>
@@ -971,7 +1180,7 @@ namespace Roguelike
             // run speed, eased in and out (decision 0003, a guess).
             _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time, feel.BackpedalSpeedShare,
                                  feel.MovingShotSlowdown, feel.MovingShotRecovery);
-            _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
+            _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
                 _agent.velocity = _agent.velocity.normalized * _agent.speed;
@@ -1015,6 +1224,7 @@ namespace Roguelike
             if (dir.sqrMagnitude < 1e-6f) dir = Flat(transform.forward);
             dir.Normalize();
 
+            LeaveCover(CoverLeaving.Dash); // the dash leaves cover at once (Kristian 2026-11-19, an experiment)
             Halt();
             // A dash ends a skill's slide and the ease back up after one at once, and a free recovery with them:
             // a dash cancels a skill, recovery and all.
@@ -1077,6 +1287,7 @@ namespace Roguelike
             // first press only (amended 2026-11-19).
             bool moves = skill.MoveDistance != 0f && !(recast && skill.OpeningMove);
             FeelValues feel = Feel;
+            if (moves) LeaveCover(CoverLeaving.MovingSkill); // a skill that moves her takes her out of cover, as the dash does
             DropWaitingClick(); // a skill drops a waiting click
             _action.Cancel(); // a skill may start during a basic shot, and ends it
             _movingShot = false;
@@ -1100,7 +1311,8 @@ namespace Roguelike
                 Vector3 velocity = Flat(Time.timeScale > 0f ? _agent.velocity : _lastVelocity);
                 float share = feel.RunSpeed > 0f ? Mathf.Clamp01(velocity.magnitude / feel.RunSpeed) : 0f;
                 _rising = false;
-                _sliding = !moves && feel.SkillSlowdown > 0f && share > 0.01f;
+                // In cover she does not leave her place (an experiment, 2026-11-19): no slide.
+                _sliding = !moves && !_inCover && feel.SkillSlowdown > 0f && share > 0.01f;
                 if (_sliding)
                 {
                     _slideFrom = share;
@@ -1131,7 +1343,7 @@ namespace Roguelike
             {
                 EndChain(); // another skill starting ends a chain (decision 0005)
                 _chain.Start(slot, skill.RecastCount, skill.RecastWindow, skill.OpeningMove);
-                CooldownFor(slot).Start(Time.time, skill.Cooldown);
+                CooldownFor(slot).Start(Time.time, CooldownOf(slot));
             }
             _castOpening = !recast && _chain.IsOpeningMove;
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
@@ -1139,6 +1351,8 @@ namespace Roguelike
 
         void EndAction()
         {
+            // In cover, a shot or a skill that ends keeps her up for the peek time (an experiment, 2026-11-19).
+            if (_inCover && _actionKind != ActionKind.None) _peekUntil = Time.time + Feel.CoverPeekTime;
             _actionKind = ActionKind.None;
             _castSlot = -1;
             _movingShot = false;
@@ -1216,6 +1430,8 @@ namespace Roguelike
         {
             int marks = _castClean ? skill.CleanTapMarks : skill.MarksAdded;
             if (marks <= 0) return;
+            // A run's upgrade (work order 012): more marks from this skill's hit on a target that has none.
+            if (Modifiers != null && target.MarkCount == 0) marks += Modifiers.FirstMarkBonus(skill.Name);
             if (skill.MarkInterval > 0f)
             {
                 float now = Time.time;
@@ -1244,6 +1460,7 @@ namespace Roguelike
         int Deal(Damageable target, int damage, out float focus, float stagger = 0f)
         {
             IdentityValues identity = Identity;
+            if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
             focus = _focus.AddDamage(applied, identity, Time.time);
             return applied;

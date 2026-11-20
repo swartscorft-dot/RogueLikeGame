@@ -120,45 +120,40 @@ namespace Roguelike.Rules.Tests
 
         static string Sorted(IEnumerable<EnemyGroup> groups) => string.Join(", ", groups.Select(g => g.ToString()).OrderBy(s => s, StringComparer.Ordinal));
 
+        // Work order 012 replaced the fixed plan per combat room (a pack; two brutes; ...) with a table per floor number,
+        // drawn from the seed: these two tests were changed on purpose.
         [Test]
-        public void Plan_GivesEachRoomItsKinds()
+        public void Plan_TheFloorTableGivesEachRoomItsRange()
         {
-            var plan = new LevelPlan();
-            Assert.That(Sorted(plan.CombatGroups(0)), Is.EqualTo("swarmer x4"), "first: a pack of swarmers");
-            Assert.That(Sorted(plan.CombatGroups(1)), Is.EqualTo("brute, brute"), "second: brutes");
-            Assert.That(Sorted(plan.CombatGroups(2)), Is.EqualTo("brute, shooter, shooter"), "third: shooters with a brute");
-            Assert.That(Sorted(plan.CombatGroups(3)), Is.EqualTo("shooter, swarmer x4"), "fourth: a pack and a shooter");
-            Assert.That(Sorted(plan.CombatGroups(4)), Is.EqualTo("guard, swarmer, swarmer"), "fifth: a guard and two swarmers");
-            Assert.That(Sorted(plan.CombatGroups(9)), Is.EqualTo("guard, swarmer, swarmer"), "past the end: the last");
-            Assert.That(Sorted(plan.GroupsFor(RoomKind.Boss, 0)), Is.EqualTo("guard"));
-            Assert.That(plan.GroupsFor(RoomKind.Start, 0), Is.Empty);
-            Assert.That(plan.GroupsFor(RoomKind.Reward, 0), Is.Empty);
+            var v = new LevelValues();
+            v.EnemyRange(RoomKind.Combat, 1, out int f, out int m);
+            Assert.That((f, m), Is.EqualTo((6, 8)), "floor 1, six to eight");
+            v.EnemyRange(RoomKind.Combat, 5, out f, out m);
+            Assert.That((f, m), Is.EqualTo((10, 14)), "floor 5, ten to fourteen");
+            v.EnemyRange(RoomKind.Exit, 1, out f, out m);
+            Assert.That((f, m), Is.EqualTo((9, 12)), "the exit room half as many again");
+            v.EnemyRange(RoomKind.Entrance, 3, out f, out m);
+            Assert.That(m, Is.EqualTo(0));
+            v.EnemyRange(RoomKind.Treasure, 3, out f, out m);
+            Assert.That(m, Is.EqualTo(0));
         }
 
         [Test]
-        public void Generator_EveryRoomHoldsItsPlan_DealtOutFromTheSeed()
+        public void Generator_EveryRoomsMix_IsDrawnFromTheSeed()
         {
-            var plan = new LevelPlan();
-            int differentDeal = 0;
-            string firstDeal = null;
+            var mixes = new HashSet<string>();
             for (ulong s = 0; s < 200; s++)
             {
-                LevelLayout level = Make(s);
-                int combat = 0;
-                var deal = new List<string>();
-                foreach (LevelRoom r in level.Rooms)
+                int floor = 1 + (int)(s % 5); // floor 1's mixes are alike (mostly swarmers): every floor's
+                LevelLayout level = LevelGenerator.Generate(s, floor);
+                foreach (LevelRoom r in level.Rooms.Where(x => x.Kind == RoomKind.Combat))
                 {
-                    EnemyGroup[] planned = plan.GroupsFor(r.Kind, r.Kind == RoomKind.Combat ? combat++ : 0);
                     Assert.That(r.EnemyGroups.Count, Is.EqualTo(r.EnemyPoints.Count), "seed " + s + " room " + r.Order);
-                    Assert.That(Sorted(r.EnemyGroups), Is.EqualTo(Sorted(planned)), "seed " + s + " room " + r.Order);
-                    deal.AddRange(r.EnemyGroups.Select(g => g.ToString()));
+                    mixes.Add(Sorted(r.EnemyGroups));
                 }
-                string text = string.Join(";", deal);
-                if (firstDeal == null) firstDeal = text;
-                else if (text != firstDeal) differentDeal++;
-                Assert.That(Make(s).Describe(), Is.EqualTo(level.Describe()), "the same seed, the same kinds at the same points");
+                Assert.That(LevelGenerator.Generate(s, floor).Describe(), Is.EqualTo(level.Describe()), "the same seed, the same kinds at the same points");
             }
-            Assert.That(differentDeal, Is.GreaterThan(100), "which point gets which kind is drawn");
+            Assert.That(mixes.Count, Is.GreaterThan(10), "rooms hold different mixes");
         }
 
         // ---------------- The validator's new checks ----------------
@@ -178,26 +173,29 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAPointWithoutAGroup() =>
             AssertFault(l => Combat(l, 1).EnemyGroups.RemoveAt(0), "enemy groups for");
 
+        // Changed on purpose by work order 012: a room's kinds are checked against its floor's rules, not a fixed plan;
+        // lines of brutes and shooters are allowed, but not too long; and every enemy of a pack keeps the wall's clearance.
         [Test]
-        public void Validator_ReportsARoomThatHoldsOtherKindsThanItsPlan() =>
-            AssertFault(l => Combat(l, 1).EnemyGroups[0] = new EnemyGroup(EnemyKind.Guard), "its plan");
+        public void Validator_ReportsGuardsOnTheFirstFloor() =>
+            AssertFault(l => Combat(l, 1).EnemyGroups[0] = new EnemyGroup(EnemyKind.Guard), "guards, floor 1 at most 0");
 
         [Test]
-        public void Validator_ReportsAPackOfAKindOtherThanSwarmers() =>
-            AssertFault(l => Combat(l, 1).EnemyGroups[0] = new EnemyGroup(EnemyKind.Brute, 3), "only swarmers come in packs");
+        public void Validator_ReportsALineTooLong() =>
+            AssertFault(l => Combat(l, 1).EnemyGroups[0] = new EnemyGroup(EnemyKind.Brute, 3), "at most 2 stand together");
 
         [Test]
         public void Validator_ReportsAPackThatDoesNotFitItsRoom()
         {
             LevelLayout l = Make(42UL);
-            LevelRoom r = Combat(l, 0);
-            Assume.That(r.EnemyGroups[0].IsPack, "the first combat room's one point is a pack");
+            LevelRoom r = l.Rooms.First(x => x.EnemyGroups.Any(g => g.IsPack));
+            int i = r.EnemyGroups.FindIndex(g => g.IsPack);
             var values = new LevelValues();
-            // 2 m from the west wall: fine for one enemy and for a pack of the start radius, not for one 3 m wide.
-            r.EnemyPoints[0] = new LevelPoint(r.Rect.X * l.CellSize + 2.0, r.Middle(l.CellSize).Y);
-            Assert.That(LevelValidator.Validate(l, values).Where(f => f.Contains("does not fit")), Is.Empty);
-            values.PackRadius = 3f;
-            Assert.That(LevelValidator.Validate(l, values).Any(f => f.Contains("does not fit inside the room")));
+            // 2 m from the west wall: the point is clear of it, its swarmers 1.2 m round it are not.
+            var p = new LevelPoint(r.Rect.X * l.CellSize + 2.0, r.Middle(l.CellSize).Y);
+            r.EnemyPoints[i] = p;
+            r.EnemyPlaces[i] = LevelGeometry.MemberPlaces(l, r, p, r.EnemyGroups[i], values);
+            Assert.That(LevelValidator.Validate(l, values).Any(f => f.Contains("enemy " + i + ".") && f.Contains("nearer a wall")),
+                        string.Join("\n", LevelValidator.Validate(l, values)));
         }
 
         // ---------------- The summary ----------------

@@ -5,7 +5,12 @@ using System.Text;
 
 namespace Roguelike.Rules
 {
-    public enum RoomKind { Start, Combat, Reward, Boss }
+    /// <summary>
+    /// The kinds of room of a floor (decision 0008, 2026-11-19; work order 012 renamed them from Start, Reward and Boss):
+    /// the entrance, the combat rooms, the treasure rooms (small side rooms, a chest in each) and the exit room (the
+    /// floor's hardest fight; on the act's last floor it holds the act boss).
+    /// </summary>
+    public enum RoomKind { Entrance, Combat, Treasure, Exit }
 
     /// <summary>A rectangle of whole cells: X and Y are its lowest cell (west and south), Width and Height its size.</summary>
     public struct CellRect : IEquatable<CellRect>
@@ -52,27 +57,36 @@ namespace Roguelike.Rules
     }
 
     /// <summary>
-    /// What stands at one enemy point (work order 008): a kind, and how many. More than one is a pack, which only
-    /// swarmers come in: they stand around the point.
+    /// What stands at one enemy point (work order 008): a kind, and how many. Several swarmers are a pack and stand
+    /// round the point; since work order 012 several shooters or brutes are a line and stand side by side across it
+    /// (<see cref="LevelGeometry.MemberPlaces"/>). <see cref="Boss"/> marks the act boss (a guard with
+    /// <see cref="LevelValues.BossHealth"/>), in the exit room of the act's last floor.
     /// </summary>
     [Serializable]
     public sealed class EnemyGroup
     {
         public EnemyKind Kind;
         public int Count = 1;
+        public bool Boss;
 
         public EnemyGroup() { }
 
-        public EnemyGroup(EnemyKind kind, int count = 1)
+        public EnemyGroup(EnemyKind kind, int count = 1, bool boss = false)
         {
             Kind = kind;
             Count = count;
+            Boss = boss;
         }
 
-        public bool IsPack => Count > 1;
-        public EnemyGroup Copy() => new EnemyGroup(Kind, Count);
-        public char Letter => EnemyKinds.Letter(Kind, Count);
-        public override string ToString() => EnemyKinds.Word(Kind) + (Count > 1 ? " x" + Count.ToString(CultureInfo.InvariantCulture) : "");
+        /// <summary>Several swarmers round the point.</summary>
+        public bool IsPack => Count > 1 && Kind == EnemyKind.Swarmer;
+        /// <summary>Several of another kind side by side across the point (work order 012).</summary>
+        public bool IsLine => Count > 1 && Kind != EnemyKind.Swarmer;
+        public EnemyGroup Copy() => new EnemyGroup(Kind, Count, Boss);
+        /// <summary>On a map: the kind's small letter (<see cref="EnemyKinds.Letter"/>, p for a pack); a line its capital (H shooters, B brutes); the act boss G.</summary>
+        public char Letter => Boss ? 'G' : IsLine ? char.ToUpperInvariant(EnemyKinds.Letter(Kind, 1)) : EnemyKinds.Letter(Kind, Count);
+        public override string ToString() =>
+            (Boss ? "act boss " : "") + EnemyKinds.Word(Kind) + (Count > 1 ? " x" + Count.ToString(CultureInfo.InvariantCulture) : "");
     }
 
     /// <summary>One room: its kind, its cells and its place in the order of the run, and what stands in it.</summary>
@@ -82,11 +96,31 @@ namespace Roguelike.Rules
         public CellRect Rect;
         /// <summary>Its place in the run, from 0 (the start room); the level's list of rooms is in this order.</summary>
         public int Order;
-        /// <summary>Where the player starts. Only in the start room.</summary>
+        /// <summary>Where the player starts. Only in the entrance.</summary>
         public LevelPoint? PlayerStart;
         public readonly List<LevelPoint> EnemyPoints = new List<LevelPoint>();
         /// <summary>What stands at each enemy point, in the same order as <see cref="EnemyPoints"/> (work order 008).</summary>
         public readonly List<EnemyGroup> EnemyGroups = new List<EnemyGroup>();
+        /// <summary>
+        /// Where each enemy of each point stands (work order 012), in the same order as <see cref="EnemyPoints"/>: one
+        /// place for one enemy, a ring for a pack, a row for a line (<see cref="LevelGeometry.MemberPlaces"/>).
+        /// </summary>
+        public readonly List<LevelPoint[]> EnemyPlaces = new List<LevelPoint[]>();
+
+        /// <summary>Where the enemies of point <paramref name="i"/> stand; the point itself when the room says nothing (a hand-made layout).</summary>
+        public LevelPoint[] PlacesAt(int i) =>
+            i >= 0 && i < EnemyPlaces.Count && EnemyPlaces[i] != null ? EnemyPlaces[i] : new[] { EnemyPoints[i] };
+
+        /// <summary>The enemies in the room, every group counted whole.</summary>
+        public int EnemyCount
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < EnemyPoints.Count; i++) n += GroupAt(i).Count;
+                return n;
+            }
+        }
         /// <summary>The props that stand in it (work order 009), in the order they were placed.</summary>
         public readonly List<LevelProp> Props = new List<LevelProp>();
         /// <summary>The generator's notes, not part of the level: how many props it meant to put here, and how many of those it left out with a place refused by the clear lane.</summary>
@@ -98,8 +132,9 @@ namespace Roguelike.Rules
         /// <summary>The letter for its kind on a map.</summary>
         public char Letter => KindLetter(Kind);
 
+        /// <summary>E entrance, C combat, T treasure, X exit (work order 012; S, C, R and B before).</summary>
         public static char KindLetter(RoomKind kind) =>
-            kind == RoomKind.Start ? 'S' : kind == RoomKind.Combat ? 'C' : kind == RoomKind.Reward ? 'R' : 'B';
+            kind == RoomKind.Entrance ? 'E' : kind == RoomKind.Combat ? 'C' : kind == RoomKind.Treasure ? 'T' : 'X';
 
         public LevelPoint Middle(double cellSize) =>
             new LevelPoint((Rect.X + Rect.Width * 0.5) * cellSize, (Rect.Y + Rect.Height * 0.5) * cellSize);
@@ -160,10 +195,23 @@ namespace Roguelike.Rules
         public float CellSize;
         /// <summary>Which attempt of the generator gave it, from 1. More than 1 when an earlier attempt could not be finished.</summary>
         public int Attempt;
+        /// <summary>The floor's number in its act, 1 to <see cref="LevelValues.FloorsPerAct"/> (work order 012): it decides the enemies, and the last holds the act boss.</summary>
+        public int Floor = 1;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
 
         public string SeedText => LevelSeed.ToText(Seed);
+
+        /// <summary>The exit room: the last room of the main path.</summary>
+        public LevelRoom ExitRoom
+        {
+            get
+            {
+                foreach (LevelRoom r in Rooms)
+                    if (r.Kind == RoomKind.Exit) return r;
+                return null;
+            }
+        }
 
         /// <summary>The room that has this cell, or null.</summary>
         public LevelRoom RoomAtCell(int x, int y)
@@ -215,8 +263,8 @@ namespace Roguelike.Rules
         public string Describe(bool props = true)
         {
             var sb = new StringBuilder();
-            sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) version {2} grid {3} cell {4:R} attempt {5}\n",
-                            Seed, SeedText, Version, GridCells, CellSize, Attempt);
+            sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) floor {6} version {2} grid {3} cell {4:R} attempt {5}\n",
+                            Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor);
             foreach (LevelRoom r in Rooms)
             {
                 sb.Append(r.Order).Append(' ').Append(r.Kind).Append(' ').Append(r.Rect);

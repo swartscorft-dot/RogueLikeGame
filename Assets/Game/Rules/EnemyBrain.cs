@@ -42,6 +42,11 @@ namespace Roguelike.Rules
         public float LeashRange = 22f;     // m: it gives up when the player is this far away
         public float RespawnDelay = 4f;    // s from its death until it stands at home again
         public EnemyAttackDefinition[] Attacks = DefaultAttacks();
+        /// <summary>
+        /// Work order 011: it wears its kind's model and plays its clips; off, it is the coloured capsule as before. Read
+        /// when it is made. The practice brute's, in the enemy settings asset, goes for every enemy made from it.
+        /// </summary>
+        public bool UseModels = true;
 
         public static EnemyAttackDefinition[] DefaultAttacks() => new[]
         {

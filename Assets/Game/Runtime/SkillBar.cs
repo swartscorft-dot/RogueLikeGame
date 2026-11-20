@@ -8,7 +8,8 @@ namespace Roguelike
     /// <summary>
     /// The bars at the bottom of the screen: one box per skill with its key, name and cooldown; above them
     /// the player's health and the focus gauge; and above those a bar for the cast, hold or charge of the
-    /// skill in use. Grey-box UI, drawn with IMGUI.
+    /// skill in use. Left of the skills, a small COVER box while she is in cover (an experiment, 2026-11-19).
+    /// Grey-box UI, drawn with IMGUI.
     /// It is laid out for a view 720 pixels high and scaled to the real height.
     /// </summary>
     public sealed class SkillBar : MonoBehaviour
@@ -32,6 +33,7 @@ namespace Roguelike
         static readonly Color s_CleanZone = new Color(0.3f, 1f, 0.45f, 0.55f);
         static readonly Color s_Clean = new Color(0.4f, 1f, 0.5f, 1f);
         const float RecastBarHeight = 9f;
+        const float CoverBoxWidth = 90f;
 
         public PlayerCharacter Player;
         public PlayerHealth Health;
@@ -90,15 +92,24 @@ namespace Roguelike
                 if (chain && Player.IsRecastWindowOpen) RecastBar(new Rect(box.x + 4f, box.yMax - RecastBarHeight - 3f, box.width - 8f, RecastBarHeight));
             }
 
+            // Taking cover (Kristian 2026-11-19, an experiment): a small box left of the skills while she is in cover,
+            // bright while she is ducked, dim while a shot or a skill has her up.
+            if (Player.IsInCover)
+            {
+                GUI.color = Player.IsDucked ? s_InUse : s_Waiting;
+                GUI.Box(new Rect(left - CoverBoxWidth - Gap, top, CoverBoxWidth, BoxHeight),
+                        "COVER\n" + (Player.IsDucked ? (Player.CoverIsTall ? "ducked" : "ducked, low") : "up"), _box);
+            }
+
             // Health to the left, focus to the right.
             float rowTop = top - BarHeight - 6f;
             float half = (total - Gap) * 0.5f;
             if (Health != null)
             {
                 string text = Health.IsAlive
-                    ? string.Format(s_Inv, "HP {0} / {1}", Health.Current, Health.MaxHealth)
+                    ? string.Format(s_Inv, "HP {0} / {1}", Health.Current, Health.Max) // the run's upgrades included (work order 012)
                     : "DEAD";
-                Bar(new Rect(left, rowTop, half, BarHeight), Health.MaxHealth > 0 ? Health.Current / (float)Health.MaxHealth : 0f, s_Health, text);
+                Bar(new Rect(left, rowTop, half, BarHeight), Health.Max > 0 ? Health.Current / (float)Health.Max : 0f, s_Health, text);
             }
             IdentityValues identity = Player.Identity;
             string focusText = Player.IsEmpowered
