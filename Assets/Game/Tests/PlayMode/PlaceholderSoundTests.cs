@@ -634,6 +634,10 @@ namespace Roguelike.PlayModeTests
                 { EnemyReportKind.StaggerTaken, null }, { EnemyReportKind.Dazed, SoundMoment.EnemyDazed },
                 { EnemyReportKind.DazeEnded, null }, { EnemyReportKind.Charged, SoundMoment.BossCharged },
                 { EnemyReportKind.CalledPack, SoundMoment.BossCalled }, { EnemyReportKind.Angered, SoundMoment.BossAngered },
+                // Work order 027, added on purpose: the caster's circle reports and its counter have no sound of their own
+                // (its cast is AttackStarted, each burst Struck, the counter's daze Dazed).
+                { EnemyReportKind.CirclePlaced, null }, { EnemyReportKind.CircleOffGround, null },
+                { EnemyReportKind.CircleFaded, null }, { EnemyReportKind.Countered, null },
             };
             foreach (EnemyReportKind kind in Enum.GetValues(typeof(EnemyReportKind)))
             {

@@ -12,7 +12,7 @@ namespace Roguelike.Rules
     /// treasure, X exit; work order 012) and its place in the run in its north-west corner, the player's start is '@'
     /// and an enemy point the letter of what stands there (work order 008, <see cref="EnemyGroup.Letter"/>): b brute,
     /// s swarmer, p a pack of swarmers, h shooter, g guard; since work order 012 H a line of shooters, B a line of
-    /// brutes and G the act boss; since work order 017 the elite room is L and its elite e. A prop (work order 009) is its model's character (<see cref="PropSize.Letter"/>):
+    /// brutes and G the act boss; since work order 017 the elite room is L and its elite e; since work order 027 c a caster. A prop (work order 009) is its model's character (<see cref="PropSize.Letter"/>):
     /// # pillar, % broken pillar, = sarcophagus, : rubble, &amp; statue, ! grave marker, u urns, ~ bone pile, * brazier,
     /// $ chest, A altar; on a blank only, so a point or a wall hides one that falls on it, and one at a wall is drawn a
     /// character inside it. The map is two characters to a cell, 2 m each: it shows roughly where, not the shapes.

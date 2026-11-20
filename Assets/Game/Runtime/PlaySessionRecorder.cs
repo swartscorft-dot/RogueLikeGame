@@ -768,6 +768,26 @@ namespace Roguelike
                     case EnemyReportKind.Angered:
                         Add(Of(SessionEventTypes.BossAnger));
                         break;
+                    // The caster (work order 027).
+                    case EnemyReportKind.CirclePlaced:
+                    case EnemyReportKind.CircleOffGround:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.CasterCircle, r.Attack);
+                        e.Result = r.Kind == EnemyReportKind.CirclePlaced ? SessionWords.Placed : SessionWords.OffTheGround;
+                        e.AddExtra("circle", r.Count.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.CircleFaded:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.CasterCircleFaded, r.Attack);
+                        e.AddExtra("circle", r.Count.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.Countered:
+                        Add(Of(SessionEventTypes.EnemyCountered, r.Attack));
+                        break;
                 }
             }
             catch (Exception e)

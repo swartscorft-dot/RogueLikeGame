@@ -57,7 +57,9 @@ namespace Roguelike.Rules
     /// <summary>
     /// One mix of enemies a room may hold (decision 0008, work order 012): the shares of the room's enemies, guards
     /// apart, that are swarmers, shooters and brutes, and how many guards stand with them. A kind with a share above 0
-    /// gets at least one; the swarmers take what rounding leaves over.
+    /// gets at least one; the swarmers take what rounding leaves over. Work order 027: how many casters a combat room of
+    /// the mix holds (twice as many in an exit room, never more than the floor allows,
+    /// <see cref="LevelValues.CastersMost"/>); each takes the place of a shooter or a brute, so the room's count is the same.
     /// </summary>
     [Serializable]
     public sealed class EnemyMix
@@ -67,16 +69,18 @@ namespace Roguelike.Rules
         public float Shooters;
         public float Brutes;
         public int Guards;
+        public int Casters;
 
         public EnemyMix() { }
 
-        public EnemyMix(string name, float swarmers, float shooters, float brutes, int guards)
+        public EnemyMix(string name, float swarmers, float shooters, float brutes, int guards, int casters = 0)
         {
             Name = name;
             Swarmers = swarmers;
             Shooters = shooters;
             Brutes = brutes;
             Guards = guards;
+            Casters = casters;
         }
     }
 
@@ -141,6 +145,7 @@ namespace Roguelike.Rules
         public int EnemyHealth = 1200;         // a brute's (3000 until work order 012)
         public int GuardHealth = 3500;
         public int BossHealth = 18000;         // the act boss (work order 014: the crypt knight; 9000 when it was a guard)
+        public int CasterHealth = 500;         // work order 027: weak, the first to reach or silence
 
         // The elite (work order 017, 2026-11-20): one in each elite room, besides what a combat room holds.
         public float EliteHealthScale = 4f;    // times its kind's health for the floor
@@ -149,6 +154,7 @@ namespace Roguelike.Rules
         public float EliteStaggerShare = 0.5f; // a kind with no stagger bar gets one this share of the guard's
         public float EliteRoomToStand = 1f;    // m more than any enemy keeps from the walls, the doors and the other groups: its larger body
         public int EliteKindsFromFloor = 2;    // from this floor a brute, a shooter or a guard; before it a brute
+        public int EliteCasterFromFloor = 3;   // work order 027: from this floor the elite may be a caster too
         public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers
         public float LineSpacing = 2f;         // m between two enemies of a line, side by side (work order 012)
         public float MemberSpacing = 1.5f;     // m between two enemies of different groups (work order 012)
@@ -169,6 +175,11 @@ namespace Roguelike.Rules
         public int GuardsMostInRoom = 1;       // from floor 2: one guard a combat room at most
         public int GuardsMostInExit = 2;       // two in an exit room, the act boss counted
         public int GuardsFromFloor = 2;
+        // The casters (work order 027): from floor 2, one a combat room at most on floors 2 and 3, two on floors 4 and 5,
+        // and an exit room one more; they stand at the far side as the shooters do, never near each other.
+        public int[] CastersMostInRoom = { 0, 1, 1, 2, 2 }; // by floor number, from 1; past the end its last
+        public int CastersMoreInExit = 1;
+        public float CasterSpacing = 8f;       // m between two casters of a room
         public FloorEnemies[] Floors = DefaultFloors();
 
         // Props (work order 009)
@@ -186,6 +197,8 @@ namespace Roguelike.Rules
         /// floor 1; each floor after it more, with more shooters and brutes; guards from floor 2. Work order 014
         /// (2026-11-20, Kristian: three to four times the first version's one to three): floor 1 eight to ten in a combat
         /// room, floor 5 twelve to sixteen, the floors between in even steps (six to eight and ten to fourteen before).
+        /// Work order 027: casters from floor 2, in one mix of three there, two of three on floor 3, and two in a room of
+        /// the crossfire on floors 4 and 5; floor 1 is as it was.
         /// </summary>
         public static FloorEnemies[] DefaultFloors() => new[]
         {
@@ -196,19 +209,19 @@ namespace Roguelike.Rules
             new FloorEnemies(9, 12,
                 new EnemyMix("swarm", 0.55f, 0.2f, 0.25f, 0),
                 new EnemyMix("guarded swarm", 0.55f, 0.2f, 0.25f, 1),
-                new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0)),
+                new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0, casters: 1)),
             new FloorEnemies(10, 13,
                 new EnemyMix("guarded", 0.45f, 0.25f, 0.3f, 1),
-                new EnemyMix("crossfire", 0.4f, 0.35f, 0.25f, 0),
-                new EnemyMix("heavy", 0.35f, 0.3f, 0.35f, 1)),
+                new EnemyMix("crossfire", 0.4f, 0.35f, 0.25f, 0, casters: 1),
+                new EnemyMix("heavy", 0.35f, 0.3f, 0.35f, 1, casters: 1)),
             new FloorEnemies(11, 15,
                 new EnemyMix("guarded", 0.4f, 0.3f, 0.3f, 1),
-                new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1),
-                new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0)),
+                new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1, casters: 1),
+                new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0, casters: 2)),
             new FloorEnemies(12, 16,
-                new EnemyMix("guarded", 0.35f, 0.35f, 0.3f, 1),
-                new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1),
-                new EnemyMix("crossfire", 0.4f, 0.3f, 0.3f, 0)),
+                new EnemyMix("guarded", 0.35f, 0.35f, 0.3f, 1, casters: 1),
+                new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1, casters: 1),
+                new EnemyMix("crossfire", 0.4f, 0.3f, 0.3f, 0, casters: 2)),
         };
 
         /// <summary>The enemies of this floor number; past the table's end its last row, before it its first.</summary>
@@ -235,9 +248,26 @@ namespace Roguelike.Rules
             }
         }
 
-        /// <summary>The kinds an elite may be on this floor (work order 017): a brute on floor 1; a brute, a shooter or a guard after.</summary>
+        /// <summary>
+        /// The kinds an elite may be on this floor (work order 017): a brute on floor 1; a brute, a shooter or a guard after;
+        /// from <see cref="EliteCasterFromFloor"/> a caster too (work order 027).
+        /// </summary>
         public EnemyKind[] EliteKinds(int floor) =>
-            floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute } : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard };
+            floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute }
+            : floor < EliteCasterFromFloor ? new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }
+            : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster };
+
+        /// <summary>
+        /// The most casters a room of this kind may hold on this floor (work order 027): <see cref="CastersMostInRoom"/> for
+        /// the floor in a combat room, <see cref="CastersMoreInExit"/> more in the exit room (none more on a floor with none);
+        /// none elsewhere. The elite apart.
+        /// </summary>
+        public int CastersMost(RoomKind kind, int floor)
+        {
+            if (CastersMostInRoom == null || CastersMostInRoom.Length == 0 || (kind != RoomKind.Combat && kind != RoomKind.Exit)) return 0;
+            int room = Math.Max(0, CastersMostInRoom[Math.Max(0, Math.Min(CastersMostInRoom.Length - 1, floor - 1))]);
+            return kind == RoomKind.Exit && room > 0 ? room + CastersMoreInExit : room;
+        }
 
         /// <summary>An elite's health on a generated floor (work order 017): its kind's, times <see cref="EliteHealthScale"/>.</summary>
         public int EliteHealthOf(EnemyKind kind) => (int)Math.Round(HealthOf(kind) * (double)EliteHealthScale, MidpointRounding.AwayFromZero);
@@ -248,6 +278,7 @@ namespace Roguelike.Rules
             : kind == EnemyKind.Swarmer ? SwarmerHealth
             : kind == EnemyKind.Shooter ? ShooterHealth
             : kind == EnemyKind.Guard ? GuardHealth
+            : kind == EnemyKind.Caster ? CasterHealth
             : EnemyHealth;
 
         /// <summary>The most guards a room of this kind may hold on this floor, the act boss counted.</summary>

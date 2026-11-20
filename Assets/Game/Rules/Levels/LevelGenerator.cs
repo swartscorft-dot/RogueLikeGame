@@ -42,12 +42,15 @@ namespace Roguelike.Rules
     /// amended 2026-11-20): the middle combat room of the chain is the elite room (<see cref="LevelPlan.EliteRoomNumber"/>),
     /// marked in the layout; in the contents it draws its combat room's groups and then its elite's kind from
     /// <see cref="LevelValues.EliteKinds"/>, and the elite is placed first after the act boss, with
-    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps.
+    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps. Version 7 (work order 027):
+    /// casters from floor 2, as their floor's mixes say (<see cref="CastersOf"/>), each in place of a shooter or a brute
+    /// with no draw of its own, placed alone after the shooters at the far side, <see cref="LevelValues.CasterSpacing"/>
+    /// from any other caster; an elite may be one from <see cref="LevelValues.EliteCasterFromFloor"/>. Floor 1 is unchanged.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 6; // 6: work order 017, the elite room; 5: work order 014, fuller rooms and the act boss its own kind
+        public const int Version = 7; // 7: work order 027, the casters from floor 2; 6: work order 017, the elite room; 5: work order 014, fuller rooms and the act boss its own kind
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -334,11 +337,34 @@ namespace Roguelike.Rules
             int rest = total - guards;
             int[] counts = Shares(rest, new[] { mix.Swarmers, mix.Shooters, mix.Brutes });
             int swarmers = counts[0], shooters = counts[1], brutes = counts[2];
+            // The casters (work order 027): out of the room's count, each in place of a shooter or a brute (of the two the
+            // kind there are more of, the shooters when as many), a swarmer only when there is neither. No draw: a mix
+            // without casters gives what it gave before.
+            int casters = CastersOf(mix, kind, floor, v);
+            for (int i = 0; i < casters; i++)
+            {
+                if (shooters > 0 && shooters >= brutes) shooters--;
+                else if (brutes > 0) brutes--;
+                else if (swarmers > 1) swarmers--;
+                else
+                {
+                    casters = i;
+                    break;
+                }
+            }
             AddSplit(groups, EnemyKind.Shooter, shooters, Math.Max(1, v.ShooterLineMost));
             AddSplit(groups, EnemyKind.Brute, brutes, Math.Max(1, v.BruteLineMost));
             AddSplit(groups, EnemyKind.Swarmer, swarmers, Math.Max(1, v.PackMost));
+            for (int i = 0; i < casters; i++) groups.Add(new EnemyGroup(EnemyKind.Caster)); // each alone
             return groups;
         }
+
+        /// <summary>
+        /// The casters a room of this kind holds with this mix (work order 027): the mix's, twice as many in an exit room,
+        /// no more than the floor allows (<see cref="LevelValues.CastersMost"/>).
+        /// </summary>
+        public static int CastersOf(EnemyMix mix, RoomKind kind, int floor, LevelValues v) =>
+            mix == null ? 0 : Math.Max(0, Math.Min(v.CastersMost(kind, floor), mix.Casters * (kind == RoomKind.Exit ? 2 : 1)));
 
         /// <summary>
         /// <paramref name="total"/> shared by the shares: each kind with a share gets at least one (while there are
@@ -421,6 +447,9 @@ namespace Roguelike.Rules
                 {
                     double apart = Math.Max(extra, LevelGeometry.ExtraRoom(room.EnemyGroups[k], v));
                     if (room.EnemyPoints[k].DistanceTo(p) < v.EnemySpacing - 1e-9) return false;
+                    // Two casters never stand near each other (work order 027).
+                    if (g.Kind == EnemyKind.Caster && room.EnemyGroups[k].Kind == EnemyKind.Caster
+                        && room.EnemyPoints[k].DistanceTo(p) < v.CasterSpacing - 1e-9) return false;
                     foreach (LevelPoint other in room.EnemyPlaces[k])
                         foreach (LevelPoint m in members)
                             if (other.DistanceTo(m) < v.MemberSpacing + apart - 1e-9) return false;
@@ -451,7 +480,9 @@ namespace Roguelike.Rules
                 return false;
             }
 
-            int Rank(EnemyGroup g) => g.Boss ? 0 : g.Elite ? 1 : g.Kind == EnemyKind.Shooter ? 2 : g.Kind == EnemyKind.Guard ? 3 : g.Kind == EnemyKind.Brute ? 4 : 5;
+            // The casters (work order 027) after the shooters, at the far side as they are.
+            int Rank(EnemyGroup g) => g.Boss ? 0 : g.Elite ? 1 : g.Kind == EnemyKind.Shooter ? 2 : g.Kind == EnemyKind.Caster ? 3
+                                    : g.Kind == EnemyKind.Guard ? 4 : g.Kind == EnemyKind.Brute ? 5 : 6;
             foreach (EnemyGroup g in groups.OrderBy(Rank).ToList())
             {
                 if (g.Boss && Fits(g, room.Middle(cs), out LevelPoint[] at))
@@ -459,7 +490,7 @@ namespace Roguelike.Rules
                     Put(g, room.Middle(cs), at);
                     continue;
                 }
-                bool done = g.Kind == EnemyKind.Shooter ? Place(g, v.FarBand, 1d)
+                bool done = g.Kind == EnemyKind.Shooter || g.Kind == EnemyKind.Caster ? Place(g, v.FarBand, 1d)
                           : g.Kind == EnemyKind.Swarmer ? Place(g, 0d, 1d)
                           : Place(g, v.MiddleBandFrom, v.MiddleBandTo);
                 if (!done) return false;

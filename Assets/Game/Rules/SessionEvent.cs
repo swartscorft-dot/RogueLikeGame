@@ -51,6 +51,10 @@ namespace Roguelike.Rules
         public const string BossCharge = "boss_charge";       // its charge began to run down the line: name is the attack
         public const string BossCall = "boss_call";           // it called a pack: called is how many came
         public const string BossAnger = "boss_anger";         // it turned angry: shorter windups, double charges
+        // The caster (work order 027). Its casts are enemy_attack, each circle's burst an enemy_strike named the cast.
+        public const string CasterCircle = "caster_circle";   // a circle of its cast: name the cast, result placed or off the ground, circle which (from 1)
+        public const string CasterCircleFaded = "caster_circle_faded"; // a circle of a countered Grave Rain faded without bursting: name, circle
+        public const string EnemyCountered = "enemy_countered"; // Stopping Shot dropped its cast: name the cast
         public const string PlayerDamaged = "player_damaged";
         public const string PlayerDeath = "player_death";
 
@@ -110,6 +114,8 @@ namespace Roguelike.Rules
         public const string Complete = "complete";            // how a recast chain ended
         public const string Early = "early";
         public const string Removed = "removed";              // an enemy taken out of the game awake
+        public const string Placed = "placed";                // a caster's circle (work order 027): placed on the ground...
+        public const string OffTheGround = "off the ground";  // ...or not, its place off the walkable ground
 
         // Taking cover (2026-11-19, an experiment).
         public const string StoppedByCover = "stopped by cover"; // how an enemy strike went: what she was in cover behind stopped it

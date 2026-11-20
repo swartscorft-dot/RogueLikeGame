@@ -27,7 +27,9 @@ namespace Roguelike.Rules
     /// keeps every rule of <see cref="PropRules"/>; no room holds more than its kind may; and every room keeps its
     /// clear lane. Since work order 017 the elite room: exactly the combat room of the chain the plan names
     /// (<see cref="LevelPlan.EliteRoomNumber"/>) is marked elite, and it alone holds an elite: one, of a kind its floor can
-    /// have, counted apart from the room's range, kinds and guards, with its larger body's room round it.
+    /// have, counted apart from the room's range, kinds and guards, with its larger body's room round it. Since work order
+    /// 027 the casters: no more in a room than its floor allows (<see cref="LevelValues.CastersMost"/>), each alone, and
+    /// <see cref="LevelValues.CasterSpacing"/> apart.
     /// </summary>
     public static class LevelValidator
     {
@@ -273,6 +275,15 @@ namespace Roguelike.Rules
             int guards = groups.Where(g => g.Kind == EnemyKind.Guard && !g.Elite).Sum(g => g.Count);
             int guardsMost = values.GuardsMost(r.Kind, floor);
             if (guards > guardsMost) faults.Add($"{name} holds {guards} guards, floor {floor} at most {guardsMost} in a {r.Kind} room");
+            // The casters (work order 027): no more than the floor allows, the elite apart; each alone, and far from each other.
+            int casters = groups.Where(g => g.Kind == EnemyKind.Caster && !g.Elite).Sum(g => g.Count);
+            int castersMost = values.CastersMost(r.Kind, floor);
+            if (casters > castersMost) faults.Add($"{name} holds {casters} casters, floor {floor} at most {castersMost} in a {r.Kind} room");
+            for (int i = 0; i < r.EnemyPoints.Count && i < r.EnemyGroups.Count; i++)
+                for (int j = i + 1; j < r.EnemyPoints.Count && j < r.EnemyGroups.Count; j++)
+                    if (r.EnemyGroups[i]?.Kind == EnemyKind.Caster && r.EnemyGroups[j]?.Kind == EnemyKind.Caster
+                        && r.EnemyPoints[i].DistanceTo(r.EnemyPoints[j]) < values.CasterSpacing - Slack)
+                        faults.Add($"{name}'s casters {i} and {j} are nearer each other than {values.CasterSpacing} m");
             int bosses = groups.Count(g => g.Boss);
             bool wantsBoss = r.Kind == RoomKind.Exit && floor >= values.FloorsPerAct;
             if (bosses != (wantsBoss ? 1 : 0)) faults.Add($"{name} holds {bosses} act bosses, not {(wantsBoss ? 1 : 0)}");

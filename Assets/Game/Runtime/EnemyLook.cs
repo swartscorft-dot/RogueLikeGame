@@ -695,7 +695,25 @@ namespace Roguelike
             if (m.HasProperty("_SpecularHighlights")) m.SetFloat("_SpecularHighlights", 0f);
             m.DisableKeyword("_SPECULAR_COLOR");
             m.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            // Work order 027: a model with a glow (the caster's eyes, palms and amulet) has its emission map in the game's
+            // cyan, as the crypt kit's pieces (CryptKit.MakeMaterial).
+            Texture2D emission = spec.Glow > 0 ? Resources.Load<Texture2D>(spec.EmissionPath) : null;
+            if (emission != null && m.HasProperty("_EmissionColor"))
+            {
+                m.SetTexture("_EmissionMap", emission);
+                Color lit = CryptKit.Glowing(new CryptKitValues().Cyan, (float)spec.Glow);
+                m.SetColor("_EmissionColor", QualitySettings.activeColorSpace == ColorSpace.Linear ? lit.gamma : lit);
+                m.EnableKeyword("_EMISSION");
+                m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            }
             return m;
+        }
+
+        /// <summary>The emission map a material made here shows, or null when it has none (work order 027).</summary>
+        public static Texture EmissionOf(Renderer r)
+        {
+            Material m = r != null ? r.sharedMaterial : null;
+            return m != null && m.HasProperty("_EmissionMap") && m.IsKeywordEnabled("_EMISSION") ? m.GetTexture("_EmissionMap") : null;
         }
 
         /// <summary>The texture a material made here shows, for tests.</summary>
