@@ -41,6 +41,11 @@ namespace Roguelike
         void OnGUI()
         {
             if (!Showing || Event.current.type != EventType.Repaint) return;
+            if (InterfaceStyle.Kinetic)
+            {
+                DrawKinetic(); // work order 045
+                return;
+            }
             float scale = Screen.height / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             Color colorBefore = GUI.color;
@@ -59,6 +64,33 @@ namespace Roguelike
             bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
             Bar(new Rect(x, Top + HealthHeight + Gap, width, StaggerHeight), StaggerShown, flash ? s_Flash : s_Stagger, flash);
 
+            GUI.color = colorBefore;
+            GUI.matrix = matrixBefore;
+        }
+
+        /// <summary>True when it is drawn in the interface's kinetic skin (work order 045).</summary>
+        public bool Kinetic => InterfaceStyle.Kinetic;
+
+        /// <summary>
+        /// The bar in the interface's kinetic skin (decision 0011; work order 045): one long slanted bar at the top middle in
+        /// the skin's red (warmer when it is angry), a thin slanted stagger line under it flashing the daze blue, and its
+        /// name over it in the heavy italic.
+        /// </summary>
+        void DrawKinetic()
+        {
+            Rules.InterfaceValues v = InterfaceStyle.V;
+            Color colorBefore = GUI.color;
+            float viewWidth = InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
+            float width = Mathf.Max(200f, Mathf.Min(v.BossWidth, viewWidth * 0.5f));
+            var bar = new Rect((viewWidth - width) * 0.5f, v.BossTop, width, v.BossHeight);
+            float h = v.BossNameSize * 1.3f;
+            InterfaceStyle.Label(new Rect(bar.x, bar.y - h - 2f, bar.width, h), _boss.Tuning.Title,
+                                 InterfaceStyle.Text(true, v.BossNameSize, TextAnchor.LowerLeft), InterfaceStyle.C(v.White), true);
+            InterfaceStyle.SlantedBar(bar, HealthShown, InterfaceStyle.C(v.Back), _boss.IsAngry ? s_AngryHealth : InterfaceStyle.C(v.Red));
+            bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
+            var stagger = new Rect(bar.x - (v.BossHeight * 0.5f + 3f + v.BossStaggerHeight * 0.5f) * v.Slant, bar.yMax + 3f, bar.width, v.BossStaggerHeight);
+            InterfaceStyle.SlantedBar(stagger, StaggerShown, flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Back),
+                                      flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Stagger));
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
         }

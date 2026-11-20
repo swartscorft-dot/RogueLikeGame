@@ -564,6 +564,7 @@ namespace Roguelike
         {
             PickUpForAPick(ChoiceKind.FloorReward); // work order 042: its drop, if it lies, is picked up first
             if (Choice != ChoiceKind.FloorReward || index < 0 || index >= _offeredSkills.Count) return false;
+            CardPicked(index); // work order 045: its card flashes as it goes
             PlayerCharacter player = FindPlayer();
             int slot = _offeredSkills[index];
             player.EquipSkill(slot);
@@ -656,6 +657,7 @@ namespace Roguelike
         public bool PickUpgrade(int index)
         {
             if (Choice != ChoiceKind.Chest || index < 0 || index >= _offeredUpgrades.Count) return false;
+            CardPicked(index); // work order 045
             Upgrade u = _offeredUpgrades[index];
             Modifiers.Take(u);
             Record?.TakeUpgrade(u.Short);
@@ -708,6 +710,7 @@ namespace Roguelike
         {
             PickUpForAPick(ChoiceKind.SkillUpgrade); // work order 042: its drop, if it lies, is picked up first
             if (Choice != ChoiceKind.SkillUpgrade || index < 0 || index >= _offeredSkillUpgrades.Count) return false;
+            CardPicked(index); // work order 045
             SkillUpgradeDefinition u = _offeredSkillUpgrades[index];
             SkillUpgrades.Take(u);
             Record?.TakeSkillUpgrade(u.FullName);
@@ -991,15 +994,17 @@ namespace Roguelike
             float viewWidth = Screen.width / scale;
             float x = viewWidth - width - 10f;
             // The developer's box: shown or not, and how far down, as the HUD says (work order 018: F1); as before without one.
+            bool kinetic = InterfaceStyle.Kinetic; // work order 045: in the interface's skin (GeneratedLevelsKinetic.cs)
             if (inLevel)
             {
                 if (ShowDevBox) // the status text is built only when it is shown (work order 026)
                 {
                     string text = StatusText();
                     int lines = text.Split('\n').Length;
-                    GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
+                    GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, DevBoxStyle());
                 }
-                DrawChestPrompt(scale);
+                if (kinetic) DrawChestPromptKinetic();
+                else DrawChestPrompt(scale);
             }
             else if (ShowDevBox)
             {
@@ -1008,14 +1013,17 @@ namespace Roguelike
                             + "\n" + CasterKey + " caster" // work order 034: its own line, the line above being full
                             + "\n" + PracticeFocusLine() // work order 025
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
-                GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
+                GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, DevBoxStyle());
             }
-            if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
+            if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge
+            else if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
+            else if (Notice.Length > 0 && kinetic) DrawNoticeKinetic();
             else if (Notice.Length > 0)
             {
                 if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
                 GUI.Box(new Rect((viewWidth - 460f) * 0.5f, SkillBar.LayoutHeight * 0.3f, 460f, 30f), Notice, _promptStyle);
             }
+            if (kinetic) DrawPickFlash();
             GUI.matrix = matrixBefore;
         }
 

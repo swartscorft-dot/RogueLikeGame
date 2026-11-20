@@ -136,6 +136,11 @@ namespace Roguelike
         void OnGUI()
         {
             if (_owner == null || Event.current.type != EventType.Repaint) return;
+            if (InterfaceStyle.Kinetic)
+            {
+                DrawKinetic(); // work order 045
+                return;
+            }
             float scale = Screen.height / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
@@ -167,6 +172,33 @@ namespace Roguelike
             GUI.matrix = matrixBefore;
         }
 
+        /// <summary>
+        /// Its prompt and the floor's waiting line in the interface's kinetic skin (decision 0011; work order 045): the
+        /// interact key on a small white plate and the words after it over the drop; the line a line in the skin, where the
+        /// plain one stood.
+        /// </summary>
+        void DrawKinetic()
+        {
+            Color colorBefore = GUI.color;
+            float viewWidth = InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
+            float scale = Mathf.Max(1e-4f, InterfaceStyle.Scale);
+            if (_owner.DropPrompt == this && Camera.main is Camera cam)
+            {
+                Vector3 screen = cam.WorldToScreenPoint(Landing + Vector3.up * 1.6f);
+                if (screen.z > 0f)
+                {
+                    string key = PromptKey();
+                    if (_kineticWords == null) _kineticWords = "pick up " + What;
+                    InterfaceStyle.Prompt(screen.x / scale, (Screen.height - screen.y) / scale, key, _kineticWords);
+                }
+            }
+            string line = Kind != GeneratedLevels.ChoiceKind.SkillUpgrade ? _owner.WaitingLine : "";
+            if (line.Length > 0) InterfaceStyle.Line(viewWidth * 0.5f, 96f, line);
+            GUI.color = colorBefore;
+            GUI.matrix = matrixBefore;
+        }
+
+        string _kineticWords;
         string _prompt;
         string _promptKey;
         PlayerInputDriver _driver;

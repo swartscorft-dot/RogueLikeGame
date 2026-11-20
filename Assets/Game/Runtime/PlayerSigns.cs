@@ -41,7 +41,7 @@ namespace Roguelike
     /// It installs itself when Play starts under the same rule as <see cref="TimingFeedback"/> (never in a test run);
     /// tests make one with <see cref="Ensure"/>.
     /// </summary>
-    public sealed class PlayerSigns : MonoBehaviour
+    public sealed partial class PlayerSigns : MonoBehaviour
     {
         const float GroundHeight = 0.06f;  // m, as the effects' bands on the ground
         const float RingLift = 0.075f;     // m: the ring lies over its band
@@ -630,8 +630,12 @@ namespace Roguelike
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             Color before = GUI.color;
-            if (word) DrawWord(scale);
-            if (line) DrawLine(Screen.width / scale);
+            if (InterfaceStyle.Kinetic) DrawKinetic(word, line); // work order 045: in the interface's skin (PlayerSignsKinetic.cs)
+            else
+            {
+                if (word) DrawWord(scale);
+                if (line) DrawLine(Screen.width / scale);
+            }
             GUI.color = before;
             GUI.matrix = matrixBefore;
         }

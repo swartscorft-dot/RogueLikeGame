@@ -53,7 +53,7 @@ namespace Roguelike
     /// It installs itself when Play starts under the same rule as <see cref="GeneratedLevels"/> (never in a test run);
     /// tests make one with <see cref="Ensure"/>.
     /// </summary>
-    public sealed class EnemyBars : MonoBehaviour
+    public sealed partial class EnemyBars : MonoBehaviour
     {
         const int PipTexels = 7;       // the texture: 5 lit texels of pip and 2 clear of gap, repeated along a row
         const int PipLitTexels = 5;
@@ -146,6 +146,7 @@ namespace Roguelike
         {
             Count = 0;
             DrawCalls = 0;
+            Kinetic = InterfaceStyle.Kinetic; // work order 045: drawn slanted, the marks as diamonds (EnemyBarsKinetic.cs)
             if (!Values.On) return;
             Camera cam = Camera.main;
             if (cam == null) return;
@@ -221,6 +222,11 @@ namespace Roguelike
             if (Count == 0 || Event.current.type != EventType.Repaint) return;
             if (_texture == null) _texture = MakeTexture();
             GUI.depth = 10; // under the HUD's boxes and the choices
+            if (Kinetic)
+            {
+                DrawKinetic(); // work order 045
+                return;
+            }
             Color before = GUI.color;
             var solid = new Rect(0.5f / PipTexels, 0f, (PipLitTexels - 1f) / PipTexels, 1f);
             float scale = Screen.height / Mathf.Max(1f, Values.LayoutHeight);
