@@ -160,6 +160,7 @@ namespace Roguelike
         readonly IdentityValues _fallbackIdentity = new IdentityValues();
         readonly ShotLook _fallbackBasicLook = ShotFxDefaults.Basic();
         readonly Dictionary<string, ShotLook> _fallbackLooks = new Dictionary<string, ShotLook>();
+        readonly Dictionary<string, ShotLook> _borrowedLooks = new Dictionary<string, ShotLook>(); // work order 024: switched off
         // The kit (decision 0005).
         readonly KitValues _fallbackKit = new KitValues();
         readonly BasicShotMarks _basicMarks = new BasicShotMarks();
@@ -1999,8 +2000,11 @@ namespace Roguelike
         {
             ShotLook values = skill == null
                 ? (ShotLooks != null && ShotLooks.Basic != null ? ShotLooks.Basic : _fallbackBasicLook)
-                : (ShotLooks != null ? ShotLooks.For(skill.Name) ?? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
-                  ?? FallbackLook(skill.Name); // a pool skill with no look of its own borrows its nearest's, sound and all (work order 015)
+                : (ShotLooks != null ? ShotLooks.For(skill.Name) : null)
+                  // Work order 024: a pool skill the asset has no look for takes its own from the defaults in memory; only
+                  // with the effects switched off does it borrow its nearest's, sound and all, as before (work order 015).
+                  ?? (CombatEffects.PoolLooksBorrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
+                  ?? FallbackLook(skill.Name);
             bool empowered = IsEmpowered;
             float empoweredScale = ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
             Color rim = empowered ? (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim) : values.Rim;
@@ -2017,8 +2021,13 @@ namespace Roguelike
 
         ShotLook FallbackLook(string skillName)
         {
-            if (!_fallbackLooks.TryGetValue(skillName, out ShotLook look))
-                _fallbackLooks[skillName] = look = ShotFxDefaults.For(skillName);
+            bool borrowed = CombatEffects.PoolLooksBorrowed;
+            Dictionary<string, ShotLook> looks = borrowed ? _borrowedLooks : _fallbackLooks;
+            if (!looks.TryGetValue(skillName, out ShotLook look))
+                looks[skillName] = look = borrowed ? ShotFxDefaults.Borrowed(skillName) : ShotFxDefaults.For(skillName);
+            // Its own look keeps the sound of its nearest in the asset until the asset has a look of its own for it (work order 024).
+            ShotLook nearest = !borrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skillName)) : null;
+            if (nearest != null) ShotFxDefaults.TakeSound(look, nearest);
             return look;
         }
 
