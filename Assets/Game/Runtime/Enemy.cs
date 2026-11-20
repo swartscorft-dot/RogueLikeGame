@@ -26,6 +26,10 @@ namespace Roguelike
     /// Since work order 011 it wears its kind's model instead of the capsule, with <see cref="EnemyValues.UseModels"/>
     /// on (<see cref="EnemyLook"/>): the clips follow what it does, and dead it plays its Death and lies there a moment
     /// before it is gone. The model's body is what the daze tints and a hit flashes.
+    ///
+    /// An elite (work order 017, <see cref="EnemyFactory.MakeElite"/>) is one of its kind made tougher: more health, its
+    /// strikes' damage times <see cref="DamageScale"/>, larger, tinted gold, with a stagger bar; the log names it
+    /// <see cref="LogWord"/>.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public abstract class Enemy : MonoBehaviour
@@ -75,6 +79,13 @@ namespace Roguelike
         /// <summary>The renderer of the body, tinted while dazed; set for an enemy made from code (<see cref="EnemyFactory"/>).</summary>
         [NonSerialized] public Renderer BodyRenderer;
         [NonSerialized] public Color BodyColor = Color.white;
+        /// <summary>The elite of an elite room (work order 017).</summary>
+        [NonSerialized] public bool IsElite;
+        /// <summary>Its strikes deal this times their attack's damage (work order 017: an elite's 1.25); 1 for every other enemy.</summary>
+        [NonSerialized] public float DamageScale = 1f;
+
+        /// <summary>Its kind as the log writes it, "elite " before it for an elite (work order 017).</summary>
+        public string LogWord => (IsElite ? "elite " : "") + EnemyKinds.Word(Kind);
 
         protected readonly EnemyBrain _brain = new EnemyBrain();
         EnemyLook _look;
@@ -127,7 +138,7 @@ namespace Roguelike
             Reported?.Invoke(new EnemyReport
             {
                 Kind = kind, Attack = attack?.Name, Outcome = outcome, Damage = damage, Id = Id, EnemyKind = Kind,
-                Stagger = stagger, StaggerLeft = staggerLeft, Count = count,
+                Stagger = stagger, StaggerLeft = staggerLeft, Count = count, Elite = IsElite,
             });
 
         protected virtual void Awake()
@@ -432,7 +443,8 @@ namespace Roguelike
                 return;
             }
             bool invulnerable = Player.IsInvulnerable; // read before the hit: the dash's i-frame is what TakeHit checks
-            int applied = PlayerHealth != null ? PlayerHealth.TakeHit(attack.Damage) : 0;
+            int damage = DamageScale == 1f ? attack.Damage : Mathf.RoundToInt(attack.Damage * Mathf.Max(0f, DamageScale)); // an elite's (work order 017)
+            int applied = PlayerHealth != null ? PlayerHealth.TakeHit(damage) : 0;
             if (applied > 0) StrikesLanded++;
             Report(EnemyReportKind.Struck, attack,
                    applied > 0 ? StrikeOutcome.Landed : invulnerable ? StrikeOutcome.AvoidedByDash : StrikeOutcome.NoEffect, applied);

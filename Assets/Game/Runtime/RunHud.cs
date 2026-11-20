@@ -348,6 +348,7 @@ namespace Roguelike
                 _endLines.Add("Enemies killed  " + record.Kills.ToString(s_Inv));
                 _endLines.Add("Skills taken  " + record.SkillsText);
                 _endLines.Add("Upgrades  " + record.UpgradesText);
+                _endLines.Add("Skill upgrades  " + record.SkillUpgradesText); // work order 017
                 if (!died) _endLines.Add(string.Format(s_Inv, "Health left  {0} / {1}", record.HealthLeft, record.MaxHealth));
                 _endLines.Add("Run seed  " + record.Seed);
             }
@@ -399,7 +400,10 @@ namespace Roguelike
             for (int key = 0; key < count; key++)
             {
                 int slot = _player.SkillOnKey(key);
-                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)"));
+                // Work order 017: the run's upgrades of the skill beside it.
+                List<string> upgrades = slot >= 0 && slot < skills.Count && _player.SkillUpgrades != null ? _player.SkillUpgrades.NamesFor(skills[slot].Name) : null;
+                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)")
+                          + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : ""));
             }
             return lines;
         }

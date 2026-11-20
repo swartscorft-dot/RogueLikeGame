@@ -669,7 +669,7 @@ namespace Roguelike
                             Slot = r.Slot >= 0 ? r.Slot : (int?)null,
                             Damage = r.Damage, Target = TargetKind(r.Target), Empowered = r.Empowered,
                             Focus = r.Focus > 0f ? r.Focus : (float?)null,
-                            Enemy = enemy != null ? EnemyKinds.Word(enemy.Kind) : null,
+                            Enemy = enemy != null ? enemy.LogWord : null,
                             EnemyId = enemy != null ? enemy.Id : (int?)null,
                         });
                         break;
@@ -707,7 +707,7 @@ namespace Roguelike
                 double t = Now();
                 // Every enemy event says which enemy and its kind (work order 008).
                 SessionEvent Of(string type, string name = null) =>
-                    new SessionEvent(t, type, name) { Enemy = EnemyKinds.Word(r.EnemyKind), EnemyId = r.Id };
+                    new SessionEvent(t, type, name) { Enemy = (r.Elite ? "elite " : "") + EnemyKinds.Word(r.EnemyKind), EnemyId = r.Id };
                 switch (r.Kind)
                 {
                     case EnemyReportKind.Woke:
@@ -866,6 +866,21 @@ namespace Roguelike
         /// <summary>A chest opened: what it offered, and what was taken (short forms).</summary>
         public void NoteChestOpened(int floor, int room, IList<string> offered, string taken) =>
             Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered));
+
+        /// <summary>She entered the floor's elite room for the first time (work order 017).</summary>
+        public void NoteEliteEntered(int floor, int room) => Note(SessionEventTypes.EliteEnter, null, "floor", Int(floor), "room", Int(room));
+
+        /// <summary>The elite room was cleared (work order 017): the seconds since she first entered it (game time), and the health she had left.</summary>
+        public void NoteEliteCleared(int floor, float seconds, int health) =>
+            Note(SessionEventTypes.EliteClear, null, "floor", Int(floor), "seconds", Text(seconds), "health", Int(health));
+
+        /// <summary>The skill upgrades offered (work order 017), "Skill: Name (kind)" in the order shown; none, and a heal instead.</summary>
+        public void NoteSkillUpgradeOffered(int floor, IList<string> offered, bool heal) =>
+            Note(SessionEventTypes.SkillUpgradeOffer, null, "floor", Int(floor), "offered", string.Join(" | ", offered), "heal", heal ? "true" : "false");
+
+        /// <summary>A skill upgrade was taken (work order 017): its full name and kind.</summary>
+        public void NoteSkillUpgradeTaken(int floor, string fullName, string kind) =>
+            Note(SessionEventTypes.SkillUpgradeTake, fullName, "floor", Int(floor), "kind", kind);
 
         /// <summary>The run ended: how (death, act cleared, left), where (floor, room from 1 and its kind), and when.</summary>
         public void NoteRunEnded(string how, int floor, int room, string kind, float seconds)

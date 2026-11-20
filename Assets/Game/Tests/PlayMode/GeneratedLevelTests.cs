@@ -171,7 +171,8 @@ namespace Roguelike.PlayModeTests
                     Assert.That(Flat(e.Home, level.ToWorld(places[m])), Is.LessThan(0.3f), "home at its place: " + where);
                     Assert.That(e.ComesBack, Is.False);
                     var d = e.GetComponent<Damageable>();
-                    int wanted = level.Values.HealthOf(g.Group.Kind, g.Group.Boss);
+                    // The elite of the elite room has its kind's health times the elite's share (work order 017).
+                    int wanted = g.Group.Elite ? level.Values.EliteHealthOf(g.Group.Kind) : level.Values.HealthOf(g.Group.Kind, g.Group.Boss);
                     Assert.That(d.MaxHealth, Is.EqualTo(wanted), where);
                     Assert.That(d.CurrentHealth, Is.EqualTo(wanted));
                 }

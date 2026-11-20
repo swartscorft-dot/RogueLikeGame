@@ -14,7 +14,8 @@ namespace Roguelike.Rules
     /// and the act-cleared screen read it, and a later order can add to it. It is filled as the run goes by the run
     /// itself (<c>GeneratedLevels</c>): a new record when a run starts, the floor and the room she is in, the skills taken
     /// as floor rewards in order, the chest upgrades taken (short forms), the kills and the time; and how it ended, with
-    /// the health she had then.
+    /// the health she had then. Work order 017: the skill upgrades taken from elite rooms, in order, and whether the room
+    /// she is in is the elite room.
     ///
     /// A kill is an enemy of the run's floors reporting its death: the same report the play session recorder counts
     /// kills from, so the two never disagree on what a kill is. The time is game time from the start of the run, so the
@@ -24,6 +25,7 @@ namespace Roguelike.Rules
     {
         readonly List<string> _skills = new List<string>();
         readonly List<string> _upgrades = new List<string>();
+        readonly List<string> _skillUpgrades = new List<string>();
 
         public RunRecord(string seed, int floorsPerAct)
         {
@@ -41,6 +43,8 @@ namespace Roguelike.Rules
         /// <summary>The last room of the floor she was in, by its place in the floor (from 0); -1 before she was in one.</summary>
         public int Room { get; private set; } = -1;
         public RoomKind RoomKind { get; private set; }
+        /// <summary>True when that room is the floor's elite room (work order 017).</summary>
+        public bool RoomElite { get; private set; }
         /// <summary>Seconds of game time since the run started; frozen when it ends.</summary>
         public float Seconds { get; private set; }
         public int Kills { get; private set; }
@@ -49,6 +53,8 @@ namespace Roguelike.Rules
         /// <summary>The chest upgrades taken, in short form, in order.</summary>
         public IReadOnlyList<string> Upgrades => _upgrades;
         public int ChestsOpened => _upgrades.Count;
+        /// <summary>The skill upgrades taken (work order 017), "Quick Shot: Double Tap", in order.</summary>
+        public IReadOnlyList<string> SkillUpgrades => _skillUpgrades;
         public RunOutcome Outcome { get; private set; } = RunOutcome.Going;
         public bool IsOver => Outcome != RunOutcome.Going;
         /// <summary>Her health and maximum when the run ended; 0 while it goes on.</summary>
@@ -63,14 +69,16 @@ namespace Roguelike.Rules
             Rooms = rooms;
             Room = -1;
             RoomKind = RoomKind.Entrance;
+            RoomElite = false;
         }
 
-        /// <summary>She is in this room of the floor now.</summary>
-        public void EnterRoom(int order, RoomKind kind)
+        /// <summary>She is in this room of the floor now; <paramref name="elite"/> for the floor's elite room (work order 017).</summary>
+        public void EnterRoom(int order, RoomKind kind, bool elite = false)
         {
             if (IsOver) return;
             Room = order;
             RoomKind = kind;
+            RoomElite = elite;
         }
 
         public void TakeSkill(string name)
@@ -81,6 +89,12 @@ namespace Roguelike.Rules
         public void TakeUpgrade(string shortForm)
         {
             if (!IsOver) _upgrades.Add(shortForm ?? "?");
+        }
+
+        /// <summary>A skill upgrade taken from an elite room (work order 017), by its full name.</summary>
+        public void TakeSkillUpgrade(string fullName)
+        {
+            if (!IsOver) _skillUpgrades.Add(fullName ?? "?");
         }
 
         /// <summary>
@@ -109,13 +123,16 @@ namespace Roguelike.Rules
         public string FloorText => RunWords.Floor(Floor, FloorsPerAct);
 
         /// <summary>The room in words (<see cref="RunWords.Room"/>); empty before she was in one.</summary>
-        public string RoomText => Room < 0 ? "" : RunWords.Room(RoomKind, Room, Rooms);
+        public string RoomText => Room < 0 ? "" : RunWords.Room(RoomKind, Room, Rooms, RoomElite);
 
         /// <summary>The upgrades taken in short form, the same ones counted together: "+10 hp x2, +5% dmg"; "none" without.</summary>
         public string UpgradesText => RunWords.Grouped(_upgrades);
 
         /// <summary>The skills taken in order, "Fan Fire, Long Shot"; "none" without.</summary>
         public string SkillsText => _skills.Count == 0 ? "none" : string.Join(", ", _skills);
+
+        /// <summary>The skill upgrades taken in order (work order 017), "Quick Shot: Double Tap, Backstep: Long Step"; "none" without.</summary>
+        public string SkillUpgradesText => _skillUpgrades.Count == 0 ? "none" : string.Join(", ", _skillUpgrades);
     }
 
     /// <summary>The words the HUD and the end screens use (work order 018).</summary>
@@ -127,10 +144,12 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// A room in words: the treasure rooms "Treasure room", the exit room "Exit room", the entrance "Entrance", and
-        /// any other "Room 3 of 6", numbered by its place in the floor from 1 (the entrance is room 1).
+        /// any other "Room 3 of 6", numbered by its place in the floor from 1 (the entrance is room 1); the elite room
+        /// "Elite room, 4 of 8" (work order 017).
         /// </summary>
-        public static string Room(RoomKind kind, int order, int rooms)
+        public static string Room(RoomKind kind, int order, int rooms, bool elite = false)
         {
+            if (elite) return string.Format(s_Inv, "Elite room, {0} of {1}", order + 1, rooms);
             switch (kind)
             {
                 case RoomKind.Treasure: return "Treasure room";

@@ -97,5 +97,6 @@ namespace Roguelike
         public float Stagger;
         public float StaggerLeft;
         public int Count;             // CalledPack: the enemies that came (work order 014)
+        public bool Elite;            // the elite of an elite room (work order 017): the log names it "elite brute"
     }
 }

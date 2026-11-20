@@ -25,6 +25,8 @@ namespace Roguelike.Rules
     /// not code, so other plans can be tried. The main path is the entrance, <see cref="CombatRooms"/> combat rooms and
     /// the exit room, one after another; the treasure rooms are short dead ends, each off a different combat room.
     /// Until work order 012: five combat rooms, four reward rooms and a boss room.
+    /// Work order 017 (decision 0008 as amended 2026-11-20, Kristian: "one hard room in the middle of every floor"): one of
+    /// the combat rooms is the elite room, <see cref="EliteRoomNumber"/>.
     /// </summary>
     [Serializable]
     public sealed class LevelPlan
@@ -36,6 +38,14 @@ namespace Roguelike.Rules
         public RoomSizeRange CombatSize = new RoomSizeRange(5, 7);
         public RoomSizeRange TreasureSize = new RoomSizeRange(3, 3);
         public RoomSizeRange ExitSize = new RoomSizeRange(8, 8);   // the old boss room's
+        public bool EliteRoom = true;           // work order 017: off, no floor has an elite room
+
+        /// <summary>
+        /// Which combat room of the chain is the elite room, counted from 1 (work order 017): the middle one, and of the two
+        /// middle ones the later, so number <paramref name="combatRooms"/> / 2 + 1 (rounded down): with 1 combat room the
+        /// first, 2 the second, 3 the second, 4 the third, 5 the third, 6 the fourth. 0: none (no combat room, or off).
+        /// </summary>
+        public int EliteRoomNumber(int combatRooms) => !EliteRoom || combatRooms <= 0 ? 0 : combatRooms / 2 + 1;
 
         public RoomSizeRange SizeOf(RoomKind kind) =>
             kind == RoomKind.Entrance ? EntranceSize
@@ -131,6 +141,14 @@ namespace Roguelike.Rules
         public int EnemyHealth = 1200;         // a brute's (3000 until work order 012)
         public int GuardHealth = 3500;
         public int BossHealth = 18000;         // the act boss (work order 014: the crypt knight; 9000 when it was a guard)
+
+        // The elite (work order 017, 2026-11-20): one in each elite room, besides what a combat room holds.
+        public float EliteHealthScale = 4f;    // times its kind's health for the floor
+        public float EliteDamageScale = 1.25f; // its attacks' damage, times this
+        public float EliteSizeScale = 4f / 3f; // shown this many times as large, and its body as wide
+        public float EliteStaggerShare = 0.5f; // a kind with no stagger bar gets one this share of the guard's
+        public float EliteRoomToStand = 1f;    // m more than any enemy keeps from the walls, the doors and the other groups: its larger body
+        public int EliteKindsFromFloor = 2;    // from this floor a brute, a shooter or a guard; before it a brute
         public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers
         public float LineSpacing = 2f;         // m between two enemies of a line, side by side (work order 012)
         public float MemberSpacing = 1.5f;     // m between two enemies of different groups (work order 012)
@@ -216,6 +234,13 @@ namespace Roguelike.Rules
                 most = (int)Math.Floor(f.Most * ExitRoomShare + 1e-6);
             }
         }
+
+        /// <summary>The kinds an elite may be on this floor (work order 017): a brute on floor 1; a brute, a shooter or a guard after.</summary>
+        public EnemyKind[] EliteKinds(int floor) =>
+            floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute } : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard };
+
+        /// <summary>An elite's health on a generated floor (work order 017): its kind's, times <see cref="EliteHealthScale"/>.</summary>
+        public int EliteHealthOf(EnemyKind kind) => (int)Math.Round(HealthOf(kind) * (double)EliteHealthScale, MidpointRounding.AwayFromZero);
 
         /// <summary>A generated floor's health for an enemy of this kind; the act boss's for the boss.</summary>
         public int HealthOf(EnemyKind kind, bool boss = false) =>
