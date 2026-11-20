@@ -151,8 +151,12 @@ namespace Roguelike
         public Vector3 AimPoint => _aim;
         /// <summary>Its model and the clips it plays (work order 011); null when it is the stand-in capsule.</summary>
         public EnemyLook Look => _look;
-        /// <summary>The height of the top of its model's head, or a negative number when it has no model.</summary>
-        public float ModelHeight => _look != null ? (float)_look.Spec.Height : -1f;
+        /// <summary>
+        /// The height of the top of its model's head as shown, or a negative number when it has no model: the model's own
+        /// height times its scale (the second reviews of 2026-11-20, work order 033: an elite is shown 4/3 as large, and
+        /// its marks, bar, stars and words sat inside its head).
+        /// </summary>
+        public float ModelHeight => _look != null ? (float)_look.Spec.Height * transform.lossyScale.y : -1f;
 
         /// <summary>
         /// Tells what it does as it happens: it wakes, starts an attack, strikes (and how that went), gives up, dies,

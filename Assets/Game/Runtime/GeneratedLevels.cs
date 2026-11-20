@@ -59,9 +59,16 @@ namespace Roguelike
     /// nothing while there is no <see cref="PlayerCharacter"/> in the scene. It logs the seed and the text map of every
     /// floor it builds, and tells the play session recorder about the run, its floors, rooms, rewards and chests.
     ///
+    /// The focus choice (work order 025, 2026-11-20) is in GeneratedLevelsFocus.cs: once a run, right after floor 1's reward
+    /// is taken and before floor 2, paused, two ways the gauge works for the rest of the run; and the practice room's keys
+    /// to try each (F2, F3, and F4 for today's).
+    ///
     /// The end of a run, the pause and the run's record (work order 018, 2026-11-20) are in GeneratedLevelsScreens.cs:
     /// death no longer takes her to the practice room at once; the game slows to a stop and the death screen waits for
     /// a key, and so does the act-cleared screen.
+    ///
+    /// What lasts between runs (work order 029, decision 0009, a proposal he has not ruled on) is in
+    /// GeneratedLevelsBetweenRuns.cs, behind a switch that is off by default; off, none of it does anything.
     /// </summary>
     public sealed partial class GeneratedLevels : MonoBehaviour
     {
@@ -104,7 +111,7 @@ namespace Roguelike
 
         // ---------------- The run (work order 012) ----------------
 
-        public enum ChoiceKind { None, FloorReward, Chest, SkillUpgrade }
+        public enum ChoiceKind { None, FloorReward, Chest, SkillUpgrade, FocusChoice }
 
         /// <summary>True from the start of a run until it ends (death, the act cleared, or F7).</summary>
         public bool InRun { get; private set; }
@@ -206,6 +213,8 @@ namespace Roguelike
             Modifiers.Clear();
             if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null;
             SkillUpgrades.Clear();
+            if (_player != null && _player.RunFocus == FocusChoice) _player.RunFocus = null; // work order 025
+            FocusChoice.Clear();
             if (_health != null)
             {
                 _health.Died -= OnDied;
@@ -400,10 +409,13 @@ namespace Roguelike
             _skillsTaken.Clear();
             Modifiers.Clear();
             Modifiers.CooldownFloor = RunValues.CooldownFloor;
+            ApplyBetweenRuns(); // work order 029: the rack's pieces, only with the switch on
             player.Modifiers = Modifiers;
             SkillUpgrades.Clear(); // a new run starts with no skill upgrade (work order 017)
             player.SkillUpgrades = SkillUpgrades;
             SkillUpgradeOffers = 0;
+            FocusChoice.Clear(); // today's gauge until the choice after floor 1 (work order 025)
+            player.RunFocus = FocusChoice;
             player.EquipStartSkills();
             player.StartFresh(); // work order 026: no focus or cooldown carries into a run
             _diedWithTheAct.Clear();
@@ -414,11 +426,15 @@ namespace Roguelike
             return EnterFloor(1);
         }
 
-        /// <summary>A new run from a new seed (F5).</summary>
-        public GeneratedLevel StartNewRun() => StartRun(FreshSeed());
+        /// <summary>
+        /// A new run from a new seed (F5). Work order 029: with what lasts between runs switched on and no run going on, the
+        /// screen between runs comes up instead (null is returned), and its start begins the run.
+        /// </summary>
+        public GeneratedLevel StartNewRun() => OpensBetweenRuns(null) ? null : StartRun(FreshSeed());
 
-        /// <summary>The same run seed again from floor 1 (F6); a new run if there was none.</summary>
-        public GeneratedLevel RestartRun() => RunSeed.HasValue ? StartRun(RunSeed.Value) : StartNewRun();
+        /// <summary>The same run seed again from floor 1 (F6); a new run if there was none. The screen between runs as for F5.</summary>
+        public GeneratedLevel RestartRun() =>
+            RunSeed.HasValue ? (OpensBetweenRuns(RunSeed) ? null : StartRun(RunSeed.Value)) : StartNewRun();
 
         GeneratedLevel EnterFloor(int floor)
         {
@@ -428,6 +444,7 @@ namespace Roguelike
             RecordFloor(level);
             _floorStartedAt = Time.time;
             PlaySessionRecorder.Current?.NoteFloorEntered(floor, LevelSeed.ToText(seed));
+            BetweenRunsFloorEntered(floor); // work order 029
             return level;
         }
 
@@ -441,12 +458,15 @@ namespace Roguelike
             InRun = false;
             LastRunLine = line;
             RecordEnd(how);
+            BetweenRunsRunEnded(); // work order 029: what the run earned is kept, with the switch on
             PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null ? CurrentRoom.Order + 1 : 0,
                                                       CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt);
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
             if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null; // work order 017
             SkillUpgrades.Clear();
+            if (_player != null && _player.RunFocus == FocusChoice) _player.RunFocus = null; // work order 025: back to the practice room's own
+            FocusChoice.Clear();
             if (_health != null) _health.RefreshMax();
             Debug.Log("Run ended (" + how + "): " + line);
         }
@@ -456,7 +476,7 @@ namespace Roguelike
 
         void OnDied()
         {
-            if (InRun) _diedPending = true; // handled in the next Update, out of the enemy's strike that killed her
+            if (InRun) _diedPending = true; // handled at the frame's end or the next Update (Settle), out of the enemy's strike that killed her
         }
 
         /// <summary>The floor is finished: a floor reward to choose on floors 1 to 4, the act cleared after the last.</summary>
@@ -467,10 +487,12 @@ namespace Roguelike
             if (!InRun) return;
             float took = Time.time - _floorStartedAt;
             PlaySessionRecorder.Current?.NoteFloorFinished(Floor, took, _health != null ? _health.Current : 0);
+            BetweenRunsFloorCleared(); // work order 029
             if (Floor >= Values.FloorsPerAct)
             {
                 ActCleared = true;
                 _actTime = Time.time - _runStartedAt;
+                BetweenRunsActCleared(); // work order 029: the act boss
                 EndRun("act cleared", "ACT CLEARED   run " + RunSeedText + "   time " + SessionSummary.Duration(_actTime));
                 EndTheCalled();
                 OpenEnding(EndKind.ActCleared);
@@ -500,11 +522,13 @@ namespace Roguelike
             PlayerCharacter player = FindPlayer();
             var equipped = new List<bool>();
             for (int slot = 0; slot < player.Skills.Count; slot++) equipped.Add(player.IsEquipped(slot));
+            StrikeOutOfOffer(player, equipped); // work order 029: Not That One
             _offeredSkills.Clear();
             _offeredSkills.AddRange(FloorRewards.Offer(RunSeed ?? 0UL, Floor, equipped, RunValues.SkillsOffered));
             if (_offeredSkills.Count == 0)
             {
-                EnterFloor(Floor + 1); // nothing left to offer
+                if (FocusChoiceDue) OfferFocusChoice(); // nothing left to offer, but the focus choice still comes (work order 025)
+                else EnterFloor(Floor + 1); // nothing left to offer
                 return;
             }
             PlaySessionRecorder.Current?.NoteRewardOffered(Floor, _offeredSkills.Select(s => player.Skills[s].Name).ToList());
@@ -531,6 +555,12 @@ namespace Roguelike
                 int healed = _health.Heal(FloorHeals.Amount(_health.Max, RunValues.FloorHeal));
                 Record?.FloorHealed(Floor, healed);
                 PlaySessionRecorder.Current?.NoteFloorHeal(Floor, healed, _health.Current);
+            }
+            // Work order 025: after floor 1's reward the focus choice comes up, still paused, before floor 2.
+            if (FocusChoiceDue)
+            {
+                OfferFocusChoice();
+                return true;
             }
             CloseChoice();
             EnterFloor(Floor + 1);
@@ -588,9 +618,12 @@ namespace Roguelike
             var equipped = new List<string>();
             for (int slot = 0; slot < player.Skills.Count; slot++)
                 if (player.IsEquipped(slot)) equipped.Add(player.Skills[slot].Name);
+            int extra = FirstChestExtra; // work order 029: Deep Chests, asked before this chest counts
             _chestsOpened.Add(chest.Room.Order);
             _offeredUpgrades.Clear();
-            _offeredUpgrades.AddRange(ChestUpgrades.Offer(RunSeed ?? 0UL, Floor, chest.Room.Order, equipped, RunValues));
+            // Work order 025: no Mend at full health, no row the run has taken its most times.
+            bool fullHealth = _health == null || _health.Current >= _health.Max;
+            _offeredUpgrades.AddRange(ChestUpgrades.Offer(RunSeed ?? 0UL, Floor, chest.Room.Order, equipped, RunValues, Modifiers, fullHealth, extra));
             if (_offeredUpgrades.Count == 0) return true;
             _openChest = chest;
             OpenChoice(ChoiceKind.Chest);
@@ -629,8 +662,10 @@ namespace Roguelike
             for (int slot = 0; slot < player.Skills.Count; slot++)
                 if (player.IsEquipped(slot) && player.Skills[slot] != null) had.Add(player.Skills[slot].Name);
             _offeredSkillUpgrades.Clear();
-            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeValues.Table, had, SkillUpgrades.Taken, UpgradeValues.Offered));
+            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeValues.Table, had, SkillUpgrades.Taken,
+                                                                   UpgradeValues.Offered + Modifiers.Meta.EliteOffersExtra)); // work order 029: Knight's Trophy
             SkillUpgradeOffers++;
+            BetweenRunsEliteCleared(); // work order 029
             PlaySessionRecorder.Current?.NoteSkillUpgradeOffered(Floor, _offeredSkillUpgrades.Select(u => u.FullName + " (" + u.KindWord + ")").ToList(),
                                                                  _offeredSkillUpgrades.Count == 0);
             if (_offeredSkillUpgrades.Count == 0)
@@ -691,6 +726,9 @@ namespace Roguelike
         void CloseChoice()
         {
             if (Choice == ChoiceKind.None) return;
+            // A chest whose choice closes without a pick (an end screen) is not used up (the second reviews of 2026-11-20,
+            // work order 033). A pick lets go of the chest first.
+            if (Choice == ChoiceKind.Chest && _openChest != null) _chestsOpened.Remove(_openChest.Room.Order);
             Choice = ChoiceKind.None;
             _offeredSkills.Clear();
             _offeredUpgrades.Clear();
@@ -729,28 +767,24 @@ namespace Roguelike
             if (FindPlayer() == null) return;
             // Death first (work order 026, the second review of 2026-11-20): before a choice (a chest opened on the frame
             // of the lethal hit), whose screen the death screen closes, and before the interact key.
-            if (_diedPending)
-            {
-                _diedPending = false;
-                string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
-                EndRun("death", line);
-                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
-                if (_level != null) OpenEnding(EndKind.Died);
-            }
+            SettleDeath();
             if (Choice != ChoiceKind.None)
             {
                 Time.timeScale = 0f; // a hit stop that ends while the choice is up must not start the game again
                 if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard choiceKeys)
                 {
+                    // 4 for a fourth line, which only the rack between runs gives (work order 029: Knight's Trophy).
                     int pick = choiceKeys.digit1Key.wasPressedThisFrame ? 0 : choiceKeys.digit2Key.wasPressedThisFrame ? 1
-                             : choiceKeys.digit3Key.wasPressedThisFrame ? 2 : -1;
+                             : choiceKeys.digit3Key.wasPressedThisFrame ? 2 : choiceKeys.digit4Key.wasPressedThisFrame ? 3 : -1;
                     if (pick >= 0)
                     {
                         if (Choice == ChoiceKind.FloorReward) PickReward(pick);
                         else if (Choice == ChoiceKind.SkillUpgrade) PickSkillUpgrade(pick);
+                        else if (Choice == ChoiceKind.FocusChoice) PickFocusChoice(pick); // work order 025: 1 or 2
                         else PickUpgrade(pick);
                     }
                     else if (choiceKeys[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
+                    else if (choiceKeys[RedrawKey].wasPressedThisFrame) RedrawOffer(); // work order 029: Second Look, only when it can
                 }
                 return;
             }
@@ -761,12 +795,15 @@ namespace Roguelike
                 if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
                 else if (keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
                 else if (keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
-                else if (Paused || Ending != EndKind.None) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018)
+                else if (Paused || Ending != EndKind.None || BetweenRunsUp) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029)
                 else if (keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
                 else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
                 else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
                 else if (keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
+                else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
+                else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);
+                else if (keyboard[TodaysFocusKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.Today);
                 else if (keyboard[InteractKey].wasPressedThisFrame && !PlayerInputDriver.LetGoThisFrame) OpenChest(); // work order 026
             }
             if (_level == null)
@@ -775,6 +812,27 @@ namespace Roguelike
                 return;
             }
             TrackRoom();
+            if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat; after the room is tracked (work order 033)
+        }
+
+        // A hit stop puts back the time scale it found when it ends, in its own Update: the choice holds the pause after it.
+        void LateUpdate()
+        {
+            if (FindPlayer() != null) Settle();
+            if (Choice != ChoiceKind.None) Time.timeScale = 0f;
+            else HoldScreens(); // and the pause menu's, and the end's slow-down (work order 018)
+        }
+
+        /// <summary>
+        /// One place decides what a frame brings, in a fixed priority (the second reviews of 2026-11-20, work order 033): her
+        /// death, then the pause, then a cleared room. It runs after every Update of the frame, so Esc's pause (the HUD's, in
+        /// its own Update) and a chest opened with the interact key are seen here whichever Update ran first; a cleared room
+        /// waits while a choice, the pause menu or an end screen is up, and comes when it has closed.
+        /// </summary>
+        void Settle()
+        {
+            SettleDeath();
+            if (_level == null || Choice != ChoiceKind.None) return;
             if (InRun && !Paused) HealClearedRooms(); // work order 030: before the elite room's choice pauses the game
             // The elite room first (work order 017): its choice comes up, and the floor's waits for the next frame.
             // One screen at a time (work order 026): while paused, both wait until the game resumes.
@@ -786,11 +844,15 @@ namespace Roguelike
             if (!Cleared && !Paused && _level.ExitRoomCleared) FloorFinished();
         }
 
-        // A hit stop puts back the time scale it found when it ends, in its own Update: the choice holds the pause after it.
-        void LateUpdate()
+        /// <summary>Her death in a run, once: the run ends, and the death screen comes (work orders 018 and 026).</summary>
+        void SettleDeath()
         {
-            if (Choice != ChoiceKind.None) Time.timeScale = 0f;
-            else HoldScreens(); // and the pause menu's, and the end's slow-down (work order 018)
+            if (!_diedPending) return;
+            _diedPending = false;
+            string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
+            EndRun("death", line);
+            // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
+            if (_level != null) OpenEnding(EndKind.Died);
         }
 
         Key InteractKey
@@ -877,6 +939,7 @@ namespace Roguelike
                 _text.Append('\n');
                 _text.Append("upgrades: ").Append(Modifiers.ShortText()).Append('\n');
                 _text.Append("skill upgrades: ").Append(SkillUpgrades.Text()).Append('\n');
+                _text.Append("focus: ").Append(FocusChoice.Taken ? FocusModeRules.Name(FocusChoice.Mode) : "today's, until the choice").Append('\n'); // work order 025
             }
             if (ActCleared) _text.Append(LastRunLine).Append('\n');
             else if (Cleared) _text.Append("FLOOR CLEARED   seed ").Append(layout.SeedText).Append('\n');
@@ -913,6 +976,7 @@ namespace Roguelike
             {
                 string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
                             + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
+                            + "\n" + PracticeFocusLine() // work order 025
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
             }
@@ -945,6 +1009,11 @@ namespace Roguelike
         void DrawChoice(float viewWidth)
         {
             if (_choiceStyle == null) _choiceStyle = new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.UpperLeft, wordWrap = true, padding = new RectOffset(10, 10, 8, 8) };
+            if (Choice == ChoiceKind.FocusChoice)
+            {
+                DrawFocusChoice(viewWidth); // work order 025
+                return;
+            }
             PlayerCharacter player = _player;
             bool reward = Choice == ChoiceKind.FloorReward;
             bool skillUpgrade = Choice == ChoiceKind.SkillUpgrade; // work order 017
@@ -990,7 +1059,7 @@ namespace Roguelike
                     return;
                 }
             }
-            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), "The game is paused.   F7 leaves the run.");
+            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), "The game is paused.   F7 leaves the run." + RedrawWords());
         }
     }
 }

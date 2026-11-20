@@ -197,6 +197,7 @@ namespace Roguelike.PlayModeTests
                         _levels.FinishFloorForTests();
                         for (int i = 0; i < 600 && _levels.Choice != GeneratedLevels.ChoiceKind.FloorReward; i++) yield return null;
                         if (!_levels.PickReward(0)) throw new InvalidOperationException("no floor reward on floor " + _levels.Floor);
+                        if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025): the first way offered
                         yield return null;
                     }
                     EquipEight(_player);

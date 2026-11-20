@@ -63,6 +63,17 @@ namespace Roguelike.Rules
         /// "it stays scarce, but can be upgraded during the run"). Never under <see cref="RunValues.CooldownFloor"/> of its own.
         /// </summary>
         DashCooldown,
+        // Work order 025 (2026-11-20, Kristian: "more to choose in a run"): five more steps, each felt, none changing how she plays.
+        /// <summary>Heals Heal now; her maximum stays. Never offered at full health.</summary>
+        Mend,
+        /// <summary>The basic shot reaches Amount m farther. At most <see cref="UpgradeDefinition.MaxTaken"/> in a run.</summary>
+        LongerBarrel,
+        /// <summary>Marks stay Amount s longer before they fall off.</summary>
+        LastingMarks,
+        /// <summary>Focus fills by the share Amount faster, from everything that fills it.</summary>
+        KeenFocus,
+        /// <summary>Everything she does takes the share Amount more off a stagger bar.</summary>
+        HeavyHits,
     }
 
     /// <summary>One row of the chest table: a kind, how much, and for some a skill.</summary>
@@ -74,15 +85,18 @@ namespace Roguelike.Rules
         public int Heal;
         /// <summary>The skill it names; empty for Cooldown means one she has, drawn when offered.</summary>
         public string Skill = "";
+        /// <summary>Above 0: offered no more once a run has taken it this many times (work order 025: Longer barrel, 3).</summary>
+        public int MaxTaken;
 
         public UpgradeDefinition() { }
 
-        public UpgradeDefinition(UpgradeKind kind, float amount, int heal = 0, string skill = "")
+        public UpgradeDefinition(UpgradeKind kind, float amount, int heal = 0, string skill = "", int maxTaken = 0)
         {
             Kind = kind;
             Amount = amount;
             Heal = heal;
             Skill = skill;
+            MaxTaken = maxTaken;
         }
     }
 
@@ -96,6 +110,7 @@ namespace Roguelike.Rules
 
         static string Pct(float share) => (share * 100f).ToString("0.#", CultureInfo.InvariantCulture) + "%";
         static string Int(float v) => ((int)Math.Round(v)).ToString(CultureInfo.InvariantCulture);
+        static string Num(float v) => v.ToString("0.#", CultureInfo.InvariantCulture);
 
         /// <summary>What it does, in one line of plain words, for the choice on screen.</summary>
         public string Text =>
@@ -104,6 +119,12 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Cooldown ? "-" + Pct(Amount) + " cooldown on " + Skill
             : Kind == UpgradeKind.RunSpeed ? "+" + Pct(Amount) + " run speed"
             : Kind == UpgradeKind.DashCooldown ? "-" + Pct(Amount) + " dash cooldown"
+            // Work order 025.
+            : Kind == UpgradeKind.Mend ? "Mend: heal " + Heal.ToString(CultureInfo.InvariantCulture) + " now (your maximum stays)"
+            : Kind == UpgradeKind.LongerBarrel ? "Longer barrel: the basic shot reaches " + Num(Amount) + " m farther"
+            : Kind == UpgradeKind.LastingMarks ? "Lasting marks: marks stay " + Num(Amount) + " s longer"
+            : Kind == UpgradeKind.KeenFocus ? "Keen focus: focus fills " + Pct(Amount) + " faster"
+            : Kind == UpgradeKind.HeavyHits ? "Heavy hits: " + Pct(Amount) + " more off a stagger bar"
             : "+" + Int(Amount) + " mark from " + Skill + "'s hit on a target with none";
 
         /// <summary>The short form for the box on screen and the log.</summary>
@@ -113,6 +134,11 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Cooldown ? "-" + Pct(Amount) + " cd " + Skill
             : Kind == UpgradeKind.RunSpeed ? "+" + Pct(Amount) + " speed"
             : Kind == UpgradeKind.DashCooldown ? "-" + Pct(Amount) + " cd dash"
+            : Kind == UpgradeKind.Mend ? "heal " + Heal.ToString(CultureInfo.InvariantCulture)
+            : Kind == UpgradeKind.LongerBarrel ? "+" + Num(Amount) + " m reach"
+            : Kind == UpgradeKind.LastingMarks ? "+" + Num(Amount) + " s marks"
+            : Kind == UpgradeKind.KeenFocus ? "+" + Pct(Amount) + " focus"
+            : Kind == UpgradeKind.HeavyHits ? "+" + Pct(Amount) + " stagger"
             : "+" + Int(Amount) + " first mark " + Skill;
 
         public override string ToString() => Short;
@@ -150,7 +176,8 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The order's examples: +10 maximum health and heal 10; +5 % damage; -5 % cooldown on a skill she has; +5 % run
-        /// speed; +1 mark from Quick Shot's first hit. Work order 017: -8 % dash cooldown.
+        /// speed; +1 mark from Quick Shot's first hit. Work order 017: -8 % dash cooldown. Work order 025: Mend (heal 30),
+        /// Longer barrel (+1 m, at most three), Lasting marks (+2 s), Keen focus (+10 %), Heavy hits (+10 % stagger).
         /// </summary>
         public static UpgradeDefinition[] DefaultUpgrades() => new[]
         {
@@ -160,6 +187,11 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.RunSpeed, 0.05f),
             new UpgradeDefinition(UpgradeKind.FirstMark, 1f, skill: "Quick Shot"),
             new UpgradeDefinition(UpgradeKind.DashCooldown, 0.08f),
+            new UpgradeDefinition(UpgradeKind.Mend, 0f, heal: 30),
+            new UpgradeDefinition(UpgradeKind.LongerBarrel, 1f, maxTaken: 3),
+            new UpgradeDefinition(UpgradeKind.LastingMarks, 2f),
+            new UpgradeDefinition(UpgradeKind.KeenFocus, 0.1f),
+            new UpgradeDefinition(UpgradeKind.HeavyHits, 0.1f),
         };
     }
 
@@ -195,13 +227,33 @@ namespace Roguelike.Rules
     /// <summary>
     /// The chests (work order 012): each offers <see cref="RunValues.UpgradesOffered"/> different rows of the table,
     /// drawn from the run's seed, the floor's number and the chest's place in the floor, so the same run offers the same.
-    /// A Cooldown row names one of the skills she has, drawn too.
+    /// A Cooldown row names one of the skills she has, drawn too. Work order 025: a row the run may not take now is passed
+    /// over in the drawn order (Mend at full health, a row taken its most times), so a larger table changes what a given
+    /// run seed's chests offer.
     /// </summary>
     public static class ChestUpgrades
     {
         public const string Stage = "chest";
 
-        public static List<Upgrade> Offer(ulong runSeed, int floor, int chest, IReadOnlyList<string> equippedSkills, RunValues values)
+        /// <summary>True when the run may be offered this row now: not Mend at full health, not a row taken its most times.</summary>
+        public static bool MayOffer(UpgradeDefinition d, RunModifiers taken, bool atFullHealth)
+        {
+            if (d == null) return false;
+            if (d.Kind == UpgradeKind.Mend && atFullHealth) return false;
+            if (d.MaxTaken > 0 && taken != null && taken.CountOf(d.Kind) >= d.MaxTaken) return false;
+            return true;
+        }
+
+        /// <summary>The offer with nothing taken and her hurt: every row may come up.</summary>
+        public static List<Upgrade> Offer(ulong runSeed, int floor, int chest, IReadOnlyList<string> equippedSkills, RunValues values, int extra = 0) =>
+            Offer(runSeed, floor, chest, equippedSkills, values, null, false, extra);
+
+        /// <summary>
+        /// <paramref name="extra"/> more than the values say (work order 029: Deep Chests, the first chest of a floor); the
+        /// first ones drawn are the same either way.
+        /// </summary>
+        public static List<Upgrade> Offer(ulong runSeed, int floor, int chest, IReadOnlyList<string> equippedSkills, RunValues values,
+                                          RunModifiers taken, bool atFullHealth, int extra = 0)
         {
             LevelRandom rng = LevelRandom.Stream(runSeed, Stage, floor * 64 + chest);
             var rows = Enumerable.Range(0, values.Upgrades?.Length ?? 0).ToList();
@@ -209,8 +261,9 @@ namespace Roguelike.Rules
             var offer = new List<Upgrade>();
             foreach (int i in rows)
             {
-                if (offer.Count >= values.UpgradesOffered) break;
+                if (offer.Count >= values.UpgradesOffered + Math.Max(0, extra)) break;
                 UpgradeDefinition d = values.Upgrades[i];
+                if (!MayOffer(d, taken, atFullHealth)) continue;
                 string skill = d.Skill ?? "";
                 if (d.Kind == UpgradeKind.Cooldown && skill.Length == 0)
                 {
@@ -225,7 +278,9 @@ namespace Roguelike.Rules
 
     /// <summary>
     /// What a run has taken from its chests (work order 012): a plain list, read where the values are used (damage dealt,
-    /// maximum health, a skill's cooldown, run speed, a skill's first mark, and since work order 017 the dash's cooldown). It never writes to the settings. Cleared
+    /// maximum health, a skill's cooldown, run speed, a skill's first mark, and since work order 017 the dash's cooldown;
+    /// since work order 025 the basic shot's reach, the marks' lifetime, focus gained and stagger dealt, and a Mend is only
+    /// listed: its heal is given when it is taken). It never writes to the settings. Cleared
     /// when a run starts or ends.
     /// </summary>
     public sealed class RunModifiers
@@ -241,7 +296,17 @@ namespace Roguelike.Rules
             if (u != null) _taken.Add(u);
         }
 
-        public void Clear() => _taken.Clear();
+        /// <summary>
+        /// The pieces of the rack equipped for this run (work order 029, decision 0009, a proposal he has not ruled on): empty
+        /// unless what lasts between runs is switched on, and empty they change none of the numbers here.
+        /// </summary>
+        public RunMetaEffects Meta { get; } = new RunMetaEffects();
+
+        public void Clear()
+        {
+            _taken.Clear();
+            Meta.Clear();
+        }
 
         float Sum(UpgradeKind kind, string skill = null)
         {
@@ -253,15 +318,33 @@ namespace Roguelike.Rules
 
         /// <summary>Maximum health added.</summary>
         public int BonusMaxHealth => (int)Math.Round(Sum(UpgradeKind.MaxHealth));
-        /// <summary>The share of damage dealt: 1 plus each damage upgrade's share.</summary>
-        public float DamageShare => 1f + Sum(UpgradeKind.Damage);
+        /// <summary>Her maximum in the run from her own (work order 029): raised by the rack's share, then the chests' health added.</summary>
+        public int MaxHealthFor(int own) =>
+            (Meta.MaxHealthShare != 0f ? (int)Math.Round(own * (1.0 + Meta.MaxHealthShare), MidpointRounding.AwayFromZero) : own) + BonusMaxHealth;
+        /// <summary>The share of damage dealt: 1 plus each damage upgrade's share, times the rack's step (work order 029).</summary>
+        public float DamageShare => (1f + Sum(UpgradeKind.Damage)) * (1f + Meta.DamageShare);
         public int ScaleDamage(int damage) => damage <= 0 ? damage : (int)Math.Round(damage * DamageShare, MidpointRounding.AwayFromZero);
         /// <summary>The share of a skill's own cooldown it runs: 1 less each cut to it, never under <see cref="CooldownFloor"/>.</summary>
         public float CooldownShare(string skill) => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.Cooldown, skill ?? ""));
         public float RunSpeedShare => 1f + Sum(UpgradeKind.RunSpeed);
         public int FirstMarkBonus(string skill) => (int)Math.Round(Sum(UpgradeKind.FirstMark, skill ?? ""));
-        /// <summary>The share of the dash's own cooldown it runs (work order 017): 1 less each cut, never under <see cref="CooldownFloor"/>.</summary>
-        public float DashCooldownShare => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.DashCooldown));
+        /// <summary>
+        /// The share of the dash's own cooldown it runs (work order 017): 1 less each cut, never under <see cref="CooldownFloor"/>;
+        /// times Spare Step's longer recharge (work order 029).
+        /// </summary>
+        public float DashCooldownShare => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.DashCooldown)) * Meta.DashRechargeScale;
+
+        // Work order 025 (2026-11-20).
+        /// <summary>How many of this kind the run has taken.</summary>
+        public int CountOf(UpgradeKind kind) => _taken.Count(u => u.Kind == kind);
+        /// <summary>Metres the basic shot reaches farther (Longer barrel).</summary>
+        public float BasicShotRangeBonus => Sum(UpgradeKind.LongerBarrel);
+        /// <summary>Seconds marks stay longer before they fall off (Lasting marks).</summary>
+        public float MarkLifetimeBonus => Sum(UpgradeKind.LastingMarks);
+        /// <summary>The share of focus she gains from anything: 1 plus each Keen focus's share.</summary>
+        public float FocusGainShare => 1f + Sum(UpgradeKind.KeenFocus);
+        /// <summary>The share of stagger everything she does takes off a bar: 1 plus each Heavy hits' share.</summary>
+        public float StaggerShare => 1f + Sum(UpgradeKind.HeavyHits);
 
         /// <summary>The upgrades taken, in short form, the same ones counted together: "+10 hp x2, +5% dmg".</summary>
         public string ShortText()

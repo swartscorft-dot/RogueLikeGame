@@ -54,7 +54,7 @@ namespace Roguelike
         /// </summary>
         public bool Pause()
         {
-            if (Paused || Choice != ChoiceKind.None || Ending != EndKind.None || FindPlayer() == null) return false;
+            if (Paused || Choice != ChoiceKind.None || Ending != EndKind.None || BetweenRunsUp || FindPlayer() == null) return false; // nor under the screen between runs (work order 029)
             _screenScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f; // a hit stop's 0 is not kept
             Paused = true;
             Time.timeScale = 0f;
@@ -101,12 +101,13 @@ namespace Roguelike
             Debug.Log("End screen: " + kind + " on " + (Record != null ? Record.FloorText + ", " + Record.RoomText : "?"));
         }
 
-        /// <summary>Closes the pause menu and the end screen, if up, and gives the time scale back.</summary>
+        /// <summary>Closes the pause menu and the end screen, and the screen between runs (work order 029), if up, and gives the time scale back.</summary>
         void CloseScreens()
         {
-            if (!Paused && Ending == EndKind.None) return;
+            if (!Paused && Ending == EndKind.None && !BetweenRunsUp) return;
             Paused = false;
             Ending = EndKind.None;
+            BetweenRunsUp = false;
             if (_health != null) _health.Untouchable = false;
             Time.timeScale = _screenScaleBefore;
             PlayerInputDriver.HeldByScreen = false;
@@ -115,7 +116,7 @@ namespace Roguelike
         /// <summary>Every frame (and again late, after a hit stop that ended): the pause holds 0, the end slows to 0.</summary>
         void HoldScreens()
         {
-            if (Paused) Time.timeScale = 0f;
+            if (Paused || BetweenRunsUp) Time.timeScale = 0f; // and the screen between runs (work order 029)
             else if (Ending != EndKind.None) Time.timeScale = _screenScaleBefore * HudRules.EndSlowdown(SecondsSinceEnd);
         }
 

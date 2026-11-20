@@ -311,6 +311,7 @@ namespace Roguelike.PlayModeTests
             int heal = FloorHeals.Amount(_health.Max, run.FloorHeal);
             Assert.That(heal, Is.EqualTo(Mathf.RoundToInt(_health.Max * 0.35f)));
             Assert.That(_levels.PickReward(0), Is.True);
+            if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025): the first way offered
             Assert.That(_health.Current, Is.EqualTo(Math.Min(_health.Max, before + heal)), "healed by 35 % of her maximum");
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.Record.FloorHealText, Does.Contain("+" + heal), "said on screen with what was taken");
@@ -403,6 +404,7 @@ namespace Roguelike.PlayModeTests
                 _levels.FinishFloorForTests();
                 yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
                 Assert.That(_levels.PickReward(0), Is.True);
+                if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025): the first way offered
                 yield return null;
             }
         }

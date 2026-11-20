@@ -23,6 +23,11 @@ Kristian asked for agreed terms on 2026-11-19, after playing a generated level w
 | **Mark** | merke | What pistol skills put on an enemy and shotgun skills spend. He says "stacks". |
 | **Focus** | fokus | The gauge on Z. |
 | **Upgrade** | oppgradering | A change to one skill chosen during a run, from an elite room. Lost Ark's word, used in the first documents, is "tripod". The small steps from chests are "chest upgrades" (kisteoppgraderinger). |
+| **Caster** | besverger | The fifth kind of enemy: it bursts circles on the ground where she stands. The others: brute (skjelettkriger), swarmer (ghoul), shooter (bueskytter), guard (vakt). |
+| **Turn to attack** | tur til å angripe | The rule that only a few enemies of a floor may wind up at the same moment. |
+| **Rack** | hylle | In the between-runs trial: the pieces she owns, of which she equips as many as her budget of points allows. |
+| **Piece** | brikke | One thing on the rack: a rule that changes for the next run, or a capped stat step. |
+| **Feat** | bragd | Something done once that raises the rack's budget by a point. |
 | **Pack** | flokk | Several weak enemies that wake and fight together. |
 | **Cover** | dekning | A wall or a tall prop that stops shots. |
 | **Practice room** | treningsrom | The hand-built room with the dummies. Not part of a run. |

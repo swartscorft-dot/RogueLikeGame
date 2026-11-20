@@ -74,6 +74,15 @@ namespace Roguelike.Rules
         public const string EliteClear = "elite_clear";       // every enemy of the elite room is dead: floor, seconds since she first entered it, health left
         public const string SkillUpgradeOffer = "skill_upgrade_offer"; // floor, offered the upgrades ("Skill: Name (kind)") joined by " | "; heal "true" when none was left
         public const string SkillUpgradeTake = "skill_upgrade_take";   // an upgrade was taken: floor, name "Skill: Name", kind
+        // The focus choice (work order 025). A focus_spent says what it was spent as: "as" today, part (Hair Trigger) or window (Steady Hand).
+        public const string FocusChoiceOffer = "focus_choice_offer";   // floor, offered the two ways joined by " | "
+        public const string FocusChoiceTake = "focus_choice_take";     // floor, name the way taken ("Hair Trigger")
+        public const string PrimeUsed = "prime_used";                  // a primed skill used Hair Trigger's priming: name the skill, result what it gained
+        public const string PrimeLapsed = "prime_lapsed";              // a priming ran out unused
+        // What lasts between runs (work order 029), only with that trial switched on.
+        public const string MetaLoadout = "meta_loadout";     // a run started: name the pieces equipped joined by " | ", currency, budget, used
+        public const string MetaEarn = "meta_earn";           // the run earned: name what from (floor, elite room, act boss), amount, floor
+        public const string MetaFeat = "meta_feat";           // a feat done for the first time, when the run ended: name its id
         // Taking cover (Kristian 2026-11-19, an experiment). A shot it stopped is an enemy_strike with result "stopped by cover".
         public const string CoverEnter = "cover_enter";       // she took cover: name is "tall" or "low", what she is behind
         public const string CoverLeave = "cover_leave";       // she left cover: result says how (released, dash, moving skill, other)

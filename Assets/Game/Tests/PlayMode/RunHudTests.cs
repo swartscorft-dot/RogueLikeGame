@@ -461,6 +461,7 @@ namespace Roguelike.PlayModeTests
                 _levels.FinishFloorForTests();
                 yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
                 Assert.That(_levels.PickReward(0), Is.True, "floor " + floor);
+                if (floor == 1) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice"); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
                 yield return null;
             }
             exitKills += _levels.Level.ExitEnemies.Count;

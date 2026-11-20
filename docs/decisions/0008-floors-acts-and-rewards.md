@@ -67,6 +67,17 @@ Still the producer's defaults, not his: five floors to an act (he was asked on 2
 
 Built on these that day: work order 014 (the knight as act boss, fuller rooms), 015 (a pool of eight skills for the four free keys), 017 (the elite room and the upgrades), 018 (a HUD, a pause menu, screens for death and for a cleared act).
 
+## What was built on it on 2026-11-20, and what the producer chose for him
+
+Kristian was at the office; the producer built without him and chose where a choice was cheap to undo. Each of these is his to overrule after playing. All numbers are first guesses in the values classes.
+
+- **The act boss** (work order 014): the crypt knight, 18000 health, with a stagger bar half again the guard's. Cleave and Spin take turns up close; a Charge down a line when she is 7 to 16 m away and it sees her. Below half health it is angry: wind-ups a fifth shorter, and two charges in a row. At 66 % and 33 % health it calls six swarmers. **The Charge is its blue attack**: Stopping Shot from the front during the wind-up drops it and dazes the boss. F8 in the practice room spawns one with a third of its health.
+- **Fuller rooms** (014): eight to ten enemies in a floor-1 combat room, twelve to sixteen on floor 5, half as many again in an exit room. His words were "three to four times as many".
+- **The elite room** (017, his ruling above): the middle combat room of the chain. It holds the room's enemies and one elite (four times its kind's health, a quarter more damage, a third larger, gold, with a stagger bar). She may walk past it and then gets nothing; the doors are never locked.
+- **A first balance pass** (023; **on its own branch, not in `main` when this was written**: `main` that afternoon was still the game no bot could finish), after a test pilot (022: three bots that play through the intents) found that no bot could finish the act: at most two heavy and two ranged enemies of a floor wind up at once, half a second apart; she is healed by 35 % when a floor's reward is taken; at most three brutes and three shooters in a combat room, the rest swarmers; the floors' brutes use the Shockwave at 3 to 8 m. A second pass (030) was still being measured when this was written.
+- **A fifth kind of enemy, the caster** (027, his request that day; **built and tested on its own branch, held out of `main` until the balance pass is in**, because casters make floors 2 to 5 harder): it keeps its distance and bursts circles on the ground where she stands; every third cast is three circles that follow her and can be countered. From floor 2.
+- **Rooms with a theme and seven more props** (028, his request that day for "more of the crypt") were being built when this was written.
+
 ## What this changes
 
 - `docs/vision/core-loop.md` says: room, pick a tripod, next room, boss. The loop is now: floor, floor reward, next floor, act boss. Not rewritten until he confirms.
