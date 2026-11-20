@@ -156,8 +156,12 @@ namespace Roguelike.Rules
         // Props (work order 009)
         public bool Props = true;              // off: levels are generated and built without props
 
+        // The crypt wall kit (work order 016, 2026-11-20): how a floor looks, never what it is
+        public bool CryptKit = true;           // off: the grey boxes as before, for comparing; the generator never reads it
+
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
+        public CryptKitValues Crypt = new CryptKitValues();
 
         /// <summary>
         /// The enemies by floor number (work order 012, first guesses): mostly swarmers with a few brutes and a shooter on

@@ -25,6 +25,12 @@ namespace Roguelike
     /// against it (Kristian, 2026-11-19, an experiment). Then the enemies of each enemy point stand there, of
     /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed.
     ///
+    /// The crypt kit (work order 016, 2026-11-20; <see cref="LevelValues.CryptKit"/>, on by default): once the NavMesh
+    /// is built, the wall boxes stop showing and the kit's walls, low walls, piers, posts, door arches and lanterns are
+    /// drawn in their place, and the floor boxes show stone floors (<see cref="DressInCryptKit"/>). Only what is drawn
+    /// changes: the boxes keep their colliders, cover, shelter and layer, and no piece has a collider. Off, the grey
+    /// boxes show as before.
+    ///
     /// Positions: the level's ground point (x, y) in metres is the world point (x, 0, y) moved so that the start
     /// room's middle lands on (<see cref="LevelValues.OffsetX"/>, 0, <see cref="LevelValues.OffsetZ"/>).
     /// </summary>
@@ -62,7 +68,23 @@ namespace Roguelike
         readonly List<Enemy> _enemies = new List<Enemy>();
         readonly List<PlacedGroup> _groups = new List<PlacedGroup>();
         readonly List<Material> _materials = new List<Material>();
+        readonly List<GameObject> _floorBoxes = new List<GameObject>();
+        readonly List<GameObject> _wallBoxes = new List<GameObject>();
+        readonly List<KitPiece> _kitPieces = new List<KitPiece>();
         Vector3 _shift;
+
+        /// <summary>The floor boxes, one per room in the order of the rooms.</summary>
+        public IReadOnlyList<GameObject> FloorBoxes => _floorBoxes;
+        /// <summary>The wall boxes, full and low, in the order they were built.</summary>
+        public IReadOnlyList<GameObject> WallBoxes => _wallBoxes;
+        /// <summary>Where the crypt kit's pieces go (work order 016); null with the kit off.</summary>
+        public CryptKitPlan KitPlan { get; private set; }
+        /// <summary>The object every kit piece is under; null with the kit off.</summary>
+        public Transform KitRoot { get; private set; }
+        /// <summary>The kit pieces built, sections first, then arches, piers and posts, lanterns.</summary>
+        public IReadOnlyList<KitPiece> KitPieces => _kitPieces;
+        /// <summary>The lanterns' lights, when they are on (<see cref="CryptKitValues.LanternLights"/>); else null.</summary>
+        public CryptKitLights KitLights { get; private set; }
 
         /// <summary>
         /// Builds the level under a new root object in the active scene. <paramref name="enemyTemplate"/> is copied
@@ -86,6 +108,9 @@ namespace Roguelike
             level.Surface.collectObjects = CollectObjects.Children;
             level.Surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             level.Surface.BuildNavMesh();
+
+            // Work order 016: the kit is put in only once the NavMesh is built, so nothing of it can be in it.
+            if (values.CryptKit) level.DressInCryptKit();
 
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
             return level;
@@ -145,6 +170,7 @@ namespace Roguelike
                 floor.transform.position = new Vector3(middle.x, -Values.FloorThickness * 0.5f, middle.z);
                 floor.transform.localScale = new Vector3(room.Rect.Width * cs, Values.FloorThickness, room.Rect.Height * cs);
                 floor.GetComponent<Renderer>().sharedMaterial = tints[room.Kind];
+                _floorBoxes.Add(floor);
                 Floors++;
             }
         }
@@ -220,9 +246,160 @@ namespace Roguelike
             wall.AddComponent<Cover>(); // every wall, the low near ones too, stops shots (Kristian, 2026-11-19)
             wall.AddComponent<Shelter>(); // and she can take cover against it (Kristian, 2026-11-19, an experiment)
             WallLayer = wall.layer;
+            _wallBoxes.Add(wall);
             Walls++;
             if (low) LowWalls++;
         }
+
+        // ---------------- The crypt kit (work order 016, 2026-11-20) ----------------
+
+        /// <summary>A kit piece as built: what it is, its place in its list of the plan, and the object.</summary>
+        public sealed class KitPiece
+        {
+            public CryptPiece Kind;
+            /// <summary>Into the plan's sections, arches, points or lanterns, by its kind.</summary>
+            public int Index;
+            public GameObject Object;
+            public long Triangles;
+        }
+
+        static Vector3 SideOf(bool vertical, int side) => vertical ? new Vector3(side, 0f, 0f) : new Vector3(0f, 0f, side);
+
+        /// <summary>
+        /// Dresses the boxes in the crypt kit (work order 016): only what is drawn changes. Every wall box keeps its
+        /// collider, <see cref="Cover"/>, <see cref="Shelter"/> and layer and only stops showing; the kit's pieces stand
+        /// where <see cref="CryptKitPlan"/> puts them, under <see cref="KitRoot"/>, without colliders, on
+        /// <see cref="CryptKit.Layer"/>. Each floor box shows its room kind's floor texture, one copy a cell. One material
+        /// per model and per room kind, made here and destroyed with the level.
+        ///
+        /// A section stands on its cell edge, its length along the line, its front (+Z) to the side the plan says; the
+        /// niche's model turned the other way when its niche is on its -Z face. An arch stands in the middle of its door
+        /// cell, stretched along the wall (<see cref="CryptKitValues.ArchToGap"/>) so its clear opening is no narrower
+        /// than the gap the wall boxes leave. Piers and posts stand on their grid points. A lantern hangs on its
+        /// section's face at <see cref="CryptKitValues.LanternHeight"/>, its back on the face (read from the wall model's
+        /// depth), reaching into the room whichever way its model reaches.
+        /// </summary>
+        void DressInCryptKit()
+        {
+            CryptKitValues v = Values.Crypt ?? new CryptKitValues();
+            KitPlan = CryptKitPlan.Make(Layout, v);
+            var kitRoot = new GameObject("CryptKit") { layer = CryptKit.Layer };
+            kitRoot.transform.SetParent(transform, false);
+            KitRoot = kitRoot.transform;
+            float cs = Layout.CellSize;
+
+            var materials = new Dictionary<CryptPiece, Material>();
+            KitPiece Place(CryptPiece kind, int index, string name, LevelPoint at, float height, Quaternion rotation, Vector3 scale)
+            {
+                CryptKit.Model model = CryptKit.Load(kind);
+                if (model == null) return null;
+                if (!materials.TryGetValue(kind, out Material m))
+                {
+                    materials[kind] = m = CryptKit.MakeMaterial(kind, v);
+                    _materials.Add(m);
+                }
+                GameObject go = CryptKit.Make(model, m, KitRoot, name, ToWorld(at) + Vector3.up * height, rotation, scale);
+                var piece = new KitPiece { Kind = kind, Index = index, Object = go, Triangles = model.Triangles };
+                _kitPieces.Add(piece);
+                return piece;
+            }
+            LevelPoint EdgeMiddle(bool vertical, int line, int cell) =>
+                vertical ? new LevelPoint(line * cs, (cell + 0.5) * cs) : new LevelPoint((cell + 0.5) * cs, line * cs);
+            string EdgeName(bool vertical, int line, int cell) => (vertical ? "V" : "H") + line + "_" + cell;
+
+            // Sections.
+            for (int i = 0; i < KitPlan.Sections.Count; i++)
+            {
+                CryptKitSection s = KitPlan.Sections[i];
+                CryptPiece kind = s.Low ? CryptPiece.LowWall : s.Niche ? CryptPiece.WallNiche : CryptPiece.Wall;
+                Quaternion turn = Quaternion.LookRotation(SideOf(s.Vertical, s.Facing));
+                if (kind == CryptPiece.WallNiche && !v.NicheFacesPlusZ) turn *= Quaternion.Euler(0f, 180f, 0f);
+                string prefix = kind == CryptPiece.LowWall ? "Kit_Low_" : kind == CryptPiece.WallNiche ? "Kit_Niche_" : "Kit_Wall_";
+                Place(kind, i, prefix + EdgeName(s.Vertical, s.Line, s.Cell), EdgeMiddle(s.Vertical, s.Line, s.Cell), 0f, turn, Vector3.one);
+            }
+
+            // Arches, stretched so the opening is at least the boxes' gap.
+            CryptKit.Model arch = CryptKit.Load(CryptPiece.Arch);
+            float stretch = 1f;
+            if (arch != null && v.ArchToGap)
+            {
+                float opening = arch.Bounds.size.x * v.ArchOpeningShare;
+                float gap = cs - Values.WallThickness;
+                if (opening > 1e-3f && opening < gap) stretch = gap / opening;
+            }
+            ArchStretch = stretch;
+            for (int i = 0; i < KitPlan.Arches.Count; i++)
+            {
+                CryptKitArch a = KitPlan.Arches[i];
+                Place(CryptPiece.Arch, i, "Kit_Arch_" + EdgeName(a.Vertical, a.Line, a.Cell), EdgeMiddle(a.Vertical, a.Line, a.Cell), 0f,
+                      Quaternion.LookRotation(SideOf(a.Vertical, 1)), new Vector3(stretch, 1f, 1f));
+            }
+
+            // Piers and posts.
+            for (int i = 0; i < KitPlan.Points.Count; i++)
+            {
+                CryptKitPoint p = KitPlan.Points[i];
+                Place(p.Pier ? CryptPiece.Pier : CryptPiece.Post, i, (p.Pier ? "Kit_Pier_" : "Kit_Post_") + p.X + "_" + p.Y,
+                      new LevelPoint(p.X * cs, p.Y * cs), 0f, Quaternion.identity, Vector3.one);
+            }
+
+            // Lanterns, on the faces of plain sections.
+            CryptKit.Model wall = CryptKit.Load(CryptPiece.Wall);
+            CryptKit.Model lantern = CryptKit.Load(CryptPiece.Lantern);
+            bool reachesMinusZ = lantern != null && lantern.Bounds.center.z < 0f;
+            var lightsByRoom = new Dictionary<int, int>();
+            for (int i = 0; i < KitPlan.Lanterns.Count; i++)
+            {
+                CryptKitLantern l = KitPlan.Lanterns[i];
+                CryptKitSection s = KitPlan.Sections[l.Section];
+                Vector3 into = SideOf(s.Vertical, l.Side);
+                // How far the face it hangs on is from the line: the wall model's depth on that side of its pivot.
+                float face = wall == null ? Values.WallThickness * 0.5f : l.Side == s.Facing ? wall.Bounds.max.z : -wall.Bounds.min.z;
+                LevelPoint middle = EdgeMiddle(s.Vertical, s.Line, s.Cell);
+                LevelPoint at = new LevelPoint(middle.X + into.x * face, middle.Y + into.z * face);
+                Quaternion turn = Quaternion.LookRotation(into);
+                if (reachesMinusZ) turn *= Quaternion.Euler(0f, 180f, 0f);
+                KitPiece piece = Place(CryptPiece.Lantern, i, "Kit_Lantern_" + EdgeName(s.Vertical, s.Line, s.Cell) + (l.Side > 0 ? "+" : "-"),
+                                       at, v.LanternHeight, turn, Vector3.one);
+
+                // Lights (optional): the first of each room's lanterns, as many as allowed, a little out from the wall.
+                if (!v.LanternLights || piece == null) continue;
+                lightsByRoom.TryGetValue(l.Room, out int lit);
+                if (lit >= v.LightsPerRoom) continue;
+                lightsByRoom[l.Room] = lit + 1;
+                if (KitLights == null) KitLights = gameObject.AddComponent<CryptKitLights>();
+                float reach = lantern != null ? lantern.Bounds.size.z : 0f;
+                Vector3 lightAt = piece.Object.transform.position + into * (reach + v.LightOut);
+                KitLights.Add(l.Room, lightAt, v, KitRoot);
+            }
+
+            // Floors: each kind's texture, a copy a cell, lined up with the grid (a room starts on a cell's edge).
+            var floorMaterials = new Dictionary<RoomKind, Material>();
+            var block = new MaterialPropertyBlock();
+            for (int i = 0; i < _floorBoxes.Count && i < Layout.Rooms.Count; i++)
+            {
+                LevelRoom room = Layout.Rooms[i];
+                if (!floorMaterials.TryGetValue(room.Kind, out Material m))
+                {
+                    floorMaterials[room.Kind] = m = CryptKit.MakeFloorMaterial(room.Kind, v);
+                    _materials.Add(m);
+                }
+                Renderer r = _floorBoxes[i].GetComponent<Renderer>();
+                r.sharedMaterial = m;
+                float tile = v.FloorTile > 1e-3f ? v.FloorTile : cs;
+                float w = room.Rect.Width * cs / tile, d = room.Rect.Height * cs / tile;
+                bool uAlongX = CryptKit.TopFaceUAlongX(_floorBoxes[i].GetComponent<MeshFilter>().sharedMesh);
+                block.Clear();
+                block.SetVector("_BaseMap_ST", uAlongX ? new Vector4(w, d, 0f, 0f) : new Vector4(d, w, 0f, 0f));
+                r.SetPropertyBlock(block);
+            }
+
+            // The boxes stop showing; their colliders, cover and shelter stay.
+            foreach (GameObject box in _wallBoxes) box.GetComponent<Renderer>().enabled = false;
+        }
+
+        /// <summary>How much each arch is stretched along its wall, 1 for none (work order 016).</summary>
+        public float ArchStretch { get; private set; } = 1f;
 
         // ---------------- Props (work order 009) ----------------
 
