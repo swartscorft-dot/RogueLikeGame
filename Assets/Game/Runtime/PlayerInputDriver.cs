@@ -53,6 +53,12 @@ namespace Roguelike
         /// </summary>
         public static bool HeldByChoice;
 
+        /// <summary>
+        /// True while the pause menu or a run's end screen is up (work order 018): the game is paused or slowing to a
+        /// stop, and no key or click reaches the character.
+        /// </summary>
+        public static bool HeldByScreen;
+
         /// <summary>Where frames come from. Null means the mouse and keyboard. Return null for "no input this frame".</summary>
         public Func<InputFrame?> InputSource;
 
@@ -78,6 +84,7 @@ namespace Roguelike
         {
             ReadRealDevices = true;
             HeldByChoice = false;
+            HeldByScreen = false;
         }
 
         void Awake()
@@ -88,7 +95,7 @@ namespace Roguelike
 
         void Update()
         {
-            if (HeldByChoice) return;
+            if (HeldByChoice || HeldByScreen) return;
             InputFrame? read = InputSource != null ? InputSource() : ReadDevices();
             if (read == null) return;
             InputFrame input = read.Value;
@@ -127,11 +134,11 @@ namespace Roguelike
         /// <summary>
         /// The point the dash goes toward, as the bindings choose (decision 0004): the cursor, or a dash length along
         /// the held move direction, or along where she faces when no move key is held. Read after the move keys, so it
-        /// is this frame's direction.
+        /// is this frame's direction. The pause menu's setting, when chosen, overrides the asset's (work order 018, <see cref="GameSettings"/>).
         /// </summary>
         public Vector3 DashPoint(Vector3 cursor)
         {
-            if (ActiveBindings.DashDirection != DashDirection.TowardMovement) return cursor;
+            if (GameSettings.Dash(ActiveBindings.DashDirection) != DashDirection.TowardMovement) return cursor;
             Vector3 dir = _player.MoveInput;
             if (dir.sqrMagnitude < 1e-6f) dir = new Vector3(_player.transform.forward.x, 0f, _player.transform.forward.z);
             if (dir.sqrMagnitude < 1e-6f) return cursor;

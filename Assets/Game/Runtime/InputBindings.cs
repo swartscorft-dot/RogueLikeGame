@@ -106,8 +106,9 @@ namespace Roguelike
             var skills = new System.Text.StringBuilder();
             if (Skills != null)
                 foreach (InputBinding b in Skills) { if (skills.Length > 0) skills.Append(' '); skills.Append(b.Label); }
+            // The dash direction as in use: the pause menu's override, if chosen, else this asset's (work order 018).
             return Name(MoveUp) + Name(MoveLeft) + Name(MoveDown) + Name(MoveRight) + " move  |  " + Shoot.Label + " shoot at the cursor  |  "
-                 + Name(Dash) + (DashDirection == DashDirection.TowardMovement ? " dash the way you move" : " dash to the cursor") + "  |  " + skills + " skills  |  " + Name(Focus) + " focus"
+                 + Name(Dash) + (GameSettings.Dash(DashDirection) == DashDirection.TowardMovement ? " dash the way you move" : " dash to the cursor") + "  |  " + skills + " skills  |  " + Name(Focus) + " focus"
                  + (TakeCover != Key.None ? "  |  " + Name(TakeCover) + " hold to take cover" : "");
         }
 
