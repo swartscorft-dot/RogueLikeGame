@@ -317,6 +317,8 @@ namespace Roguelike
                 // Work order 035: two things that happen to her, a word over her each.
                 case PlayerReportKind.Stunned: ShowWord(null, FeedbackRules.Word(FeedbackMoment.Stunned)); break;
                 case PlayerReportKind.Pulled: ShowWord(null, FeedbackRules.Word(FeedbackMoment.Pulled)); break;
+                // Work order 043: a quick duck stopped something.
+                case PlayerReportKind.DuckStopped: ShowWord(null, FeedbackRules.Word(FeedbackMoment.Ducked)); break;
             }
         }
 

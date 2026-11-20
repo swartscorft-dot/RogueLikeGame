@@ -428,6 +428,7 @@ namespace Roguelike
             lines.Add("Focus  " + K(b.Focus) + (focus != FocusMode.Today ? "  (" + FocusModeRules.Name(focus) + ")" : ""));
             lines.Add("Cover  " + K(b.TakeCover) + "  (hold)");
             lines.Add("Interact  " + K(b.Interact));
+            lines.Add("Map  " + K(FloorMap.LargeKey) + "  (hold)"); // work order 041: the small map, large while held
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;
             // A key and the skill on it are two things since work order 015: each key shows what sits on it now.
             int count = skills != null && b.Skills != null ? Mathf.Min(_player.KeyCount, b.Skills.Length) : 0;

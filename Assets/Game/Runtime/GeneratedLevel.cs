@@ -118,6 +118,7 @@ namespace Roguelike
 
             // Work order 016: the kit is put in only once the NavMesh is built, so nothing of it can be in it.
             if (values.CryptKit) level.DressInCryptKit();
+            if (values.DoorSigns) DoorSigns.Add(level); // work order 041: the doors that say what is behind them
 
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
             return level;
@@ -439,6 +440,8 @@ namespace Roguelike
                     GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
                     bool cover = prop.IsCover(Values.PropRules);
                     if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
+                    // Work order 043: the altar, the grave marker and the broken pillar are low under the quick duck's sort.
+                    if (cover) go.GetComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, Values.PropRules);
                     // She can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment), but a slender
                     // one (work order 028, the candelabra): it hides nothing.
                     if (!prop.Slender) go.AddComponent<Shelter>();
@@ -453,7 +456,11 @@ namespace Roguelike
             public LevelRoom Room;
             public LevelProp Prop;
             public GameObject Object;
-            /// <summary>It stops shots: it is at least <see cref="PropValues.CoverHeight"/> tall and carries <see cref="Cover"/>.</summary>
+            /// <summary>
+            /// It stops shots: it is at least <see cref="PropValues.CoverHeight"/> tall and carries <see cref="Cover"/>. With
+            /// the quick duck's switch on (work order 043) the three it sorts low stop nothing all the same
+            /// (<see cref="Cover.Stops"/>).
+            /// </summary>
             public bool IsCover;
         }
 

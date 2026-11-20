@@ -6,7 +6,7 @@ namespace Roguelike.Rules.Tests
     /// <summary>
     /// The things that fly (work order 036, 2026-11-20; decision 0010), as the rules see them: a projectile's step and its
     /// sweep (a fast arrow passes neither through her nor through a thin wall between two long steps), its end at its
-    /// longest flight, what she ducked behind, the arrow's lead (standing, straight, capped), the fan's directions, which
+    /// longest flight, what she ducked behind, the arrow's lead (work order 039's cases, capped), the fan's directions, which
     /// shot is a fan on which floor and for an elite, the caster's order with orbs, and the wave's size and reach. Walls
     /// are drawn here as lines across the ground. Every number is read from the values.
     /// </summary>
@@ -67,7 +67,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void AFastArrow_DoesNotPassThroughHer_BetweenTwoLongSteps()
         {
-            // Half a second a step at 24 m/s: 12 m. She stands 6 m ahead, inside the step.
+            // Half a second a step: 6.5 m at 13 m/s (12 m at 036's 24 m/s). She stands 6 m ahead, inside the step.
             Projectile p = Arrow(Origin, North);
             var her = new GroundPoint(0.6f, 6f);
             ProjectileStep s = ProjectileRules.Step(ref p, 0.5f, her, her, Her, null);
@@ -90,22 +90,46 @@ namespace Roguelike.Rules.Tests
             Assert.That(p.At.Z, Is.EqualTo(5f).Within(1e-3f), "it stops at the wall");
         }
 
+        /// <summary>
+        /// Found in work order 039: a step whose end fell a hair (under a millimetre) past a wall's face was not stopped, and
+        /// the next step, starting past the face, never met it. Steps are millimetres long at the frames of a test without a
+        /// window, so an arrow now and then flew through a wall.
+        /// </summary>
+        [Test]
+        public void AStepThatEndsAHairPastAWall_IsStoppedByIt()
+        {
+            var far = new GroundPoint(30f, 0f);
+            foreach (float past in new[] { 0f, 0.0002f, 0.0005f, 0.0009f, 0.002f })
+            {
+                Projectile p = Arrow(Origin, North);
+                ProjectileStep s = ProjectileRules.Step(ref p, (5f + past) / p.Speed, far, far, Her, WallAt(5f));
+                if (s.Hit == ProjectileHit.None) s = ProjectileRules.Step(ref p, 0.004f / p.Speed, far, far, Her, WallAt(5f));
+                Assert.That(s.Hit, Is.EqualTo(ProjectileHit.Wall), past + " m past");
+                Assert.That(p.At.Z, Is.EqualTo(5f).Within(1e-3f));
+            }
+            Projectile before = Arrow(Origin, North);
+            Assert.That(ProjectileRules.Step(ref before, 4.999f / before.Speed, far, far, Her, WallAt(5f)).Hit, Is.EqualTo(ProjectileHit.None), "short of it, on");
+            Assert.That(ProjectileRules.Step(ref before, 0.004f / before.Speed, far, far, Her, WallAt(5f)).Hit, Is.EqualTo(ProjectileHit.Wall), "and the next step meets it");
+        }
+
         [Test]
         public void HerOrAWall_WhicheverComesFirstAlongTheStep()
         {
+            // One step of a second, long enough to reach her and both walls (work order 039: at 13 m/s half a second fell short of her).
             var her = new GroundPoint(0f, 8f);
             Projectile behind = Arrow(Origin, North);
-            Assert.That(ProjectileRules.Step(ref behind, 0.5f, her, her, Her, WallAt(10f)).Hit, Is.EqualTo(ProjectileHit.MetHer), "the wall is behind her");
+            Assert.That(ProjectileRules.Step(ref behind, 1f, her, her, Her, WallAt(10f)).Hit, Is.EqualTo(ProjectileHit.MetHer), "the wall is behind her");
             Projectile before = Arrow(Origin, North);
-            Assert.That(ProjectileRules.Step(ref before, 0.5f, her, her, Her, WallAt(4f)).Hit, Is.EqualTo(ProjectileHit.Wall), "the wall is before her");
+            Assert.That(ProjectileRules.Step(ref before, 1f, her, her, Her, WallAt(4f)).Hit, Is.EqualTo(ProjectileHit.Wall), "the wall is before her");
         }
 
         [Test]
         public void TheSweep_TakesHerMovingToo_AcrossItsPathWithinTheStep()
         {
             // She crosses its path between two frames: at neither frame's place is she in reach, but they meet in between.
+            // A step of 6 m, whatever its speed (work order 039 slowed it: a quarter second at 13 m/s no longer met her).
             Projectile p = Arrow(Origin, North);
-            ProjectileStep s = ProjectileRules.Step(ref p, 0.25f, new GroundPoint(-3f, 3f), new GroundPoint(3f, 3f), Her, null);
+            ProjectileStep s = ProjectileRules.Step(ref p, 6f / new ShooterValues().ArrowSpeed, new GroundPoint(-3f, 3f), new GroundPoint(3f, 3f), Her, null);
             Assert.That(s.Hit, Is.EqualTo(ProjectileHit.MetHer));
             // Running away from it, faster than it on this step, she is not caught.
             Projectile q = Arrow(Origin, North);
@@ -126,16 +150,17 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void WhatSheDuckedBehind_StopsIt_AndSaysWhetherItWouldHaveMetHer()
         {
+            // Steps of a second, reaching past what she is behind (work order 039: at 13 m/s half a second just fell short of it).
             var her = new GroundPoint(0f, 8f);
             Projectile p = Arrow(Origin, North);
-            ProjectileStep s = ProjectileRules.Step(ref p, 0.5f, her, her, Her, null, coverEntry: 6.5f);
+            ProjectileStep s = ProjectileRules.Step(ref p, 1f, her, her, Her, null, coverEntry: 6.5f);
             Assert.That(s.Hit, Is.EqualTo(ProjectileHit.HerCover));
             Assert.That(s.WouldHaveMetHer, Is.True, "aimed at her: her cover stopped it");
             Assert.That(p.At.Z, Is.EqualTo(6.5f).Within(1e-3f));
 
             // A fan's side arrow that only grazes the thing she is behind, far from her.
             Projectile side = Arrow(Origin, ProjectileRules.FanDirection(North, 0, 3, 12f));
-            ProjectileStep t = ProjectileRules.Step(ref side, 0.5f, her, her, Her, null, coverEntry: 6.5f);
+            ProjectileStep t = ProjectileRules.Step(ref side, 1f, her, her, Her, null, coverEntry: 6.5f);
             Assert.That(t.Hit, Is.EqualTo(ProjectileHit.HerCover));
             Assert.That(t.WouldHaveMetHer, Is.False, "it would have missed her: a prop stopped it, not her cover");
         }
@@ -150,39 +175,68 @@ namespace Roguelike.Rules.Tests
             Assert.That(aim.DistanceTo(her), Is.LessThan(1e-5f));
         }
 
+        /// <summary>
+        /// One arrow loosed from the origin at her, aimed with the lead of the values at her velocity at the release
+        /// (<paramref name="atRelease"/>, or how <paramref name="her"/> goes from time 0), and flown in steps of a fiftieth of
+        /// a second while she goes where <paramref name="her"/> says: did it meet her?
+        /// </summary>
+        static bool Meets(ShooterValues v, Func<float, GroundPoint> her, GroundPoint? atRelease = null)
+        {
+            GroundPoint at = her(0f), velocity = atRelease ?? (her(0.02f) - at) * 50f;
+            GroundPoint aim = ProjectileRules.LeadAim(Origin, at, velocity, v.ArrowSpeed, v.LeadShare, v.LeadMost);
+            Projectile p = Arrow(Origin, aim);
+            for (float t = 0f; t < 4f; t += 0.02f)
+            {
+                ProjectileStep s = ProjectileRules.Step(ref p, 0.02f, her(t), her(t + 0.02f), Her, null);
+                if (s.Hit == ProjectileHit.MetHer) return true;
+                if (s.Hit == ProjectileHit.FlightOver) return false;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// The lead, as work order 039 asks it (Kristian's second session of 2026-11-20: 38 of 40 arrows in the open landed;
+        /// "the shot comes a little too fast"): at 8 m and 13 m, at her full run of 6 m/s, standing she is hit, running
+        /// straight across she is missed behind, turning back after the release she is missed, running straight at it or
+        /// away from it she is hit; and at 13 m a sidestep a quarter second after the release takes her out of its way.
+        /// (036's lead met her running straight across; that is what this order took away.)
+        /// </summary>
         [Test]
-        public void TheLead_RunningStraight_MeetsHerWhereSheGoes_At8And16Metres()
+        public void TheLead_HitsHerStandingAndRunningAtOrAway_MissesHerRunningAcrossOrSidestepping()
         {
             var v = new ShooterValues();
-            foreach (float d in new[] { 8f, 16f })
+            const float Run = 6f;
+            foreach (float d in new[] { 8f, 13f })
             {
-                // She runs across at her full run, 6 m/s, straight on.
-                var her = new GroundPoint(0f, d);
-                var run = new GroundPoint(6f, 0f);
-                GroundPoint aim = ProjectileRules.LeadAim(Origin, her, run, v.ArrowSpeed, v.LeadShare, v.LeadMost);
-                Projectile p = Arrow(Origin, aim);
-                bool met = false;
-                for (float t = 0f; t < 2f && !met; t += 0.02f)
-                {
-                    GroundPoint from = her + run * t, to = her + run * (t + 0.02f);
-                    ProjectileStep s = ProjectileRules.Step(ref p, 0.02f, from, to, Her, null);
-                    met = s.Hit == ProjectileHit.MetHer;
-                    if (s.Hit == ProjectileHit.FlightOver) break;
-                }
-                Assert.That(met, Is.True, "running straight she is met at " + d + " m");
-
-                // A turn back the moment it leaves: missed.
-                Projectile q = Arrow(Origin, aim);
-                bool hit = false;
-                for (float t = 0f; t < 2f && !hit; t += 0.02f)
-                {
-                    GroundPoint from = her - run * t, to = her - run * (t + 0.02f);
-                    ProjectileStep s = ProjectileRules.Step(ref q, 0.02f, from, to, Her, null);
-                    hit = s.Hit == ProjectileHit.MetHer;
-                    if (s.Hit == ProjectileHit.FlightOver) break;
-                }
-                Assert.That(hit, Is.False, "turning back after the release she is missed at " + d + " m");
+                Assert.That(Meets(v, t => new GroundPoint(0f, d)), Is.True, "standing she is hit at " + d + " m");
+                Assert.That(Meets(v, t => new GroundPoint(Run * t, d)), Is.False, "running straight across she is missed at " + d + " m");
+                Assert.That(Meets(v, t => new GroundPoint(-Run * t, d), new GroundPoint(Run, 0f)), Is.False, "turning back after the release she is missed at " + d + " m");
+                Assert.That(Meets(v, t => new GroundPoint(0f, d - Run * t)), Is.True, "running straight at it she is hit at " + d + " m");
+                Assert.That(Meets(v, t => new GroundPoint(0f, d + Run * t)), Is.True, "running straight away she is hit at " + d + " m");
+                Assert.That(Meets(v, t => new GroundPoint(1f * t, d)), Is.True, "drifting at 1 m/s she is hit at " + d + " m");
             }
+            Assert.That(Meets(v, t => new GroundPoint(t < 0.25f ? 0f : Run * (t - 0.25f), 12f)), Is.False,
+                        "standing at 12 m, a sidestep 0.25 s after the release takes her out of its way");
+            Assert.That(Meets(v, t => new GroundPoint(t < 0.25f ? 0f : Run * (t - 0.25f), 13f)), Is.False, "and at 13 m");
+            // It is aimed a little ahead of her, never more than LeadMost.
+            GroundPoint lead = ProjectileRules.LeadAim(Origin, new GroundPoint(0f, 12f), new GroundPoint(Run, 0f), v.ArrowSpeed, v.LeadShare, v.LeadMost);
+            Assert.That(lead.X, Is.InRange(0.5f, v.LeadMost), "a little ahead of her");
+        }
+
+        /// <summary>Work order 039's arrow: about 13 m/s, a share of 0.35 of the lead up to 2.5 m, its hit size kept.</summary>
+        [Test]
+        public void TheArrow_Is13MetresASecond_ItsLeadPartial_ItsHitSizeKept()
+        {
+            var v = new ShooterValues();
+            Assert.That(v.ArrowSpeed, Is.EqualTo(13f));
+            Assert.That(v.LeadShare, Is.EqualTo(0.35f).Within(1e-4f));
+            Assert.That(v.LeadMost, Is.EqualTo(2.5f).Within(1e-4f));
+            Assert.That(v.ArrowRadius, Is.EqualTo(0.35f).Within(1e-4f), "its hit size as before");
+            Assert.That(v.FanDegrees, Is.EqualTo(16f), "a fan to step through");
+            Assert.That(12f / v.ArrowSpeed, Is.GreaterThan(0.9f), "almost a second in the air over 12 m");
+            // Between two arrows of a fan, 10 m out, her middle has a band at least as wide as she is to pass in.
+            float apart = 2f * 10f * (float)Math.Sin(v.FanDegrees * 0.5 * Math.PI / 180.0);
+            Assert.That(apart - 2f * (v.ArrowRadius + Her), Is.GreaterThanOrEqualTo(2f * Her), "a gap she fits through at 10 m");
         }
 
         [Test]
@@ -264,9 +318,17 @@ namespace Roguelike.Rules.Tests
             Assert.That(t.Shots, Is.EqualTo(3));
             EnemyAttackDefinition arrow = CasterTactics.Find(v.Arrows, ShooterValues.Arrow), fan = CasterTactics.Find(v.Arrows, ShooterValues.ArrowFan);
             EnemyAttackDefinition shot = v.Enemy.Attacks[0];
-            Assert.That((arrow.Damage, arrow.Windup, arrow.Recovery), Is.EqualTo((shot.Damage, shot.Windup, shot.Recovery)), "the arrow deals, draws and rests as the shot did");
+            Assert.That((arrow.Damage, arrow.Windup), Is.EqualTo((shot.Damage, shot.Windup)), "the arrow deals and draws as the shot did");
+            // Work order 039: it rests 1.2 s, not the shot's 1.5 s (a moving player steps out of most arrows now), and its
+            // band is the shot's 14 m again (036 had 17 m).
+            foreach (EnemyAttackDefinition a in v.Arrows)
+            {
+                Assert.That(a.Recovery, Is.EqualTo(1.2f).Within(1e-4f), a.Name);
+                Assert.That(a.MaxDistance, Is.EqualTo(shot.MaxDistance), a.Name + ": the shot's band");
+            }
+            Assert.That(shot.Recovery, Is.EqualTo(1.5f).Within(1e-4f), "the switch's off position as before");
             Assert.That(fan.Windup, Is.GreaterThan(arrow.Windup), "a fan's draw is a little longer");
-            Assert.That(arrow.MaxDistance, Is.GreaterThanOrEqualTo(16f), "it shoots at 16 m");
+            Assert.That(arrow.MaxDistance, Is.EqualTo(14f), "it shoots at 13 m, not at 16");
         }
 
         // ---------------- The caster ----------------
