@@ -82,6 +82,7 @@ namespace Roguelike
         readonly AudioClip[] _clips = new AudioClip[PlaceholderSoundRules.All.Length];
         readonly bool[] _recorded = new bool[PlaceholderSoundRules.All.Length];
         readonly SoundCrowd _crowd = new SoundCrowd();
+        readonly RapidStrikeGate _rapidStrikes = new RapidStrikeGate(); // work order 039
         readonly PitchVariation _pitch = new PitchVariation(PitchSeed);
         readonly Dictionary<Enemy, Action<EnemyReport>> _enemies = new Dictionary<Enemy, Action<EnemyReport>>();
         ShotSounds _voices;
@@ -292,6 +293,12 @@ namespace Roguelike
             bool counterable = r.Kind == EnemyReportKind.AttackStarted && enemy != null && PoolRules.IsCounterable(enemy.Attack);
             // An ordinary attack's windup is silent (work order 035): the windup sounds mean a skill.
             bool ordinary = r.Kind == EnemyReportKind.AttackStarted && enemy != null && enemy.Attack != null && enemy.Attack.Ordinary;
+            // A rapid ordinary attack's strike (the swarmer's bite, three a second; work order 039) is heard, across all
+            // enemies, no more often than RapidStrikeGap: eight swarmers on her must not buzz.
+            if (r.Kind == EnemyReportKind.Struck && enemy is MeleeEnemy melee
+                && MeleeYouReadRules.IsRapid(MeleeAttacks.Find(melee.AttacksNow, r.Attack))
+                && !_rapidStrikes.Ask(Time.time, Values.RapidStrikeGap))
+                return;
             Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable, ordinary));
         });
 

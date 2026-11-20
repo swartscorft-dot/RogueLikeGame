@@ -127,8 +127,11 @@ namespace Roguelike.Rules
             float tWall = float.PositiveInfinity;
             if (walls != null)
             {
-                float clear = walls(p0, p1);
-                if (clear < s - Slack) tWall = Math.Max(0f, clear) / s;
+                // Asked a hair past the step's end, and a wall up to its very end counts (work order 039): a wall whose face
+                // fell within that hair of the end was passed over, and the next step, starting inside it, never saw it. At
+                // 13 m/s and frames of 0.3 ms a step is 4 mm, so that was a fair share of arrows through a wall.
+                float clear = walls(p0, p0 + p.Dir * (s + Slack));
+                if (clear <= s) tWall = Math.Max(0f, clear) / s;
             }
             float tCover = coverEntry < s ? Math.Max(0f, coverEntry) / s : float.PositiveInfinity;
             float tStop = Math.Min(1f, Math.Min(tWall, tCover));

@@ -12,9 +12,11 @@ namespace Roguelike
     /// too. They do not stack on one point: each frame a swarmer nearer another than
     /// <see cref="SwarmerValues.Spacing"/> steps half the shortfall away from it, so a crowd stands spread round her.
     ///
-    /// Melee you read (decision 0010; work order 035, 2026-11-20; <see cref="MeleeEnemy"/>): with the switch on it bites
-    /// twice a second as it clings, never stopping to wind up, and leaps the last few metres to her
-    /// (<see cref="SwarmerValues.Melee"/>); off, the one short strike above, as before.
+    /// Melee you read (decision 0010; work order 035, 2026-11-20; <see cref="MeleeEnemy"/>): with the switch on it runs at
+    /// her and bites about three times a second as it clings, never stopping to wind up, and has no skill: it leaps the
+    /// last few metres to her only when <see cref="SwarmerValues.Leaps"/> is on, off by default (Kristian after his second
+    /// session of 2026-11-20, work order 039: "they just run fast and hammer away when they are close";
+    /// <see cref="SwarmerValues.MeleeNow"/>). The boss's called swarmers are the same. Off, the one short strike above, as before.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public sealed class EnemySwarmer : MeleeEnemy
@@ -23,7 +25,7 @@ namespace Roguelike
 
         public override EnemyKind Kind => EnemyKind.Swarmer;
         public override EnemyValues Values => Tuning.Enemy;
-        protected override EnemyAttackDefinition[] MeleeSet => Tuning.Melee;
+        protected override EnemyAttackDefinition[] MeleeSet => Tuning.MeleeNow;
         protected override bool BitesOnTheMove => true;
 
         protected override void Start()

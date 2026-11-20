@@ -1006,6 +1006,9 @@ namespace Roguelike
             EnemyAttackDefinition a = e.Attack;
             if (a == null) return;
             bool grows = MeleeYouReadRules.GlintGrows(a);
+            // A rapid ordinary attack (the swarmer's bite, three a second; work order 039) flicks on every other one only:
+            // eight swarmers on her flicking at every bite would strobe.
+            if (!grows && e is MeleeEnemy melee && !MeleeYouReadRules.FlickShows(a, melee.OrdinaryBegun)) return;
             FxTier tier = grows ? FxTier.Plain : FxTier.Minor;
             if (!Ask(FxMoment.WindupStarted, tier)) return;
             bool blue = MeleeYouReadRules.GlintIsBlue(a);

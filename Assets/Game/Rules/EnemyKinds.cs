@@ -60,12 +60,44 @@ namespace Roguelike.Rules
         };
         /// <summary>Its attacks with melee you read on (work order 035, <see cref="MeleeAttacks.Swarmer"/>): the Bite and the Leap.</summary>
         public EnemyAttackDefinition[] Melee = MeleeAttacks.Swarmer();
+        /// <summary>
+        /// Does it leap (work order 039)? Off: it has no skill at all, it runs at her and bites fast, and the Leap of
+        /// <see cref="Melee"/> is never chosen (Kristian, 2026-11-20, after his second session: "I did not mean that the small
+        /// ones should charge in addition to running fast. They just run fast and hammer away when they are close"). On: the
+        /// Leap as work order 035 built it, at the damage it had, to compare.
+        /// </summary>
+        public bool Leaps = false;
         public float PackWakeRange = 10f;   // m: when one wakes, every swarmer this near it wakes too
         public float Spacing = 0.8f;        // m kept between two swarmers
         public float StopShort = 0.9f;      // m from her where it stops walking
         public int PracticePack = 5;        // swarmers in a pack spawned in the practice room (F9)
         public float BodyRadius = 0.3f;     // m, the capsule
         public float BodyHeight = 1.1f;     // m
+
+        [NonSerialized] EnemyAttackDefinition[] _withoutLeap, _withoutLeapOf;
+
+        /// <summary>
+        /// What it fights with, melee you read on (work order 039): <see cref="Melee"/> when it <see cref="Leaps"/>, else
+        /// the same set without the Leap. Made once for a set, not per question.
+        /// </summary>
+        public EnemyAttackDefinition[] MeleeNow
+        {
+            get
+            {
+                if (Leaps || Melee == null) return Melee;
+                if (!ReferenceEquals(_withoutLeapOf, Melee))
+                {
+                    int n = 0;
+                    foreach (EnemyAttackDefinition a in Melee) if (a == null || a.Move != MeleeMove.Leap) n++;
+                    var kept = new EnemyAttackDefinition[n];
+                    n = 0;
+                    foreach (EnemyAttackDefinition a in Melee) if (a == null || a.Move != MeleeMove.Leap) kept[n++] = a;
+                    _withoutLeap = kept;
+                    _withoutLeapOf = Melee;
+                }
+                return _withoutLeap;
+            }
+        }
     }
 
     /// <summary>
@@ -104,37 +136,50 @@ namespace Roguelike.Rules
         /// <summary>
         /// Its shots with things that fly on, in place of the Shot of its <see cref="Enemy"/> values (which stays, for the switch off): an
         /// arrow that leaves the bow at the release and flies; the fan's draw is a little longer; the volley is an elite's
-        /// ordinary shot. Shot's damage, windup and recovery; the band reaches 17 m (the line's 14 m) since the arrow flies
-        /// 30 m and the order's tests ask for a hit at 16 m.
+        /// ordinary shot. Shot's damage and windup and its band of 14 m (036 had raised it to 17 m only for a test case at
+        /// 16 m; work order 039 put it back and tests at 8 m and 13 m). The recovery is 1.2 s, the Shot's 1.5 s before
+        /// (work order 039, which asked about 1.1 s): a moving player now steps out of most arrows, so it shoots a little
+        /// more often to keep the air busy, about 2.1 s from shot to shot. 1.1 s measured the same on average but kept time
+        /// with a run back and forth over 12 m (2 s a leg), so that a run of releases in a row fell where she turned back
+        /// into the spot it was aimed at.
         /// </summary>
         public EnemyAttackDefinition[] Arrows =
         {
             new EnemyAttackDefinition
             {
-                Name = Arrow, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 17f,
-                Windup = 0.9f, Recovery = 1.5f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+                Name = Arrow, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                Windup = 0.9f, Recovery = 1.2f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
             new EnemyAttackDefinition
             {
-                Name = ArrowFan, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 17f,
-                Windup = 1.2f, Recovery = 1.5f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+                Name = ArrowFan, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                Windup = 1.2f, Recovery = 1.2f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
             new EnemyAttackDefinition
             {
                 // Recovery: from the first arrow; the second leaves VolleyGap into it.
-                Name = Volley, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 17f,
-                Windup = 0.9f, Recovery = 1.5f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+                Name = Volley, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                Windup = 0.9f, Recovery = 1.2f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
         };
-        public float ArrowSpeed = 24f;      // m/s
+        // Work order 039 (Kristian's second session of 2026-11-20: 38 of 40 arrows in the open landed; "the shot comes a
+        // little too fast"): an arrow she can see coming and step out of. At 13 m/s an arrow takes almost a second over
+        // 12 m (it was 24 m/s), and it is aimed only a little ahead of her (a share of 0.35 of the full lead, at most
+        // 2.5 m; it was all of it, up to 5 m): standing or drifting she is hit, running at it or away from it she is hit,
+        // walking into its path she is hit; running across she is missed behind, and a sidestep a quarter second after the
+        // release takes her out of its way at 12 m.
+        public float ArrowSpeed = 13f;      // m/s
         public float ArrowRadius = 0.35f;   // m, its hit size: her footprint is met within this of its line
         public float ArrowFlight = 30f;     // m, its longest flight
-        public float LeadShare = 1f;        // its aim leads her by her velocity times the arrow's flight time, times this
-        public float LeadMost = 5f;         // m, the lead at most
+        public float LeadShare = 0.35f;     // its aim leads her by her velocity times the arrow's flight time, times this
+        public float LeadMost = 2.5f;       // m, the lead at most
         public int FanEvery = 3;            // every third shot is a fan...
         public int FanFromFloor = 3;        // ...from this floor on, and for an elite on any floor
         public int FanArrows = 3;
-        public float FanDegrees = 12f;      // degrees between two arrows of a fan
+        // Degrees between two arrows of a fan: 16 (12 before work order 039). With slow arrows a fan is a pattern to step
+        // through: 10 m from the bow two arrows 12 degrees apart leave her middle a band of 0.4 m to pass between them
+        // (2.1 m between their lines less 0.85 m of reach, hers and its, to each side); 16 degrees leave 1.1 m.
+        public float FanDegrees = 16f;      // degrees between two arrows of a fan
         public float FanWindupLook = 1.6f;  // the fan's wind-up effect on the body, this times the size of the others
         public int VolleyArrows = 2;        // an elite's ordinary shot: arrows one after the other...
         public float VolleyGap = 0.25f;     // ...s apart, each aimed when it leaves
