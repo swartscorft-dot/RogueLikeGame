@@ -302,7 +302,7 @@ namespace Roguelike
                     break;
                 case PlayerReportKind.RecastPressed:
                     if (r.Clean) _cleanPending.Add(r.Slot);
-                    else ShowMiss(FeedbackRules.RecastMiss(skill, r.Shot, r.Clean));
+                    else ShowMiss(FeedbackRules.RecastMiss(skill, r.Shot, r.Clean, r.Late)); // LATE after the clean part (work order 040)
                     break;
                 case PlayerReportKind.SkillFired:
                     Fired(r, skill);

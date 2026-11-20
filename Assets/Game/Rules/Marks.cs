@@ -13,7 +13,13 @@ namespace Roguelike.Rules
         public float MarkLifetime = 6f;        // s after the last mark was added that they all fall off
         public int BasicShotsPerMark = 5;      // every this many basic shot hits, the hit that completes the count marks its target (4 until 2026-11-19)
         public bool StartWithAllSkills = false; // every skill had from the start, for trying the ones that wait (the first eight on the keys: work order 015)
-        public float CleanShare = 1f / 3f;     // the last share of the final recast window in which a press is clean
+        public float CleanShare = 1f / 3f;     // the last share of the final recast window in which a press is clean (with CleanEarly off)
+        // Work order 040 (Kristian's second session of 2026-11-20: "the timing must come much earlier"): the clean part from
+        // CleanFrom to CleanTo seconds after the window opens (CleanPart), his own rhythm held a hair, instead of the last
+        // CleanShare. First guesses. The asset holds none of these three, so these defaults are what the game reads.
+        public bool CleanEarly = true;         // off: the clean part is the window's last CleanShare, as before
+        public float CleanFrom = 0.10f;        // s after the window opened that the clean part begins
+        public float CleanTo = 0.30f;          // s after it opened that it ends; a press after it, in the window, is a plain shot, late
         public bool RecastOnRealTime = true;   // a hit stop does not hold the recast window: it runs on real seconds, slowed with a slow-down, never sped up (work order 038, Kristian's answer of 2026-11-20); off, as before
         public float CleanDamage = 1.5f;       // a clean tap deals this times the damage (not a clean spend: that has its bonus per mark)
     }

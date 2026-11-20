@@ -111,7 +111,7 @@ namespace Roguelike.PlayModeTests
             {
                 yield return Until(() => _player.IsRecastWindowOpen || _player.RecastSlot != Triple, 2f);
                 if (_player.RecastSlot != Triple) yield break;
-                Assume.That(_player.RecastWindowLeft, Is.GreaterThan(_player.Kit.CleanShare), "early in the window: not in its clean part");
+                Assume.That(_player.RecastSinceOpened, Is.LessThan(CleanPart.Of(_player.Kit, _player.RecastWindowSeconds).From), "early in the window: not in its clean part"); // where it lies since work order 040
                 Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started));
                 presses.Add(presses.Count + 1);
             }

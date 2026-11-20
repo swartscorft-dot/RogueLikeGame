@@ -70,5 +70,15 @@ namespace Roguelike.Rules
         // Hits
         public float HitStop = 0.05f;             // s, a skill hit
         public float BasicShotHitStop = 0.025f;   // s, a basic shot hit (halved 2026-11-18 with the faster shot)
+
+        // Quicker off the mark after shooting (work order 040, Kristian's second session of 2026-11-20: "the character can
+        // accelerate a little faster still after one has stopped shooting and is to run again"; OffTheMark). Each number
+        // stands in for the one named beside it while the switch is on, about a third quicker from the last shot to 90 % of
+        // run speed; nothing of how she moves while a shot is going off, her top speed or the dash changes. Not in the
+        // feel spec's table nor in the settings asset: these defaults are what the game reads.
+        public bool QuickOffTheMark = true;            // off: the numbers they stand in for, as before
+        public float MovingShotRecoveryQuick = 0.12f;  // s, for MovingShotRecovery (0.25 in the settings asset): the ease back to full speed after a shot on the move, and out of the backpedal cap
+        public float ShotTurnHoldQuick = 0.40f;        // s, for ShotTurnHold (0.5): turned to the aim, backpedalling at the cap, this long after the last such shot started
+        public float ChainSpeedRecoveryQuick = 0.165f; // s, for SkillSpeedRecovery (0.25), after a recast chain's shot only (Backstep's): the ease back to full speed from a stand
     }
 }

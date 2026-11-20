@@ -179,21 +179,23 @@ namespace Roguelike
 
         /// <summary>
         /// The recast window over its skill's box (decision 0005): a bar that runs out from right to left. For the
-        /// last press, its clean part is marked at the left end, where the bar runs out: press while the bar's end is
-        /// inside the bright zone. The bar turns the clean colour once it is there.
+        /// last press, its clean part is marked where it lies (work order 040: early in the window, so near the right end;
+        /// before, at the left end): press while the bar's end is inside the bright zone. The bar turns the clean colour
+        /// while it is there.
         /// </summary>
         void RecastBar(Rect rect)
         {
             float left = Player.RecastWindowLeft;
             float clean = Player.RecastCleanShare;
+            float from = CleanWindowSign.KeyBandFrom(Player.RecastCleanPart, Player.RecastWindowSeconds);
             GUI.color = s_Back;
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
             if (clean > 0f)
             {
                 GUI.color = s_CleanZone;
-                GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width * clean, rect.height), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(rect.x + rect.width * from, rect.y, rect.width * clean, rect.height), Texture2D.whiteTexture);
             }
-            bool inClean = clean > 0f && left <= clean;
+            bool inClean = clean > 0f && Player.RecastPressWouldBeClean;
             GUI.color = inClean ? s_Clean : s_InUse;
             float inset = clean > 0f ? 2f : 0f; // the bar is drawn thinner over the zone, so the zone shows round it
             GUI.DrawTexture(new Rect(rect.x, rect.y + inset, rect.width * Mathf.Clamp01(left), rect.height - 2f * inset), Texture2D.whiteTexture);

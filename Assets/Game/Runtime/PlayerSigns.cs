@@ -23,6 +23,9 @@ namespace Roguelike
     /// window does: work order 038), and gone the moment the chain ends, however it ends. On the skill bar the key shows the same in small (<see cref="DrawKeySign"/>). A short,
     /// quiet tick (the placeholder sounds' tick, <see cref="PlaceholderSound.Menu"/>) when the clean part opens, so the
     /// rhythm can be learnt by ear; and the first time in a session, a line in the HUD's style: <see cref="CleanWindowSign.Line"/>.
+    /// Since work order 040 (Kristian's second session of 2026-11-20) the clean part lies early in the window, the ring and
+    /// its line are off by default (he looks at the cast bar, <see cref="CastBar"/>), and the key's strip and the tick
+    /// stay, on a switch of their own (<see cref="PlayerSignValues.KeyStrip"/>).
     ///
     /// 2. Focus that is full (<see cref="PlayerSignValues.FocusFull"/>). The moment it fills: a flash on her in the full
     /// gauge's gold, and the word FOCUS with the key it is spent with, as the bindings have it, over her in the style of
@@ -102,9 +105,14 @@ namespace Roguelike
         public float RingRadius { get; private set; }
         /// <summary>True while the band is lit: a press now would be clean.</summary>
         public bool BandLit { get; private set; }
-        /// <summary>The key's mark, 1 to 0, where the ring is; and its band, from 0 to here.</summary>
+        /// <summary>
+        /// The key's mark, 1 to 0, where the ring is (the share of the window left); and its band, this wide from
+        /// <see cref="KeyBandFrom"/> (work order 040: the clean part lies early in the window now, so the band is no longer at
+        /// the strip's left end).
+        /// </summary>
         public float KeyMark { get; private set; }
         public float KeyBand { get; private set; }
+        public float KeyBandFrom { get; private set; }
         /// <summary>Ticks asked for since it started.</summary>
         public int Ticks { get; private set; }
         /// <summary>The pieces on the floor: the ring, the band dim and lit; null when not drawn.</summary>
@@ -225,8 +233,8 @@ namespace Roguelike
 
         bool HoldsPieces() => this != null && isActiveAndEnabled;
 
-        /// <summary>A choice, an end screen, the pause menu or the screen between runs is up.</summary>
-        static bool ScreenUp
+        /// <summary>A choice, an end screen, the pause menu or the screen between runs is up (the cast bar reads it too, work order 040).</summary>
+        internal static bool ScreenUp
         {
             get
             {
@@ -277,11 +285,13 @@ namespace Roguelike
 
         void Chain(bool alive)
         {
+            // Work order 040: the clean part may lie anywhere in the window (CleanPart); the ring is off by default, and
+            // the key's strip and the tick have a switch of their own (KeyStrip), so they stay without it.
             int slot = _player != null ? _player.RecastSlot : -1;
-            float share = _player != null ? _player.RecastCleanShare : 0f;
+            CleanPart clean = _player != null ? _player.RecastCleanPart : default;
             float window = _player != null ? _player.RecastWindowSeconds : 0f;
             float since = _player != null ? _player.RecastSinceOpened : -1f;
-            bool up = Values.CleanWindow && alive && CleanWindowSign.Shows(slot >= 0, share, window, since);
+            bool up = (Values.CleanWindow || Values.KeyStrip) && alive && CleanWindowSign.Shows(slot >= 0, clean, window, since);
             if (!up)
             {
                 if (ChainSignUp) StopChain();
@@ -294,23 +304,24 @@ namespace Roguelike
                 ChainSlot = slot;
             }
 
-            RingRadius = CleanWindowSign.RingRadius(since, window, share, Values);
-            KeyMark = CleanWindowSign.MarkOf(RingRadius, share, Values);
-            KeyBand = CleanWindowSign.MarkOf(Values.BandOuter, share, Values);
+            RingRadius = CleanWindowSign.RingRadius(since, clean, Values);
+            KeyMark = CleanWindowSign.MarkShare(since, window);
+            KeyBand = CleanWindowSign.KeyBandWidth(clean, window);
+            KeyBandFrom = CleanWindowSign.KeyBandFrom(clean, window);
             bool lit = _player.RecastPressWouldBeClean;
             if (lit && !BandLit)
             {
-                // The clean part opened: the tick, and the first time in a session the line.
+                // The clean part opened: the tick, and the first time in a session the line (with the ring).
                 Ticks++;
                 if (PlaceholderSounds.Current != null) PlaceholderSounds.Current.AskFor(PlaceholderSound.Menu);
                 TickAsked?.Invoke();
-                if (s_Line.TryShow(Time.unscaledTime, Values.LineSeconds)) LinesShown++;
+                if (Values.CleanWindow && s_Line.TryShow(Time.unscaledTime, Values.LineSeconds)) LinesShown++;
             }
             BandLit = lit;
 
-            // On the floor, through the effects' pieces while they are on.
+            // On the floor, through the effects' pieces while they are on, and the ring's switch.
             CombatEffects fx = CombatEffects.Current;
-            bool draw = fx != null && fx.Values.On;
+            bool draw = fx != null && fx.Values.On && Values.CleanWindow;
             if (!draw && _chainPiecesMade) DestroyChainPieces();
             if (draw && !_chainPiecesMade) MakeChainPieces();
             if (_ring != null)
@@ -366,6 +377,7 @@ namespace Roguelike
             RingRadius = 0f;
             KeyMark = 0f;
             KeyBand = 0f;
+            KeyBandFrom = 0f;
         }
 
         /// <summary>A held piece on the floor round her feet, following her; null when the effects do not draw it.</summary>
@@ -531,7 +543,7 @@ namespace Roguelike
         // ---------------- The skill bar's part (SkillBar calls these where it draws) ----------------
 
         /// <summary>True while the key of this slot shows the clean window: its chain's sign is up.</summary>
-        public bool KeySignShown(int slot) => Values.CleanWindow && ChainSignUp && slot == ChainSlot;
+        public bool KeySignShown(int slot) => Values.KeyStrip && ChainSignUp && slot == ChainSlot;
 
         /// <summary>
         /// The key's part of the clean window, over its box on the skill bar (work order 037): a thin strip whose band at the
@@ -545,7 +557,7 @@ namespace Roguelike
             Color before = GUI.color;
             var strip = new Rect(box.x + 4f, box.y - StripHeight - 1f, box.width - 8f, StripHeight);
             Fill(strip, s_Back);
-            Fill(new Rect(strip.x, strip.y, strip.width * Mathf.Clamp01(s.KeyBand), strip.height), s.BandLit ? s_KeyLit : s_KeyDim);
+            Fill(new Rect(strip.x + strip.width * Mathf.Clamp01(s.KeyBandFrom), strip.y, strip.width * Mathf.Clamp01(s.KeyBand), strip.height), s.BandLit ? s_KeyLit : s_KeyDim);
             float x = strip.x + strip.width * Mathf.Clamp01(s.KeyMark);
             Fill(new Rect(x - 1.5f, strip.y - 2f, 3f, strip.height + 4f), s.BandLit ? s_Text : s_KeyLit);
             if (s.BandLit) Frame(new Rect(box.x - 2f, box.y - 2f, box.width + 4f, box.height + 4f), s_KeyLit, 2f);

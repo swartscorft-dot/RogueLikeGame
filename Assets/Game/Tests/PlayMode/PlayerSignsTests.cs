@@ -76,6 +76,7 @@ namespace Roguelike.PlayModeTests
             _sounds = PlaceholderSounds.Ensure();
             PlayerSigns.ForgetSessionLine();
             _signs = PlayerSigns.Ensure();
+            _signs.Values.CleanWindow = true; // changed deliberately for work order 040: the ring is off by default now, and these are its tests
             _signs.TickAsked += OnTick;
             _signs.FocusFilled += OnFilled;
             yield return null;
@@ -203,7 +204,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_signs.Band, Is.Not.Null);
             Assert.That(_signs.LitBand, Is.Not.Null);
             if (!_player.IsRecastWindowOpen)
-                Assert.That(_signs.RingRadius, Is.EqualTo(CleanWindowSign.StartRadius(_player.RecastCleanShare, V)).Within(1e-4f), "waiting at its start");
+                Assert.That(_signs.RingRadius, Is.EqualTo(CleanWindowSign.StartRadius(_player.RecastCleanPart, V)).Within(1e-4f), "waiting at its start");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
 
             // Watch every frame of the window until the band lights: the ring and the band agree with the game's judge.
@@ -214,7 +215,7 @@ namespace Roguelike.PlayModeTests
                 _signs.Tick();
                 Assert.That(_signs.ChainSignUp, Is.True);
                 Assert.That(_signs.BandLit, Is.EqualTo(_player.RecastPressWouldBeClean), "lit exactly when a press would be clean");
-                float since = _player.RecastSinceOpened, edge = _player.RecastWindowSeconds * (1f - _player.RecastCleanShare);
+                float since = _player.RecastSinceOpened, edge = _player.RecastCleanFrom; // where the clean part opens (work order 040)
                 if (Mathf.Abs(since - edge) > 2e-4f) Assert.That(RingInBand, Is.EqualTo(_signs.BandLit), "the ring in the band exactly then, at " + since);
                 Assert.That(_signs.RingRadius, Is.LessThanOrEqualTo(lastRadius + 1e-5f), "it closes");
                 lastRadius = _signs.RingRadius;
@@ -256,7 +257,7 @@ namespace Roguelike.PlayModeTests
             int slot = Slot("Triple Tap");
             yield return UpToTheLastPress("Triple Tap");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            yield return Until(() => _player.RecastSinceOpened > 0.1f, 2f);
+            yield return Until(() => _player.RecastSinceOpened > _player.RecastCleanFrom * 0.5f, 2f); // before the clean part (work order 040: it opens 0.1 s in)
             _signs.Tick();
             Assume.That(_signs.BandLit, Is.False, "outside the band");
             Assert.That(RingInBand, Is.False, "the ring is outside it too");
@@ -375,9 +376,10 @@ namespace Roguelike.PlayModeTests
         public IEnumerator WithTheCleanWindowSwitchOff_NothingOfItExists_AndTheCleanPressIsAsItWas()
         {
             V.CleanWindow = false;
+            V.KeyStrip = false; // changed deliberately for work order 040: the key's strip and the tick have a switch of their own now
             int slot = Slot("Triple Tap");
             yield return UpToTheLastPress("Triple Tap");
-            yield return Until(() => _player.IsRecastWindowOpen && _player.RecastWindowLeft <= _player.Kit.CleanShare * 0.5f, 2f);
+            yield return Until(() => _player.IsRecastWindowOpen && _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
             _signs.Tick();
             Assert.That(_signs.ChainSignUp, Is.False, "no ring");
             Assert.That(_signs.Ring, Is.Null);
@@ -464,6 +466,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator APress_AtTheSameRealMomentAfterTheWindowOpened_IsJudgedTheSame_WithAHitStopInTheWindow()
         {
             Assume.That(_player.Kit.RecastOnRealTime, Is.True, "the switch is on as the game ships");
+            OwnKit(k => k.CleanEarly = false); // changed deliberately for work order 040: this is the clock's test, on the placement it was written for
             yield return BackstepPressedAt(0.5f, 0f, 0f);
             Assert.That(_judged, Is.EqualTo(RecastPress.Clean), "no hit stop: half a second in, clean");
             yield return BackstepPressedAt(0.5f, 0.05f, 0.2f);
@@ -481,7 +484,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator WithTheSwitchOff_AHitStopHoldsTheWindow_AsBefore()
         {
-            OwnKit(k => k.RecastOnRealTime = false);
+            OwnKit(k => { k.RecastOnRealTime = false; k.CleanEarly = false; }); // CleanEarly: work order 040, as above
             yield return BackstepPressedAt(0.5f, 0.05f, 0.2f);
             Assert.That(_judged, Is.EqualTo(RecastPress.Shot), "half a second in, with a hit stop of 0.2 s: not clean, as before");
             Assert.That(_sinceAtPress, Is.EqualTo(_realAtPress - 0.2f).Within(0.03f), "the window's clock held through the hit stop");
@@ -523,7 +526,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the hop");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            float edge = _player.RecastWindowSeconds * (1f - _player.RecastCleanShare);
+            float edge = _player.RecastCleanFrom; // where the clean part opens (work order 040)
             yield return Until(() => _player.RecastSinceOpened >= edge - 0.15f, 2f);
             _signs.Tick();
             Assume.That(_signs.ChainSignUp && !_signs.BandLit, Is.True, "before the clean part");
