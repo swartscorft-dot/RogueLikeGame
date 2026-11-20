@@ -105,6 +105,22 @@ namespace Roguelike.Rules
             if (!IsOver) _skillUpgrades.Add(fullName ?? "?");
         }
 
+        /// <summary>The last heal between floors (work order 023): how much, and after which floor; 0 before the first.</summary>
+        public int LastFloorHeal { get; private set; }
+        public int LastFloorHealFloor { get; private set; }
+
+        /// <summary>She was healed by <paramref name="amount"/> when floor <paramref name="floor"/>'s reward was taken (work order 023).</summary>
+        public void FloorHealed(int floor, int amount)
+        {
+            if (IsOver) return;
+            LastFloorHeal = Math.Max(0, amount);
+            LastFloorHealFloor = floor;
+        }
+
+        /// <summary>"+35 health after floor 2", for the line of what was taken; empty before the first heal or for one of nothing.</summary>
+        public string FloorHealText =>
+            LastFloorHeal <= 0 ? "" : string.Format(CultureInfo.InvariantCulture, "+{0} health after floor {1}", LastFloorHeal, LastFloorHealFloor);
+
         /// <summary>The focus choice was taken (work order 025), by its name.</summary>
         public void TakeFocusChoice(string name)
         {

@@ -58,6 +58,7 @@ namespace Roguelike
     {
         /// <summary>The key words and numbers over her go under; a keg's word gets its own, below it.</summary>
         const int HerKey = 0;
+        const int HerHealKey = int.MinValue; // work order 030: her green heal numbers, apart from her red ones
         const float KegHeight = 1f;          // m over a keg's middle: where its bang is drawn
         const float OverHead = 1.7f;         // m over the top of a target: above its mark pips and its stagger bar
         const float NumberSide = 40f;        // px right of a word's place that a number goes, so they do not cover each other
@@ -245,6 +246,18 @@ namespace Roguelike
         }
 
         void OnPlayer(PlayerReport r) => Safely(() => Take(r));
+
+        /// <summary>
+        /// Health she got back (work order 030: a combat room cleared): a green "+8" over her, to the other side from her
+        /// red numbers. Off with the damage numbers.
+        /// </summary>
+        public void ShowHeal(int amount) => Safely(() =>
+        {
+            if (amount <= 0 || !NumbersOn) return;
+            _tally.Add(HerHealKey, amount, NumberKind.Heal, Time.time, MergeWindow, Values.MaxNumbers);
+            if (!_anchors.ContainsKey(HerHealKey) && _player != null)
+                _anchors[HerHealKey] = new Anchor { Her = true, Last = _player.Position, Height = TopOf(_player.gameObject, null) + OverHead };
+        });
 
         void OnHurt(int amount) => Safely(() =>
         {
@@ -519,10 +532,12 @@ namespace Roguelike
         FeedbackShown Shown(TallyNumber n, float now)
         {
             _anchors.TryGetValue(n.Target, out Anchor a);
-            if (n.Target == HerKey) a.Her = true;
+            if (n.Target == HerKey || n.Target == HerHealKey) a.Her = true;
+            string text = n.Sum.ToString(CultureInfo.InvariantCulture);
+            if (n.Kind == NumberKind.Heal) text = "+" + text; // work order 030
             return new FeedbackShown
             {
-                Id = n.Id, Text = n.Sum.ToString(CultureInfo.InvariantCulture), Color = ColorOf(FeedbackRules.NumberTint(n.Kind)),
+                Id = n.Id, Text = text, Color = ColorOf(FeedbackRules.NumberTint(n.Kind)),
                 FontSize = n.Kind == NumberKind.Hurt ? Values.HurtNumberSize : FeedbackRules.IsBig(n.Kind) ? Values.BigNumberSize : Values.NumberSize,
                 World = WorldOf(n.Target), Target = a.Target, OverHer = a.Her, Age = now - n.First,
                 Alpha = FeedbackRules.Alpha(now - n.Last, Values.NumberSeconds, Values.FadeFrom),
@@ -572,7 +587,8 @@ namespace Roguelike
                 Draw(cam, scale, w, 0f, Values.WordRise * Mathf.Clamp01(w.Age / Values.WordSeconds));
             foreach (FeedbackShown n in _shownNumbers)
             {
-                float side = n.OverHer ? HerNumberSide : NumberSide + (n.Id % 3) * 10f; // the next number a little aside
+                float side = n.Kind == NumberKind.Heal ? -HerNumberSide // work order 030: her heal to the right of her red numbers
+                           : n.OverHer ? HerNumberSide : NumberSide + (n.Id % 3) * 10f; // the next number a little aside
                 Draw(cam, scale, n, side, Values.NumberRise * Mathf.Clamp01(n.Age / Values.NumberSeconds));
             }
 

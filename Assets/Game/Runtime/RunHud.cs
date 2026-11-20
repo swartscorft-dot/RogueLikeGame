@@ -347,7 +347,8 @@ namespace Roguelike
                 }
                 else _runBox.Add("Between rooms");
                 _runBox.Add("Time " + RunWords.Clock(record.Seconds));
-                _runBox.Add("Upgrades: " + record.UpgradesText);
+                // The heal between floors (work order 023) is said in the line of what was taken.
+                _runBox.Add("Upgrades: " + record.UpgradesText + (record.FloorHealText.Length > 0 ? "   " + record.FloorHealText : ""));
                 _runBox.Add("run " + record.Seed);
             }
             if (_levels != null)

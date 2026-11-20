@@ -880,6 +880,14 @@ namespace Roguelike
 
         public void NoteRewardTaken(int floor, string skill) => Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
 
+        /// <summary>Work order 023: she was healed as floor <paramref name="floor"/>'s reward was taken: what was given, and her health after.</summary>
+        public void NoteFloorHeal(int floor, int healed, int health) =>
+            Note(SessionEventTypes.FloorHeal, null, "floor", Int(floor), "healed", Int(healed), "health", Int(health));
+
+        /// <summary>Every enemy of a combat room is dead and she was healed (work order 030): the room, whether it is the elite room, what was given and her health after.</summary>
+        public void NoteRoomHeal(int floor, int room, bool elite, int healed, int health) =>
+            Note(SessionEventTypes.RoomHeal, null, "floor", Int(floor), "room", Int(room), "elite", elite ? "true" : "false", "healed", Int(healed), "health", Int(health));
+
         /// <summary>A chest opened: what it offered, and what was taken (short forms).</summary>
         public void NoteChestOpened(int floor, int room, IList<string> offered, string taken) =>
             Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered));

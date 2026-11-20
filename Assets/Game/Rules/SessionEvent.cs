@@ -66,6 +66,8 @@ namespace Roguelike.Rules
         public const string RewardOffer = "reward_offer";     // the floor reward was offered: floor, offered the skills joined by " | "
         public const string RewardTake = "reward_take";       // a floor reward was taken: floor, name the skill
         public const string ChestOpen = "chest_open";         // a chest was opened and an upgrade taken: floor, room, offered joined by " | ", name the one taken
+        public const string FloorHeal = "floor_heal";         // work order 023: she was healed as a floor's reward was taken: floor, healed (what was given), health after
+        public const string RoomHeal = "room_heal";           // work order 030: every enemy of a combat room is dead and she was healed: floor, room, elite "true" for the elite room, healed (what was given), health after
         public const string RunEnd = "run_end";               // the run ended: result death, act cleared or left; floor, room and its kind, seconds since the run started
         // The elite room and the skill upgrades (work order 017).
         public const string EliteEnter = "elite_enter";       // she entered the floor's elite room for the first time: floor, room

@@ -233,11 +233,14 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.RoomAt(elite.transform.position), Is.SameAs(level.Layout.EliteRoom));
             Enemy plain = level.Enemies.First(e => e.Kind == EnemyKind.Brute && !e.IsElite);
             LevelValues v = _levels.Values;
-            Assert.That(elite.Body.MaxHealth, Is.EqualTo(4 * v.EnemyHealth), "four times a brute's health");
+            Assert.That(elite.Body.MaxHealth, Is.EqualTo(3 * v.EnemyHealth), "three times a brute's health (work order 030, lever C; four before)");
             Assert.That(elite.Body.CurrentHealth, Is.EqualTo(elite.Body.MaxHealth));
             Assert.That(plain.Body.MaxHealth, Is.EqualTo(v.EnemyHealth));
-            Assert.That(elite.DamageScale, Is.EqualTo(1.25f), "a quarter more damage");
-            Assert.That(plain.DamageScale, Is.EqualTo(1f));
+            // Work order 030, lever B: floor 1's enemies deal 0.7 of their attacks, and an elite's quarter more multiplies with it.
+            float floorScale = v.DamageScaleOf(1);
+            Assert.That(floorScale, Is.EqualTo(0.7f));
+            Assert.That(elite.DamageScale, Is.EqualTo(1.25f * floorScale).Within(1e-5f), "a quarter more damage, times floor 1's");
+            Assert.That(plain.DamageScale, Is.EqualTo(floorScale).Within(1e-6f));
             Assert.That(elite.transform.localScale.x / plain.transform.localScale.x, Is.EqualTo(4f / 3f).Within(1e-4f), "a third larger");
             Assert.That(elite.Body.Radius / plain.Body.Radius, Is.EqualTo(4f / 3f).Within(1e-4f));
             Assert.That(elite.Body.Stagger, Is.Not.Null, "a stagger bar");
@@ -254,8 +257,8 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(elite.transform.position + Vector3.back * 1.5f);
             yield return Until(() => took >= 0 || !_health.IsAlive, 8f);
             Assume.That(took, Is.GreaterThan(0), "it struck her");
-            int[] scaled = elite.Values.Attacks.Select(a => Mathf.RoundToInt(a.Damage * 1.25f)).ToArray();
-            Assert.That(scaled, Does.Contain(took), "a quarter more than one of its attacks");
+            int[] scaled = elite.Values.Attacks.Select(a => Mathf.RoundToInt(a.Damage * elite.DamageScale)).ToArray();
+            Assert.That(scaled, Does.Contain(took), "a quarter more than one of its attacks, times floor 1's 0.7");
         }
 
         [UnityTest]

@@ -114,7 +114,7 @@ namespace Roguelike.PlayModeTests
         {
             _levels.StartRun(RunSeed);
             yield return null;
-            _health.TakeHit(25);
+            _health.TakeHit(60); // 25 before work order 023: with the floor heal she must still be under her maximum after
             yield return FinishFloorAndWaitForTheReward();
             Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "the floor reward is offered");
             Assert.That(_levels.Cleared, Is.True);
@@ -146,7 +146,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.Level.Layout.Floor, Is.EqualTo(2));
             Assert.That(_levels.Level.Layout.Seed, Is.EqualTo(RunSeeds.FloorSeed(RunSeed, 2)));
-            Assert.That(_health.Current, Is.EqualTo(health), "her health carries over");
+            // Work order 023: her health carries over, and the floor heal is added to it.
+            Assert.That(_health.Current, Is.EqualTo(health + FloorHeals.Amount(_health.Max, _levels.RunValues.FloorHeal)), "her health carries over, healed");
             Assert.That(_health.Current, Is.LessThan(_health.Max));
             Assert.That(_levels.SkillsTaken, Is.EqualTo(new[] { _player.Skills[picked].Name }));
             yield return null;

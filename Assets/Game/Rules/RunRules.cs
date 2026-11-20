@@ -156,6 +156,22 @@ namespace Roguelike.Rules
         public float ChestReach = 2f;          // m from her to the chest's footprint middle
         public int UpgradesOffered = 2;
         public float CooldownFloor = 0.5f;     // a skill's cooldown never goes under this share of its own
+        /// <summary>
+        /// A breath between floors (work order 023, 2026-11-20): when a floor's reward is taken (floors 1 to 4) she is
+        /// healed by this share of her maximum (<see cref="FloorHeals"/>). None before: only a chest's +10 healed, and the
+        /// test pilot's flights of 2026-11-20 saw her health only go down across an act.
+        /// </summary>
+        public float FloorHeal = 0.35f;
+        /// <summary>
+        /// Health back inside a floor (work order 030, lever A): when every enemy of a combat room is dead she is healed by
+        /// this share of her maximum, once per room (<see cref="RoomHeals"/>). None before: the test pilot's flights of
+        /// 2026-11-20 saw a floor-3 room cost the Kiter 60 to 77 of her 100 with nothing back until the floor's end.
+        /// Flown (work order 030, round 1): 38 to 66 health back a run, the Kiter's lowest health at a floor's end 80
+        /// instead of 15; alone it moved no pilot past floor 3.
+        /// </summary>
+        public float RoomHeal = 0.08f;
+        /// <summary>The elite room's heal instead of <see cref="RoomHeal"/> (work order 030, lever A), besides its upgrade; none before.</summary>
+        public float EliteRoomHeal = 0.20f;
         public UpgradeDefinition[] Upgrades = DefaultUpgrades();
 
         /// <summary>
@@ -177,6 +193,35 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.KeenFocus, 0.1f),
             new UpgradeDefinition(UpgradeKind.HeavyHits, 0.1f),
         };
+    }
+
+    /// <summary>
+    /// The heal when a combat room is cleared (work order 030, lever A): <see cref="RunValues.RoomHeal"/> of her maximum,
+    /// <see cref="RunValues.EliteRoomHeal"/> for the elite room, once per room of a floor. A new floor starts a new one.
+    /// </summary>
+    public sealed class RoomHeals
+    {
+        readonly HashSet<int> _healed = new HashSet<int>();
+
+        /// <summary>What clearing this room heals now: the room's share of her maximum the first time, 0 after (and for a share of 0).</summary>
+        public int Heal(int room, bool elite, int maxHealth, RunValues values)
+        {
+            if (values == null || _healed.Contains(room)) return 0;
+            _healed.Add(room);
+            return FloorHeals.Amount(maxHealth, elite ? values.EliteRoomHeal : values.RoomHeal);
+        }
+
+        public bool Healed(int room) => _healed.Contains(room);
+
+        /// <summary>A new floor: no room healed yet.</summary>
+        public void Clear() => _healed.Clear();
+    }
+
+    /// <summary>The heal between floors (work order 023): a share of her maximum, rounded to the nearest point; none for a share of 0.</summary>
+    public static class FloorHeals
+    {
+        public static int Amount(int maxHealth, float share) =>
+            maxHealth <= 0 || share <= 0f ? 0 : (int)Math.Round(maxHealth * (double)share, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

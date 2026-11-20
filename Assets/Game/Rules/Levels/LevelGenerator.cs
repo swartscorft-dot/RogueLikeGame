@@ -42,12 +42,17 @@ namespace Roguelike.Rules
     /// amended 2026-11-20): the middle combat room of the chain is the elite room (<see cref="LevelPlan.EliteRoomNumber"/>),
     /// marked in the layout; in the contents it draws its combat room's groups and then its elite's kind from
     /// <see cref="LevelValues.EliteKinds"/>, and the elite is placed first after the act boss, with
-    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps.
+    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps. Version 7 (work order
+    /// 030): work order 023's caps on brutes and shooters in a room's mix together with the elite room; the elite is
+    /// added after the capped mix is drawn, so it never counts against the room's range or its caps.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 6; // 6: work order 017, the elite room; 5: work order 014, fuller rooms and the act boss its own kind
+        // 5: work order 014, fuller rooms and the act boss its own kind; 6: two versions at once, work order 017 (the elite
+        // room) on main and work order 023 (at most three brutes and three shooters a room) on its branch; 7: work
+        // order 030, the two merged (the room mixes capped, and the elite room with its elite counted apart from the caps).
+        public const int Version = 7;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -334,6 +339,19 @@ namespace Roguelike.Rules
             int rest = total - guards;
             int[] counts = Shares(rest, new[] { mix.Swarmers, mix.Shooters, mix.Brutes });
             int swarmers = counts[0], shooters = counts[1], brutes = counts[2];
+            // Work order 023: at most so many brutes and shooters a room (one more of each in an exit room), the rest
+            // swarmers; the room holds as many as before.
+            int more = kind == RoomKind.Exit ? v.ExitRoomKindMore : 0;
+            if (v.BrutesMostInRoom > 0 && brutes > v.BrutesMostInRoom + more)
+            {
+                swarmers += brutes - (v.BrutesMostInRoom + more);
+                brutes = v.BrutesMostInRoom + more;
+            }
+            if (v.ShootersMostInRoom > 0 && shooters > v.ShootersMostInRoom + more)
+            {
+                swarmers += shooters - (v.ShootersMostInRoom + more);
+                shooters = v.ShootersMostInRoom + more;
+            }
             AddSplit(groups, EnemyKind.Shooter, shooters, Math.Max(1, v.ShooterLineMost));
             AddSplit(groups, EnemyKind.Brute, brutes, Math.Max(1, v.BruteLineMost));
             AddSplit(groups, EnemyKind.Swarmer, swarmers, Math.Max(1, v.PackMost));

@@ -21,7 +21,11 @@ namespace Roguelike
     /// (eight characters); floor n's seed is made from it and n (<see cref="RunSeeds.FloorSeed"/>). Keys, read only while
     /// <see cref="PlayerInputDriver.ReadRealDevices"/> is true: F5 starts a new run at floor 1 with the start skills and
     /// full health, F6 starts the same run seed again from floor 1, F7 goes back to the practice room and ends the run.
-    /// Health carries from floor to floor. A floor is finished when every enemy of its exit room is dead; on floors 1
+    /// Health carries from floor to floor; taking a floor's reward heals her by <see cref="RunValues.FloorHeal"/> of her
+    /// maximum (work order 023, a breath between floors), said in the lines of what was taken; and when every enemy of a
+    /// combat room is dead she is healed by <see cref="RunValues.RoomHeal"/>, the elite room
+    /// <see cref="RunValues.EliteRoomHeal"/>, once per room (work order 030, <see cref="RoomHeals"/>), shown as a green
+    /// number over her and told to the recorder. A floor is finished when every enemy of its exit room is dead; on floors 1
     /// to 4 the floor reward is offered then (<see cref="FloorRewards"/>: three skills she lacks, picked with 1, 2 or 3
     /// or a click, the game paused), and taking it puts her at the next floor's entrance. After the last floor the act is
     /// cleared: the act-cleared screen shows (work order 018). Death ends the run: the game slows to a stop and the death
@@ -326,6 +330,7 @@ namespace Roguelike
             CurrentRoom = null;
             EliteRoomEntered = false;
             EliteRoomDone = false;
+            _roomHeals.Clear();
 
             player.Teleport(_level.PlayerStart);
             Debug.Log(string.Format(s_Inv, "Generated floor {0} of {9} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies, {6} props{7}\n{8}",
@@ -544,6 +549,13 @@ namespace Roguelike
             _skillsTaken.Add(name);
             Record?.TakeSkill(name);
             PlaySessionRecorder.Current?.NoteRewardTaken(Floor, name);
+            // A breath between floors (work order 023): a share of her maximum back as the reward is taken.
+            if (_health != null)
+            {
+                int healed = _health.Heal(FloorHeals.Amount(_health.Max, RunValues.FloorHeal));
+                Record?.FloorHealed(Floor, healed);
+                PlaySessionRecorder.Current?.NoteFloorHeal(Floor, healed, _health.Current);
+            }
             // Work order 025: after floor 1's reward the focus choice comes up, still paused, before floor 2.
             if (FocusChoiceDue)
             {
@@ -821,6 +833,7 @@ namespace Roguelike
         {
             SettleDeath();
             if (_level == null || Choice != ChoiceKind.None) return;
+            if (InRun && !Paused) HealClearedRooms(); // work order 030: before the elite room's choice pauses the game
             // The elite room first (work order 017): its choice comes up, and the floor's waits for the next frame.
             // One screen at a time (work order 026): while paused, both wait until the game resumes.
             if (InRun && !EliteRoomDone && !Paused && _level.EliteRoomCleared)
@@ -869,6 +882,32 @@ namespace Roguelike
             }
         }
 
+        /// <summary>The combat rooms healed for on this floor (work order 030, lever A).</summary>
+        readonly RoomHeals _roomHeals = new RoomHeals();
+
+        /// <summary>
+        /// Health back inside a floor (work order 030, lever A): each combat room whose enemies are all dead heals her once,
+        /// by <see cref="RunValues.RoomHeal"/> of her maximum, the elite room by <see cref="RunValues.EliteRoomHeal"/>; a
+        /// green number over her says how much, and the recorder is told.
+        /// </summary>
+        void HealClearedRooms()
+        {
+            if (_health == null || !_health.IsAlive) return;
+            List<LevelRoom> rooms = _level.Layout.Rooms;
+            for (int r = 0; r < rooms.Count; r++) // every frame: no LINQ, nothing made
+            {
+                LevelRoom room = rooms[r];
+                if (room.Kind != RoomKind.Combat || _roomHeals.Healed(room.Order)) continue;
+                if (!_level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list) || list.Count == 0) continue;
+                bool alive = false;
+                for (int i = 0; i < list.Count && !alive; i++) alive = list[i] != null && !list[i].IsDead;
+                if (alive) continue;
+                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues));
+                PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
+                if (healed > 0) TimingFeedback.Current?.ShowHeal(healed);
+            }
+        }
+
         /// <summary>The enemies of a room still alive, and the swarmers the boss called into it (work order 026).</summary>
         int AliveIn(LevelRoom room) =>
             _level != null && room != null ? Alive(_level.EnemiesByRoom, room) + Alive(_level.CalledByRoom, room) : 0;
@@ -894,7 +933,10 @@ namespace Roguelike
                                        AliveIn(layout.ExitRoom), layout.Version)).Append('\n');
             if (InRun)
             {
-                _text.Append("skills taken: ").Append(_skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken)).Append('\n');
+                _text.Append("skills taken: ").Append(_skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken));
+                string heal = Record != null ? Record.FloorHealText : "";
+                if (heal.Length > 0) _text.Append("   (").Append(heal).Append(')'); // work order 023
+                _text.Append('\n');
                 _text.Append("upgrades: ").Append(Modifiers.ShortText()).Append('\n');
                 _text.Append("skill upgrades: ").Append(SkillUpgrades.Text()).Append('\n');
                 _text.Append("focus: ").Append(FocusChoice.Taken ? FocusModeRules.Name(FocusChoice.Mode) : "today's, until the choice").Append('\n'); // work order 025
