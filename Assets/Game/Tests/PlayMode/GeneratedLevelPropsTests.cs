@@ -231,6 +231,22 @@ namespace Roguelike.PlayModeTests
             }
         }
 
+        /// <summary>
+        /// Where a prop's collider stands on the ground (PropFactory): its footprint, but the square round a circle lower than
+        /// it is wide. Work order 044: an ossuary's piles stand side by side at its far wall, where a line can clear one's
+        /// circle and still meet the corner of its square.
+        /// </summary>
+        static PropFootprint ColliderOf(LevelProp o, float lowest)
+        {
+            PropFootprint f = o.Footprint;
+            if (o.Shape == PropShape.Circle && System.Math.Max(o.Height, lowest) < 2 * o.Radius)
+            {
+                f.Shape = PropShape.Rectangle;
+                f.HalfWidth = f.HalfDepth = o.Radius;
+            }
+            return f;
+        }
+
         [UnityTest]
         public IEnumerator AShootersLineOfSight_StopsAtAProp_AsAtAWall()
         {
@@ -250,7 +266,7 @@ namespace Roguelike.PlayModeTests
                     double a = k * System.Math.PI / 8;
                     start = new LevelPoint(p.Position.X + System.Math.Sin(a) * (reach + 1.0), p.Position.Y + System.Math.Cos(a) * (reach + 1.0));
                     found = LevelGeometry.DistanceToWalls(start, placed.Room.Rect, layout.CellSize) > 0.3
-                            && placed.Room.Props.All(o => o == p || o.Footprint.DistanceTo(start, p.Position) > 0.05);
+                            && placed.Room.Props.All(o => o == p || ColliderOf(o, level.LowestPropCollider).DistanceTo(start, p.Position) > 0.05);
                 }
                 Assert.That(found, "a clear place beside " + p);
                 Vector3 centre = level.ToWorld(p.Position) + Vector3.up * sight;

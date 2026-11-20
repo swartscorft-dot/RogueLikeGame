@@ -81,7 +81,9 @@ namespace Roguelike.Rules
         // themes and seven new props, on that branch; 9: work order 034, the two lines merged (the capped mixes, the
         // casters behind LevelValues.Casters, off by default, and the themes on).
         // 10: work order 041, the floor in one row (LevelValues.InALine, on; off, every seed's floor is version 9's).
-        public const int Version = 10;
+        // 11: work order 044, the rooms' mood (LevelValues.RoomMood, on): an ossuary's skull and bone piles banked at its far
+        // wall, from the props' own draws; every other room of every seed is version 10's, and with it off every floor is.
+        public const int Version = 11;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";

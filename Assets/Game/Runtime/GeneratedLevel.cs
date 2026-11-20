@@ -92,6 +92,8 @@ namespace Roguelike
         public IReadOnlyList<KitPiece> KitPieces => _kitPieces;
         /// <summary>The lanterns' lights, when they are on (<see cref="CryptKitValues.LanternLights"/>); else null.</summary>
         public CryptKitLights KitLights { get; private set; }
+        /// <summary>The rooms' mood (work order 044), with <see cref="LevelValues.RoomMood"/> on; else null.</summary>
+        public RoomMood Mood { get; private set; }
 
         /// <summary>
         /// Builds the level under a new root object in the active scene. <paramref name="enemyTemplate"/> is copied
@@ -121,6 +123,8 @@ namespace Roguelike
             if (values.DoorSigns) DoorSigns.Add(level); // work order 041: the doors that say what is behind them
 
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
+            // Work order 044: the rooms' mood, last, beside the level (RoomMood); off, the floor is as before.
+            if (values.RoomMood) level.Mood = RoomMood.Add(level);
             return level;
         }
 
