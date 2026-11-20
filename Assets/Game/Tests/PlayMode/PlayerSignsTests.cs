@@ -18,7 +18,7 @@ namespace Roguelike.PlayModeTests
     /// Work order 037 (Kristian's session of 2026-11-20), her two signs, in the ControlRoom scene through the intents. The
     /// clean window: the ring is up while a chain's next press can be clean, its band lit exactly while a press would be
     /// clean (a press at the lit moment is clean, one outside is not), and it is gone after the press, on time-out, on
-    /// death and on restart; it stands still in a pause and a hit stop; the key's mark agrees with it; the tick is asked
+    /// death and on restart; it stands still in a pause and closes on through a hit stop (work order 038); the key's mark agrees with it; the tick is asked
     /// for once a window and the line once a session. Focus that is full: the flash, the word and the sound once when the
     /// gauge fills, the pulse while it stays full, all gone when it is spent, and none of it under the pause menu or a
     /// choice. With each switch off nothing of that sign exists and the game is as it was; the effects' and the sounds'
@@ -48,6 +48,9 @@ namespace Roguelike.PlayModeTests
         int _ticks;
         int _filled;
         static byte[] s_junk;
+        SkillSettings _ownSkills;      // work order 038: a copy of the skill settings, with the switch set as a test wants
+        RecastPress _judged;           // and what a press was, the window's clock and the real seconds at it
+        float _sinceAtPress, _realAtPress;
 
         /// <summary>The test framework's measure of no GC allocation (its extension, called by name: its own Is would clash with NUnit's).</summary>
         static NUnit.Framework.Constraints.IResolveConstraint NotAllocating => AllocExt.AllocatingGCMemory(Is.Not);
@@ -106,6 +109,8 @@ namespace Roguelike.PlayModeTests
             _sounds = null;
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
+            if (_ownSkills != null) Object.Destroy(_ownSkills);
+            _ownSkills = null;
             PlayerSigns.ForgetSessionLine();
             Time.timeScale = 1f;
             PlayerInputDriver.HeldByChoice = false;
@@ -322,8 +327,13 @@ namespace Roguelike.PlayModeTests
             Assert.That(_signs.ChainSignUp, Is.False, "gone on a restart");
         }
 
+        /// <summary>
+        /// Changed deliberately for work order 038 (Kristian's answer of 2026-11-20: the recast window runs on real time).
+        /// It was TheRing_StandsStill_InAPauseAndAHitStop: the ring stood still in a hit stop, as the window's game-time
+        /// clock did. A pause still holds it; through a hit stop it closes on, as the window the press is judged in runs on.
+        /// </summary>
         [UnityTest]
-        public IEnumerator TheRing_StandsStill_InAPauseAndAHitStop()
+        public IEnumerator TheRing_StandsStillInAPause_AndClosesOnThroughAHitStop()
         {
             _levels = GeneratedLevels.Ensure();
             yield return null;
@@ -343,10 +353,7 @@ namespace Roguelike.PlayModeTests
             r = _signs.RingRadius;
             yield return ForRealTime(0.15f);
             Assume.That(HitStop.IsActive, Is.True);
-            Assert.That(_signs.RingRadius, Is.EqualTo(r), "a hit stop holds it too");
-            yield return Until(() => !HitStop.IsActive, 2f);
-            yield return ForGameTime(0.05f);
-            Assert.That(_signs.RingRadius, Is.LessThan(r), "and it closes on after");
+            Assert.That(_signs.RingRadius, Is.LessThan(r), "a hit stop does not hold it: it closes on through it");
         }
 
         [UnityTest]
@@ -401,6 +408,145 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return null;
             Assert.That(_heard.Contains(PlaceholderSound.Menu), Is.False, "...and not heard");
+        }
+
+        // ---------------- Work order 038: the window runs on real time ----------------
+        // Kristian's answer of 2026-11-20. Backstep: its hop fires nothing, so the only hit stop in its window is the
+        // test's own, of a known length. Its window is 0.6 s; the clean part the last third, 0.4 to 0.6 s after it opens.
+
+        void OwnKit(Action<KitValues> change)
+        {
+            _ownSkills = Object.Instantiate(_player.SkillSet);
+            change(_ownSkills.Kit);
+            _player.SkillSet = _ownSkills;
+        }
+
+        /// <summary>
+        /// Backstep's hop, and its second press <paramref name="pressAt"/> real seconds after its window opened, with a hit
+        /// stop of <paramref name="stop"/> real seconds put in <paramref name="stopAt"/> real seconds after it opened (none
+        /// for 0). What the press was goes to <see cref="_judged"/>: Clean, Shot, or None when it was no recast (the window
+        /// had run out); the window's clock and the real seconds at the press to <see cref="_sinceAtPress"/> and
+        /// <see cref="_realAtPress"/>. Real time is the frames' own (Time.unscaledTime), which the window opened on.
+        /// </summary>
+        IEnumerator BackstepPressedAt(float pressAt, float stopAt, float stop)
+        {
+            int slot = Slot("Backstep");
+            yield return Until(() => _player.Action == ActionKind.None && !HitStop.IsActive, 3f);
+            _player.StartFresh(); // the cooldown ready again, as at a run's start
+            _player.Teleport(NearA);
+            yield return null;
+            int recasts = _recasts.Count;
+            Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the hop");
+            Assert.That(_player.IsRecastWindowOpen, Is.False, "no window while she hops");
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            Assert.That(_player.RecastSinceOpened, Is.EqualTo(0f), "seen on the frame it opened");
+            float opened = Time.unscaledTime;
+            bool put = stop <= 0f;
+            float deadline = Time.realtimeSinceStartup + pressAt + 5f;
+            while (Time.unscaledTime - opened < pressAt && Time.realtimeSinceStartup < deadline)
+            {
+                if (!put && Time.unscaledTime - opened >= stopAt)
+                {
+                    HitStop.Trigger(stop);
+                    put = true;
+                }
+                yield return null;
+            }
+            Assert.That(put, Is.True, "the hit stop was put in");
+            Assert.That(HitStop.IsActive, Is.False, "the press comes after the hit stop");
+            _realAtPress = Time.unscaledTime - opened;
+            _sinceAtPress = _player.RecastSinceOpened;
+            _player.PressSkill(slot, _a.transform.position);
+            _judged = _recasts.Count > recasts ? (_recasts.Last().Clean ? RecastPress.Clean : RecastPress.Shot) : RecastPress.None;
+        }
+
+        [UnityTest]
+        public IEnumerator APress_AtTheSameRealMomentAfterTheWindowOpened_IsJudgedTheSame_WithAHitStopInTheWindow()
+        {
+            Assume.That(_player.Kit.RecastOnRealTime, Is.True, "the switch is on as the game ships");
+            yield return BackstepPressedAt(0.5f, 0f, 0f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Clean), "no hit stop: half a second in, clean");
+            yield return BackstepPressedAt(0.5f, 0.05f, 0.2f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Clean), "a hit stop of 0.2 s in the window: clean stays clean");
+            Assert.That(_sinceAtPress, Is.EqualTo(_realAtPress).Within(0.01f), "the window's clock is the real seconds since it opened");
+            yield return BackstepPressedAt(0.3f, 0f, 0f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Shot), "no hit stop: 0.3 s in, an ordinary shot");
+            yield return BackstepPressedAt(0.3f, 0.05f, 0.2f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Shot), "with the hit stop: early stays early");
+            Assert.That(_sinceAtPress, Is.EqualTo(_realAtPress).Within(0.01f));
+            yield return BackstepPressedAt(0.7f, 0.05f, 0.2f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.None), "0.7 s in, with the hit stop: the window has run out, as it has without one");
+        }
+
+        [UnityTest]
+        public IEnumerator WithTheSwitchOff_AHitStopHoldsTheWindow_AsBefore()
+        {
+            OwnKit(k => k.RecastOnRealTime = false);
+            yield return BackstepPressedAt(0.5f, 0.05f, 0.2f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Shot), "half a second in, with a hit stop of 0.2 s: not clean, as before");
+            Assert.That(_sinceAtPress, Is.EqualTo(_realAtPress - 0.2f).Within(0.03f), "the window's clock held through the hit stop");
+            yield return BackstepPressedAt(0.7f, 0.05f, 0.2f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Clean), "0.7 s in: clean, the clean part moved later by the hit stop");
+            yield return BackstepPressedAt(0.5f, 0f, 0f);
+            Assert.That(_judged, Is.EqualTo(RecastPress.Clean), "with no hit stop, as it always was");
+        }
+
+        [UnityTest]
+        public IEnumerator TheWindow_DoesNotAdvanceWhilePaused_NorThroughAHitStopUnderThePause()
+        {
+            _levels = GeneratedLevels.Ensure();
+            yield return null;
+            int slot = Slot("Backstep");
+            _player.Teleport(NearA);
+            yield return null;
+            Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the hop");
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            yield return Until(() => _player.RecastSinceOpened > 0.1f, 2f);
+            Assert.That(_levels.Pause(), Is.True, "paused");
+            yield return null;
+            float since = _player.RecastSinceOpened;
+            HitStop.Trigger(0.15f); // a hit stop under the pause menu
+            yield return ForRealTime(0.4f);
+            Assert.That(_player.RecastSinceOpened, Is.EqualTo(since), "the window stands still under the pause menu, and through a hit stop under it");
+            Assert.That(_player.IsRecastWindowOpen, Is.True, "still open");
+            Assert.That(_player.RecastSlot, Is.EqualTo(slot));
+            _levels.Resume();
+            yield return ForGameTime(0.05f);
+            Assert.That(_player.RecastSinceOpened, Is.GreaterThan(since), "and runs on after it");
+        }
+
+        [UnityTest]
+        public IEnumerator TheLitBand_AgreesWithTheJudge_ThroughoutAHitStop_AndAPressInItWhileLitIsClean()
+        {
+            int slot = Slot("Backstep");
+            _player.Teleport(NearA);
+            yield return null;
+            Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the hop");
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            float edge = _player.RecastWindowSeconds * (1f - _player.RecastCleanShare);
+            yield return Until(() => _player.RecastSinceOpened >= edge - 0.15f, 2f);
+            _signs.Tick();
+            Assume.That(_signs.ChainSignUp && !_signs.BandLit, Is.True, "before the clean part");
+            HitStop.Trigger(0.3f); // over the edge of the clean part, and on into it
+            yield return null;
+            int frames = 0;
+            while (HitStop.IsActive && _player.RecastSinceOpened < edge + 0.05f && frames < 100000)
+            {
+                _signs.Tick();
+                Assert.That(_signs.BandLit, Is.EqualTo(_player.RecastPressWouldBeClean), "lit exactly when a press would be clean, in the hit stop");
+                float since = _player.RecastSinceOpened;
+                if (Mathf.Abs(since - edge) > 2e-4f) Assert.That(RingInBand, Is.EqualTo(_signs.BandLit), "the ring in the band exactly then, at " + since);
+                Assert.That(_signs.KeyMark, Is.EqualTo(_player.RecastWindowLeft).Within(2e-3f), "the key's mark agrees with the ring");
+                frames++;
+                yield return null;
+            }
+            Assert.That(HitStop.IsActive, Is.True, "still in the hit stop");
+            _signs.Tick();
+            Assert.That(_signs.BandLit, Is.True, "the band lit within the hit stop: the window ran on through it");
+            Assert.That(_player.RecastPressWouldBeClean, Is.True);
+            Assert.That(_ticks, Is.EqualTo(1), "the tick came with it");
+            Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "a press in the hit stop, while lit");
+            Assert.That(_recasts.Last().Clean, Is.True, "is clean");
         }
 
         // ---------------- 2. Focus that is full ----------------

@@ -28,6 +28,10 @@ namespace Roguelike.Rules
     /// Kristian played): the first press is a move that fires nothing, and its window opens when the move has ended,
     /// as a shot's does when it has gone off. The presses still count from the first: Backstep's chain of two is the
     /// hop and one shot. <see cref="IsOpeningMove"/> says the use in progress is that move.
+    ///
+    /// An open window's clock is the time passed in, run on by <see cref="RunOn"/> (work order 038, Kristian's answer of
+    /// 2026-11-20: the window runs on real time): the caller adds the seconds a hit stop froze, as
+    /// <see cref="RecastClock"/> counts them. With none added the window is as it was.
     /// </summary>
     public sealed class RecastChain
     {
@@ -37,6 +41,7 @@ namespace Roguelike.Rules
         float _window;
         float _openedAt = float.PositiveInfinity;
         bool _openingMove;
+        float _ranOn; // s the open window has run on beyond the time passed in (work order 038); 0 until it opens
 
         /// <summary>The slot whose chain runs, or -1. A chain that has run out still shows here until <see cref="Expired"/> or <see cref="End"/>.</summary>
         public int Slot => _slot;
@@ -44,7 +49,7 @@ namespace Roguelike.Rules
         public int Shots => _shots;
         public int Count => _count;
         /// <summary>True once the shot before has gone off and the window for the next press is open, until it runs out.</summary>
-        public bool IsWindowOpen(float now) => _slot >= 0 && now >= _openedAt && now <= _openedAt + _window;
+        public bool IsWindowOpen(float now) => _slot >= 0 && now >= _openedAt && now + _ranOn <= _openedAt + _window;
         /// <summary>True when the open window is for the last shot of the chain.</summary>
         public bool NextIsLast => _shots == _count - 1;
 
@@ -59,6 +64,7 @@ namespace Roguelike.Rules
             _shots = 1;
             _window = Math.Max(0f, window);
             _openedAt = float.PositiveInfinity;
+            _ranOn = 0f;
             _openingMove = openingMove && _slot >= 0;
         }
 
@@ -82,7 +88,7 @@ namespace Roguelike.Rules
         public bool IsComplete => _slot >= 0 && _shots >= _count;
 
         /// <summary>True when a window was open and has run out by now: the chain is over, short of its count.</summary>
-        public bool Expired(float now) => _slot >= 0 && !float.IsPositiveInfinity(_openedAt) && now > _openedAt + _window;
+        public bool Expired(float now) => _slot >= 0 && !float.IsPositiveInfinity(_openedAt) && now + _ranOn > _openedAt + _window;
 
         /// <summary>What a press of this slot's key is, now.</summary>
         public RecastPress Judge(int slot, float now, float cleanShare, bool hasCleanTap)
@@ -90,7 +96,18 @@ namespace Roguelike.Rules
             if (_slot < 0 || slot != _slot || Expired(now)) return RecastPress.None;
             if (now < _openedAt) return RecastPress.Early;
             bool last = _shots + 1 >= _count;
-            return last && hasCleanTap && IsClean(now - _openedAt, _window, cleanShare) ? RecastPress.Clean : RecastPress.Shot;
+            return last && hasCleanTap && IsClean(now - _openedAt + _ranOn, _window, cleanShare) ? RecastPress.Clean : RecastPress.Shot;
+        }
+
+        /// <summary>
+        /// The open window's clock runs on by these seconds beyond the time passed in (work order 038: the real seconds a
+        /// hit stop froze, as <see cref="RecastClock.HitStopSeconds"/> counts them). Nothing while no window is open: its
+        /// clock starts when it opens, and a press before that is early however long a hit stop held the shot.
+        /// </summary>
+        public void RunOn(float seconds)
+        {
+            if (_slot < 0 || seconds <= 0f || float.IsPositiveInfinity(_openedAt)) return;
+            _ranOn += seconds;
         }
 
         /// <summary>True when the last press of this skill's chain can be clean: it has a clean tap or a clean spend.</summary>
@@ -110,6 +127,7 @@ namespace Roguelike.Rules
             if (_slot < 0) return;
             _shots++;
             _openedAt = float.PositiveInfinity;
+            _ranOn = 0f;
         }
 
         /// <summary>Ends the chain, whatever its state (a dash, another skill, a run-out window). Returns the shots it fired.</summary>
@@ -118,6 +136,7 @@ namespace Roguelike.Rules
             int shots = _shots;
             _slot = -1;
             _openedAt = float.PositiveInfinity;
+            _ranOn = 0f;
             return shots;
         }
 
@@ -125,7 +144,7 @@ namespace Roguelike.Rules
         public float WindowLeft(float now)
         {
             if (!IsWindowOpen(now) || _window <= 0f) return 0f;
-            return Math.Max(0f, Math.Min(1f, 1f - (now - _openedAt) / _window));
+            return Math.Max(0f, Math.Min(1f, 1f - (now - _openedAt + _ranOn) / _window));
         }
 
         /// <summary>
@@ -138,6 +157,33 @@ namespace Roguelike.Rules
         /// Seconds since the window for the next press opened (work order 037), past its length once it has run out; -1
         /// while the shot before has not gone off yet, and with no chain. It reads; it changes nothing.
         /// </summary>
-        public float SinceOpened(float now) => _slot < 0 || float.IsPositiveInfinity(_openedAt) ? -1f : now - _openedAt;
+        public float SinceOpened(float now) => _slot < 0 || float.IsPositiveInfinity(_openedAt) ? -1f : now - _openedAt + _ranOn;
+    }
+
+    /// <summary>
+    /// Which seconds an open recast window counts (work order 038, Kristian's answer of 2026-11-20: the window runs on
+    /// real time). Its clock is game time, and a hit stop freezes game time: every landed shot added 0.05 s and every
+    /// landed basic shot 0.025 s of real time, so the clean part moved 25 to 100 ms from one use to the next, and a rhythm
+    /// that moves cannot be learnt. Only the hit stop is taken out:
+    /// - a frame that ran counts its game seconds, as before (so a slow-down of the whole game slows the window, and a
+    ///   test's or a flight's faster game runs it faster);
+    /// - a frame a hit stop froze counts its real seconds at the pace the game had when the hit stop began (the time
+    ///   scale it found), so the window runs on as if the hit stop had not been;
+    /// - a frame anything else froze counts nothing: the pause menu, a choice, an end screen or the screen between runs
+    ///   (a screen that holds the game, even over a hit stop), or a time scale of 0 that is no hit stop.
+    /// </summary>
+    public static class RecastClock
+    {
+        /// <summary>
+        /// The seconds a frame adds to an open window beyond its game seconds. <paramref name="on"/>: the switch
+        /// (<see cref="KitValues.RecastOnRealTime"/>); off, none, and the window is as it was. <paramref name="hitStopHolds"/>:
+        /// a hit stop held this frame's game time; <paramref name="screenHolds"/>: a screen holds the game;
+        /// <paramref name="paceBefore"/>: the time scale the hit stop found.
+        /// </summary>
+        public static float HitStopSeconds(bool on, float gameSeconds, float realSeconds, bool hitStopHolds, bool screenHolds, float paceBefore)
+        {
+            if (!on || !hitStopHolds || screenHolds || gameSeconds > 0f || realSeconds <= 0f) return 0f;
+            return realSeconds * Math.Max(0f, paceBefore);
+        }
     }
 }

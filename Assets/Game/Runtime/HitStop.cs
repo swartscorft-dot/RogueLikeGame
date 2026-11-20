@@ -13,8 +13,19 @@ namespace Roguelike
         float _until;
         float _restoreScale = 1f;
         bool _frozen;
+        float _scaleFound = 1f;
+        int _letGoFrame = -1;
 
         public static bool IsActive => s_Runner != null && s_Runner._frozen;
+
+        /// <summary>
+        /// True when a hit stop holds this frame's game time: it is frozen, or let go during this frame, whose game time was
+        /// set, at 0, when the frame began (work order 038: the recast window runs on through it, RecastClock).
+        /// </summary>
+        public static bool HoldsThisFrame => s_Runner != null && (s_Runner._frozen || s_Runner._letGoFrame == Time.frameCount);
+
+        /// <summary>The time scale the hit stop found when it froze the game: the game's pace it stands in for (work order 038).</summary>
+        public static float ScaleFound => s_Runner != null ? s_Runner._scaleFound : 1f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => s_Runner = null;
@@ -39,6 +50,7 @@ namespace Roguelike
                 // choice or the end of a run, and GeneratedLevels sets that every frame after any hit stop has let go.
                 // Kept, a 0.4 from the end's slow-down would come back after a new run had set 1.
                 _restoreScale = Mathf.Max(1f, Time.timeScale);
+                _scaleFound = Time.timeScale;
                 Time.timeScale = 0f;
                 _frozen = true;
             }
@@ -61,6 +73,7 @@ namespace Roguelike
         {
             if (!_frozen) return;
             _frozen = false;
+            _letGoFrame = Time.frameCount;
             Time.timeScale = _restoreScale;
         }
     }

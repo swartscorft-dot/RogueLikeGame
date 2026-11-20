@@ -895,7 +895,23 @@ namespace Roguelike
         /// <summary>Ends a recast chain whose window has run out.</summary>
         void ExpireChain(float now)
         {
+            RunChainOnThroughHitStop();
             if (_chain.Expired(now)) EndChain();
+        }
+
+        // Work order 038 (Kristian's answer of 2026-11-20: the recast window runs on real time). A hit stop froze the
+        // window's game-time clock, so the clean part moved from one use to the next. Once a frame, before anything in it
+        // judges a press (every press, the buffer's and the frame's own update pass here first), the open window runs on
+        // by the seconds a hit stop froze, at the game's pace (RecastClock); a pause, a choice or a screen still stops it.
+        // Off (KitValues.RecastOnRealTime), nothing runs on and the window is as it was.
+        int _chainRanOnFrame = -1;
+
+        void RunChainOnThroughHitStop()
+        {
+            if (_chainRanOnFrame == Time.frameCount) return;
+            _chainRanOnFrame = Time.frameCount;
+            _chain.RunOn(RecastClock.HitStopSeconds(Kit.RecastOnRealTime, Time.deltaTime, Time.unscaledDeltaTime, HitStop.HoldsThisFrame,
+                                                    PlayerInputDriver.HeldByChoice || PlayerInputDriver.HeldByScreen, HitStop.ScaleFound));
         }
 
         /// <summary>Ends the recast chain, if one runs, and reports how many shots it fired.</summary>

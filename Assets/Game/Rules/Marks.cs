@@ -14,6 +14,7 @@ namespace Roguelike.Rules
         public int BasicShotsPerMark = 5;      // every this many basic shot hits, the hit that completes the count marks its target (4 until 2026-11-19)
         public bool StartWithAllSkills = false; // every skill had from the start, for trying the ones that wait (the first eight on the keys: work order 015)
         public float CleanShare = 1f / 3f;     // the last share of the final recast window in which a press is clean
+        public bool RecastOnRealTime = true;   // a hit stop does not hold the recast window: it runs on real seconds, at the game's pace (work order 038, Kristian's answer of 2026-11-20); off, as before
         public float CleanDamage = 1.5f;       // a clean tap deals this times the damage (not a clean spend: that has its bonus per mark)
     }
 
