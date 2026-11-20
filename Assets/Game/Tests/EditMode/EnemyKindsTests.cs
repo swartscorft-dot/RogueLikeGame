@@ -76,6 +76,8 @@ namespace Roguelike.Rules.Tests
             {
                 ["Quick Shot"] = 3f, ["Triple Tap"] = 2f, ["Backstep"] = 5f, ["Scatter Blast"] = 30f,
                 ["Fan Fire"] = 4f, ["Powder Keg"] = 20f, ["Long Shot"] = 15f, ["Heavy Volley"] = 40f,
+                // Work order 015: the pool's four.
+                ["Tag Round"] = 2f, ["Breaker Slug"] = 80f, ["Slide"] = 0f, ["Stopping Shot"] = 3f,
             };
             SkillDefinition[] skills = SkillDefaults.Create();
             Assert.That(skills.Select(s => s.Name), Is.EquivalentTo(want.Keys));

@@ -13,7 +13,10 @@ namespace Roguelike
         public bool ShootPressed;       // the shoot button went down: one basic shot toward the cursor
         public bool DashPressed;        // Space
         public bool IdentityPressed;    // Z: spend a full focus gauge on the empowered mode
-        /// <summary>Skill bindings that went down this frame. Bit 0 is the first skill slot, bit 1 the second, and so on.</summary>
+        /// <summary>
+        /// Skill bindings that went down this frame. Bit 0 is the first skill key, bit 1 the second, and so on; the skill
+        /// on each key is the character's (work order 015: <see cref="PlayerCharacter.SkillOnKey"/>).
+        /// </summary>
         public int SkillsPressed;
         /// <summary>Skill bindings that are down this frame, same bits. One that went down this frame counts as down.</summary>
         public int SkillsHeld;
@@ -53,6 +56,12 @@ namespace Roguelike
         /// </summary>
         public static bool HeldByChoice;
 
+        /// <summary>
+        /// True while the pause menu or a run's end screen is up (work order 018): the game is paused or slowing to a
+        /// stop, and no key or click reaches the character.
+        /// </summary>
+        public static bool HeldByScreen;
+
         /// <summary>Where frames come from. Null means the mouse and keyboard. Return null for "no input this frame".</summary>
         public Func<InputFrame?> InputSource;
 
@@ -78,6 +87,7 @@ namespace Roguelike
         {
             ReadRealDevices = true;
             HeldByChoice = false;
+            HeldByScreen = false;
         }
 
         void Awake()
@@ -88,7 +98,7 @@ namespace Roguelike
 
         void Update()
         {
-            if (HeldByChoice) return;
+            if (HeldByChoice || HeldByScreen) return;
             InputFrame? read = InputSource != null ? InputSource() : ReadDevices();
             if (read == null) return;
             InputFrame input = read.Value;
@@ -112,10 +122,13 @@ namespace Roguelike
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
 
+            // The bits are keys; the skill on each key comes from her bar (work order 015). An empty key does nothing.
             int held = input.SkillsHeld | input.SkillsPressed;
-            for (int slot = 0; slot < 32; slot++)
+            for (int key = 0; key < 32; key++)
             {
-                int bit = 1 << slot;
+                int bit = 1 << key;
+                int slot = _player.SkillOnKey(key);
+                if (slot < 0) continue;
                 if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, cursor);
                 if ((_skillsHeldBefore & bit) != 0 && (held & bit) == 0) _player.ReleaseSkill(slot);
             }
@@ -127,11 +140,11 @@ namespace Roguelike
         /// <summary>
         /// The point the dash goes toward, as the bindings choose (decision 0004): the cursor, or a dash length along
         /// the held move direction, or along where she faces when no move key is held. Read after the move keys, so it
-        /// is this frame's direction.
+        /// is this frame's direction. The pause menu's setting, when chosen, overrides the asset's (work order 018, <see cref="GameSettings"/>).
         /// </summary>
         public Vector3 DashPoint(Vector3 cursor)
         {
-            if (ActiveBindings.DashDirection != DashDirection.TowardMovement) return cursor;
+            if (GameSettings.Dash(ActiveBindings.DashDirection) != DashDirection.TowardMovement) return cursor;
             Vector3 dir = _player.MoveInput;
             if (dir.sqrMagnitude < 1e-6f) dir = new Vector3(_player.transform.forward.x, 0f, _player.transform.forward.z);
             if (dir.sqrMagnitude < 1e-6f) return cursor;

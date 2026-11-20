@@ -40,6 +40,9 @@ namespace Roguelike.Rules
                     // Recovery: from where the run stops.
                     Name = Charge, Shape = EnemyAttackShape.Line, MinDistance = 7f, MaxDistance = 16f,
                     Windup = 0.9f, Recovery = 1.6f, Damage = 45, Length = 14f, HalfWidth = 1.5f, Rush = 12f,
+                    // The producer, 2026-11-20, when work orders 014 and 015 met: the charge is the boss's blue attack.
+                    // Stopping Shot from its front during the wind-up drops it and dazes the boss (pillar 4: counter).
+                    Counterable = true,
                 },
             },
         };

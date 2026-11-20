@@ -417,6 +417,43 @@ namespace Roguelike.PlayModeTests
             _levels.ClearSpawned();
         }
 
+        [UnityTest]
+        public IEnumerator Charge_IsTheBlueAttack_StoppingShotFromTheFront_DropsIt_AndDazesTheBoss()
+        {
+            EnemyBoss boss = SpawnBoss();
+            yield return null;
+            int stop = -1;
+            for (int i = 0; i < _player.Skills.Count; i++)
+                if (_player.Skills[i].Name == "Stopping Shot") stop = i;
+            Assert.That(stop, Is.GreaterThanOrEqualTo(0), "the pool has Stopping Shot");
+            _player.EquipSkill(stop);
+            Assert.That(Named(boss, BossValues.Charge).Counterable, Is.True);
+            Assert.That(Named(boss, BossValues.Cleave).Counterable, Is.False, "the close attacks stay red");
+            Assert.That(Named(boss, BossValues.Spin).Counterable, Is.False);
+            Vector3 from = boss.transform.position;
+            Vector3 dir = (new Vector3(Stand.x, 0f, Stand.z) - new Vector3(from.x, 0f, from.z)).normalized;
+            boss.Body.TakeHit(1);
+
+            float began = -1f;
+            yield return NextWindup(boss, BossValues.Charge, t => began = t);
+            Assert.That(began, Is.GreaterThan(0f), "a charge at her 12 m away");
+            Assert.That(boss.TelegraphIsCounterable, Is.True, "drawn blue");
+            // She stands in its line, in front of it, well inside the shot's range, and shoots it while it winds up.
+            _player.Teleport(from + dir * 9f);
+            _health.RestoreFull();
+            int hp = _health.Current;
+            Assert.That(_player.PressSkill(stop, boss.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => boss.Countered > 0 || boss.IsCharging, 3f);
+            Assert.That(boss.Countered, Is.EqualTo(1));
+            Assert.That(boss.IsDazed, Is.True);
+            Assert.That(boss.IsCharging, Is.False, "the charge never starts");
+            yield return For(1f);
+            Assert.That(boss.IsCharging, Is.False);
+            Assert.That(_health.Current, Is.EqualTo(hp), "in its line, and not hit");
+            _player.EquipStartSkills();
+            _levels.ClearSpawned();
+        }
+
         // ---------------- The stagger bar ----------------
 
         [UnityTest]

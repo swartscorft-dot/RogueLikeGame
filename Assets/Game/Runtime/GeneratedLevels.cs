@@ -24,8 +24,8 @@ namespace Roguelike
     /// Health carries from floor to floor. A floor is finished when every enemy of its exit room is dead; on floors 1
     /// to 4 the floor reward is offered then (<see cref="FloorRewards"/>: three skills she lacks, picked with 1, 2 or 3
     /// or a click, the game paused), and taking it puts her at the next floor's entrance. After the last floor the act is
-    /// cleared: the run seed and the time taken are shown, and F7 takes her back. Death ends the run: she is back in the
-    /// practice room with a line on screen saying the floor and room she reached and the run seed.
+    /// cleared: the act-cleared screen shows (work order 018). Death ends the run: the game slows to a stop and the death
+    /// screen shows the floor and room she reached; she stays on the floor until a key (work order 018).
     ///
     /// Chests (work order 012): standing within <see cref="RunValues.ChestReach"/> of a treasure room's chest she has
     /// not opened, a prompt shows over it and the interact key (E, <see cref="InputBindings.Interact"/>) opens it, once:
@@ -45,8 +45,12 @@ namespace Roguelike
     /// (<see cref="SessionRecordingRule.MayStartByItself"/>); tests make one with <see cref="Ensure"/>. It does
     /// nothing while there is no <see cref="PlayerCharacter"/> in the scene. It logs the seed and the text map of every
     /// floor it builds, and tells the play session recorder about the run, its floors, rooms, rewards and chests.
+    ///
+    /// The end of a run, the pause and the run's record (work order 018, 2026-11-20) are in GeneratedLevelsScreens.cs:
+    /// death no longer takes her to the practice room at once; the game slows to a stop and the death screen waits for
+    /// a key, and so does the act-cleared screen.
     /// </summary>
-    public sealed class GeneratedLevels : MonoBehaviour
+    public sealed partial class GeneratedLevels : MonoBehaviour
     {
         public const Key NewLevelKey = Key.F5;
         public const Key SameLevelKey = Key.F6;
@@ -161,6 +165,7 @@ namespace Roguelike
         void OnDestroy()
         {
             CloseChoice();
+            CloseScreens();
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
             if (_health != null)
@@ -305,6 +310,7 @@ namespace Roguelike
         public void BackToPracticeRoom()
         {
             CloseChoice();
+            CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
             if (_level == null) return;
             PlayerCharacter player = FindPlayer();
@@ -337,6 +343,7 @@ namespace Roguelike
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
             CloseChoice();
+            CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
             RunSeed = runSeed;
             InRun = true;
@@ -350,6 +357,7 @@ namespace Roguelike
             player.EquipStartSkills();
             if (_health != null) _health.RestoreFull();
             _runStartedAt = Time.time;
+            Record = new RunRecord(RunSeedText, Values.FloorsPerAct);
             PlaySessionRecorder.Current?.NoteRunStarted(RunSeedText);
             return EnterFloor(1);
         }
@@ -365,6 +373,7 @@ namespace Roguelike
             Floor = floor;
             ulong seed = RunSeeds.FloorSeed(RunSeed ?? 0UL, floor);
             GeneratedLevel level = Build(seed, floor);
+            RecordFloor(level);
             _floorStartedAt = Time.time;
             PlaySessionRecorder.Current?.NoteFloorEntered(floor, LevelSeed.ToText(seed));
             return level;
@@ -379,6 +388,7 @@ namespace Roguelike
             if (!InRun) return;
             InRun = false;
             LastRunLine = line;
+            RecordEnd(how);
             PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null ? CurrentRoom.Order + 1 : 0,
                                                       CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt);
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
@@ -408,6 +418,7 @@ namespace Roguelike
                 ActCleared = true;
                 _actTime = Time.time - _runStartedAt;
                 EndRun("act cleared", "ACT CLEARED   run " + RunSeedText + "   time " + SessionSummary.Duration(_actTime));
+                OpenEnding(EndKind.ActCleared);
                 return;
             }
             OfferFloorReward();
@@ -441,6 +452,7 @@ namespace Roguelike
             player.EquipSkill(slot);
             string name = player.Skills[slot].Name;
             _skillsTaken.Add(name);
+            Record?.TakeSkill(name);
             PlaySessionRecorder.Current?.NoteRewardTaken(Floor, name);
             CloseChoice();
             EnterFloor(Floor + 1);
@@ -493,6 +505,7 @@ namespace Roguelike
             if (Choice != ChoiceKind.Chest || index < 0 || index >= _offeredUpgrades.Count) return false;
             Upgrade u = _offeredUpgrades[index];
             Modifiers.Take(u);
+            Record?.TakeUpgrade(u.Short);
             if (_health != null)
             {
                 _health.RefreshMax();
@@ -575,11 +588,14 @@ namespace Roguelike
                 }
                 return;
             }
+            HoldScreens();
+            if (InRun) Record?.SetTime(Time.time - _runStartedAt);
             if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard keyboard)
             {
                 if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
                 else if (keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
                 else if (keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
+                else if (Paused || Ending != EndKind.None) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018)
                 else if (keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
                 else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
@@ -592,12 +608,8 @@ namespace Roguelike
                 _diedPending = false;
                 string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
                 EndRun("death", line);
-                if (_level != null)
-                {
-                    // She stands at the practice spot until her respawn puts her at the practice room's start.
-                    _player.Teleport(_practiceSpotKnown ? _practiceSpot : Vector3.zero);
-                    Remove();
-                }
+                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
+                if (_level != null) OpenEnding(EndKind.Died);
             }
             if (_level == null)
             {
@@ -612,6 +624,7 @@ namespace Roguelike
         void LateUpdate()
         {
             if (Choice != ChoiceKind.None) Time.timeScale = 0f;
+            else HoldScreens(); // and the pause menu's, and the end's slow-down (work order 018)
         }
 
         Key InteractKey
@@ -631,6 +644,7 @@ namespace Roguelike
             if (room == null || room == CurrentRoom) return;
             CurrentRoom = room;
             _entered.Add(room.Order);
+            if (InRun) Record?.EnterRoom(room.Order, room.Kind);
             PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant());
         }
 
@@ -679,19 +693,20 @@ namespace Roguelike
             const float width = 330f;
             float viewWidth = Screen.width / scale;
             float x = viewWidth - width - 10f;
+            // The developer's box: shown or not, and how far down, as the HUD says (work order 018: F1); as before without one.
             if (inLevel)
             {
                 string text = StatusText();
                 int lines = text.Split('\n').Length;
-                GUI.Box(new Rect(x, 10, width, 12 + lines * 15), text, _style);
+                if (ShowDevBox) GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
                 DrawChestPrompt(scale);
             }
-            else
+            else if (ShowDevBox)
             {
                 string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
                             + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
-                GUI.Box(new Rect(x, 10, width, 12 + text.Split('\n').Length * 15), text, _style);
+                GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
             }
             if (Choice != ChoiceKind.None) DrawChoice(viewWidth);
             GUI.matrix = matrixBefore;
@@ -736,7 +751,8 @@ namespace Roguelike
                     int slot = _offeredSkills[i];
                     SkillDefinition s = player.Skills[slot];
                     text = string.Format(s_Inv, "{0}   {1}   key {2}   cooldown {3:0.#} s   {4}\n{5}", i + 1, s.Name,
-                                         bindings != null ? bindings.SkillLabel(slot) : "?", s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
+                                         bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", // the key it will go on (work order 015)
+                                         s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
                 }
                 else
                 {

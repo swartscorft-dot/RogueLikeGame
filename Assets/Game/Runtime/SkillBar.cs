@@ -62,19 +62,21 @@ namespace Roguelike
             IReadOnlyList<SkillDefinition> skills = Player.Skills;
             if (_driver == null) _driver = Player.GetComponent<PlayerInputDriver>();
             InputBindings bindings = _driver != null ? _driver.ActiveBindings : null;
-            int count = bindings != null && bindings.Skills != null ? Mathf.Min(skills.Count, bindings.Skills.Length) : skills.Count;
+            // One box per key, in key order, with the skill on it (work order 015: the key and the skill are apart).
+            int count = bindings != null && bindings.Skills != null ? Mathf.Min(Player.KeyCount, bindings.Skills.Length) : Player.KeyCount;
             float total = count * BoxWidth + (count - 1) * Gap;
             float left = (viewWidth - total) * 0.5f;
             float top = LayoutHeight - BoxHeight - 14f;
             int active = Player.ActiveSkillSlot;
             int recovering = Player.FreeRecoverySlot; // decision 0004: its recovery runs, but she is free to shoot and move
 
-            for (int slot = 0; slot < count; slot++)
+            for (int keyIndex = 0; keyIndex < count; keyIndex++)
             {
-                var box = new Rect(left + slot * (BoxWidth + Gap), top, BoxWidth, BoxHeight);
-                string key = bindings != null ? bindings.SkillLabel(slot) : "";
-                // A slot with no skill yet (decision 0005) is an empty, dim box with its key.
-                if (!Player.IsEquipped(slot))
+                var box = new Rect(left + keyIndex * (BoxWidth + Gap), top, BoxWidth, BoxHeight);
+                string key = bindings != null ? bindings.SkillLabel(keyIndex) : "";
+                int slot = Player.SkillOnKey(keyIndex);
+                // A key with no skill yet (decision 0005) is an empty, dim box with its key.
+                if (slot < 0 || slot >= skills.Count || !Player.IsEquipped(slot))
                 {
                     GUI.color = s_Empty;
                     GUI.Box(box, key + "\nempty", _box);
@@ -82,10 +84,14 @@ namespace Roguelike
                 }
                 float cooldown = Player.SkillCooldownRemaining(slot);
                 bool chain = slot == Player.RecastSlot;
+                int charges = skills[slot].Charges;
                 string state = slot == active ? Player.SkillPhase.ToString()
                     : chain && Player.IsRecastWindowOpen && skills[slot].OpeningMove ? "shoot" // Backstep after its hop (2026-11-19)
                     : chain && Player.IsRecastWindowOpen ? string.Format(s_Inv, "tap {0} / {1}", Player.RecastShots + 1, skills[slot].RecastCount)
                     : slot == recovering ? "Recovery (free)"
+                    // Charges (work order 015): how many are ready, and the next one's time while one comes back.
+                    : charges > 1 ? string.Format(s_Inv, "{0} / {1}", Player.SkillChargesReady(slot), charges)
+                                    + (Player.SkillNextCharge(slot) > 0f ? string.Format(s_Inv, "  {0:0.0} s", Player.SkillNextCharge(slot)) : "")
                     : cooldown > 0f ? string.Format(s_Inv, "{0:0.0} s", cooldown) : "ready";
                 GUI.color = slot == active || slot == recovering || chain ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
                 GUI.Box(box, key + "  " + skills[slot].Name + "\n" + state, _box);
@@ -124,7 +130,25 @@ namespace Roguelike
             SkillDefinition skill = Player.ActiveSkill;
             SkillPhase phase = Player.SkillPhase;
             if (skill != null && (phase == SkillPhase.Startup || phase == SkillPhase.Channel))
-                Bar(new Rect(left, rowTop - BarHeight - 6f, total, BarHeight), Player.SkillProgress, s_InUse, BarText(skill, phase));
+            {
+                var rect = new Rect(left, rowTop - BarHeight - 6f, total, BarHeight);
+                // Long Shot's perfect band (work order 015), marked on the charge as Triple Tap's clean zone is on its
+                // window: green, the bar drawn thinner over it, and the bar green while the charge is inside it.
+                bool band = phase == SkillPhase.Channel && skill.Input == SkillInput.Charge && skill.PerfectTo > skill.PerfectFrom && skill.ChargeTime > 0f;
+                if (band)
+                {
+                    float from = Mathf.Clamp01(skill.PerfectFrom / skill.ChargeTime), to = Mathf.Clamp01(skill.PerfectTo / skill.ChargeTime);
+                    GUI.color = s_Back;
+                    GUI.DrawTexture(rect, Texture2D.whiteTexture);
+                    GUI.color = s_CleanZone;
+                    GUI.DrawTexture(new Rect(rect.x + rect.width * from, rect.y, rect.width * (to - from), rect.height), Texture2D.whiteTexture);
+                    GUI.color = Player.InPerfectBand ? s_Clean : s_InUse;
+                    GUI.DrawTexture(new Rect(rect.x, rect.y + 3f, rect.width * Mathf.Clamp01(Player.SkillProgress), rect.height - 6f), Texture2D.whiteTexture);
+                    GUI.color = s_Ready;
+                    GUI.Label(rect, Player.InPerfectBand ? "PERFECT: let go" : BarText(skill, phase), _label);
+                }
+                else Bar(rect, Player.SkillProgress, s_InUse, BarText(skill, phase));
+            }
 
             GUI.color = before;
             GUI.matrix = matrixBefore;

@@ -108,7 +108,7 @@ namespace Roguelike.Rules
                 new EnemyAttackDefinition
                 {
                     Name = "Sweep", Shape = EnemyAttackShape.Cone, MinDistance = 3f, MaxDistance = 5.5f,
-                    Windup = 1.0f, Recovery = 1.2f, Damage = 30, Length = 6f, Angle = 120f,
+                    Windup = 1.0f, Recovery = 1.2f, Damage = 30, Length = 6f, Angle = 120f, Counterable = true,
                 },
             },
         };

@@ -2,22 +2,76 @@ using System;
 
 namespace Roguelike.Rules
 {
-    /// <summary>Counts a cooldown. Time is passed in, in seconds.</summary>
+    /// <summary>
+    /// Counts a cooldown. Time is passed in, in seconds.
+    /// Charges (work order 015, 2026-11-20): it holds <see cref="MaxCharges"/> uses, 1 unless a skill says more (Slide:
+    /// 2). Each use spends one; the spent ones come back one at a time, each the cooldown after the one before (the first
+    /// the cooldown after the use that spent it, when none was recharging). It is ready while one is left. With one
+    /// charge it is the plain cooldown it always was.
+    /// </summary>
     public sealed class Cooldown
     {
-        float _readyAt = float.NegativeInfinity;
+        float _readyAt = float.NegativeInfinity; // when the charge recharging now comes back
+        int _spent;
+        float _seconds;                          // the recharge time of the charges still to come back
+        int _max = 1;
 
-        public bool IsReady(float now) => now >= _readyAt;
-        public float Remaining(float now) => now >= _readyAt ? 0f : _readyAt - now;
-        public void Start(float now, float seconds) => _readyAt = now + Math.Max(0f, seconds);
+        /// <summary>The uses it can hold, at least 1. Lowering it drops the spent charges above the new number.</summary>
+        public int MaxCharges
+        {
+            get => _max;
+            set
+            {
+                _max = Math.Max(1, value);
+                if (_spent > _max) _spent = _max;
+            }
+        }
+
+        void Settle(float now)
+        {
+            while (_spent > 0 && now >= _readyAt)
+            {
+                _spent--;
+                if (_spent > 0) _readyAt += _seconds;
+            }
+        }
+
+        /// <summary>Charges ready now.</summary>
+        public int Charges(float now)
+        {
+            Settle(now);
+            return _max - _spent;
+        }
+
+        public bool IsReady(float now) => Charges(now) > 0;
+
+        /// <summary>Seconds until it is ready: 0 while a charge is left.</summary>
+        public float Remaining(float now) => IsReady(now) ? 0f : _readyAt - now;
+
+        /// <summary>Seconds until the next charge comes back: 0 when all are ready.</summary>
+        public float NextCharge(float now)
+        {
+            Settle(now);
+            return _spent > 0 ? _readyAt - now : 0f;
+        }
+
+        /// <summary>A use: spends a charge, and starts its recharge if none was recharging. With none left it starts again.</summary>
+        public void Start(float now, float seconds)
+        {
+            Settle(now);
+            _seconds = Math.Max(0f, seconds);
+            if (_spent == 0 || _spent >= _max) _readyAt = now + _seconds;
+            if (_spent < _max) _spent++;
+        }
 
         /// <summary>
         /// Cuts a running cooldown by a share of what is left: 0.4 leaves 3 s of 5 s (decision 0005, 2026-11-19: what
-        /// spending focus does). Returns the seconds cut; a ready cooldown is left alone and returns 0.
+        /// spending focus does). With charges, the recharge running now. Returns the seconds cut; a cooldown with nothing
+        /// recharging is left alone and returns 0.
         /// </summary>
         public float Cut(float now, float share)
         {
-            float left = Remaining(now);
+            float left = NextCharge(now);
             if (left <= 0f) return 0f;
             float cut = left * Math.Max(0f, Math.Min(1f, share));
             _readyAt -= cut;
