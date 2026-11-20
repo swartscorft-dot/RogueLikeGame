@@ -150,6 +150,11 @@ namespace Roguelike
         public bool IsDead => _self == null || !_self.IsAlive;
         public bool IsAwake => _self != null && _self.IsAlive && _brain.State != EnemyState.Idle;
         public bool IsDazed => _self != null && _self.IsDazed;
+        /// <summary>
+        /// The game time it was seen dead in its own Update; negative while it is alive, and for one that died since its
+        /// last Update (work order 042: the reward drops where the last enemy of a room fell).
+        /// </summary>
+        public float DeadSince => _deadSince;
         public Vector3 Home => _home;
         public Damageable Body => _self;
         public int Strikes { get; private set; }

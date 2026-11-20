@@ -33,6 +33,7 @@ namespace Roguelike
         const float CoreGlow = 3f;
 
         Damageable _target;
+        Enemy _enemy; // work order 042: over an ordinary enemy or an elite the small bars show the marks instead (EnemyBars)
         Mesh _mesh;
         MeshRenderer _renderer;
         float _height;
@@ -75,6 +76,7 @@ namespace Roguelike
             go.transform.SetParent(target.transform, false);
             pips = go.AddComponent<MarkPips>();
             pips._target = target;
+            pips._enemy = enemy;
             pips._height = top + OverHead;
             pips._mesh = new Mesh { name = "MarkPips" };
             pips._mesh.MarkDynamic();
@@ -100,7 +102,7 @@ namespace Roguelike
             if (cam != null) transform.rotation = cam.transform.rotation;
 
             bool tagged = _target.IsTagged;
-            _renderer.enabled = count > 0 || tagged;
+            _renderer.enabled = (count > 0 || tagged) && !EnemyBars.HidesBigMarks(_enemy); // work order 042: the small bars' pips in their place
             if (count == _shownCount && Max == _shownMax && lit == _shownLit && tagged == _shownTag) return;
             _shownCount = count;
             _shownMax = Max;
