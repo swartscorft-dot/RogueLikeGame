@@ -13,20 +13,24 @@ namespace Roguelike.Rules
         Shooter,
         /// <summary>Big, slow, with a stagger bar: do you use the right skill at the right time?</summary>
         Guard,
+        /// <summary>The act boss (work order 014): the crypt knight, with a cleave, a spin and a charge (<see cref="BossValues"/>).</summary>
+        Boss,
     }
 
     public static class EnemyKinds
     {
-        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard".</summary>
+        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss".</summary>
         public static string Word(EnemyKind kind) =>
-            kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter" : "guard";
+            kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter"
+            : kind == EnemyKind.Boss ? "boss" : "guard";
 
         /// <summary>
         /// The letter for an enemy point on a level's text map: b brute, s swarmer, p a pack of swarmers, h shooter,
-        /// g guard. Small letters, so they do not read as the rooms' capitals.
+        /// g guard. Small letters, so they do not read as the rooms' capitals. The act boss is G (work order 014).
         /// </summary>
         public static char Letter(EnemyKind kind, int count) =>
-            kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h' : 'g';
+            kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h'
+            : kind == EnemyKind.Boss ? 'G' : 'g';
     }
 
     /// <summary>

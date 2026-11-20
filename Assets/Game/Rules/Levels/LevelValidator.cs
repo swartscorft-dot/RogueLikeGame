@@ -271,7 +271,8 @@ namespace Roguelike.Rules
                     faults.Add($"{name}'s enemy {i} has no enemy in its group");
                     continue;
                 }
-                if (g.Boss && (g.Kind != EnemyKind.Guard || g.Count != 1)) faults.Add($"{name}'s act boss {i} is not one guard");
+                if (g.Boss && (g.Kind != EnemyKind.Boss || g.Count != 1)) faults.Add($"{name}'s act boss {i} is not one boss");
+                if (!g.Boss && g.Kind == EnemyKind.Boss) faults.Add($"{name}'s enemy {i} is a boss that is not the act boss");
                 int largest = g.Kind == EnemyKind.Swarmer ? values.PackMost : g.Kind == EnemyKind.Shooter ? values.ShooterLineMost
                             : g.Kind == EnemyKind.Brute ? values.BruteLineMost : 1;
                 if (g.Count > largest) faults.Add($"{name}'s group {i} is {g.Count} {EnemyKinds.Word(g.Kind)}s, at most {largest} stand together");

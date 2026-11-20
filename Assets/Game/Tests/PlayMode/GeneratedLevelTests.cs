@@ -177,7 +177,7 @@ namespace Roguelike.PlayModeTests
                 }
             }
             Assert.That(level.Boss, Is.Not.Null);
-            Assert.That(level.Boss.GetComponent<Damageable>().MaxHealth, Is.EqualTo(9000));
+            Assert.That(level.Boss.GetComponent<Damageable>().MaxHealth, Is.EqualTo(18000)); // 9000 until work order 014
             Assert.That(level.Values.SwarmerHealth, Is.EqualTo(150));
             Assert.That(level.Values.ShooterHealth, Is.EqualTo(400));
             Assert.That(level.Values.EnemyHealth, Is.EqualTo(1200));

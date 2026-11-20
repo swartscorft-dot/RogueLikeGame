@@ -565,7 +565,7 @@ namespace Roguelike
             float made = m.BindHeight > 1e-3f ? m.BindHeight : m.ImportedHeight;
             m.Scale = made > 1e-3f ? (float)spec.Height / made : 1f;
             // Lifted or lowered only when it is clearly off the floor: a few centimetres are the pose's.
-            m.Lift = Mathf.Abs(m.ImportedBottom) > 0.05f * m.ImportedHeight ? -m.ImportedBottom * m.Scale : 0f;
+            m.Lift = Mathf.Abs(m.ImportedBottom) > (float)spec.FloorShare * m.ImportedHeight ? -m.ImportedBottom * m.Scale : 0f;
             s_measures[spec.Name] = m;
             return m;
         }

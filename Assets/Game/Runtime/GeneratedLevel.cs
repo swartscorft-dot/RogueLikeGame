@@ -294,10 +294,55 @@ namespace Roguelike
                         list.Add(enemy);
                         _enemies.Add(enemy);
                         if (group.Boss && Boss == null) Boss = enemy;
+                        if (enemy is EnemyBoss boss)
+                        {
+                            // Work order 014: it wakes as she enters its room, and its packs come along the room's walls.
+                            LevelRoom home = room;
+                            boss.InRoom = p => RoomAt(p) == home;
+                            boss.PackCaller = (b, count) => CallPack(b, home, count);
+                        }
                     }
                     _groups.Add(placed);
                 }
             }
+        }
+
+        /// <summary>
+        /// The swarmers the act boss called (work order 014). They are among <see cref="Enemies"/>, and not among their
+        /// room's: the floor is finished when the boss and the room's own enemies are dead, as before.
+        /// </summary>
+        public IReadOnlyList<Enemy> Called => _called;
+        readonly List<Enemy> _called = new List<Enemy>();
+
+        /// <summary>
+        /// A pack the boss calls (work order 014): <paramref name="count"/> swarmers of the floor's health, at places
+        /// spread round its room along the walls (<see cref="BossTactics.WallPlaces"/>: the level's rules for an enemy's
+        /// place, a step in from the clearance it keeps from walls), on the NavMesh, so not in a prop. Each later call
+        /// takes the places half a step round from the one before. They stay dead when killed.
+        /// </summary>
+        List<Enemy> CallPack(EnemyBoss boss, LevelRoom room, int count)
+        {
+            var made = new List<Enemy>();
+            if (boss.Template == null || count <= 0) return made;
+            var places = new List<Vector3>();
+            foreach (LevelPoint p in BossTactics.WallPlaces(Layout, room, Values, Values.WallClearance + 0.5, Values.PointStep))
+                if (NavMesh.SamplePosition(ToWorld(p), out NavMeshHit hit, 0.3f, NavMesh.AllAreas)) places.Add(hit.position);
+            if (places.Count == 0) return made;
+            int shift = Mathf.Max(0, boss.PacksCalled - 1) * places.Count / (2 * count);
+            var turned = new List<Vector3>(places.Count);
+            for (int i = 0; i < places.Count; i++) turned.Add(places[(i + shift) % places.Count]);
+            List<Vector3> picked = BossTactics.Spread(turned, count);
+            for (int i = 0; i < picked.Count; i++)
+            {
+                Enemy e = EnemyFactory.Make(EnemyKind.Swarmer, picked[i], transform, boss.Template,
+                                            "Called_" + room.Letter + room.Order + "_" + boss.PacksCalled + "_" + i);
+                if (e == null) continue;
+                e.HealthOverride = Values.HealthOf(EnemyKind.Swarmer);
+                _enemies.Add(e);
+                _called.Add(e);
+                made.Add(e);
+            }
+            return made;
         }
 
         /// <summary>The enemies of the exit room (work order 012): when every one is dead, the floor is finished.</summary>

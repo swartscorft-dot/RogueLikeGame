@@ -755,6 +755,19 @@ namespace Roguelike
                     case EnemyReportKind.DazeEnded:
                         Add(Of(SessionEventTypes.DazeEnded));
                         break;
+                    case EnemyReportKind.Charged:
+                        Add(Of(SessionEventTypes.BossCharge, r.Attack));
+                        break;
+                    case EnemyReportKind.CalledPack:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.BossCall);
+                        e.AddExtra("called", r.Count.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.Angered:
+                        Add(Of(SessionEventTypes.BossAnger));
+                        break;
                 }
             }
             catch (Exception e)

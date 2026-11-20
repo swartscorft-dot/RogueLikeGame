@@ -37,7 +37,7 @@ namespace Roguelike
     /// <see cref="FinishFloorForTests"/>; and <see cref="Build"/> builds one floor alone, outside a run (work order 006).
     ///
     /// In the practice room (work order 008), under the same rule: F9 spawns a pack of swarmers, F10 a shooter, F11 a
-    /// guard, each about <see cref="SpawnDistance"/> from her on the practice floor, and F12 removes everything spawned
+    /// guard, F8 the act boss with a third of its health (work order 014), each about <see cref="SpawnDistance"/> from her on the practice floor, and F12 removes everything spawned
     /// this way. They stay dead when killed. The intents are <see cref="SpawnPractice"/> and <see cref="ClearSpawned"/>.
     /// Nothing is spawned while she is in a generated level.
     ///
@@ -55,6 +55,8 @@ namespace Roguelike
         public const Key NewLevelKey = Key.F5;
         public const Key SameLevelKey = Key.F6;
         public const Key PracticeRoomKey = Key.F7;
+        /// <summary>Work order 014: the act boss in the practice room, with a share of its health (<see cref="BossValues.PracticeHealthShare"/>).</summary>
+        public const Key BossKey = Key.F8;
         public const Key SwarmersKey = Key.F9;
         public const Key ShooterKey = Key.F10;
         public const Key GuardKey = Key.F11;
@@ -209,6 +211,7 @@ namespace Roguelike
             {
                 Enemy e = EnemyFactory.Make(kind, places[i], _spawnRoot, template, "Spawned_" + kind + "_" + (_spawned.Count + 1));
                 if (e == null) continue;
+                if (e is EnemyBoss boss) boss.HealthOverride = Mathf.RoundToInt(boss.Tuning.Enemy.Health * boss.Tuning.PracticeHealthShare);
                 made.Add(e);
                 _spawned.Add(e);
             }
@@ -593,6 +596,7 @@ namespace Roguelike
                 else if (keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
                 else if (keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
                 else if (Paused || Ending != EndKind.None) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018)
+                else if (keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
                 else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
                 else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
@@ -700,7 +704,7 @@ namespace Roguelike
             else if (ShowDevBox)
             {
                 string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
-                            + "\nF9 swarmers   F10 shooter   F11 guard   F12 clear"
+                            + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
             }
