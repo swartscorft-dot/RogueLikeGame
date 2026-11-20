@@ -199,8 +199,9 @@ namespace Roguelike.Rules.Tests
                 foreach (LevelRoom r in level.Rooms)
                 {
                     if (r.Kind != RoomKind.Combat && r.Kind != RoomKind.Exit) continue;
-                    int n = r.EnemyGroups.Where(g => !g.Boss).Sum(g => g.Count);
-                    long hp = r.EnemyGroups.Where(g => !g.Boss).Sum(g => (long)v.HealthOf(g.Kind) * g.Count);
+                    // The elite of the elite room comes besides the room's own (work order 017): counted apart.
+                    int n = r.EnemyGroups.Where(g => !g.Boss && !g.Elite).Sum(g => g.Count);
+                    long hp = r.EnemyGroups.Where(g => !g.Boss && !g.Elite).Sum(g => (long)v.HealthOf(g.Kind) * g.Count);
                     (r.Kind == RoomKind.Combat ? combat : exit).Add(n);
                     (r.Kind == RoomKind.Combat ? combatHp : exitHp).Add(hp);
                 }

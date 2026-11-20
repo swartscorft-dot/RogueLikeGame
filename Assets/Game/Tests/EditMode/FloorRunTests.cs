@@ -32,12 +32,13 @@ namespace Roguelike.Rules.Tests
                 foreach (LevelRoom r in l.Rooms.Where(x => x.Kind == RoomKind.Combat || x.Kind == RoomKind.Exit))
                 {
                     string where = "seed " + (s + 7000UL) + " floor " + floor + " room " + r.Order;
-                    List<EnemyGroup> others = r.EnemyGroups.Where(g => !g.Boss).ToList();
+                    // The elite of the elite room comes besides the room's own (work order 017): counted apart.
+                    List<EnemyGroup> others = r.EnemyGroups.Where(g => !g.Boss && !g.Elite).ToList();
                     int n = others.Sum(g => g.Count);
                     v.EnemyRange(r.Kind, floor, out int fewest, out int most);
                     Assert.That(n, Is.InRange(fewest, most), where);
                     Assert.That(others.Select(g => g.Kind).Distinct().Count(), Is.GreaterThanOrEqualTo(2), "at least two kinds: " + where);
-                    int guards = r.EnemyGroups.Where(g => g.Kind == EnemyKind.Guard).Sum(g => g.Count);
+                    int guards = r.EnemyGroups.Where(g => g.Kind == EnemyKind.Guard && !g.Elite).Sum(g => g.Count);
                     if (floor == 1) Assert.That(guards, Is.EqualTo(0), "no guard on floor 1: " + where);
                     Assert.That(guards, Is.LessThanOrEqualTo(r.Kind == RoomKind.Exit ? 2 : 1), where);
                     if (floor == 1)
@@ -168,7 +169,7 @@ namespace Roguelike.Rules.Tests
                     Assert.That(u.Short, Is.Not.Empty);
                 }
             }
-            Assert.That(kinds.Count, Is.EqualTo(5), "every row comes up");
+            Assert.That(kinds.Count, Is.EqualTo(6), "every row comes up"); // 5 until work order 017 added the dash's step
         }
 
         [Test]

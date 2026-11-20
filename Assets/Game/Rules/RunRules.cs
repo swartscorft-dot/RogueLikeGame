@@ -58,6 +58,11 @@ namespace Roguelike.Rules
         RunSpeed,
         /// <summary>A named skill's hit on a target with no marks adds Amount more marks.</summary>
         FirstMark,
+        /// <summary>
+        /// The dash's cooldown down by the share Amount, stacking (work order 017, from Kristian's ruling on the dash, 2026-11-20:
+        /// "it stays scarce, but can be upgraded during the run"). Never under <see cref="RunValues.CooldownFloor"/> of its own.
+        /// </summary>
+        DashCooldown,
     }
 
     /// <summary>One row of the chest table: a kind, how much, and for some a skill.</summary>
@@ -98,6 +103,7 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Damage ? "+" + Pct(Amount) + " damage dealt"
             : Kind == UpgradeKind.Cooldown ? "-" + Pct(Amount) + " cooldown on " + Skill
             : Kind == UpgradeKind.RunSpeed ? "+" + Pct(Amount) + " run speed"
+            : Kind == UpgradeKind.DashCooldown ? "-" + Pct(Amount) + " dash cooldown"
             : "+" + Int(Amount) + " mark from " + Skill + "'s hit on a target with none";
 
         /// <summary>The short form for the box on screen and the log.</summary>
@@ -106,6 +112,7 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Damage ? "+" + Pct(Amount) + " dmg"
             : Kind == UpgradeKind.Cooldown ? "-" + Pct(Amount) + " cd " + Skill
             : Kind == UpgradeKind.RunSpeed ? "+" + Pct(Amount) + " speed"
+            : Kind == UpgradeKind.DashCooldown ? "-" + Pct(Amount) + " cd dash"
             : "+" + Int(Amount) + " first mark " + Skill;
 
         public override string ToString() => Short;
@@ -125,7 +132,10 @@ namespace Roguelike.Rules
         public float CooldownFloor = 0.5f;     // a skill's cooldown never goes under this share of its own
         public UpgradeDefinition[] Upgrades = DefaultUpgrades();
 
-        /// <summary>The order's examples: +10 maximum health and heal 10; +5 % damage; -5 % cooldown on a skill she has; +5 % run speed; +1 mark from Quick Shot's first hit.</summary>
+        /// <summary>
+        /// The order's examples: +10 maximum health and heal 10; +5 % damage; -5 % cooldown on a skill she has; +5 % run
+        /// speed; +1 mark from Quick Shot's first hit. Work order 017: -8 % dash cooldown.
+        /// </summary>
         public static UpgradeDefinition[] DefaultUpgrades() => new[]
         {
             new UpgradeDefinition(UpgradeKind.MaxHealth, 10f, heal: 10),
@@ -133,6 +143,7 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.Cooldown, 0.05f),
             new UpgradeDefinition(UpgradeKind.RunSpeed, 0.05f),
             new UpgradeDefinition(UpgradeKind.FirstMark, 1f, skill: "Quick Shot"),
+            new UpgradeDefinition(UpgradeKind.DashCooldown, 0.08f),
         };
     }
 
@@ -169,7 +180,7 @@ namespace Roguelike.Rules
 
     /// <summary>
     /// What a run has taken from its chests (work order 012): a plain list, read where the values are used (damage dealt,
-    /// maximum health, a skill's cooldown, run speed, a skill's first mark). It never writes to the settings. Cleared
+    /// maximum health, a skill's cooldown, run speed, a skill's first mark, and since work order 017 the dash's cooldown). It never writes to the settings. Cleared
     /// when a run starts or ends.
     /// </summary>
     public sealed class RunModifiers
@@ -204,6 +215,8 @@ namespace Roguelike.Rules
         public float CooldownShare(string skill) => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.Cooldown, skill ?? ""));
         public float RunSpeedShare => 1f + Sum(UpgradeKind.RunSpeed);
         public int FirstMarkBonus(string skill) => (int)Math.Round(Sum(UpgradeKind.FirstMark, skill ?? ""));
+        /// <summary>The share of the dash's own cooldown it runs (work order 017): 1 less each cut, never under <see cref="CooldownFloor"/>.</summary>
+        public float DashCooldownShare => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.DashCooldown));
 
         /// <summary>The upgrades taken, in short form, the same ones counted together: "+10 hp x2, +5% dmg".</summary>
         public string ShortText()

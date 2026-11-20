@@ -158,7 +158,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(level.Floor, Is.EqualTo(floor));
                 foreach (LevelRoom r in level.Rooms)
                 {
-                    int n = r.EnemyGroups.Where(g => !g.Boss).Sum(g => g.Count);
+                    int n = r.EnemyGroups.Where(g => !g.Boss && !g.Elite).Sum(g => g.Count); // the elite apart (work order 017)
                     long hp = r.EnemyGroups.Sum(g => (long)values.HealthOf(g.Kind, g.Boss) * g.Count);
                     if (r.Kind == RoomKind.Combat)
                     {
@@ -226,13 +226,13 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 5 makes (work order 012: the chain of rooms, two treasure rooms,
+        // These maps are what the generator of version 6 makes (work order 012: the chain of rooms, two treasure rooms,
         // the floor's number and the enemies in groups; the props as in version 3; work order 014, 2026-11-20: fuller rooms,
-        // and the act boss its own kind, still G). A change that changes them must raise
+        // and the act boss its own kind, still G; version 6, work order 017: the elite room L with its elite e). A change that changes them must raise
         // LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 5  8 rooms  47 enemies  88 x 96 m
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 6  8 rooms  48 enemies  88 x 96 m
             +-+-+-+
             |T2   |
             + *$* +
@@ -250,40 +250,40 @@ namespace Roguelike.Rules.Tests
 +-+-+-+-+      h    +             +
         |         p |* b          |
         +  &  %     +-+-+ +-+-+-+-+-+
-        |!          | |C4           |
+        |!          | |L4           |
         +-+-+-+-+-+-+ +     :       +
                       |             |
-                      +   #     p  &+
-                      |B            |
+                      +          &  +
+                      |    p      e |
                       +             +
-                      |            u|
-                      +         h   +
-                      | p          *|
+                      |      #   h u|
+                      +             +
+                      | p   B      *|
                       +-+-+-+-+ +-+-+-+
-                            |C5      *|
+                            |C5       |
                             +         +-+-+-+
                             |         |T6   |
-                            + #      b+   * +
-                            |             $ |
-            +-+-+-+-+-+-+-+-+    p    +   * +
+                            +         +   * +
+                            |B     p      $ |
+            +-+-+-+-+-+-+-+-+         +   * +
             |X7             |   #     |     |
-            + #           # +        u+-+-+-+
+            + # H         # +        u+-+-+-+
             |                         |
-            +  H            +        h+
-            |               |      p  |
+            +               +h     #  +
+            |               |        *|
             +               +-+-+-+-+-+
-            |&           p  |
-            +A              +
             |&              |
-            +       B       +
+            +A              +
+            |&    B         |
+            +        p      +
             |               |
             +               +
-            |               |
-            + #         p # +
+            |      p        |
+            + #           # +
             |               |
             +-+-+-+-+-+-+-+-+
 ",
-            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 5  8 rooms  79 enemies  88 x 96 m
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 6  8 rooms  80 enemies  88 x 96 m
             +-+-+-+
             |T2   |
             + *$* +
@@ -301,40 +301,40 @@ namespace Roguelike.Rules.Tests
 +-+-+-+-+      H p  +             +
         |   p      H|* b          |
         +     %     +-+-+ +-+-+-+-+-+
-        |B        ! | |C4           |
+        |B        ! | |L4           |
         +-+-+-+-+-+-+ +     :       +
                       |             |
-                      +   #   p B  &+
-                      |g            |
                       +             +
-                      |B         p u|
-                      +         H   +
-                      |H           *|
+                      |g & B    p e |
+                      +             +
+                      |   p  #   H u|
+                      +             +
+                      | B   H      *|
                       +-+-+-+-+ +-+-+-+
-                            |C5      B|
-                            +         +-+-+-+
+                            |C5       |
+                            +      #  +-+-+-+
                             |         |T6   |
-                            +b       g+   * +
-                            |             $ |
-            +-+-+-+-+-+-+-+-+    p    +   * +
-            |X7             |   #     |     |
-            + #           # +        u+-+-+-+
-            |                         |
-            +  H            +      # *+
-            |          p    |       H |
+                            +         +   * +
+                            |g     B      $ |
+            +-+-+-+-+-+-+-+-+  p      +   * +
+            |X7             |     B   |     |
+            + # H         # +   H    u+-+-+-+
+            |          p              |
+            +               + H    #  +
+            |  B            |        *|
             +               +-+-+-+-+-+
-            |&   H       p  |
-            +A      G       +
             |&              |
-            +  H   B        +
-            |           B   |
-            +               +
+            +A      G       +
+            |&    B    p    |
+            +        B      +
             |               |
-            + #         B # +
-            |         b     |
+            +               +
+            |      H        |
+            + #       p   # +
+            |               |
             +-+-+-+-+-+-+-+-+
 ",
-            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 5  8 rooms  48 enemies  92 x 80 m
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 6  8 rooms  49 enemies  92 x 80 m
                                   +-+-+-+-+
                                   |E0     |
                                   +       +
@@ -346,38 +346,38 @@ namespace Roguelike.Rules.Tests
         +-+-+-+-+-+-+-+-+     +-+-+-+ +-+-+
         |X7    &A&      |     |C1      *|
         + #           # +     +         +
-        |         H     |     |         |
+        |         p     |     |         |
         +               +     +       = +
-        |               |     |  :      |
+        |       h       |     |  :      |
         +               +     +      p  +
-        |      p        |     |         |
+        |   b           |     |         |
         +               +     +    p    +-+-+-+
-        |               |     | b       |T2   |
+        |       p       |     | b       |T2   |
         +               +     +!    = h +   * +
-        |      p        |     |             $ |
-        +              b+     +         +   * +
+        |            B  |     |             $ |
+        +               +     +         +   * +
         |               |     |         |     |
         + #           # + +-+-+-+ +-+-+-+-+-+-+
         |               | |C3         |
 +-+-+-+-+-+ +-+-+-+-+-+-+ +b          +
 |C6   !      *|           |u   :      |
 +             +-+-+-+-+-+-+           +
-|  p p        |C5 &      !|      p  p |
-+       &     +           +           +
-|             |              #        |
-+     :       +           +        %  +
-|        =       h p  :   |           |
-+ :           +           +       h   +
+|             |L5        !|      p  p |
++        p  & +      e    +           +
+|             |    p         #        |
++     :       + :         +        %  +
+|        =          p     |           |
++ :           +  h        +       h   +
 |             |           |          *|
-+             +   b p     +-+ +-+-+-+-+
-|      b      |*          |T4   |
++    p        +        b  +-+ +-+-+-+-+
+| H           |* &        |T4   |
 +             +-+-+-+-+-+-+     +
-|* h          |           |     |
+|*           b|           |     |
 +-+-+-+-+-+-+-+           + *$* +
                           |     |
                           +-+-+-+
 ",
-            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 5  8 rooms  80 enemies  92 x 80 m
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 6  8 rooms  80 enemies  92 x 80 m
                                   +-+-+-+-+
                                   |E0     |
                                   +       +
@@ -388,34 +388,34 @@ namespace Roguelike.Rules.Tests
                                   |*    * |
         +-+-+-+-+-+-+-+-+     +-+-+-+ +-+-+
         |X7    &A&      |     |C1      *|
-        +# H          # +     +         +
-        |         H     |     |         |
-        +    p          +     +B     =  +
-        |               |     |  :      |
-        +               +     +      B  +
-        |               |     |         |
-        +       G  B    +     +    p    +-+-+-+
-        |   p           |     | H       |T2   |
-        +               +     +!      H +   * +
-        |      B        |     |             $ |
-        +          B    +     +    p  = +   * +
-        |               |     |         |     |
+        + #           # +     +         +
+        |    p    H     |     |         |
+        +               +     +B     =  +
+        |       H    B  |     |  :      |
+        +     B         +     +      B  +
+        |b  g           |     |         |
+        +       G       +     +    p    +-+-+-+
+        |               |     | H       |T2   |
+        +        B    H +     +!      H +   * +
+        |               |     |             $ |
+        +               +     +    p  = +   * +
+        |        p      |     |         |     |
         + #           # + +-+-+-+ +-+-+-+-+-+-+
         |               | |C3         |
 +-+-+-+-+-+ +-+-+-+-+-+-+ +g          +
-|C6   !     b*|           |u   :      |
+|C6   !      *|           |u   :      |
 +             +-+-+-+-+-+-+ p         +
-|  H p        |C5 & b    !|      B  B |
-+       &     +           +           +
-|             |       :      #    p   |
+|             |Lb!       *|      B  B |
++      p p  & +      g    +           +
+|             |H   p         #    p   |
 +     :       +           +        %  +
-|        =       H g      |           |
-+ :           +           +       H   +
-|             |        p  |    H     *|
-+             +   H B     +-+ +-+-+-+-+
-|      B      |*          |T4   |
+|        =            :   |           |
++ :           +H e        +       H   +
+|             |           |    H     *|
++    b        +        B  +-+ +-+-+-+-+
+| H           |* &        |T4   |
 +             +-+-+-+-+-+-+     +
-|* p          |           |     |
+|*           B|           |     |
 +-+-+-+-+-+-+-+           + *$* +
                           |     |
                           +-+-+-+
@@ -430,7 +430,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(5), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(6), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor));
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN " + key + "\n" + map);
@@ -704,7 +704,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(map.Count(c => c == '@'), Is.EqualTo(1), map);
             // Work order 008: each enemy point shows the small letter of its kind, not a dot; work order 012 adds the
             // capitals of lines (H, B) and the act boss (G).
-            const string letters = "bsphgHBG";
+            const string letters = "bsphgHBGe"; // work order 017: e the elite
             Assert.That(map.Split('\n').Skip(1).Sum(line => line.Count(c => letters.IndexOf(c) >= 0)), Is.EqualTo(level.Rooms.Sum(r => r.EnemyPoints.Count)), map);
             foreach (LevelRoom r in level.Rooms)
                 foreach (EnemyGroup g in r.EnemyGroups) Assert.That(map, Does.Contain(g.Letter.ToString()), map);
