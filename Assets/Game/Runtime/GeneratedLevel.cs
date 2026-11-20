@@ -23,7 +23,9 @@ namespace Roguelike
     /// <see cref="PropValues.CoverHeight"/> tall, carries <see cref="Cover"/>, which stops her shots and skills and the
     /// shooter's sight and line; she and the shooter shoot over a lower prop. The enemies' strikes on the ground do not
     /// look at cover. Every wall and every prop, tall or low, also carries <see cref="Shelter"/>: she can take cover
-    /// against it (Kristian, 2026-11-19, an experiment). Then the enemies of each enemy point stand there, of
+    /// against it (Kristian, 2026-11-19, an experiment). A slender prop (work order 028, the candelabra) carries neither,
+    /// however tall: it only blocks walking. A prop with an emission map glows in the game's cyan
+    /// (<see cref="PropValues.Glow"/>). Then the enemies of each enemy point stand there, of
     /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed; the elite of the elite
     /// room is made one (work order 017, <see cref="EnemyFactory.MakeElite"/>).
     ///
@@ -429,14 +431,17 @@ namespace Roguelike
                     LevelProp prop = room.Props[i];
                     if (!materials.TryGetValue(prop.Model, out Material m))
                     {
-                        materials[prop.Model] = m = PropFactory.MakeMaterial(prop.Model);
+                        CryptKitValues kit = Values.Crypt ?? new CryptKitValues();
+                        materials[prop.Model] = m = PropFactory.MakeMaterial(prop.Model, kit.Cyan, Values.PropRules.Glow);
                         _materials.Add(m);
                     }
                     string name = "Prop_" + room.Letter + room.Order + "_" + i + "_" + prop.Model;
                     GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
                     bool cover = prop.IsCover(Values.PropRules);
                     if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
-                    go.AddComponent<Shelter>(); // she can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment)
+                    // She can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment), but a slender
+                    // one (work order 028, the candelabra): it hides nothing.
+                    if (!prop.Slender) go.AddComponent<Shelter>();
                     _props.Add(new PlacedProp { Room = room, Prop = prop, Object = go, IsCover = cover });
                 }
             }

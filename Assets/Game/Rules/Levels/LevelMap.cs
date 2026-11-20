@@ -14,9 +14,11 @@ namespace Roguelike.Rules
     /// s swarmer, p a pack of swarmers, h shooter, g guard; since work order 012 H a line of shooters, B a line of
     /// brutes and G the act boss; since work order 017 the elite room is L and its elite e; since work order 027 c a caster. A prop (work order 009) is its model's character (<see cref="PropSize.Letter"/>):
     /// # pillar, % broken pillar, = sarcophagus, : rubble, &amp; statue, ! grave marker, u urns, ~ bone pile, * brazier,
-    /// $ chest, A altar; on a blank only, so a point or a wall hides one that falls on it, and one at a wall is drawn a
+    /// $ chest, A altar; since work order 028 [ coffin, ^ skull pile, i candelabra, Y bone throne, k bookshelf, q cage,
+    /// o basin; on a blank only, so a point or a wall hides one that falls on it, and one at a wall is drawn a
     /// character inside it. The map is two characters to a cell, 2 m each: it shows roughly where, not the shapes.
-    /// The first line says the seed, the version and the size.
+    /// The first line says the seed, the version and the size, and since work order 028 its legend: each themed room's
+    /// label and theme (<see cref="RoomThemes.Word"/>), none when no room has one.
     /// </summary>
     public static class LevelMap
     {
@@ -90,6 +92,13 @@ namespace Roguelike.Rules
             sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0}  floor {5}  version {1}  {2} rooms  {6} enemies  {3:0} x {4:0} m\n",
                             level.SeedText, level.Version, level.Rooms.Count, box.Width * cs, box.Height * cs, level.Floor,
                             level.Rooms.Sum(r => r.EnemyCount));
+            if (level.Rooms.Any(r => r.Theme != RoomTheme.None))
+            {
+                // Work order 028: the legend of the rooms' themes, on the first line (the lines under it are the map's).
+                sb.Length--;
+                sb.Append("  themes ").Append(string.Join(", ", level.Rooms.Where(r => r.Theme != RoomTheme.None)
+                    .Select(r => r.Letter + r.Order.ToString(CultureInfo.InvariantCulture) + " " + RoomThemes.Word(r.Theme)))).Append('\n');
+            }
             for (int r = 0; r < rows; r++)
             {
                 var line = new StringBuilder(cols);

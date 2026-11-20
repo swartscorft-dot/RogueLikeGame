@@ -18,7 +18,8 @@ namespace Roguelike
     ///
     /// Material: the models are painted in flat colour, so each gets a URP Simple Lit material made here with its
     /// texture "_base_color" as its base map, white base colour, no smoothness and no highlights: it takes the scene's
-    /// light like the grey boxes do, and shows the painted colour as painted under it.
+    /// light like the grey boxes do, and shows the painted colour as painted under it. A model with an "_emission" map
+    /// beside its texture (work order 028: the seven new ones) glows with it in the game's cyan, as the crypt kit does.
     /// </summary>
     public static class PropFactory
     {
@@ -48,8 +49,18 @@ namespace Roguelike
             return t as Texture2D ?? Resources.Load<Texture2D>(PropSize.Of(model).TexturePath);
         }
 
-        /// <summary>A new material for the model (the caller destroys it): Simple Lit with the painted texture.</summary>
-        public static Material MakeMaterial(PropModel model)
+        /// <summary>The model's emission map (work order 028), by name beside its texture; null when it has none.</summary>
+        public static Texture2D EmissionTexture(PropModel model) => Resources.Load<Texture2D>(PropSize.Of(model).EmissionPath);
+
+        /// <summary>A new material for the model (the caller destroys it), its glow in the game's cyan at the props' default.</summary>
+        public static Material MakeMaterial(PropModel model) => MakeMaterial(model, new CryptKitValues().Cyan, new PropValues().Glow);
+
+        /// <summary>
+        /// A new material for the model (the caller destroys it): Simple Lit with the painted texture, and (work order 028)
+        /// its emission map, when it has one, in <paramref name="cyan"/> times <paramref name="glow"/> as the crypt kit's are
+        /// (<see cref="CryptKit.MakeMaterial"/>).
+        /// </summary>
+        public static Material MakeMaterial(PropModel model, Rgb cyan, float glow)
         {
             Shader shader = Shader.Find(ShaderName);
             if (shader == null)
@@ -67,6 +78,16 @@ namespace Roguelike
             if (m.HasProperty("_SpecularHighlights")) m.SetFloat("_SpecularHighlights", 0f);
             m.DisableKeyword("_SPECULAR_COLOR");
             m.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            Texture2D emission = EmissionTexture(model);
+            if (emission != null && m.HasProperty("_EmissionColor"))
+            {
+                m.SetTexture("_EmissionMap", emission);
+                // SetColor takes a colour as picked and turns it into linear light itself, so it is given the one that turns into the glow.
+                Color lit = CryptKit.Glowing(cyan, glow);
+                m.SetColor("_EmissionColor", QualitySettings.activeColorSpace == ColorSpace.Linear ? lit.gamma : lit);
+                m.EnableKeyword("_EMISSION");
+                m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            }
             return m;
         }
 

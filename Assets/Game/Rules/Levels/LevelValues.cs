@@ -184,12 +184,18 @@ namespace Roguelike.Rules
 
         // Props (work order 009)
         public bool Props = true;              // off: levels are generated and built without props
+        // Room themes (work order 028, Kristian 2026-11-19 and 2026-11-20: "good variety", and the same pieces everywhere
+        // make the floors alike): off, every room is dressed as before work order 028, from the eleven old props, and every
+        // seed's props are what they were; on, each room has a theme (ThemeRules). Layouts and enemies are the same
+        // either way.
+        public bool Themes = true;
 
         // The crypt wall kit (work order 016, 2026-11-20): how a floor looks, never what it is
         public bool CryptKit = true;           // off: the grey boxes as before, for comparing; the generator never reads it
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
+        public ThemeValues ThemeRules = new ThemeValues();
         public CryptKitValues Crypt = new CryptKitValues();
 
         /// <summary>
@@ -307,8 +313,17 @@ namespace Roguelike.Rules
         public float FloorSpacing = 3f;        // from an open-floor prop to any other prop
         public float BossMiddleClear = 8f;     // round the boss room's middle, nothing
 
+        // Walls and wall pieces (work order 028)
+        public float WallFace = 0.275f;        // a wall's inner face, from its line: half the kit wall's 0.55 m (the grey boxes' face is at 0.25)
+        public float HandWidth = 0.1f;         // a wall piece's back is at most this far from the face
+        public float WallPieceGap = 0.03f;     // between the face and a wall piece's back, where it is put
+        public float SouthWallMostHeight = 1.3f; // a prop taller than this never stands at a room's south wall: the low one the camera looks over
+        public float MinWalkable = 2f / 3f;    // a combat room keeps at least this share of its floor walkable
+        public float WalkRadius = 0.5f;        // floor is walkable at least this far from a prop's footprint and the walls (about the NavMesh agent's radius)
+
         // Cover (Kristian, 2026-11-19: shots are stopped by walls and pillars)
         public float CoverHeight = 1.2f;       // a prop at least this tall stops her shots (altar, grave marker, pillars, statue); she shoots over a lower one
+        public float Glow = 3f;                // work order 028: the props' emission maps in the game's cyan times this, as the kit's stone (CryptKitValues.StoneGlow)
 
         // Combat rooms
         public int CombatFewest = 4;           // props in the smallest combat room
@@ -326,5 +341,170 @@ namespace Roguelike.Rules
         public float BesideGap = 0.6f;         // between the reward room's chest and each brazier beside it
         public float StatueGap = 0.8f;         // between the boss room's altar and each statue beside it
         public float BossPillarInset = 3.5f;   // from both walls of a corner to the middle of the boss room's pillar there
+    }
+
+    /// <summary>
+    /// How a prop of a room's theme likes to stand (work order 028). The theme says what and suggests where; every
+    /// place is still tried against every rule of <see cref="PropRules"/>, and a prop with no place that keeps them is
+    /// left out. <see cref="RoomThemes"/> says what each does.
+    /// </summary>
+    public enum PropStance
+    {
+        Row, Cluster, CornerOrWall, AlongWall, OpenFloor, EdgeFloor, Ring,
+        FarAltar, BehindAltar, FlankAltar, BeforeAltar, BesideShelf,
+        Throne, FlankThrone, CornerPillars, Chest, FlankChest,
+    }
+
+    /// <summary>
+    /// One line of a theme's recipe (work order 028): which models, how many (<see cref="Fewest"/> in the smallest room of
+    /// its kind to <see cref="Most"/> in the largest, by floor area, as the combat rooms' counts were), and how they stand.
+    /// Each prop's model is drawn from <see cref="Models"/>, or one for them all when <see cref="OneModel"/> (a pair).
+    /// </summary>
+    [Serializable]
+    public sealed class ThemeProp
+    {
+        public PropModel[] Models = Array.Empty<PropModel>();
+        public int Fewest;
+        public int Most;
+        public PropStance Stance;
+        public bool OneModel;
+
+        public ThemeProp() { }
+
+        public ThemeProp(PropStance stance, int fewest, int most, params PropModel[] models)
+        {
+            Stance = stance;
+            Fewest = fewest;
+            Most = most;
+            Models = models;
+        }
+
+        public ThemeProp Pair()
+        {
+            OneModel = true;
+            return this;
+        }
+    }
+
+    /// <summary>
+    /// A room theme's recipe (work order 028): what stands in it and how, and for a combat theme how likely a room is to
+    /// get it: <see cref="SmallWeight"/> in the smallest combat room to <see cref="LargeWeight"/> in the largest, times
+    /// <see cref="EliteWeight"/> in the elite room.
+    /// </summary>
+    [Serializable]
+    public sealed class ThemeRecipe
+    {
+        public RoomTheme Theme;
+        public RoomKind Kind = RoomKind.Combat; // the kind of room it dresses: the archive has one for combat rooms and one for treasure rooms
+        public ThemeProp[] Props = Array.Empty<ThemeProp>();
+        public float SmallWeight = 1f;
+        public float LargeWeight = 1f;
+        public float EliteWeight = 1f;
+        public float ClearMiddle;             // m round the room's middle where it puts nothing (the shrine's clear middle)
+
+        public ThemeRecipe() { }
+
+        public ThemeRecipe(RoomTheme theme, RoomKind kind, float small, float large, params ThemeProp[] props)
+        {
+            Theme = theme;
+            Kind = kind;
+            SmallWeight = small;
+            LargeWeight = large;
+            Props = props;
+        }
+
+        /// <summary>The most props a room of it may hold: the sum of its lines' most.</summary>
+        public int MostProps
+        {
+            get
+            {
+                int n = 0;
+                foreach (ThemeProp p in Props) n += Math.Max(0, p.Most);
+                return n;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The room themes (work order 028; Kristian, 2026-11-19 and 2026-11-20: "good variety", and more of the crypt so one
+    /// room differs from the next by what it is). Data, all first guesses. The combat rooms get a tomb hall, an ossuary, a
+    /// shrine or an archive; the treasure rooms a vault or an archive; the exit room always the throne room; the entrance
+    /// none (its braziers as before). Lengths in metres.
+    /// </summary>
+    [Serializable]
+    public sealed class ThemeValues
+    {
+        public ThemeRecipe[] Recipes = DefaultRecipes();
+
+        public float VaultShare = 0.6f;        // of the treasure rooms, about this share are vaults, the rest archives (never an archive off an archive)
+        public float RowAcross = 0.3f;         // the tomb hall's two rows stand at this share and 1 less it across the room's short side
+        public float ClusterFromWalls = 5f;    // the ossuary's two cluster middles at least this far from the walls
+        public float ClusterBand = 1f;         // places round a cluster's middle are tried nearest first, in a drawn order within each band this wide
+        public float ClusterReach = 7f;        // and no farther from it than this
+        public float EdgeBand = 4.5f;          // the archive's cover stands at most this far from a wall: cover only at the edges
+        public float OpenFromWalls = 2.5f;     // a prop of the open floor has its middle at least this far from the walls (one of the edge, EdgeFloor, may be nearer)
+        public float RingShare = 0.3f;         // the shrine's ring of pillars: its radius, a share of the room's short side
+        public float AltarStatueGap = 0.4f;    // between the shrine's statue at the wall and the altar before it
+        public float BeforeAltar = 1.5f;       // between the altar's front and the basin
+        public float FlankGap = 0.6f;          // between a set piece (altar, throne, chest) and each of the pair beside it
+        public float ShelfCandleGap = 0.4f;    // between a bookshelf's end and the candelabra beside it
+
+        /// <summary>The recipe of a theme for a kind of room; null when there is none.</summary>
+        public ThemeRecipe Of(RoomTheme theme, RoomKind kind)
+        {
+            if (Recipes != null)
+                foreach (ThemeRecipe r in Recipes)
+                    if (r != null && r.Theme == theme && r.Kind == kind) return r;
+            return null;
+        }
+
+        /// <summary>
+        /// The first guesses (work order 028's table). Tomb hall: the most cover, coffins and sarcophagi in rows along the
+        /// long axis, grave markers and a statue or two at the walls, pillars. Ossuary: mostly low, skull and bone piles in
+        /// two loose clusters, cages in corners or at walls, urns or bone piles at the walls, rubble. Shrine (favoured for the elite room): an altar at
+        /// the far end from the door in with a statue behind it, a pair of braziers or candelabra beside it and a basin
+        /// before it, pillars in a ring or two rows, a clear middle. Archive: bookshelves at the walls, urns, a candelabra
+        /// or two by the shelves, a broken pillar near a wall, rubble. Throne room: the bone throne at the north wall's
+        /// middle facing south, a basin or a brazier either side, the pillars at the corners. Vault: the chest as before
+        /// with a candelabra either side, a shelf or urns at a wall. The treasure room's archive keeps its chest.
+        /// </summary>
+        public static ThemeRecipe[] DefaultRecipes() => new[]
+        {
+            new ThemeRecipe(RoomTheme.TombHall, RoomKind.Combat, 1f, 3f,
+                new ThemeProp(PropStance.Row, 3, 5, PropModel.Sarcophagus, PropModel.Coffin),
+                new ThemeProp(PropStance.AlongWall, 3, 5, PropModel.GraveMarker),
+                new ThemeProp(PropStance.AlongWall, 1, 2, PropModel.Statue),
+                new ThemeProp(PropStance.OpenFloor, 2, 3, PropModel.Pillar)),
+            new ThemeRecipe(RoomTheme.Ossuary, RoomKind.Combat, 2f, 2f,
+                new ThemeProp(PropStance.Cluster, 4, 6, PropModel.SkullPile, PropModel.BonePile),
+                new ThemeProp(PropStance.CornerOrWall, 1, 1, PropModel.Cage),
+                new ThemeProp(PropStance.AlongWall, 1, 2, PropModel.Urns, PropModel.BonePile),
+                new ThemeProp(PropStance.OpenFloor, 1, 1, PropModel.Rubble)),
+            new ThemeRecipe(RoomTheme.Shrine, RoomKind.Combat, 1f, 2f,
+                new ThemeProp(PropStance.FarAltar, 1, 1, PropModel.Altar),
+                new ThemeProp(PropStance.BehindAltar, 1, 1, PropModel.Statue),
+                new ThemeProp(PropStance.FlankAltar, 2, 2, PropModel.Brazier, PropModel.Candelabra).Pair(),
+                new ThemeProp(PropStance.BeforeAltar, 1, 1, PropModel.Basin),
+                new ThemeProp(PropStance.Ring, 4, 5, PropModel.Pillar)) { EliteWeight = 4f, ClearMiddle = 4f },
+            new ThemeRecipe(RoomTheme.Archive, RoomKind.Combat, 3f, 1f,
+                new ThemeProp(PropStance.AlongWall, 2, 3, PropModel.Bookshelf),
+                new ThemeProp(PropStance.AlongWall, 1, 2, PropModel.Urns),
+                new ThemeProp(PropStance.BesideShelf, 1, 2, PropModel.Candelabra),
+                new ThemeProp(PropStance.EdgeFloor, 1, 1, PropModel.PillarBroken),
+                new ThemeProp(PropStance.OpenFloor, 1, 1, PropModel.Rubble)),
+            new ThemeRecipe(RoomTheme.ThroneRoom, RoomKind.Exit, 1f, 1f,
+                new ThemeProp(PropStance.Throne, 1, 1, PropModel.BoneThrone),
+                new ThemeProp(PropStance.FlankThrone, 2, 2, PropModel.Basin, PropModel.Brazier).Pair(),
+                new ThemeProp(PropStance.CornerPillars, 4, 4, PropModel.Pillar)),
+            new ThemeRecipe(RoomTheme.Vault, RoomKind.Treasure, 1f, 1f,
+                new ThemeProp(PropStance.Chest, 1, 1, PropModel.Chest),
+                new ThemeProp(PropStance.FlankChest, 2, 2, PropModel.Candelabra),
+                new ThemeProp(PropStance.AlongWall, 1, 1, PropModel.Bookshelf, PropModel.Urns)),
+            new ThemeRecipe(RoomTheme.Archive, RoomKind.Treasure, 1f, 1f,
+                new ThemeProp(PropStance.Chest, 1, 1, PropModel.Chest),
+                new ThemeProp(PropStance.AlongWall, 2, 2, PropModel.Bookshelf),
+                new ThemeProp(PropStance.BesideShelf, 1, 1, PropModel.Candelabra),
+                new ThemeProp(PropStance.AlongWall, 1, 1, PropModel.Urns)),
+        };
     }
 }

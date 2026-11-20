@@ -832,14 +832,18 @@ namespace Roguelike
             }
         }
 
-        /// <summary>She entered a room of the generated level: its place in the run (from 0) and its kind.</summary>
-        public void NoteRoomEntered(int room, string kind)
+        /// <summary>
+        /// She entered a room of the generated level: its place in the run (from 0) and its kind, and (work order 028) its
+        /// theme in words when it has one.
+        /// </summary>
+        public void NoteRoomEntered(int room, string kind, string theme = null)
         {
             if (!_recording) return;
             try
             {
                 var e = new SessionEvent(Now(), SessionEventTypes.RoomEntered, kind);
                 e.AddExtra("room", room.ToString(CultureInfo.InvariantCulture));
+                if (!string.IsNullOrEmpty(theme)) e.AddExtra("theme", theme);
                 Add(e);
             }
             catch (Exception e)

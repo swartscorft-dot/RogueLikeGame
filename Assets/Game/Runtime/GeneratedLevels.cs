@@ -753,7 +753,7 @@ namespace Roguelike
             CurrentRoom = room;
             _entered.Add(room.Order);
             if (InRun) Record?.EnterRoom(room.Order, room.Kind, room.Elite);
-            PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant());
+            PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant(), RoomThemes.Word(room.Theme)); // work order 028: and its theme
             if (room.Elite && !EliteRoomEntered)
             {
                 EliteRoomEntered = true;

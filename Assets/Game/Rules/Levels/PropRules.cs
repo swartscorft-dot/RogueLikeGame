@@ -15,6 +15,12 @@ namespace Roguelike.Rules
     /// <see cref="PropValues.BossMiddleClear"/> of the boss room's middle; turned by a multiple of 90 degrees, or of
     /// 15 for the models that may (<see cref="PropSize.AnyAngle"/>). And each room keeps a clear lane
     /// (<see cref="Lane"/>).
+    ///
+    /// Work order 028: a wall piece (<see cref="PropSize.WallPiece"/>: the bookshelf, the throne) stands at a wall with its
+    /// back from <see cref="PropValues.WallFace"/> to a hand's width (<see cref="PropValues.HandWidth"/>) past it, faces
+    /// into the room, and is never in front of a wall niche toward its room (the crypt kit's plan, when it is given); no
+    /// prop taller than <see cref="PropValues.SouthWallMostHeight"/> stands at a room's south wall, the low one the camera
+    /// looks over; and the models and how many a room holds are its theme's (<see cref="RoomThemes"/>) when it has one.
     /// </summary>
     public static class PropRules
     {
@@ -34,6 +40,95 @@ namespace Roguelike.Rules
         public static int MostIn(RoomKind kind, PropValues v) =>
             kind == RoomKind.Entrance ? 2 : kind == RoomKind.Treasure ? 3 : kind == RoomKind.Exit ? 7 : v.CombatMost;
 
+        /// <summary>The models this room may hold: its theme's (work order 028), else its kind's.</summary>
+        public static PropModel[] ModelsFor(LevelRoom room, LevelValues v)
+        {
+            ThemeRecipe recipe = room.Theme == RoomTheme.None ? null : v.ThemeRules?.Of(room.Theme, room.Kind);
+            return recipe == null ? ModelsFor(room.Kind, v.PropRules) : RoomThemes.ModelsOf(recipe);
+        }
+
+        /// <summary>The most props this room may hold: its theme's (work order 028), else its kind's.</summary>
+        public static int MostIn(LevelRoom room, LevelValues v)
+        {
+            ThemeRecipe recipe = room.Theme == RoomTheme.None ? null : v.ThemeRules?.Of(room.Theme, room.Kind);
+            return recipe == null ? MostIn(room.Kind, v.PropRules) : recipe.MostProps;
+        }
+
+        /// <summary>
+        /// A stretch of a room's wall in front of which no wall piece stands (work order 028: a niche of the crypt kit
+        /// toward the room): on the wall of <see cref="Side"/>, from <see cref="From"/> to <see cref="To"/> metres along it.
+        /// </summary>
+        public struct WallSpan
+        {
+            public int Side;
+            public double From, To;
+        }
+
+        /// <summary>
+        /// Where the crypt kit's niches are, for the props (work order 028): the kit's plan of the floor (drawn from its
+        /// layout alone) with the kit's values as they are in code, never the level's own (<see cref="LevelValues.Crypt"/>),
+        /// so that the kit's values and its switch still move nothing of a floor (work order 016). A niche share changed in
+        /// the level's values is not seen here: a wall piece may then stand in front of a niche.
+        /// </summary>
+        public static CryptKitPlan KitPlanForProps(LevelLayout level) => CryptKitPlan.Make(level, new CryptKitValues());
+
+        /// <summary>
+        /// The niches of the crypt kit (<see cref="CryptKitPlan"/>) that face into this room, as stretches of its walls
+        /// (work order 028). The plan is drawn from the floor's layout alone, so the props may read it.
+        /// </summary>
+        public static List<WallSpan> NichesOf(LevelLayout level, LevelRoom room, CryptKitPlan plan)
+        {
+            var spans = new List<WallSpan>();
+            if (plan == null) return spans;
+            double cs = level.CellSize;
+            CellRect r = room.Rect;
+            foreach (CryptKitSection s in plan.Sections)
+            {
+                if (!s.Niche || s.RoomOn(s.Facing) != room.Order) continue;
+                int side = s.Vertical ? (s.Line == r.X ? LevelGenerator.West : s.Line == r.Right ? LevelGenerator.East : -1)
+                                      : (s.Line == r.Y ? LevelGenerator.South : s.Line == r.Top ? LevelGenerator.North : -1);
+                if (side < 0) continue;
+                spans.Add(new WallSpan { Side = side, From = s.Cell * cs, To = (s.Cell + 1) * cs });
+            }
+            return spans;
+        }
+
+        /// <summary>
+        /// The share of a room's floor that is walkable with its props (work order 028), on the lane's grid: of the squares
+        /// whose middle is at least <see cref="PropValues.WalkRadius"/> from the room's walls, those that are as far from
+        /// every prop's footprint too.
+        /// </summary>
+        public static double WalkableShare(LevelLayout level, LevelRoom room, PropValues v)
+        {
+            double cs = level.CellSize, step = v.LaneGrid, r = v.WalkRadius, x0 = room.Rect.X * cs, y0 = room.Rect.Y * cs;
+            int nx = Math.Max(1, (int)Math.Round(room.Rect.Width * cs / step)), ny = Math.Max(1, (int)Math.Round(room.Rect.Height * cs / step));
+            var blocked = new bool[nx * ny];
+            foreach (LevelProp p in room.Props)
+            {
+                PropFootprint f = p.Footprint;
+                f.Extent(out double minX, out double minY, out double maxX, out double maxY);
+                int i0 = Math.Max(0, (int)Math.Floor((minX - r - x0) / step)), i1 = Math.Min(nx - 1, (int)Math.Ceiling((maxX + r - x0) / step));
+                int j0 = Math.Max(0, (int)Math.Floor((minY - r - y0) / step)), j1 = Math.Min(ny - 1, (int)Math.Ceiling((maxY + r - y0) / step));
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                        if (!blocked[j * nx + i] && f.DistanceTo(new LevelPoint(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step)) < r) blocked[j * nx + i] = true;
+            }
+            int floor = 0, walkable = 0;
+            for (int j = 0; j < ny; j++)
+                for (int i = 0; i < nx; i++)
+                {
+                    if (LevelGeometry.DistanceToWalls(new LevelPoint(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step), room.Rect, cs) < r) continue;
+                    floor++;
+                    if (!blocked[j * nx + i]) walkable++;
+                }
+            return floor > 0 ? walkable / (double)floor : 1;
+        }
+
+        /// <summary>The unit into the room from its wall of this side.</summary>
+        public static LevelPoint Inward(int side) =>
+            side == LevelGenerator.North ? new LevelPoint(0, -1) : side == LevelGenerator.East ? new LevelPoint(-1, 0)
+            : side == LevelGenerator.South ? new LevelPoint(0, 1) : new LevelPoint(1, 0);
+
         /// <summary>The way a prop faces when its own z points along (x, y) on the ground: 0 north, 90 east, 180 south, 270 west.</summary>
         public static int Facing(double x, double y)
         {
@@ -43,10 +138,11 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The first rule the prop breaks, said in words, with <paramref name="others"/> in its room beside it; null if
-        /// none. With <paramref name="all"/> it adds every rule it breaks there, not just the first.
+        /// none. With <paramref name="all"/> it adds every rule it breaks there, not just the first. With
+        /// <paramref name="niches"/> (the room's, <see cref="NichesOf"/>) a wall piece in front of one is a fault too.
         /// </summary>
         public static string Fault(LevelLayout level, LevelRoom room, LevelProp prop, IReadOnlyList<LevelProp> others, PropValues v,
-                                   List<string> all = null)
+                                   List<string> all = null, IReadOnlyList<WallSpan> niches = null)
         {
             double cs = level.CellSize;
             PropFootprint f = prop.Footprint;
@@ -71,6 +167,35 @@ namespace Roguelike.Rules
                 if (wall > v.AtWallMost + Slack && Broken($"is meant to stand at a wall and is {wall:0.##} m from the nearest")) return first;
             }
             else if (wall < v.WallClearance - Slack && Broken("is nearer a wall than " + N(v.WallClearance) + " m")) return first;
+
+            // Work order 028: wall pieces, and nothing tall at the low south wall.
+            PropSize size = PropSize.Of(prop.Model);
+            if (size.WallPiece)
+            {
+                if (prop.Place != PropPlace.Wall)
+                {
+                    if (Broken("is a wall piece and does not stand at a wall")) return first;
+                }
+                else
+                {
+                    int side = f.NearestSide(room.Rect, cs, out double back);
+                    if ((back < v.WallFace - Slack || back > v.WallFace + v.HandWidth + Slack)
+                        && Broken($"has its back {back:0.###} m from its wall's line, not within {v.HandWidth:0.###} m past the wall's face at {v.WallFace:0.###} m")) return first;
+                    LevelPoint into = Inward(side), front = prop.Front;
+                    if (front.X * into.X + front.Y * into.Y < 0.99 && Broken("does not face into the room from its wall")) return first;
+                    if (niches != null)
+                    {
+                        f.Extent(out double minX, out double minY, out double maxX, out double maxY);
+                        bool alongX = side == LevelGenerator.North || side == LevelGenerator.South;
+                        double lo = alongX ? minX : minY, hi = alongX ? maxX : maxY;
+                        foreach (WallSpan n in niches)
+                            if (n.Side == side && lo < n.To - Slack && hi > n.From + Slack && Broken("stands in front of a wall niche")) return first;
+                    }
+                }
+            }
+            if (prop.Place == PropPlace.Wall && prop.Height > v.SouthWallMostHeight + 1e-3
+                && f.DistanceToSide(room.Rect, cs, LevelGenerator.South) <= v.AtWallMost + Slack
+                && Broken($"stands at the south wall, the low one the camera looks over, and is taller than {v.SouthWallMostHeight:0.##} m")) return first;
 
             foreach (LevelDoor d in level.DoorsOf(room.Order))
             {
@@ -283,8 +408,12 @@ namespace Roguelike.Rules
     /// brazier either side of it. Boss room: an altar at the wall opposite the door facing into the room, a statue either side
     /// of it, and a pillar near each corner. A set piece goes at the nearest place to its wanted one, within
     /// <see cref="PropValues.SetSearch"/>, that keeps the rules.
+    ///
+    /// Work order 028: a room with a theme (<see cref="LevelRoom.Theme"/>, drawn before on its own stream) is dressed by
+    /// its theme's recipe instead (<see cref="RoomThemes"/>), from the same props stream; one without (the entrance, or
+    /// every room with <see cref="LevelValues.Themes"/> off) as above, draw for draw.
     /// </summary>
-    public static class PropPlacer
+    public static partial class PropPlacer
     {
         // Places around a wanted one, nearest first, every 0.25 m within the search.
         static double[] s_offsetsFor;
@@ -305,9 +434,17 @@ namespace Roguelike.Rules
 
         public static void Place(LevelLayout level, LevelRandom rng, LevelValues values)
         {
+            CryptKitPlan kit = null;
             foreach (LevelRoom room in level.Rooms)
             {
                 var placer = new Room(level, room, values.PropRules);
+                if (room.Theme != RoomTheme.None)
+                {
+                    // Work order 028: the kit's plan comes of the layout alone, so where its niches are is known here.
+                    kit = kit ?? PropRules.KitPlanForProps(level);
+                    placer.Themed(rng, values, PropRules.NichesOf(level, room, kit));
+                    continue;
+                }
                 switch (room.Kind)
                 {
                     case RoomKind.Entrance: placer.Start(); break;
@@ -318,13 +455,14 @@ namespace Roguelike.Rules
             }
         }
 
-        sealed class Room
+        sealed partial class Room
         {
             readonly LevelLayout _level;
             readonly LevelRoom _room;
             readonly PropValues _v;
             readonly PropRules.Lane _lane;
             readonly double _cs;
+            List<PropRules.WallSpan> _niches; // work order 028: a themed room's niches; null otherwise
 
             public Room(LevelLayout level, LevelRoom room, PropValues v)
             {
@@ -338,7 +476,7 @@ namespace Roguelike.Rules
             /// <summary>Adds the prop if it keeps every rule; <paramref name="laneTries"/> counts places the lane alone refused.</summary>
             bool TryAdd(LevelProp p, ref int laneTries)
             {
-                if (PropRules.Fault(_level, _room, p, _room.Props, _v) != null) return false;
+                if (PropRules.Fault(_level, _room, p, _room.Props, _v, null, _niches) != null) return false;
                 if (!_lane.Clear(p.Footprint))
                 {
                     laneTries++;

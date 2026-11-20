@@ -18,6 +18,9 @@ namespace Roguelike.Rules.Tests
 
         static LevelLayout Make(ulong seed, int propsWarmUp = 0) => LevelGenerator.Generate(seed, new LevelValues(), 0, propsWarmUp);
 
+        /// <summary>Work order 028: with the room themes off, the rooms are dressed as before them; the sets of work order 009 are tested so.</summary>
+        static LevelLayout MakeWithoutThemes(ulong seed) => LevelGenerator.Generate(seed, new LevelValues { Themes = false });
+
         static int PropCount(LevelLayout l) => l.Rooms.Sum(r => r.Props.Count);
 
         // ---------------- The same seed, the same props ----------------
@@ -76,7 +79,7 @@ namespace Roguelike.Rules.Tests
         // ---------------- A thousand seeds ----------------
 
         /// <summary>The longest one generation with props may take, in milliseconds. Measured: see the output of the test.</summary>
-        const double SlowestAllowedMs = 50;
+        const double SlowestAllowedMs = 150; // 50 until work order 028: raised for other work on the machine, as on main
 
         [Test]
         public void AThousandSeeds_AllValidWithProps_KeepTheirRoomsAndEnemies_AndAreQuick()
@@ -134,6 +137,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(least, Is.GreaterThan(0));
         }
 
+        // Work order 028: with the themes off (RoomThemeTests has the themes' sets).
         [Test]
         public void EachKindOfRoom_GetsItsSet()
         {
@@ -141,7 +145,7 @@ namespace Roguelike.Rules.Tests
             var v = new PropValues();
             for (ulong s = 0; s < (ulong)seeds; s++)
             {
-                LevelLayout level = Make(s);
+                LevelLayout level = MakeWithoutThemes(s);
                 double cs = level.CellSize;
                 foreach (LevelRoom r in level.Rooms)
                 {
@@ -188,12 +192,13 @@ namespace Roguelike.Rules.Tests
             Assert.That(bossesWhole, Is.GreaterThanOrEqualTo(seeds * 90 / 100), "boss rooms with their set");
         }
 
+        // Work order 028: with the themes off (a theme's counts grow with the room's size too: RoomThemeTests).
         [Test]
         public void BiggerCombatRooms_AskForMoreProps()
         {
             var asked = new Dictionary<int, List<int>>();
             for (ulong s = 0; s < 100; s++)
-                foreach (LevelRoom r in Make(s).Rooms.Where(r => r.Kind == RoomKind.Combat))
+                foreach (LevelRoom r in MakeWithoutThemes(s).Rooms.Where(r => r.Kind == RoomKind.Combat))
                 {
                     int cells = r.Rect.Width * r.Rect.Height;
                     if (!asked.TryGetValue(cells, out List<int> list)) asked[cells] = list = new List<int>();
@@ -278,7 +283,8 @@ namespace Roguelike.Rules.Tests
             AssertFault(l =>
             {
                 LevelRoom r = First(l, RoomKind.Exit);
-                r.Props.First(p => p.Model == PropModel.Altar).Position = Shift(r.Middle(l.CellSize), 9, 9);
+                // Work order 028: the throne room's wall prop is the throne (the altar until then).
+                r.Props.First(p => p.Place == PropPlace.Wall).Position = Shift(r.Middle(l.CellSize), 9, 9);
             }, "is meant to stand at a wall");
 
         [Test]

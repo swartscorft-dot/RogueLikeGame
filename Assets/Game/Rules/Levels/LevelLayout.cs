@@ -105,6 +105,11 @@ namespace Roguelike.Rules
         /// that holds what a combat room holds and an elite besides. L on a map.
         /// </summary>
         public bool Elite;
+        /// <summary>
+        /// What the room is (work order 028, <see cref="RoomThemes"/>): which props it favours and where they stand. None for
+        /// the entrance, and for every room with <see cref="LevelValues.Themes"/> or <see cref="LevelValues.Props"/> off.
+        /// </summary>
+        public RoomTheme Theme;
         /// <summary>Where the player starts. Only in the entrance.</summary>
         public LevelPoint? PlayerStart;
         public readonly List<LevelPoint> EnemyPoints = new List<LevelPoint>();
@@ -278,7 +283,8 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// Every field, as text: two levels with the same text are the same level, field for field. Without
-        /// <paramref name="props"/> it leaves the props out (work order 009), for comparing the rest.
+        /// <paramref name="props"/> it leaves the props out (work order 009), for comparing the rest, and the rooms' themes
+        /// with them (work order 028: a theme is what a room's props are, said in a line before them).
         /// </summary>
         public string Describe(bool props = true)
         {
@@ -291,6 +297,7 @@ namespace Roguelike.Rules
                 if (r.PlayerStart.HasValue) sb.Append(" start ").Append(r.PlayerStart.Value);
                 for (int i = 0; i < r.EnemyPoints.Count; i++) sb.Append(" enemy ").Append(r.EnemyPoints[i]).Append(' ').Append(r.GroupAt(i));
                 sb.Append('\n');
+                if (props && r.Theme != RoomTheme.None) sb.Append("  theme ").Append(RoomThemes.Word(r.Theme)).Append('\n');
                 if (props)
                     foreach (LevelProp p in r.Props) sb.Append("  prop ").Append(p).Append('\n');
             }

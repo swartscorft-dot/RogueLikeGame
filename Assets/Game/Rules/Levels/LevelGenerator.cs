@@ -46,15 +46,20 @@ namespace Roguelike.Rules
     /// casters from floor 2, as their floor's mixes say (<see cref="CastersOf"/>), each in place of a shooter or a brute
     /// with no draw of its own, placed alone after the shooters at the far side, <see cref="LevelValues.CasterSpacing"/>
     /// from any other caster; an elite may be one from <see cref="LevelValues.EliteCasterFromFloor"/>. Floor 1 is unchanged.
+    /// Version 8 (work order 028): with <see cref="LevelValues.Themes"/> on (the default), each room gets a theme on its
+    /// own stream ("themes", <see cref="RoomThemes"/>) just before the props, which dress it by its theme's recipe from
+    /// the seven new props and the eleven; the layout and the enemies of every seed are what they were. With it off the
+    /// themes stage is not run and every seed's props are those of version 7.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 7; // 7: work order 027, the casters from floor 2; 6: work order 017, the elite room; 5: work order 014, fuller rooms and the act boss its own kind
+        public const int Version = 8; // 8: work order 028, the room themes and seven new props; 7: work order 027, the casters from floor 2; 6: work order 017, the elite room; 5: work order 014, fuller rooms and the act boss its own kind
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
         public const string PropsStage = "props";
+        public const string ThemesStage = RoomThemes.Stage; // work order 028
 
         // The sides of a room, as the ways a path can step.
         public const int North = 0, East = 1, South = 2, West = 3;
@@ -93,6 +98,8 @@ namespace Roguelike.Rules
                 if (!values.Props) return level;
 
                 // The props never send the generator to another attempt: that would change the rooms of an old seed.
+                // Work order 028: the rooms' themes, on a stream of their own, so the props stream starts where it did.
+                if (values.Themes) RoomThemes.Assign(level, LevelRandom.Stream(seed, ThemesStage, attempt), values);
                 LevelRandom props = LevelRandom.Stream(seed, PropsStage, attempt);
                 for (int i = 0; i < propsWarmUp; i++) props.NextBits();
                 PropPlacer.Place(level, props, values);
