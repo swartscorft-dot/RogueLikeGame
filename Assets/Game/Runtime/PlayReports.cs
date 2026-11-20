@@ -31,6 +31,9 @@ namespace Roguelike
         // The focus choice (work order 025, 2026-11-20). FocusPressed says the way the gauge worked (FocusMode).
         PrimeUsed,      // Slot, Prime: a skill started primed by Hair Trigger, and what it gained
         PrimeLapsed,    // a priming ran out with no skill to use it
+        // Melee you read (work order 035, 2026-11-20): two things that happen to her.
+        Stunned,        // Seconds, By: a stun began
+        Pulled,         // Seconds, By: a pull began
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -78,6 +81,9 @@ namespace Roguelike
         // Work order 025.
         public FocusMode FocusMode;   // FocusPressed: the way the gauge worked when it was pressed
         public PrimeUse Prime;        // PrimeUsed: what the skill gained from the priming
+        // Work order 035.
+        public float Seconds;         // Stunned, Pulled: how long it holds her
+        public string By;             // Stunned, Pulled: the attack that did it
     }
 
     /// <summary>
@@ -87,13 +93,17 @@ namespace Roguelike
     /// came); Angered, it turned angry. The caster's (work order 027; its casts are AttackStarted and each circle's burst a
     /// Struck, as every enemy's): CirclePlaced, a circle of its cast was placed on the ground (Attack names the cast, Count
     /// which circle, from 1); CircleOffGround, one was not, its place being off the walkable ground; CircleFaded, one of a
-    /// countered Grave Rain faded without bursting; Countered, Stopping Shot dropped its cast.
+    /// countered Grave Rain faded without bursting; Countered, Stopping Shot dropped its cast. Things that fly (work order
+    /// 036): each one's end is a Struck with Flown set; that they left is told by <see cref="ThingsThatFly.Loosed"/>.
     /// </summary>
     public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded, Charged, CalledPack, Angered,
                                   CirclePlaced, CircleOffGround, CircleFaded, Countered }
 
-    /// <summary>How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment, 2026-11-19).</summary>
-    public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect, StoppedByCover }
+    /// <summary>
+    /// How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment,
+    /// 2026-11-19). StoppedByWall: a thing that flew was stopped by a wall or a prop (work order 036).
+    /// </summary>
+    public enum StrikeOutcome { Landed, OutOfArea, AvoidedByDash, NoEffect, StoppedByCover, StoppedByWall }
 
     /// <summary>
     /// Something an enemy did, as <see cref="Enemy.Reported"/> tells it. For the play session recorder; nothing
@@ -113,5 +123,6 @@ namespace Roguelike
         public float StaggerLeft;
         public int Count;             // CalledPack: the enemies that came (work order 014); the caster's circle reports: which circle (work order 027)
         public bool Elite;            // the elite of an elite room (work order 017): the log names it "elite brute"
+        public bool Flown;            // Struck: the end of a thing that flew (work order 036); it was heard as it left, not here
     }
 }

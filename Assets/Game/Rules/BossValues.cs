@@ -65,6 +65,25 @@ namespace Roguelike.Rules
         public float CallNearRadius = 4f;       // m from it that a pack it calls in the practice room stands
         public float PracticeHealthShare = 1f / 3f; // the boss spawned in the practice room (F8) has this share of its health
 
+        // ---------------- Things that fly (work order 036, 2026-11-20; decision 0010; first guesses) ----------------
+
+        public const string Wave = "Cleave Wave";
+
+        /// <summary>
+        /// With things that fly on, its Cleave, when it lands, also sends a wave straight ahead along the ground: half the
+        /// Cleave's damage, its path not drawn on the floor. She sidesteps it or dashes through it; walls stop it, props do
+        /// not. A swing whose Cleave hit her does not hurt her again by its wave.
+        /// </summary>
+        public EnemyAttackDefinition WaveAttack = new EnemyAttackDefinition
+        {
+            Name = Wave, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 5f,
+            Windup = 0f, Recovery = 0f, Damage = 20, Length = 14f, HalfWidth = 3f,
+        };
+        public float WaveWidth = 6f;            // m from edge to edge
+        public float WaveDepth = 0.3f;          // m from its middle line to its front and its back
+        public float WaveSpeed = 10f;           // m/s
+        public float WaveFlight = 14f;          // m, how far it goes
+
         /// <summary>
         /// The values it fights with angry: the same, with every windup <see cref="AngerWindup"/> times as long. A copy;
         /// these values are left as they are.

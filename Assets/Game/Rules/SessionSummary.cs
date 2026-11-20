@@ -89,6 +89,13 @@ namespace Roguelike.Rules
         public float CoverShare => Seconds > 0f ? CoverSeconds / Seconds : float.NaN;
         /// <summary>Enemy strikes that what she was in cover behind stopped.</summary>
         public int StrikesStoppedByCover;
+        /// <summary>Things that flew at her that a wall or a prop stopped (work order 036).</summary>
+        public int StrikesStoppedByWall;
+
+        // Melee you read (work order 035): two things that happen to her.
+        /// <summary>Times she was stunned, and times she was pulled in, in this scope.</summary>
+        public int Stuns;
+        public int Pulls;
 
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
@@ -176,6 +183,8 @@ namespace Roguelike.Rules
         public readonly List<KeyValuePair<double, double>> CoverSpans = new List<KeyValuePair<double, double>>();
         /// <summary>True when the log has anything of taking cover: the summary then gives its lines.</summary>
         public bool HasCover;
+        /// <summary>True when she was stunned or pulled in the session (work order 035): the summary then gives its line.</summary>
+        public bool HasHeld;
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -216,6 +225,19 @@ namespace Roguelike.Rules
         public int DamageTaken;
         /// <summary>Damage it did her, by the attack's name, in the order the attacks first landed.</summary>
         public readonly List<KeyValuePair<string, int>> DamageByAttack = new List<KeyValuePair<string, int>>();
+        /// <summary>
+        /// Its strikes by the attack's name, in the order the attacks first struck (work order 035: the melee kinds' new
+        /// attacks are listed by name with landed and avoided, those that do no damage, the Drag, too).
+        /// </summary>
+        public readonly List<AttackStrikes> StrikesByAttack = new List<AttackStrikes>();
+    }
+
+    /// <summary>One attack of a kind of enemy in a session (work order 035): its strikes that landed and those she avoided, by moving or the dash.</summary>
+    public sealed class AttackStrikes
+    {
+        public string Name;
+        public int Landed;
+        public int Avoided;
     }
 
     /// <summary>
@@ -324,6 +346,7 @@ namespace Roguelike.Rules
             if (coverFrom >= 0d) stats.CoverSpans.Add(new KeyValuePair<double, double>(coverFrom, Math.Max(coverFrom, length)));
             stats.HasCover = events.Any(e => e.Type == SessionEventTypes.CoverEnter
                                              || (e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover));
+            stats.HasHeld = events.Any(e => e.Type == SessionEventTypes.PlayerStunned || e.Type == SessionEventTypes.PlayerPulled);
 
             Kit kit = Kit.From(events);
             stats.Session = ComputeScope("Session", events, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) }, kit);
@@ -364,9 +387,16 @@ namespace Roguelike.Rules
                         Row(e.Enemy).Kills++;
                         if (e.EnemyId.HasValue) dazedSince.Remove(e.EnemyId.Value);
                         break;
-                    case SessionEventTypes.EnemyStrike when e.Result == SessionWords.Landed && e.Damage > 0:
+                    case SessionEventTypes.EnemyStrike:
                     {
+                        // Every strike by its attack, landed or avoided (work order 035); then, as before, the damage of those that hurt.
                         EnemyKindRow row = Row(e.Enemy);
+                        string name = e.Name ?? "?";
+                        AttackStrikes strikes = row.StrikesByAttack.FirstOrDefault(a => a.Name == name);
+                        if (strikes == null) row.StrikesByAttack.Add(strikes = new AttackStrikes { Name = name });
+                        if (e.Result == SessionWords.Landed) strikes.Landed++;
+                        else if (e.Result == SessionWords.OutOfArea || e.Result == SessionWords.AvoidedByDash) strikes.Avoided++;
+                        if (e.Result != SessionWords.Landed || !(e.Damage > 0)) break;
                         row.DamageTaken += e.Damage.Value;
                         string attack = e.Name ?? "?";
                         int at = row.DamageByAttack.FindIndex(p => p.Key == attack);
@@ -810,6 +840,11 @@ namespace Roguelike.Rules
             // Taking cover (2026-11-19, an experiment); the time in cover is added by Compute, which has the stretches.
             s.CoversTaken = events.Count(e => e.Type == SessionEventTypes.CoverEnter);
             s.StrikesStoppedByCover = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover);
+            s.StrikesStoppedByWall = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByWall);
+
+            // Stunned and pulled (work order 035).
+            s.Stuns = events.Count(e => e.Type == SessionEventTypes.PlayerStunned);
+            s.Pulls = events.Count(e => e.Type == SessionEventTypes.PlayerPulled);
             return s;
         }
 
@@ -1001,7 +1036,11 @@ namespace Roguelike.Rules
             d.Add("  avoided by the dash", Int(a.StrikesAvoidedByDash), fights ? Int(f.StrikesAvoidedByDash) : "-");
             if (stats.HasCover)
                 d.Add("  stopped by the cover she ducked behind", Int(a.StrikesStoppedByCover), fights ? Int(f.StrikesStoppedByCover) : "-");
+            if (a.StrikesStoppedByWall > 0) // work order 036, only in a log that has any
+                d.Add("  stopped by a wall or prop", Int(a.StrikesStoppedByWall), fights ? Int(f.StrikesStoppedByWall) : "-");
             d.Add("Damage taken", Int(a.DamageTaken), fights ? Int(f.DamageTaken) : "-");
+            if (stats.HasHeld)
+                d.Add("Stunned / pulled", a.Stuns + " / " + a.Pulls, fights ? f.Stuns + " / " + f.Pulls : "-");
             d.Add("Dashes / that avoided a strike", a.Dashes + " / " + Share(a.DashesThatAvoided, a.Dashes),
                   fights ? f.Dashes + " / " + Share(f.DashesThatAvoided, f.Dashes) : "-");
             d.Write(sb);
@@ -1010,11 +1049,16 @@ namespace Roguelike.Rules
             if (stats.EnemyKinds.Count > 0)
             {
                 sb.AppendLine();
-                var k2 = new Table("Enemies by kind, whole session", "Kills", "Damage to her");
+                // Work order 035: a line per attack that struck, with its strikes landed and avoided, and its damage if any.
+                var k2 = new Table("Enemies by kind, whole session", "Kills", "Damage to her", "Landed", "Avoided");
                 foreach (EnemyKindRow r in stats.EnemyKinds)
                 {
-                    k2.Add(r.Kind, Int(r.Kills), Int(r.DamageTaken));
-                    foreach (KeyValuePair<string, int> byAttack in r.DamageByAttack) k2.Add("  " + byAttack.Key, "", Int(byAttack.Value));
+                    k2.Add(r.Kind, Int(r.Kills), Int(r.DamageTaken), Int(r.StrikesByAttack.Sum(a => a.Landed)), Int(r.StrikesByAttack.Sum(a => a.Avoided)));
+                    foreach (AttackStrikes byAttack in r.StrikesByAttack)
+                    {
+                        int at = r.DamageByAttack.FindIndex(p => p.Key == byAttack.Name);
+                        k2.Add("  " + byAttack.Name, "", at >= 0 ? Int(r.DamageByAttack[at].Value) : "", Int(byAttack.Landed), Int(byAttack.Avoided));
+                    }
                 }
                 k2.Write(sb);
             }

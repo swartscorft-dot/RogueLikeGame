@@ -140,14 +140,18 @@ namespace Roguelike.Rules
         /// <summary>
         /// The sound a moment gives, or none. A windup is blue for a counterable attack (pillar 4: a windup she can hear is
         /// one she can dodge looking elsewhere, and the blue one she can counter); the shooter's strike is its arrow let go.
+        /// An ordinary attack's windup (work order 035: a melee enemy's attack in reach on a short cycle) has no sound, so
+        /// that the windup sounds still mean a skill; its strike has the strike's sound as every strike does.
         /// </summary>
-        public static PlaceholderSound? SoundFor(SoundMoment moment, EnemyKind kind = EnemyKind.Brute, bool counterable = false)
+        public static PlaceholderSound? SoundFor(SoundMoment moment, EnemyKind kind = EnemyKind.Brute, bool counterable = false, bool ordinary = false)
         {
             switch (moment)
             {
                 case SoundMoment.EnemyHit: return PlaceholderSound.EnemyHit;
                 case SoundMoment.EnemyDied: return PlaceholderSound.EnemyDies;
-                case SoundMoment.WindupStarted: return counterable ? PlaceholderSound.WindupBlue : PlaceholderSound.WindupRed;
+                case SoundMoment.WindupStarted:
+                    if (ordinary) return null;
+                    return counterable ? PlaceholderSound.WindupBlue : PlaceholderSound.WindupRed;
                 case SoundMoment.EnemyStruck: return kind == EnemyKind.Shooter ? PlaceholderSound.Arrow : PlaceholderSound.Strike;
                 case SoundMoment.EnemyDazed: return PlaceholderSound.Dazed;
                 case SoundMoment.BossCharged: return PlaceholderSound.BossCharge;

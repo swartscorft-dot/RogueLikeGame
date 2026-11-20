@@ -528,7 +528,7 @@ namespace Roguelike
             if (!Ask(FxMoment.StrikeHitHer, FxTier.Plain)) return;
             // A caster's circle bursts on its own time, after the cast or the caster itself is over: its colour is that of
             // the cast it belongs to, by the report's name (work order 034).
-            EnemyAttackDefinition a = e is EnemyCaster caster ? CasterTactics.Find(caster.Tuning.Enemy, attack) ?? e.Attack : e.Attack;
+            EnemyAttackDefinition a = e is EnemyCaster caster ? caster.Tuning.Find(attack) ?? e.Attack : e.Attack; // its orbs too (work order 036)
             bool blue = PoolRules.IsCounterable(a);
             FxPiece p = Piece(FxShape.Spark, FxMoment.StrikeHitHer, FxTier.Plain, HerChest,
                               Sizes.HurtSize(amount, _health != null ? _health.Max : Placeholders.PlayerHealth), Values.HurtSeconds,
@@ -537,12 +537,21 @@ namespace Roguelike
             Put(p);
         }
 
-        /// <summary>2. A windup begins: a small, quick star of spikes converging on the enemy, in the telegraph's colour.</summary>
+        /// <summary>
+        /// 2. A windup begins: a small, quick star of spikes converging on the enemy, in the telegraph's colour; for one
+        /// read on its body, its glint instead (21, work order 035).
+        /// </summary>
         void Windup(Enemy e)
         {
+            if (e.ReadOnBody)
+            {
+                Glint(e);
+                return;
+            }
             if (!Ask(FxMoment.WindupStarted, FxTier.Minor)) return;
             bool blue = PoolRules.IsCounterable(e.Attack);
-            FxPiece p = Piece(FxShape.Converge, FxMoment.WindupStarted, FxTier.Minor, Middle(e), Values.WindupSize * KindScale(e.Kind),
+            float look = e is EnemyShooter shooter ? shooter.WindupLook : 1f; // work order 036: a fan's draw shows larger
+            FxPiece p = Piece(FxShape.Converge, FxMoment.WindupStarted, FxTier.Minor, Middle(e), Values.WindupSize * KindScale(e.Kind) * look,
                               Values.WindupSeconds, blue ? Values.CounterRim : Values.StrikeRim, blue ? Values.CounterCore : Values.StrikeCore);
             p.Count = Values.WindupSpikes;
             p.TowardCamera = 0.4f;
@@ -747,6 +756,8 @@ namespace Roguelike
                 case PlayerReportKind.DashStarted:
                     Dashed();
                     break;
+                case PlayerReportKind.Stunned: HerStunned(); break; // work order 035
+                case PlayerReportKind.Pulled: HerPulled(); break;
             }
         });
 
@@ -980,6 +991,95 @@ namespace Roguelike
                               Values.HurtRim, Values.HurtCore);
             p.TowardCamera = 0.6f;
             Put(p);
+        }
+
+        // ---------------- Melee you read (work order 035, 2026-11-20; decision 0010) ----------------
+
+        /// <summary>
+        /// 21. The glint: what a melee enemy read on its body is about to do, at its weapon or front at about chest height,
+        /// on it as it moves: red for an attack that only hurts, blue for one Stopping Shot can counter
+        /// (<see cref="MeleeYouReadRules.GlintIsBlue"/>). A skill's grows through its windup and snaps at the strike; an
+        /// ordinary attack's is one small flick (<see cref="MeleeYouReadRules.GlintGrows"/>). Nothing flat on the floor.
+        /// </summary>
+        void Glint(Enemy e)
+        {
+            EnemyAttackDefinition a = e.Attack;
+            if (a == null) return;
+            bool grows = MeleeYouReadRules.GlintGrows(a);
+            FxTier tier = grows ? FxTier.Plain : FxTier.Minor;
+            if (!Ask(FxMoment.WindupStarted, tier)) return;
+            bool blue = MeleeYouReadRules.GlintIsBlue(a);
+            float k = KindScale(e.Kind) * Mathf.Max(0.5f, e.transform.lossyScale.y); // an elite is shown larger
+            Vector3 front = Flat(e.transform.forward);
+            front = front.sqrMagnitude > 1e-6f ? front.normalized : Vector3.forward;
+            Vector3 offset = Vector3.up * (TopOf(e) * Values.GlintHeight) + front * (Values.GlintForward * k);
+            FxPiece p = Piece(FxShape.Spark, FxMoment.WindupStarted, tier, Feet(e) + offset, (grows ? Values.GlintSize : Values.FlickSize) * k,
+                              grows ? Values.GlintSnapSeconds : Values.FlickSeconds, blue ? Values.CounterRim : Values.StrikeRim,
+                              blue ? Values.CounterCore : Values.StrikeCore);
+            p.Follow = e.transform;
+            p.FollowOffset = offset;
+            p.TowardCamera = 0.5f;
+            if (grows)
+            {
+                Enemy enemy = e;
+                float windup = Mathf.Max(1e-3f, a.Windup);
+                p.Holds = () => enemy != null && !enemy.IsDead && !enemy.IsDazed && enemy.State == EnemyState.Windup && enemy.Attack == a;
+                p.HoldMost = a.Windup + 0.5f;
+                p.Grow = () => enemy != null ? 1f - enemy.WindupRemaining / windup : 1f;
+            }
+            Put(p);
+        }
+
+        float _herTop = -1f;
+
+        /// <summary>The height of the top of what is drawn for her, measured once.</summary>
+        float HerTop
+        {
+            get
+            {
+                if (_herTop > 0f || _player == null) return _herTop > 0f ? _herTop : 1.8f;
+                float highest = float.NegativeInfinity;
+                foreach (Renderer r in _player.GetComponentsInChildren<Renderer>())
+                    if (!(r is LineRenderer)) highest = Mathf.Max(highest, r.bounds.max.y);
+                _herTop = float.IsNegativeInfinity(highest) ? 1.8f : Mathf.Clamp(highest - _player.transform.position.y, 1f, 3f);
+                return _herTop;
+            }
+        }
+
+        /// <summary>22. She is stunned: small blue stars turning fast over her head for as long as the stun lasts.</summary>
+        void HerStunned()
+        {
+            if (_player == null || !Ask(FxMoment.EnemyDazed, FxTier.Plain)) return;
+            PlayerCharacter her = _player;
+            FxPiece p = Piece(FxShape.Orbit, FxMoment.EnemyDazed, FxTier.Plain, Feet(her), Values.StunnedRadius, Values.DazedFade,
+                              Values.CounterRim, Values.CounterCore);
+            p.Follow = her.transform;
+            p.FollowOffset = Vector3.up * (HerTop + Values.StunnedOverHead);
+            p.At = Feet(her) + p.FollowOffset;
+            p.Holds = () => her != null && her.IsStunned;
+            p.HoldMost = 5f;
+            p.Spin = Values.StunnedSpin;
+            Put(p);
+        }
+
+        /// <summary>23. She is pulled: a blue streak trailing her along the pull, for as long as it moves her.</summary>
+        void HerPulled()
+        {
+            if (_player == null || !Ask(FxMoment.Dashed, FxTier.Plain)) return;
+            PlayerCharacter her = _player;
+            HeldState held = her.HeldBy;
+            Vector3 from = new Vector3(held.From.X, 0f, held.From.Z), to = new Vector3(held.To.X, 0f, held.To.Z);
+            Vector3 lift = Vector3.up * Values.PulledHeight;
+            FxPiece trail = Streak(FxMoment.Dashed, FxTier.Plain, from + lift, from + lift, Values.PulledWidth, Values.TrailFade,
+                                   Values.CounterRim, Values.CounterCore);
+            Vector3 dir = Flat(to - from);
+            trail.Direction = dir.sqrMagnitude > 1e-6f ? dir.normalized : Flat(her.transform.forward).normalized;
+            trail.Follow = her.transform;
+            trail.FollowOffset = lift;
+            trail.TrailLength = Mathf.Max(0.5f, dir.magnitude);
+            trail.Holds = () => her != null && her.IsPulled;
+            trail.HoldMost = 2f;
+            Put(trail);
         }
 
         // ---------------- The run ----------------

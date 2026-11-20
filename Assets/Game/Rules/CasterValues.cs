@@ -61,6 +61,40 @@ namespace Roguelike.Rules
         public float FadeSeconds = 0.35f;   // s a circle of a countered Grave Rain takes to fade
         public float BodyRadius = 0.35f;    // m, the capsule
         public float BodyHeight = 1.9f;     // m
+
+        // ---------------- Things that fly (work order 036, 2026-11-20; decision 0010; first guesses) ----------------
+
+        public const string BoneOrb = "Bone Orb";
+        public const string OrbFan = "Orb Fan";
+
+        /// <summary>
+        /// Its casts with things that fly on, in their places in the cast order (<see cref="CasterTactics"/>): a slow, large
+        /// bone orb in place of Bone Spikes, aimed at where she is when it leaves; a fan of orbs in place of Grave Rain, blue
+        /// and counterable as Grave Rain is. The same bands, windups and recoveries. The damage is raised from Bone Spikes'
+        /// 25 and Grave Rain's 20 (work order 036's "keeping it hard"): standing still she took 25 + 25 + 3 x 20 = 110 of a
+        /// round of three casts, and of a fan only its middle orb meets her, so 40 + 40 + 35 = 115 now.
+        /// </summary>
+        public EnemyAttackDefinition[] Orbs =
+        {
+            new EnemyAttackDefinition
+            {
+                Name = BoneOrb, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = 15f,
+                Windup = 1.0f, Recovery = 1.3f, Damage = 40, Radius = 0.9f,
+            },
+            new EnemyAttackDefinition
+            {
+                Name = OrbFan, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = 15f,
+                Windup = 1.4f, Recovery = 1.6f, Damage = 35, Radius = 0.9f, Counterable = true,
+            },
+        };
+        public float OrbSpeed = 7f;         // m/s: slow, to be walked around
+        public float OrbRadius = 0.9f;      // m, its hit size
+        public float OrbFlight = 20f;       // m, its longest flight
+        public int FanOrbs = 3;
+        public float FanDegrees = 20f;      // degrees between two orbs of a fan
+
+        /// <summary>The attack of this name among its casts, those that fly too; null when it has none.</summary>
+        public EnemyAttackDefinition Find(string name) => CasterTactics.Find(Enemy, name) ?? CasterTactics.Find(Orbs, name);
     }
 
     /// <summary>Which cast comes next (work order 027): every <see cref="CasterValues.BigCastEvery"/>th is a Grave Rain.</summary>
@@ -72,16 +106,20 @@ namespace Roguelike.Rules
         /// <summary>Is cast number <paramref name="number"/> (counted from 1) a Grave Rain?</summary>
         public static bool IsBigCast(int number, int every) => every > 0 && number > 0 && number % every == 0;
 
-        /// <summary>The name of the next cast.</summary>
-        public string Next(CasterValues v) => IsBigCast(Casts + 1, v.BigCastEvery) ? CasterValues.GraveRain : CasterValues.BoneSpikes;
+        /// <summary>
+        /// The name of the next cast. With things that fly on (work order 036, <paramref name="flies"/>), the same order, a
+        /// bone orb in Bone Spikes' place and a fan of orbs in Grave Rain's.
+        /// </summary>
+        public string Next(CasterValues v, bool flies = false) =>
+            IsBigCast(Casts + 1, v.BigCastEvery) ? (flies ? CasterValues.OrbFan : CasterValues.GraveRain) : (flies ? CasterValues.BoneOrb : CasterValues.BoneSpikes);
 
         /// <summary>
         /// The next cast when its band holds her, counting it as begun; else null, and nothing is counted (the brain begins
         /// the windup of whatever this returns).
         /// </summary>
-        public EnemyAttackDefinition Choose(float distance, CasterValues v)
+        public EnemyAttackDefinition Choose(float distance, CasterValues v, bool flies = false)
         {
-            EnemyAttackDefinition a = Peek(distance, v);
+            EnemyAttackDefinition a = Peek(distance, v, flies);
             if (a == null) return null;
             Casts++;
             return a;
@@ -91,17 +129,20 @@ namespace Roguelike.Rules
         /// The next cast when its band holds her, else null, counting nothing (work order 034: the turns to attack ask
         /// before the brain begins a wind-up, and a question must not move the cast order).
         /// </summary>
-        public EnemyAttackDefinition Peek(float distance, CasterValues v)
+        public EnemyAttackDefinition Peek(float distance, CasterValues v, bool flies = false)
         {
-            EnemyAttackDefinition a = Find(v.Enemy, Next(v));
+            EnemyAttackDefinition a = flies ? Find(v.Orbs, Next(v, true)) : Find(v.Enemy, Next(v));
             return a == null || distance < a.MinDistance || distance > a.MaxDistance ? null : a;
         }
 
         /// <summary>The attack of this name in the values, or null.</summary>
-        public static EnemyAttackDefinition Find(EnemyValues values, string name)
+        public static EnemyAttackDefinition Find(EnemyValues values, string name) => Find(values?.Attacks, name);
+
+        /// <summary>The attack of this name in a list, or null (work order 036: the casts and the shots that fly).</summary>
+        public static EnemyAttackDefinition Find(EnemyAttackDefinition[] attacks, string name)
         {
-            if (values?.Attacks == null) return null;
-            foreach (EnemyAttackDefinition a in values.Attacks)
+            if (attacks == null) return null;
+            foreach (EnemyAttackDefinition a in attacks)
                 if (a != null && a.Name == name) return a;
             return null;
         }

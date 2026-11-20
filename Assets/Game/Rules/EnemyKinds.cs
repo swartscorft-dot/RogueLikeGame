@@ -58,6 +58,8 @@ namespace Roguelike.Rules
                 },
             },
         };
+        /// <summary>Its attacks with melee you read on (work order 035, <see cref="MeleeAttacks.Swarmer"/>): the Bite and the Leap.</summary>
+        public EnemyAttackDefinition[] Melee = MeleeAttacks.Swarmer();
         public float PackWakeRange = 10f;   // m: when one wakes, every swarmer this near it wakes too
         public float Spacing = 0.8f;        // m kept between two swarmers
         public float StopShort = 0.9f;      // m from her where it stops walking
@@ -92,6 +94,50 @@ namespace Roguelike.Rules
         public float SightHeight = 0.5f;    // m over the ground of the line it sees her along, under the low walls' top
         public float BodyRadius = 0.3f;     // m, the capsule: thin
         public float BodyHeight = 2.4f;     // m: tall
+
+        // ---------------- Things that fly (work order 036, 2026-11-20; decision 0010; first guesses) ----------------
+
+        public const string Arrow = "Arrow";
+        public const string ArrowFan = "Arrow Fan";
+        public const string Volley = "Volley";
+
+        /// <summary>
+        /// Its shots with things that fly on, in place of the Shot of its <see cref="Enemy"/> values (which stays, for the switch off): an
+        /// arrow that leaves the bow at the release and flies; the fan's draw is a little longer; the volley is an elite's
+        /// ordinary shot. Shot's damage, windup and recovery; the band reaches 17 m (the line's 14 m) since the arrow flies
+        /// 30 m and the order's tests ask for a hit at 16 m.
+        /// </summary>
+        public EnemyAttackDefinition[] Arrows =
+        {
+            new EnemyAttackDefinition
+            {
+                Name = Arrow, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 17f,
+                Windup = 0.9f, Recovery = 1.5f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+            },
+            new EnemyAttackDefinition
+            {
+                Name = ArrowFan, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 17f,
+                Windup = 1.2f, Recovery = 1.5f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+            },
+            new EnemyAttackDefinition
+            {
+                // Recovery: from the first arrow; the second leaves VolleyGap into it.
+                Name = Volley, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 17f,
+                Windup = 0.9f, Recovery = 1.5f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+            },
+        };
+        public float ArrowSpeed = 24f;      // m/s
+        public float ArrowRadius = 0.35f;   // m, its hit size: her footprint is met within this of its line
+        public float ArrowFlight = 30f;     // m, its longest flight
+        public float LeadShare = 1f;        // its aim leads her by her velocity times the arrow's flight time, times this
+        public float LeadMost = 5f;         // m, the lead at most
+        public int FanEvery = 3;            // every third shot is a fan...
+        public int FanFromFloor = 3;        // ...from this floor on, and for an elite on any floor
+        public int FanArrows = 3;
+        public float FanDegrees = 12f;      // degrees between two arrows of a fan
+        public float FanWindupLook = 1.6f;  // the fan's wind-up effect on the body, this times the size of the others
+        public int VolleyArrows = 2;        // an elite's ordinary shot: arrows one after the other...
+        public float VolleyGap = 0.25f;     // ...s apart, each aimed when it leaves
     }
 
     /// <summary>
@@ -118,6 +164,8 @@ namespace Roguelike.Rules
                 },
             },
         };
+        /// <summary>Its attacks with melee you read on (work order 035, <see cref="MeleeAttacks.Guard"/>): the Fist, the Drag and the Crush.</summary>
+        public EnemyAttackDefinition[] Melee = MeleeAttacks.Guard();
         public StaggerValues Stagger = new StaggerValues();
         public float BodyRadius = 0.9f;     // m, the capsule: large
         public float BodyHeight = 2.8f;     // m

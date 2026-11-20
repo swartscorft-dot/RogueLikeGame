@@ -1,0 +1,228 @@
+using Roguelike.Rules;
+using UnityEngine;
+using UnityEngine.AI;
+
+namespace Roguelike
+{
+    /// <summary>
+    /// Melee you read (decision 0010, Kristian 2026-11-20: "Vi kan gå bort i fra så mye telegrafing på fiender. Heller en
+    /// animasjon eller signalisering på dem at de angriper"; work order 035): what the swarmer, the brute and the guard
+    /// share. With the switch on (<see cref="PlayerCharacter.MeleeYouRead"/>, read live) each fights with its own set
+    /// (<see cref="MeleeAttacks"/>): an ordinary attack in reach on a short cycle, which takes no turn, and one or two skills
+    /// on their own cooldowns, which take turns as the heavy attacks did (<see cref="MeleeTactics"/>). Nothing of them is
+    /// drawn on the floor (<see cref="Enemy.ReadOnBody"/>): the area a strike hits is still its shape in the rules, and
+    /// hitting, missing, the dash and cover work on it as before; what it is about to do is read on its body, from its
+    /// attack clip, the glint the effects draw on it (<see cref="CombatEffects"/>) and the windup sounds of its skills.
+    /// With the switch off the kind fights exactly as before work order 035, with the attacks of its values, floor shapes
+    /// and all.
+    ///
+    /// The skills' moves, each in the last <see cref="EnemyAttackDefinition.MoveSeconds"/> of the windup so that the strike
+    /// still lands as the windup ends, on the clip's strike: a Leap hops to where she stood as it leaves the ground (a
+    /// sidestep or the dash makes it land beside her) and bites on landing; a Lunge runs along a line fixed as it starts,
+    /// stopping at walls, at the end of the walkable ground and where it meets her, and strikes where it stops, stunning
+    /// her when it lands (<see cref="PlayerCharacter.Stun"/>). A Drag goes off as its windup ends: unless a wall or a tall
+    /// prop is between them or she is in the dash's protected part, she is pulled to a point in front of it
+    /// (<see cref="PlayerCharacter.Pull"/>). A daze, a counter or a death stops a move where it is.
+    /// </summary>
+    public abstract class MeleeEnemy : Enemy
+    {
+        readonly MeleeTactics _tactics = new MeleeTactics();
+        System.Func<EnemyAttackDefinition, bool> _allows;
+
+        bool _moving;
+        bool _moveDone;
+        EnemyAttackDefinition _move;
+        Vector3 _moveFrom, _moveTo;
+        float _moveStart, _moveEnd;
+
+        /// <summary>Its attacks with the switch on (work order 035).</summary>
+        protected abstract EnemyAttackDefinition[] MeleeSet { get; }
+
+        /// <summary>Does it keep moving with her through its ordinary attack (the swarmer)? No, unless a kind says so.</summary>
+        protected virtual bool BitesOnTheMove => false;
+
+        /// <summary>The switch as it stands: melee you read on (the default), read live from her.</summary>
+        public bool MeleeOn => Player == null || Player.MeleeYouRead;
+
+        public override bool ReadOnBody => MeleeOn;
+
+        /// <summary>Its tactics: which skill is ready when. For tests.</summary>
+        public MeleeTactics Tactics => _tactics;
+        /// <summary>The attacks it fights with now: its melee set with the switch on, its values' with it off.</summary>
+        public EnemyAttackDefinition[] AttacksNow => MeleeOn ? MeleeSet : Values.Attacks;
+        /// <summary>True while a hop or a lunge moves it.</summary>
+        public bool IsMoving => _moving;
+        /// <summary>Where the hop or lunge going on, or the last one, ends.</summary>
+        public Vector3 MoveTarget => _moveTo;
+
+        protected override void Awake()
+        {
+            base.Awake();
+            _allows = Allows;
+        }
+
+        // ---------------- Which attack ----------------
+
+        protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) =>
+            MeleeOn ? _tactics.Choose(Time.time, distance, MeleeSet, _allows) : base.ChooseAttack(distance, values);
+
+        /// <summary>
+        /// The Drag needs to see her; a skill needs a turn (an ordinary attack none), and when it gets none the ordinary
+        /// attack is chosen instead if she is in its reach. Asked only of an attack that would otherwise be chosen.
+        /// </summary>
+        bool Allows(EnemyAttackDefinition attack)
+        {
+            if (attack.Move == MeleeMove.Drag && !SeesHer()) return false;
+            if (!AttackTurns.TakesTurn(attack)) return true;
+            TurnSort sort = TakesTurns && !IsElite ? AttackSort : TurnSort.None;
+            return !Turns.Holds(sort) || Turns.Ask(Id, sort, Time.time);
+        }
+
+        /// <summary>Does it see her, with no wall or tall prop between at the height her shots are tested at?</summary>
+        public bool SeesHer()
+        {
+            if (Player == null) return false;
+            Vector3 from = Flat(transform.position), d = Flat(Player.Position) - from;
+            float length = d.magnitude;
+            return length < 1e-3f || Cover.ClearDistance(from, d / length, length, Cover.RayHeight) >= length - 1e-3f;
+        }
+
+        protected override void OnWoke() => _tactics.Clear(); // a fresh fight: every skill ready
+
+        protected override void OnWindupStarted(EnemyAttackDefinition attack)
+        {
+            _moving = false;
+            _moveDone = false;
+            _move = null;
+            if (MeleeOn) _tactics.Began(attack, Time.time);
+        }
+
+        protected override bool ChasesThrough(EnemyAttackDefinition attack) => BitesOnTheMove && attack != null && attack.Ordinary;
+
+        // ---------------- The moves ----------------
+
+        protected override void AfterMove()
+        {
+            EnemyAttackDefinition attack = Attack;
+            if (State != EnemyState.Windup || attack == null || (attack.Move != MeleeMove.Leap && attack.Move != MeleeMove.Lunge))
+            {
+                _moving = false;
+                return;
+            }
+            float now = Time.time, left = WindupRemaining;
+            if (!_moveDone && !_moving && left <= attack.MoveSeconds) BeginMove(attack, now, left);
+            if (_moving) RunMove(now);
+        }
+
+        void BeginMove(EnemyAttackDefinition attack, float now, float left)
+        {
+            _moveDone = true;
+            if (Player == null) return;
+            Vector3 from = Flat(transform.position), her = Flat(Player.Position);
+            Vector3 d = her - from;
+            float toHer = d.magnitude;
+            Vector3 dir = toHer > 1e-4f ? d / toHer : Flat(transform.forward).normalized;
+            Vector3 to;
+            if (attack.Move == MeleeMove.Leap)
+            {
+                // Where she stands as it leaves the ground: a sidestep or the dash after this makes it land beside her.
+                GroundPoint landing = MeleeYouReadRules.LeapLanding(Ground(from), Ground(her));
+                to = WalkableTo(from, new Vector3(landing.X, 0f, landing.Z));
+            }
+            else
+            {
+                // Along a line fixed now, no farther than walls, the walkable ground and the shield touching her.
+                float most = Mathf.Max(0f, attack.Length);
+                float clear = Mathf.Min(Cover.ClearDistance(from, dir, most, Cover.RayHeight), Flat(WalkableTo(from, from + dir * most) - from).magnitude);
+                float length = MeleeYouReadRules.LungeLength(toHer, most, Contact, clear);
+                to = from + dir * length;
+            }
+            Face(dir);
+            _move = attack;
+            _moveFrom = from;
+            _moveTo = to;
+            _moveStart = now;
+            _moveEnd = now + Mathf.Max(1e-3f, left);
+            _moving = true;
+        }
+
+        void RunMove(float now)
+        {
+            float k = Mathf.Clamp01((now - _moveStart) / (_moveEnd - _moveStart));
+            Vector3 target = Vector3.Lerp(_moveFrom, _moveTo, k);
+            Vector3 step = Flat(target - transform.position);
+            if (_agent.enabled && _agent.isOnNavMesh && step.sqrMagnitude > 1e-10f) _agent.Move(step);
+            // The lunge stops where its shield meets her.
+            bool met = _move != null && _move.Move == MeleeMove.Lunge && Player != null
+                       && Flat(Player.Position - transform.position).magnitude <= Contact;
+            if (k >= 1f || met) StopMove();
+        }
+
+        void StopMove()
+        {
+            _moving = false;
+            if (_agent.enabled && _agent.isOnNavMesh) _agent.velocity = Vector3.zero;
+        }
+
+        /// <summary>m between its middle and hers when its body touches hers.</summary>
+        float Contact => (Body != null ? Body.Radius : 0.5f) + Placeholders.PlayerRadius;
+
+        /// <summary>The point toward <paramref name="to"/> as far as the walkable ground goes from <paramref name="from"/>.</summary>
+        static Vector3 WalkableTo(Vector3 from, Vector3 to)
+        {
+            if (!NavMesh.SamplePosition(from, out NavMeshHit start, 1f, NavMesh.AllAreas)) return to;
+            Vector3 end = new Vector3(to.x, start.position.y, to.z);
+            return NavMesh.Raycast(start.position, end, out NavMeshHit edge, NavMesh.AllAreas) ? Flat(edge.position) : Flat(to);
+        }
+
+        protected override void OnDaze() => StopMove();
+
+        protected override Vector3 LookVelocity => _moving ? Vector3.zero : base.LookVelocity;
+
+        // ---------------- The strikes that do more than hurt ----------------
+
+        protected override bool StrikesItself(EnemyAttackDefinition attack)
+        {
+            if (attack.Move == MeleeMove.Drag)
+            {
+                Drag(attack);
+                return true;
+            }
+            if (attack.Stun <= 0f) return false;
+            // The Shield bash: its strike as any other, and a stun when it landed.
+            bool hit = Player != null && EnemyBrain.Hits(attack, Ground(transform.position), Ground(AimPoint), Player.GroundPosition,
+                                                         Placeholders.PlayerRadius, Reach(attack));
+            int landed = StrikesLanded;
+            Land(attack, hit);
+            if (StrikesLanded > landed && Player != null) Player.Stun(attack.Stun, attack.Name);
+            return true;
+        }
+
+        /// <summary>
+        /// The Drag goes off: broken by a wall or a tall prop between them now, or the dash's protected part; out of reach
+        /// past its length; else she is pulled to its pull distance in front of it (none when she cannot be held now).
+        /// </summary>
+        void Drag(EnemyAttackDefinition attack)
+        {
+            if (Player == null) return;
+            Vector3 me = Flat(transform.position), her = Flat(Player.Position);
+            float distance = (her - me).magnitude;
+            if (distance > attack.Length)
+            {
+                Report(EnemyReportKind.Struck, attack, StrikeOutcome.OutOfArea);
+                return;
+            }
+            bool clear = SeesHer();
+            bool protectedByDash = Player.IsInvulnerable;
+            if (MeleeYouReadRules.DragBreaks(clear, protectedByDash))
+            {
+                // Stepping behind cover is getting out of its way: out of the area.
+                Report(EnemyReportKind.Struck, attack, protectedByDash && clear ? StrikeOutcome.AvoidedByDash : StrikeOutcome.OutOfArea);
+                return;
+            }
+            GroundPoint to = MeleeYouReadRules.PullTarget(Ground(me), Ground(her), attack.PullTo);
+            bool pulled = Player.Pull(new Vector3(to.X, 0f, to.Z), attack.MoveSeconds, attack.Name);
+            Report(EnemyReportKind.Struck, attack, pulled ? StrikeOutcome.Landed : StrikeOutcome.NoEffect);
+        }
+    }
+}

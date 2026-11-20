@@ -337,8 +337,9 @@ namespace Roguelike
             // Its turn (work order 023): asked only when it would begin a wind-up now; held, it goes on with the chase.
             // An elite takes no turn (work order 023's rule, made so in work order 030 now that elites exist).
             TurnSort sort = TakesTurns && !IsElite ? AttackSort : TurnSort.None;
+            // An ordinary attack takes no turn (work order 035, AttackTurns.TakesTurn).
             if (before == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && distance <= values.LeashRange
-                && WouldChoose(distance, values) != null)
+                && AttackTurns.TakesTurn(WouldChoose(distance, values)))
                 mayAttack = Turns.Ask(Id, sort, now);
             bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose);
             EnemyState state = _brain.State;
@@ -354,7 +355,7 @@ namespace Roguelike
                 // The attack is aimed once, here. The player can leave the area until the strike.
                 _aim = Player.Position;
                 Face(toPlayer);
-                if (TakesTurns) Turns.Began(Id, sort, now, _brain.Attack.Windup);
+                if (TakesTurns && AttackTurns.TakesTurn(_brain.Attack)) Turns.Began(Id, sort, now, _brain.Attack.Windup);
                 OnWindupStarted(_brain.Attack);
                 Report(EnemyReportKind.AttackStarted, _brain.Attack);
             }
@@ -376,7 +377,8 @@ namespace Roguelike
                     Chase(toPlayer, distance);
                     break;
                 default:
-                    Halt();
+                    if (ChasesThrough(_brain.Attack)) Chase(toPlayer, distance); // work order 035: the swarmer's bite
+                    else Halt();
                     break;
             }
             if (_walking) Face(Flat(_agent.velocity));
@@ -441,6 +443,16 @@ namespace Roguelike
         /// </summary>
         protected virtual bool StoppedByHerCover(EnemyAttackDefinition attack, GroundPoint origin, GroundPoint aim) => false;
 
+        /// <summary>
+        /// True while what it is about to do is read on its body, not on the floor (decision 0010; work order 035, the
+        /// melee kinds with their switch on, <see cref="MeleeEnemy"/>): no telegraph and no strike drawn on the ground,
+        /// and the effects draw a glint on it instead of the windup's star. Never, unless a kind says otherwise.
+        /// </summary>
+        public virtual bool ReadOnBody => false;
+
+        /// <summary>Does it keep chasing her through this attack's windup and recovery (work order 035: the swarmer's bite)? Never, unless a kind says so.</summary>
+        protected virtual bool ChasesThrough(EnemyAttackDefinition attack) => false;
+
         // ---------------- Death and the strike ----------------
 
         void StayDead(float now, EnemyValues values)
@@ -489,7 +501,7 @@ namespace Roguelike
             GroundPoint origin = Ground(transform.position);
             GroundPoint aim = Ground(_aim);
             float reach = Reach(attack);
-            SpawnStrikeFx(attack, reach);
+            if (!ReadOnBody) SpawnStrikeFx(attack, reach); // work order 035: nothing flat on the floor for one read on its body
 
             // What she is in cover against stopped it (taking cover, 2026-11-19, an experiment): only a kind that says so.
             if (StoppedByHerCover(attack, origin, aim))
@@ -569,7 +581,7 @@ namespace Roguelike
         {
             if (Telegraph == null) return;
             EnemyAttackDefinition attack = _brain.Attack;
-            bool show = _brain.State == EnemyState.Windup && attack != null;
+            bool show = _brain.State == EnemyState.Windup && attack != null && !ReadOnBody; // work order 035: read on its body
             if (Telegraph.enabled != show) Telegraph.enabled = show;
             if (!show) return;
 
@@ -650,6 +662,46 @@ namespace Roguelike
             {
                 if (r != null && r != Telegraph) r.enabled = visible;
             }
+        }
+
+        // ---------------- Things that fly (work order 036, 2026-11-20) ----------------
+
+        /// <summary>
+        /// How one of what it shot or threw ended (work order 036, decision 0010: what is shot at her flies;
+        /// <see cref="ThingsThatFly"/>), told by the projectile, also after this enemy died. It met her: she takes its
+        /// attack's damage as from a strike (an elite's and the floor's scale too; none in the dash's protected part). What
+        /// she ducked behind stopped it, as it stops a shot today; a wall or a prop stopped it; its flight ran out; or it
+        /// passed her spared (the boss's wave when its Cleave had hit her). Reported as a strike of its attack, with
+        /// <see cref="EnemyReport.Flown"/> set, so everything that counts strikes counts it.
+        /// </summary>
+        public void ProjectileEnded(EnemyAttackDefinition attack, ProjectileEnd end)
+        {
+            if (attack == null) return;
+            StrikeOutcome outcome = StrikeOutcome.OutOfArea;
+            int applied = 0;
+            switch (end)
+            {
+                case ProjectileEnd.MetHer:
+                {
+                    bool invulnerable = Player != null && Player.IsInvulnerable; // read before the hit, as Land does
+                    int damage = DamageScale == 1f ? attack.Damage : Mathf.RoundToInt(attack.Damage * Mathf.Max(0f, DamageScale));
+                    applied = PlayerHealth != null ? PlayerHealth.TakeHit(damage) : 0;
+                    if (applied > 0) StrikesLanded++;
+                    outcome = applied > 0 ? StrikeOutcome.Landed : invulnerable ? StrikeOutcome.AvoidedByDash : StrikeOutcome.NoEffect;
+                    break;
+                }
+                case ProjectileEnd.StoppedByCover:
+                    if (Player != null) Player.NoteEnemyShotStoppedByCover();
+                    outcome = StrikeOutcome.StoppedByCover;
+                    break;
+                case ProjectileEnd.StoppedByWall: outcome = StrikeOutcome.StoppedByWall; break;
+                case ProjectileEnd.Spared: outcome = StrikeOutcome.NoEffect; break;
+            }
+            Reported?.Invoke(new EnemyReport
+            {
+                Kind = EnemyReportKind.Struck, Attack = attack.Name, Outcome = outcome, Damage = applied, Id = Id, EnemyKind = Kind,
+                Elite = IsElite, Flown = true,
+            });
         }
 
         protected static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

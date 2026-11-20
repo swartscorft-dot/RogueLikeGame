@@ -151,12 +151,14 @@ namespace Roguelike
             _voices.Voices = VoiceCount;
             voices.SetActive(true);
             Enemy.Appeared += OnAppeared;
+            ThingsThatFly.Loosed += OnLoosed; // work order 036
             Safely(Find);
         }
 
         void OnDestroy()
         {
             Enemy.Appeared -= OnAppeared;
+            ThingsThatFly.Loosed -= OnLoosed;
             Listen(null, null);
             foreach (KeyValuePair<Enemy, Action<EnemyReport>> pair in _enemies)
                 if (pair.Key != null) pair.Key.Reported -= pair.Value;
@@ -283,11 +285,20 @@ namespace Roguelike
 
         void OnEnemy(Enemy enemy, EnemyReport r) => Safely(() =>
         {
-            SoundMoment? moment = MomentOf(r.Kind);
+            // Work order 036: the end of a thing that flew is no strike to hear: it was heard leaving, and her hurt is heard on her.
+            SoundMoment? moment = r.Flown ? null : MomentOf(r.Kind);
             if (!moment.HasValue) return;
             // The windup's attack is the enemy's own at its report: blue when it can be countered (work order 015).
             bool counterable = r.Kind == EnemyReportKind.AttackStarted && enemy != null && PoolRules.IsCounterable(enemy.Attack);
-            Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable));
+            // An ordinary attack's windup is silent (work order 035): the windup sounds mean a skill.
+            bool ordinary = r.Kind == EnemyReportKind.AttackStarted && enemy != null && enemy.Attack != null && enemy.Attack.Ordinary;
+            Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable, ordinary));
+        });
+
+        /// <summary>Work order 036: what flies is heard as it leaves, with its kind's strike (the shooter's arrow, the others' strike).</summary>
+        void OnLoosed(Enemy enemy, EnemyAttackDefinition attack, int count) => Safely(() =>
+        {
+            if (enemy != null) Ask(PlaceholderSoundRules.SoundFor(SoundMoment.EnemyStruck, enemy.Kind));
         });
 
         void OnPlayer(PlayerReport r) => Safely(() =>

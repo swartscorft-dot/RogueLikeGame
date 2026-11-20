@@ -65,6 +65,7 @@ namespace Roguelike.PlayModeTests
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             CombatEffects.Spawned += Record;
             yield return Load();
+            ThingsThatFly.Ensure().Values.On = false; // work order 036: these are the tests of the attacks as they were
             _fx = CombatEffects.Ensure();
             yield return null;
             _seen.Clear();
@@ -75,6 +76,7 @@ namespace Roguelike.PlayModeTests
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
             yield return null;
             _player = Object.FindAnyObjectByType<PlayerCharacter>();
+            _player.MeleeYouRead = false; // work order 035: these tests are of the swarmer's, brute's and guard's attacks from before
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();

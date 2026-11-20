@@ -250,6 +250,7 @@ namespace Roguelike
             player.Reported += OnPlayer;
             Damageable.MarksLost += OnMarksLost;
             Enemy.Appeared += Listen; // those spawned later: a generated level's, the practice room's spawns
+            ThingsThatFly.Loosed += OnLoosed; // work order 036
             if (_health != null)
             {
                 _health.Damaged += OnDamaged;
@@ -278,6 +279,7 @@ namespace Roguelike
             if (_player != null) _player.Reported -= OnPlayer;
             Damageable.MarksLost -= OnMarksLost;
             Enemy.Appeared -= Listen;
+            ThingsThatFly.Loosed -= OnLoosed;
             if (_health != null)
             {
                 _health.Damaged -= OnDamaged;
@@ -337,6 +339,7 @@ namespace Roguelike
             AddFields(start, "guard.", guard);
             AddEnemyFields(start, "guard.", guard.Enemy);
             AddFields(start, "guard.stagger.", guard.Stagger);
+            start.AddExtra("things_that_fly", ThingsThatFly.On ? "true" : "false"); // work order 036: the switch as it stood
             Add(start);
 
             IReadOnlyList<SkillDefinition> skills = player.Skills;
@@ -695,6 +698,15 @@ namespace Roguelike
                     case PlayerReportKind.PrimeLapsed:
                         Add(new SessionEvent(t, SessionEventTypes.PrimeLapsed));
                         break;
+                    // Melee you read (work order 035): two things that happen to her.
+                    case PlayerReportKind.Stunned:
+                    case PlayerReportKind.Pulled:
+                    {
+                        var e = new SessionEvent(t, r.Kind == PlayerReportKind.Stunned ? SessionEventTypes.PlayerStunned : SessionEventTypes.PlayerPulled, r.By);
+                        e.AddExtra("seconds", Text(r.Seconds));
+                        Add(e);
+                        break;
+                    }
                     // Taking cover (2026-11-19, an experiment).
                     case PlayerReportKind.CoverEntered:
                         Add(new SessionEvent(t, SessionEventTypes.CoverEnter, r.Tall ? SessionWords.Tall : SessionWords.Low));
@@ -740,8 +752,10 @@ namespace Roguelike
                                  : r.Outcome == StrikeOutcome.OutOfArea ? SessionWords.OutOfArea
                                  : r.Outcome == StrikeOutcome.AvoidedByDash ? SessionWords.AvoidedByDash
                                  : r.Outcome == StrikeOutcome.StoppedByCover ? SessionWords.StoppedByCover
+                                 : r.Outcome == StrikeOutcome.StoppedByWall ? SessionWords.StoppedByWall
                                  : SessionWords.NoEffect;
                         e.Damage = r.Damage > 0 ? r.Damage : (int?)null;
+                        if (r.Flown) e.AddExtra("flown", "true"); // work order 036: the end of a thing that flew
                         Add(e);
                         break;
                     }
@@ -811,6 +825,19 @@ namespace Roguelike
             {
                 Fail(e);
             }
+        }
+
+        /// <summary>Things that left an enemy at its release (work order 036): which attack, how many at once.</summary>
+        void OnLoosed(Enemy enemy, EnemyAttackDefinition attack, int count)
+        {
+            if (!_recording || enemy == null) return;
+            try
+            {
+                var e = new SessionEvent(Now(), SessionEventTypes.EnemyLoose, attack?.Name) { Enemy = enemy.LogWord, EnemyId = enemy.Id };
+                e.AddExtra("count", count.ToString(CultureInfo.InvariantCulture));
+                Add(e);
+            }
+            catch (Exception e) { Fail(e); }
         }
 
         /// <summary>Marks lost unused, on any target (decision 0005).</summary>
