@@ -323,7 +323,8 @@ namespace Roguelike
             bool cleared = levels != null && levels.Cleared;
             int chests = levels != null ? levels.ChestsOpened.Count : 0;
             RunRecord record = levels != null ? levels.Record : null;
-            int picks = record != null ? record.Skills.Count + record.Upgrades.Count : 0;
+            // A skill upgrade from an elite room is a pick too (where work orders 017 and 021 met, 2026-11-20).
+            int picks = record != null ? record.Skills.Count + record.Upgrades.Count + record.SkillUpgrades.Count : 0;
             bool paused = levels != null && levels.Paused;
             int line = RunHud.Current != null ? RunHud.Current.Selected : 0;
             bool focus = _player != null && _player.IsFocusFull;
