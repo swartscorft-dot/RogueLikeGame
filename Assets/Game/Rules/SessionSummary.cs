@@ -192,6 +192,9 @@ namespace Roguelike.Rules
         /// <summary>Elite rooms entered and cleared (work order 017), and the seconds each clear took from the first step in.</summary>
         public int ElitesEntered, ElitesCleared;
         public readonly List<float> EliteSeconds = new List<float>();
+        /// <summary>The focus choice taken (work order 025), "" before; and, from then on, the gauge's spends and Hair Trigger's primings.</summary>
+        public string FocusChoice = "";
+        public int FocusSpends, PrimesUsed, PrimesLapsed;
         /// <summary>How it ended, in words; "still going" when the session ended first.</summary>
         public string Ended = "still going";
     }
@@ -427,6 +430,19 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.SkillUpgradeTake:
                         run.SkillUpgrades.Add(e.Name ?? "?");
+                        break;
+                    // Work order 025.
+                    case SessionEventTypes.FocusChoiceTake:
+                        run.FocusChoice = e.Name ?? "?";
+                        break;
+                    case SessionEventTypes.FocusSpent:
+                        if (run.FocusChoice.Length > 0) run.FocusSpends++;
+                        break;
+                    case SessionEventTypes.PrimeUsed:
+                        run.PrimesUsed++;
+                        break;
+                    case SessionEventTypes.PrimeLapsed:
+                        run.PrimesLapsed++;
                         break;
                     case SessionEventTypes.RunEnd:
                     {
@@ -858,6 +874,10 @@ namespace Roguelike.Rules
                 sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
                   .AppendLine(run.EliteSeconds.Count == 0 ? "" : " (" + string.Join(", ", run.EliteSeconds.Select(Duration)) + ")");
                 sb.Append("  skill upgrades   ").AppendLine(run.SkillUpgrades.Count == 0 ? "-" : string.Join(", ", run.SkillUpgrades));
+                // Work order 025: the focus choice, and how the gauge was spent after it.
+                sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
+                    : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0
+                        ? ", primed skills used " + run.PrimesUsed + ", lapsed " + run.PrimesLapsed : ""));
             }
             sb.AppendLine();
 

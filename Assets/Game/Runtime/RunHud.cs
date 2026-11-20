@@ -35,8 +35,8 @@ namespace Roguelike
     /// (<see cref="InputBindings"/>).
     ///
     /// The end screens, once the game has stopped: "You died" or "Act cleared", the floor and the room she reached, the
-    /// run's time, enemies killed, the skills taken in order, the upgrades taken, her health left (act cleared), the
-    /// run seed; and the keys: Enter a new run, F6 the same run again, F7 or Esc the practice room (F5 a new run too).
+    /// run's time, enemies killed, the skills taken in order, the upgrades taken, the focus choice (work order 025), her
+    /// health left (act cleared), the run seed; and the keys: Enter a new run, F6 the same run again, F7 or Esc the practice room (F5 a new run too).
     ///
     /// Keys are read only while <see cref="PlayerInputDriver.ReadRealDevices"/> is true; tests use the intents
     /// (<see cref="Escape"/>, <see cref="PickMenuLine"/>, <see cref="ChangeSetting"/>, <see cref="ToggleDevText"/>,
@@ -357,6 +357,7 @@ namespace Roguelike
                 _endLines.Add("Skills taken  " + record.SkillsText);
                 _endLines.Add("Upgrades  " + record.UpgradesText);
                 _endLines.Add("Skill upgrades  " + record.SkillUpgradesText); // work order 017
+                _endLines.Add("Focus  " + record.FocusChoiceText); // work order 025
                 if (!died) _endLines.Add(string.Format(s_Inv, "Health left  {0} / {1}", record.HealthLeft, record.MaxHealth));
                 _endLines.Add("Run seed  " + record.Seed);
             }
@@ -403,7 +404,9 @@ namespace Roguelike
             lines.Add("Move  " + K(b.MoveUp) + " " + K(b.MoveLeft) + " " + K(b.MoveDown) + " " + K(b.MoveRight));
             lines.Add("Shoot  " + b.Shoot.Label);
             lines.Add("Dash  " + K(b.Dash) + (DashNow == DashDirection.TowardMovement ? "  (the way you move)" : "  (toward the cursor)"));
-            lines.Add("Focus  " + K(b.Focus));
+            // Work order 025: the way the gauge works, once one is picked (the run's choice, or the practice room's).
+            FocusMode focus = _player != null ? _player.FocusMode : FocusMode.Today;
+            lines.Add("Focus  " + K(b.Focus) + (focus != FocusMode.Today ? "  (" + FocusModeRules.Name(focus) + ")" : ""));
             lines.Add("Cover  " + K(b.TakeCover) + "  (hold)");
             lines.Add("Interact  " + K(b.Interact));
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;

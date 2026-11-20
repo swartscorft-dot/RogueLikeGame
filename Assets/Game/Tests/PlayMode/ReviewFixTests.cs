@@ -219,6 +219,7 @@ namespace Roguelike.PlayModeTests
                 return frames.Dequeue();
             };
             Assert.That(_levels.PickReward(0), Is.True); // after the driver's Update of this frame: it was held
+            Assert.That(_levels.PickFocusChoice(0), Is.True); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2. The let-go is here, as it was.
             yield return Frames(() => frames.Count == 0);
             yield return null;
             Assert.That(reads, Is.EqualTo(5));
@@ -325,6 +326,7 @@ namespace Roguelike.PlayModeTests
             {
                 yield return FinishFloorAndWaitForTheReward();
                 Assert.That(_levels.PickReward(0), Is.True, "floor " + floor);
+                if (floor == 1) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice"); // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
                 yield return null;
             }
             Assert.That(_levels.Floor, Is.EqualTo(5));
@@ -398,6 +400,11 @@ namespace Roguelike.PlayModeTests
             Assert.That(PlayerInputDriver.HeldByChoice, Is.True);
             Assert.That(PlayerInputDriver.HeldByScreen, Is.False);
             Assert.That(_levels.PickReward(0), Is.True);
+            // Changed deliberately (work order 025): after floor 1's reward the focus choice comes up before floor 2.
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FocusChoice));
+            Assert.That(Time.timeScale, Is.EqualTo(0f), "still paused");
+            Assert.That(PlayerInputDriver.HeldByChoice, Is.True);
+            Assert.That(_levels.PickFocusChoice(1), Is.True);
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(Time.timeScale, Is.EqualTo(1f), "and the next floor runs");
             Assert.That(PlayerInputDriver.HeldByChoice, Is.False);

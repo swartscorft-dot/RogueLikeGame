@@ -9,7 +9,10 @@ namespace Roguelike
     /// The bars at the bottom of the screen: one box per skill with its key, name and cooldown; above them
     /// the player's health and the focus gauge; and above those a bar for the cast, hold or charge of the
     /// skill in use. Left of the skills, a small COVER box while she is in cover (an experiment, 2026-11-19). A skill with
-    /// upgrades taken this run shows a small gold pip per upgrade in its box's top right corner (work order 017).
+    /// upgrades taken this run shows a small gold pip per upgrade in its box's top right corner (work order 017). The focus
+    /// gauge as the focus choice makes it (work order 025): Hair Trigger's in three parts with gaps between, each part
+    /// bright when full, and green with "PRIMED" and the seconds left while a priming waits; Steady Hand's one bar, its
+    /// window running down on it in the empowered colour with "STEADY HAND" and the seconds left.
     /// Grey-box UI, drawn with IMGUI.
     /// It is laid out for a view 720 pixels high and scaled to the real height.
     /// </summary>
@@ -90,7 +93,7 @@ namespace Roguelike
                 int charges = skills[slot].Charges;
                 string state = slot == active ? Player.SkillPhase.ToString()
                     : chain && Player.IsRecastWindowOpen && skills[slot].OpeningMove ? "shoot" // Backstep after its hop (2026-11-19)
-                    : chain && Player.IsRecastWindowOpen ? string.Format(s_Inv, "tap {0} / {1}", Player.RecastShots + 1, skills[slot].RecastCount)
+                    : chain && Player.IsRecastWindowOpen ? string.Format(s_Inv, "tap {0} / {1}", Player.RecastShots + 1, Player.RecastCount) // the chain's own count (work order 025)
                     : slot == recovering ? "Recovery (free)"
                     // Charges (work order 015): how many are ready, and the next one's time while one comes back.
                     : charges > 1 ? string.Format(s_Inv, "{0} / {1}", Player.SkillChargesReady(slot), charges)
@@ -126,13 +129,17 @@ namespace Roguelike
                 Bar(new Rect(left, rowTop, half, BarHeight), Health.Max > 0 ? Health.Current / (float)Health.Max : 0f, s_Health, text);
             }
             IdentityValues identity = Player.Identity;
-            string focusText = Player.IsEmpowered
-                ? string.Format(s_Inv, "EMPOWERED {0:0.0} s", Player.EmpoweredRemaining)
-                : Player.IsFocusFull ? "FOCUS FULL: press Z"
-                : string.Format(s_Inv, "Focus {0:0} / {1:0}", Player.Focus, identity.MaxFocus);
-            bool bright = Player.IsEmpowered || Player.IsFocusFull;
-            Bar(new Rect(left + half + Gap, rowTop, half, BarHeight), Player.FocusBarFill,
-                bright ? s_Empowered : s_Focus, focusText, bright ? s_DarkText : s_Ready);
+            var focusRect = new Rect(left + half + Gap, rowTop, half, BarHeight);
+            if (Player.FocusMode == FocusMode.HairTrigger) PartsGauge(focusRect, identity);
+            else
+            {
+                string focusText = Player.IsEmpowered
+                    ? string.Format(s_Inv, Player.IsSteadyHandWindow ? "STEADY HAND {0:0.0} s" : "EMPOWERED {0:0.0} s", Player.EmpoweredRemaining)
+                    : Player.IsFocusFull ? "FOCUS FULL: press Z"
+                    : string.Format(s_Inv, "Focus {0:0} / {1:0}", Player.Focus, identity.MaxFocus);
+                bool bright = Player.IsEmpowered || Player.IsFocusFull;
+                Bar(focusRect, Player.FocusBarFill, bright ? s_Empowered : s_Focus, focusText, bright ? s_DarkText : s_Ready);
+            }
 
             // The cast, hold or charge of the skill in use.
             SkillDefinition skill = Player.ActiveSkill;
@@ -146,6 +153,12 @@ namespace Roguelike
                 if (band)
                 {
                     float from = Mathf.Clamp01(skill.PerfectFrom / skill.ChargeTime), to = Mathf.Clamp01(skill.PerfectTo / skill.ChargeTime);
+                    // Primed by Hair Trigger (work order 025): perfect from half a charge on.
+                    if (Player.ActivePrime == PrimeUse.PerfectRelease)
+                    {
+                        from = Mathf.Clamp01(Player.FocusModeValues.PrimedChargeShare);
+                        to = 1f;
+                    }
                     GUI.color = s_Back;
                     GUI.DrawTexture(rect, Texture2D.whiteTexture);
                     GUI.color = s_CleanZone;
@@ -183,6 +196,39 @@ namespace Roguelike
             float inset = clean > 0f ? 2f : 0f; // the bar is drawn thinner over the zone, so the zone shows round it
             GUI.DrawTexture(new Rect(rect.x, rect.y + inset, rect.width * Mathf.Clamp01(left), rect.height - 2f * inset), Texture2D.whiteTexture);
             GUI.color = s_Ready;
+        }
+
+        /// <summary>
+        /// Hair Trigger's gauge (work order 025): its parts side by side with a gap between, each filled by the focus in
+        /// it and bright when full; while a priming waits the whole gauge is framed green and says so, with the seconds left.
+        /// </summary>
+        void PartsGauge(Rect rect, IdentityValues identity)
+        {
+            int parts = Mathf.Max(1, Player.FocusParts);
+            float size = FocusGauge.PartSize(identity, parts);
+            const float gap = 4f;
+            float w = (rect.width - gap * (parts - 1)) / parts;
+            bool primed = Player.IsPrimed;
+            if (primed)
+            {
+                GUI.color = s_Clean;
+                GUI.DrawTexture(new Rect(rect.x - 2f, rect.y - 2f, rect.width + 4f, rect.height + 4f), Texture2D.whiteTexture);
+            }
+            for (int p = 0; p < parts; p++)
+            {
+                var part = new Rect(rect.x + p * (w + gap), rect.y, w, rect.height);
+                GUI.color = s_Back;
+                GUI.DrawTexture(part, Texture2D.whiteTexture);
+                float fill = size > 0f ? Mathf.Clamp01((Player.Focus - p * size) / size) : 0f;
+                GUI.color = fill >= 1f ? s_Empowered : s_Focus;
+                GUI.DrawTexture(new Rect(part.x, part.y, part.width * fill, part.height), Texture2D.whiteTexture);
+            }
+            int full = Player.FocusPartsFull;
+            string text = primed ? string.Format(s_Inv, "PRIMED {0:0.0} s: next skill", Player.PrimeRemaining)
+                        : full > 0 ? string.Format(s_Inv, "{0} / {1} parts: press Z", full, parts)
+                        : string.Format(s_Inv, "Focus {0:0} / {1:0}", Player.Focus, identity.MaxFocus);
+            GUI.color = s_Ready;
+            GUI.Label(rect, text, _label);
         }
 
         void Bar(Rect rect, float fill, Color color, string text) => Bar(rect, fill, color, text, s_Ready);

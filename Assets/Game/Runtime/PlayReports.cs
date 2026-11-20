@@ -28,6 +28,9 @@ namespace Roguelike
         // Taking cover (Kristian 2026-11-19, an experiment):
         CoverEntered,   // Tall: whether what she took cover behind is tall cover
         CoverLeft,      // Leaving: why
+        // The focus choice (work order 025, 2026-11-20). FocusPressed says the way the gauge worked (FocusMode).
+        PrimeUsed,      // Slot, Prime: a skill started primed by Hair Trigger, and what it gained
+        PrimeLapsed,    // a priming ran out with no skill to use it
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -72,6 +75,9 @@ namespace Roguelike
         // when it went off (a Charge skill; 0 for others), and a keg's burst says where the keg lay in At.
         public bool Countered;        // Hit: this hit countered the enemy's attack (Stopping Shot)
         public GroundPoint At;        // SkillFired of a keg's burst: where it lay
+        // Work order 025.
+        public FocusMode FocusMode;   // FocusPressed: the way the gauge worked when it was pressed
+        public PrimeUse Prime;        // PrimeUsed: what the skill gained from the priming
     }
 
     /// <summary>

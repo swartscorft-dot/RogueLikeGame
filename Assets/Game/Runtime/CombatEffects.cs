@@ -962,7 +962,8 @@ namespace Roguelike
                 }
             }
             RunRecord record = levels != null ? levels.Record : null;
-            int picks = record != null ? record.Skills.Count + record.Upgrades.Count : 0;
+            // The focus choice is a pick too (work order 025).
+            int picks = record != null ? record.Skills.Count + record.Upgrades.Count + (record.FocusChoice.Length > 0 ? 1 : 0) : 0;
             if (record != null && record == _recordSeen && picks > _picksSeen) ChoiceTaken();
             _recordSeen = record;
             _picksSeen = picks;
