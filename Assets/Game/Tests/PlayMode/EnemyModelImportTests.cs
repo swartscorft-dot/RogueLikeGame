@@ -100,7 +100,7 @@ namespace Roguelike.PlayModeTests
                       .Append(F(posed)).Append(" m, bottom ").Append(F(lo.y)).Append(", head faces ").Append(F(facing))
                       .Append(" deg from +Z, hips and shoulders ").Append(F(EnemyLook.FacingOf(model, root.transform, false))).Append(" deg; ");
                 if (Math.Abs(height - spec.Height) > spec.Height * 0.05) faults.Add(spec.Name + " is " + F(height) + " m high, not " + F(spec.Height));
-                if (Mathf.Abs(lo.y) > 0.05f * (float)spec.Height) faults.Add(spec.Name + " does not stand on the floor: bottom " + F(lo.y));
+                if (Mathf.Abs(lo.y) > (float)spec.FloorShare * (float)spec.Height) faults.Add(spec.Name + " does not stand on the floor: bottom " + F(lo.y));
                 float quarter = Mathf.Abs(Mathf.DeltaAngle(facing, Mathf.Round(facing / 90f) * 90f));
                 if (quarter > 40f) faults.Add(spec.Name + " faces " + F(facing) + " deg, not near a quarter turn");
 

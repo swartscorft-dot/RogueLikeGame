@@ -47,6 +47,10 @@ namespace Roguelike.Rules
         public const string StaggerTaken = "stagger_taken";   // a hit took stagger off its bar: stagger is the points taken, bar the points left
         public const string EnemyDazed = "enemy_dazed";       // its stagger bar was emptied: the daze began
         public const string DazeEnded = "daze_ended";         // the daze ended, the bar is full again
+        // The act boss (work order 014). Its attacks are enemy_attack and enemy_strike as every enemy's.
+        public const string BossCharge = "boss_charge";       // its charge began to run down the line: name is the attack
+        public const string BossCall = "boss_call";           // it called a pack: called is how many came
+        public const string BossAnger = "boss_anger";         // it turned angry: shorter windups, double charges
         public const string PlayerDamaged = "player_damaged";
         public const string PlayerDeath = "player_death";
 

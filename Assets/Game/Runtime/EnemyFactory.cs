@@ -29,6 +29,7 @@ namespace Roguelike
         public static readonly Color SwarmerColor = new Color(0.88f, 0.86f, 0.78f);
         public static readonly Color ShooterColor = new Color(0.95f, 0.80f, 0.15f);
         public static readonly Color GuardColor = new Color(0.45f, 0.08f, 0.08f);
+        public static readonly Color BossColor = new Color(0.25f, 0.22f, 0.30f); // work order 014: the act boss's capsule
 
         /// <summary>
         /// One enemy of a kind, standing at <paramref name="at"/> (on the ground), under <paramref name="parent"/>.
@@ -89,6 +90,17 @@ namespace Roguelike
                     enemy = s;
                     break;
                 }
+                case EnemyKind.Boss:
+                {
+                    // Work order 014: the act boss, its capsule as large as the knight.
+                    var b = go.AddComponent<EnemyBoss>();
+                    radius = b.Tuning.BodyRadius;
+                    height = b.Tuning.BodyHeight;
+                    color = BossColor;
+                    b.Template = template;
+                    enemy = b;
+                    break;
+                }
                 default:
                 {
                     var g = go.AddComponent<EnemyGuard>();
@@ -107,7 +119,7 @@ namespace Roguelike
             agent.height = height;
             agent.baseOffset = 0f;
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
-            agent.avoidancePriority = kind == EnemyKind.Guard ? 30 : kind == EnemyKind.Swarmer ? 70 : 50;
+            agent.avoidancePriority = kind == EnemyKind.Boss ? 20 : kind == EnemyKind.Guard ? 30 : kind == EnemyKind.Swarmer ? 70 : 50;
 
             // The body: a capsule standing on the ground, no collider.
             GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
