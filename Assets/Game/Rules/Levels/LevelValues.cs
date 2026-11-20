@@ -151,6 +151,12 @@ namespace Roguelike.Rules
         public int GuardsMostInRoom = 1;       // from floor 2: one guard a combat room at most
         public int GuardsMostInExit = 2;       // two in an exit room, the act boss counted
         public int GuardsFromFloor = 2;
+        // Work order 023 (2026-11-20, the test pilot's flights): the brute's Shockwave and the shooter's shot killed the
+        // pilots on floors 3 to 5, in rooms of up to four of each. The room keeps its number of enemies (Kristian asked
+        // for crowds); past these, the brutes and shooters drawn are swarmers instead. 0: no cap, as before.
+        public int BrutesMostInRoom = 3;       // brutes in a combat room at most (no cap before)
+        public int ShootersMostInRoom = 3;     // shooters in a combat room at most (no cap before)
+        public int ExitRoomKindMore = 1;       // an exit room may hold one more of each
         public FloorEnemies[] Floors = DefaultFloors();
 
         // Props (work order 009)
@@ -198,6 +204,35 @@ namespace Roguelike.Rules
         {
             if (Floors == null || Floors.Length == 0) return new FloorEnemies(1, 1, new EnemyMix("brute", 0f, 0f, 1f, 0));
             return Floors[Math.Max(0, Math.Min(Floors.Length - 1, floor - 1))];
+        }
+
+        // The floors' brutes' Shockwave (work order 023, 2026-11-20): the test pilot's flights found it the largest
+        // source of her damage, used when she is 3 to 11 m away (a normal kiting distance) down a line 12 m long. Its
+        // damage and timing stay. The enemy settings asset, and the practice brute, keep their own numbers.
+        public float ShockwaveFarthest = 8f;   // m: a floor's brute uses it when she is at most this far (11 before)
+        public float ShockwaveLength = 9f;     // m: its line (12 before)
+
+        /// <summary>
+        /// A generated floor's brute's numbers (work order 023): a copy of the asset's, its attacks copied, with the
+        /// Shockwave's reach of the floors. The asset's own are not changed.
+        /// </summary>
+        public EnemyValues FloorBruteValues(EnemyValues asset)
+        {
+            if (asset == null) asset = new EnemyValues();
+            var copy = new EnemyValues
+            {
+                Health = asset.Health, MoveSpeed = asset.MoveSpeed, AggroRange = asset.AggroRange, LeashRange = asset.LeashRange,
+                RespawnDelay = asset.RespawnDelay, UseModels = asset.UseModels,
+                Attacks = asset.Attacks == null ? null : Array.ConvertAll(asset.Attacks, a => a?.Copy()),
+            };
+            if (copy.Attacks != null)
+                foreach (EnemyAttackDefinition a in copy.Attacks)
+                {
+                    if (a == null || a.Name != "Shockwave") continue;
+                    a.MaxDistance = ShockwaveFarthest;
+                    a.Length = ShockwaveLength;
+                }
+            return copy;
         }
 
         /// <summary>The fewest and most enemies a room of this kind holds on this floor; 0 for the entrance and treasure rooms.</summary>

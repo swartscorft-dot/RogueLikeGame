@@ -466,6 +466,9 @@ namespace Roguelike
                         Enemy enemy = EnemyFactory.Make(group.Kind, ToWorld(places[m]), transform, template, name);
                         if (enemy == null) continue;
                         enemy.HealthOverride = Values.HealthOf(group.Kind, group.Boss);
+                        enemy.TakesTurns = true; // work order 023: a floor's enemies take turns to attack
+                        // Work order 023: a floor's brute has the floors' Shockwave reach, from a copy of the asset's numbers.
+                        if (enemy is EnemyBrute brute) brute.FloorValues = Values.FloorBruteValues(template.Values);
                         placed.Members.Add(enemy);
                         if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
                         list.Add(enemy);
@@ -515,6 +518,7 @@ namespace Roguelike
                                             "Called_" + room.Letter + room.Order + "_" + boss.PacksCalled + "_" + i);
                 if (e == null) continue;
                 e.HealthOverride = Values.HealthOf(EnemyKind.Swarmer);
+                e.TakesTurns = true; // light: never held back, but one of the floor's (work order 023)
                 _enemies.Add(e);
                 _called.Add(e);
                 made.Add(e);

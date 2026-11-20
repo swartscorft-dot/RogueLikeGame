@@ -123,6 +123,12 @@ namespace Roguelike.Rules
         public float ChestReach = 2f;          // m from her to the chest's footprint middle
         public int UpgradesOffered = 2;
         public float CooldownFloor = 0.5f;     // a skill's cooldown never goes under this share of its own
+        /// <summary>
+        /// A breath between floors (work order 023, 2026-11-20): when a floor's reward is taken (floors 1 to 4) she is
+        /// healed by this share of her maximum (<see cref="FloorHeals"/>). None before: only a chest's +10 healed, and the
+        /// test pilot's flights of 2026-11-20 saw her health only go down across an act.
+        /// </summary>
+        public float FloorHeal = 0.35f;
         public UpgradeDefinition[] Upgrades = DefaultUpgrades();
 
         /// <summary>The order's examples: +10 maximum health and heal 10; +5 % damage; -5 % cooldown on a skill she has; +5 % run speed; +1 mark from Quick Shot's first hit.</summary>
@@ -134,6 +140,13 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.RunSpeed, 0.05f),
             new UpgradeDefinition(UpgradeKind.FirstMark, 1f, skill: "Quick Shot"),
         };
+    }
+
+    /// <summary>The heal between floors (work order 023): a share of her maximum, rounded to the nearest point; none for a share of 0.</summary>
+    public static class FloorHeals
+    {
+        public static int Amount(int maxHealth, float share) =>
+            maxHealth <= 0 || share <= 0f ? 0 : (int)Math.Round(maxHealth * (double)share, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

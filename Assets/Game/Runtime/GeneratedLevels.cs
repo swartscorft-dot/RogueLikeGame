@@ -21,7 +21,8 @@ namespace Roguelike
     /// (eight characters); floor n's seed is made from it and n (<see cref="RunSeeds.FloorSeed"/>). Keys, read only while
     /// <see cref="PlayerInputDriver.ReadRealDevices"/> is true: F5 starts a new run at floor 1 with the start skills and
     /// full health, F6 starts the same run seed again from floor 1, F7 goes back to the practice room and ends the run.
-    /// Health carries from floor to floor. A floor is finished when every enemy of its exit room is dead; on floors 1
+    /// Health carries from floor to floor; taking a floor's reward heals her by <see cref="RunValues.FloorHeal"/> of her
+    /// maximum (work order 023, a breath between floors), said in the lines of what was taken. A floor is finished when every enemy of its exit room is dead; on floors 1
     /// to 4 the floor reward is offered then (<see cref="FloorRewards"/>: three skills she lacks, picked with 1, 2 or 3
     /// or a click, the game paused), and taking it puts her at the next floor's entrance. After the last floor the act is
     /// cleared: the act-cleared screen shows (work order 018). Death ends the run: the game slows to a stop and the death
@@ -454,6 +455,13 @@ namespace Roguelike
             _skillsTaken.Add(name);
             Record?.TakeSkill(name);
             PlaySessionRecorder.Current?.NoteRewardTaken(Floor, name);
+            // A breath between floors (work order 023): a share of her maximum back as the reward is taken.
+            if (_health != null)
+            {
+                int healed = _health.Heal(FloorHeals.Amount(_health.Max, RunValues.FloorHeal));
+                Record?.FloorHealed(Floor, healed);
+                PlaySessionRecorder.Current?.NoteFloorHeal(Floor, healed, _health.Current);
+            }
             CloseChoice();
             EnterFloor(Floor + 1);
             return true;
@@ -670,7 +678,10 @@ namespace Roguelike
                                        AliveIn(layout.ExitRoom), layout.Version)).Append('\n');
             if (InRun)
             {
-                _text.Append("skills taken: ").Append(_skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken)).Append('\n');
+                _text.Append("skills taken: ").Append(_skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken));
+                string heal = Record != null ? Record.FloorHealText : "";
+                if (heal.Length > 0) _text.Append("   (").Append(heal).Append(')'); // work order 023
+                _text.Append('\n');
                 _text.Append("upgrades: ").Append(Modifiers.ShortText()).Append('\n');
             }
             if (ActCleared) _text.Append(LastRunLine).Append('\n');

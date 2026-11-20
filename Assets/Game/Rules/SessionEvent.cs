@@ -66,6 +66,7 @@ namespace Roguelike.Rules
         public const string RewardOffer = "reward_offer";     // the floor reward was offered: floor, offered the skills joined by " | "
         public const string RewardTake = "reward_take";       // a floor reward was taken: floor, name the skill
         public const string ChestOpen = "chest_open";         // a chest was opened and an upgrade taken: floor, room, offered joined by " | ", name the one taken
+        public const string FloorHeal = "floor_heal";         // work order 023: she was healed as a floor's reward was taken: floor, healed (what was given), health after
         public const string RunEnd = "run_end";               // the run ended: result death, act cleared or left; floor, room and its kind, seconds since the run started
         // Taking cover (Kristian 2026-11-19, an experiment). A shot it stopped is an enemy_strike with result "stopped by cover".
         public const string CoverEnter = "cover_enter";       // she took cover: name is "tall" or "low", what she is behind

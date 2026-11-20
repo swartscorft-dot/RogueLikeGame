@@ -26,6 +26,11 @@ namespace Roguelike
     /// Since work order 011 it wears its kind's model instead of the capsule, with <see cref="EnemyValues.UseModels"/>
     /// on (<see cref="EnemyLook"/>): the clips follow what it does, and dead it plays its Death and lies there a moment
     /// before it is gone. The model's body is what the daze tints and a hit flashes.
+    ///
+    /// Turns to attack (work order 023, 2026-11-20; pillar 4): one that <see cref="TakesTurns"/> (a generated floor's)
+    /// asks <see cref="Turns"/> before it begins a wind-up from the chase, and while it may not it stays in the chase,
+    /// doing what it does between attacks (the brute walks up, the shooter keeps its distance and its aim) until its
+    /// turn. The practice room's enemies take no turns.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public abstract class Enemy : MonoBehaviour
@@ -55,7 +60,14 @@ namespace Roguelike
             s_All.Clear();
             s_NextId = 0;
             Appeared = null;
+            Turns.Clear();
         }
+
+        /// <summary>
+        /// The turns to attack of the enemies that take them (work order 023, <see cref="AttackTurns"/>): one for the
+        /// game, as she fights one floor at a time. Its <see cref="AttackTurns.Values"/> turn it off.
+        /// </summary>
+        public static readonly AttackTurns Turns = new AttackTurns();
 
         public PlayerCharacter Player;
         public PlayerHealth PlayerHealth;
@@ -72,6 +84,11 @@ namespace Roguelike
         /// practice room do. The practice enemy comes back.
         /// </summary>
         [NonSerialized] public bool ComesBack = true;
+        /// <summary>
+        /// True for an enemy of a generated floor (work order 023): it takes turns to attack (<see cref="Turns"/>). False,
+        /// the practice room's enemies: never held back.
+        /// </summary>
+        [NonSerialized] public bool TakesTurns;
         /// <summary>The renderer of the body, tinted while dazed; set for an enemy made from code (<see cref="EnemyFactory"/>).</summary>
         [NonSerialized] public Renderer BodyRenderer;
         [NonSerialized] public Color BodyColor = Color.white;
@@ -167,7 +184,11 @@ namespace Roguelike
             Appeared?.Invoke(this);
         }
 
-        void OnDisable() => s_All.Remove(this);
+        void OnDisable()
+        {
+            s_All.Remove(this);
+            Turns.Forget(Id);
+        }
 
         protected virtual void OnDestroy()
         {
@@ -237,6 +258,7 @@ namespace Roguelike
         {
             // The windup is dropped with no strike, and it stands still until the daze ends.
             _brain.Cancel(Time.time);
+            Turns.Ended(Id);
             Halt();
             if (Telegraph != null) Telegraph.enabled = false;
             OnDaze();
@@ -279,8 +301,14 @@ namespace Roguelike
             bool playerAlive = PlayerHealth == null || PlayerHealth.IsAlive;
             EnemyState before = _brain.State;
             bool mayAttack = before != EnemyState.Chase || MayAttack(toPlayer, distance);
+            // Its turn (work order 023): asked only when it would begin a wind-up now; held, it goes on with the chase.
+            TurnSort sort = TakesTurns ? AttackSort : TurnSort.None;
+            if (before == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && distance <= values.LeashRange
+                && _choose(distance, values) != null)
+                mayAttack = Turns.Ask(Id, sort, now);
             bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose);
             EnemyState state = _brain.State;
+            if (before == EnemyState.Windup && state != EnemyState.Windup) Turns.Ended(Id);
 
             if (before == EnemyState.Idle && state != EnemyState.Idle)
             {
@@ -292,6 +320,7 @@ namespace Roguelike
                 // The attack is aimed once, here. The player can leave the area until the strike.
                 _aim = Player.Position;
                 Face(toPlayer);
+                if (TakesTurns) Turns.Began(Id, sort, now, _brain.Attack.Windup);
                 OnWindupStarted(_brain.Attack);
                 Report(EnemyReportKind.AttackStarted, _brain.Attack);
             }
@@ -323,6 +352,12 @@ namespace Roguelike
         }
 
         // ---------------- What the kinds change ----------------
+
+        /// <summary>
+        /// Its sort for the turns to attack (work order 023): by its kind (<see cref="AttackTurns.SortOf"/>), unless a kind
+        /// says otherwise. None, the act boss: never held back.
+        /// </summary>
+        public virtual TurnSort AttackSort => AttackTurns.SortOf(Kind);
 
         /// <summary>In the chase, may it start an attack that fits the distance? Asked only in the chase.</summary>
         protected virtual bool MayAttack(Vector3 toPlayer, float distance) => true;
@@ -371,6 +406,7 @@ namespace Roguelike
         {
             if (_deadSince < 0f)
             {
+                Turns.Forget(Id);
                 Report(EnemyReportKind.Died);
                 _deadSince = now;
                 _brain.Reset();
