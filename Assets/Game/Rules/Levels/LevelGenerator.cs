@@ -57,6 +57,19 @@ namespace Roguelike.Rules
     /// off by default: off, no room and no elite is a caster and every seed's rooms, enemies and elites are those of
     /// version 7 (work order 030); on, they come in after the caps on the mix, each in place of a shooter or a brute the
     /// capped room holds. The themes are on by default.
+    /// Version 10 (work order 041, Kristian's second session of 2026-11-20: "It is not quite intuitive where the chest
+    /// rooms are; I end up double-checking several rooms for them. I need the run to be more linear", and asked how
+    /// linear, fully): with <see cref="LevelValues.InALine"/> on (the default) the floor is one row. The treasure rooms are
+    /// rooms of the chain: the entrance, the combat rooms with the treasure rooms between them as
+    /// <see cref="LevelPlan.LineBetween"/> says (with the plan's four combat rooms, combat, combat, treasure, elite,
+    /// treasure, combat), then the exit room; each put against the room before it by the same rules as the chain (sizes,
+    /// the way on, no folding back), so every room has one door in and one out but the entrance and the exit, and there
+    /// is no side room. The rooms hold what the same seed's floor of version 9 holds, room for room: that floor is laid
+    /// out and filled first, without its props (its attempts, streams and validator as they were), and each combat room
+    /// of the row in order, then the exit room, gets the groups of its namesake, the elite with the elite room's; they are
+    /// given their points on the row's contents stream. So a floor holds as many rooms and as many enemies, of the same
+    /// kinds, as version 9's of that seed. The themes and props follow on their own streams. With it off the floor of
+    /// every seed is version 9's, field for field, but for the version.
     /// </summary>
     public static class LevelGenerator
     {
@@ -67,7 +80,8 @@ namespace Roguelike.Rules
         // and on another branch at the same time work order 027 (the casters from floor 2); 8: work order 028, the room
         // themes and seven new props, on that branch; 9: work order 034, the two lines merged (the capped mixes, the
         // casters behind LevelValues.Casters, off by default, and the themes on).
-        public const int Version = 9;
+        // 10: work order 041, the floor in one row (LevelValues.InALine, on; off, every seed's floor is version 9's).
+        public const int Version = 10;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -92,19 +106,22 @@ namespace Roguelike.Rules
         {
             values = values ?? new LevelValues();
             floor = Math.Max(1, Math.Min(values.FloorsPerAct, floor));
+            // Work order 041: in a line, each room holds what the same seed's floor of version 9 holds there.
+            List<List<EnemyGroup>> fights = values.InALine ? FightsOf(seed, floor, values) : null;
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {
                 var level = new LevelLayout
                 {
                     Seed = seed, Version = Version, GridCells = values.GridCells, CellSize = values.CellSize, Attempt = attempt + 1,
-                    Floor = floor,
+                    Floor = floor, InALine = values.InALine,
                 };
-                if (!TryLayout(level, LevelRandom.Stream(seed, LayoutStage, attempt), values)) continue;
+                LevelRandom layout = LevelRandom.Stream(seed, LayoutStage, attempt);
+                if (!(values.InALine ? TryLine(level, layout, values) : TryLayout(level, layout, values))) continue;
 
                 LevelRandom contents = LevelRandom.Stream(seed, ContentsStage, attempt);
                 for (int i = 0; i < contentsWarmUp; i++) contents.NextBits();
-                if (!PlaceContents(level, contents, values)) continue;
+                if (!(fights != null ? PlaceFights(level, fights, contents, values) : PlaceContents(level, contents, values))) continue;
 
                 faults = LevelValidator.Validate(level, values);
                 if (faults.Count > 0) continue;
@@ -144,6 +161,101 @@ namespace Roguelike.Rules
 
             var path = new List<CellRect>();
             var steps = new List<int>(); // steps[i]: the side of room i that room i + 1 stands against
+            if (!PlaceChain(kinds, rng, v, path, steps)) return false;
+
+            // The treasure rooms, each against a side wall of a different combat room (path rooms 1 to CombatRooms).
+            var taken = new List<CellRect>(path);
+            var treasureOf = new Dictionary<int, CellRect>();
+            var combats = Enumerable.Range(1, plan.CombatRooms).ToList();
+            rng.Shuffle(combats);
+            foreach (int c in combats)
+            {
+                if (treasureOf.Count == plan.TreasureRooms) break;
+                DrawSize(rng, plan.TreasureSize, out int w, out int h);
+                int wayIn = Opposite(steps[c - 1]), wayOut = steps[c];
+                var sides = new List<int> { North, East, South, West }.Where(s => s != wayIn && s != wayOut).ToList();
+                rng.Shuffle(sides);
+                foreach (Placement p in Candidates(rng, path[c], w, h, need, sides))
+                {
+                    if (!Fits(p.Rect, grid, taken, taken.Count)) continue;
+                    treasureOf[c] = p.Rect;
+                    taken.Add(p.Rect);
+                    break;
+                }
+            }
+            if (treasureOf.Count < plan.TreasureRooms) return false;
+
+            // The rooms in the order of the run: each treasure room right after its combat room.
+            var parentOrder = new List<int>(); // for each room, the order of the room it is entered from (-1 for the entrance)
+            int previousOnPath = -1;
+            int elite = plan.EliteRoomNumber(plan.CombatRooms); // work order 017: path rooms 1 to CombatRooms are the combat rooms
+            for (int i = 0; i < path.Count; i++)
+            {
+                int order = level.Rooms.Count;
+                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = order, Elite = kinds[i] == RoomKind.Combat && i == elite });
+                parentOrder.Add(previousOnPath);
+                previousOnPath = order;
+                if (treasureOf.TryGetValue(i, out CellRect treasure))
+                {
+                    level.Rooms.Add(new LevelRoom { Kind = RoomKind.Treasure, Rect = treasure, Order = level.Rooms.Count });
+                    parentOrder.Add(order);
+                }
+            }
+
+            // The doors, in the order of the run.
+            for (int r = 1; r < level.Rooms.Count; r++)
+            {
+                LevelDoor door = DoorBetween(rng, level.Rooms[parentOrder[r]], level.Rooms[r], v.DoorWidth);
+                if (door == null) return false;
+                level.Doors.Add(door);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// The floor in one row (work order 041): the entrance, the rooms of <see cref="LevelPlan.LineBetween"/> (the combat
+        /// rooms with the treasure rooms between them) and the exit room, each put against the room before it by the rules
+        /// the chain of rooms keeps (<see cref="PlaceChain"/>), the plan's middle combat room the elite room; then the doors,
+        /// each between a room and the next, in the order of the run.
+        /// </summary>
+        static bool TryLine(LevelLayout level, LevelRandom rng, LevelValues v)
+        {
+            LevelPlan plan = v.Plan;
+            var kinds = new List<RoomKind> { RoomKind.Entrance };
+            kinds.AddRange(plan.LineBetween());
+            kinds.Add(RoomKind.Exit);
+
+            var path = new List<CellRect>();
+            var steps = new List<int>();
+            if (!PlaceChain(kinds, rng, v, path, steps)) return false;
+
+            int elite = plan.EliteRoomNumber(plan.CombatRooms), combat = 0;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (kinds[i] == RoomKind.Combat) combat++;
+                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = i, Elite = kinds[i] == RoomKind.Combat && combat == elite });
+            }
+            for (int r = 1; r < level.Rooms.Count; r++)
+            {
+                LevelDoor door = DoorBetween(rng, level.Rooms[r - 1], level.Rooms[r], v.DoorWidth);
+                if (door == null) return false;
+                level.Doors.Add(door);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Puts the rooms of a chain, each of its kind's drawn size against a side of the room before it (the entrance in
+        /// the middle of the grid), into <paramref name="path"/>, and the side each stands against into
+        /// <paramref name="steps"/>; false when they fit nowhere. The rules of the class's summary: the way on, no more than
+        /// <see cref="LevelValues.MostInARow"/> steps the same way, the exit room never touching the entrance, rooms taken
+        /// back when the next fits nowhere.
+        /// </summary>
+        static bool PlaceChain(List<RoomKind> kinds, LevelRandom rng, LevelValues v, List<CellRect> path, List<int> steps)
+        {
+            LevelPlan plan = v.Plan;
+            int grid = v.GridCells;
+            int need = v.DoorWidth + 2;
             int placements = 0;
 
             DrawSize(rng, plan.EntranceSize, out int sw, out int sh);
@@ -193,55 +305,7 @@ namespace Roguelike.Rules
                 return false;
             }
 
-            if (!PlaceMain(1)) return false;
-
-            // The treasure rooms, each against a side wall of a different combat room (path rooms 1 to CombatRooms).
-            var taken = new List<CellRect>(path);
-            var treasureOf = new Dictionary<int, CellRect>();
-            var combats = Enumerable.Range(1, plan.CombatRooms).ToList();
-            rng.Shuffle(combats);
-            foreach (int c in combats)
-            {
-                if (treasureOf.Count == plan.TreasureRooms) break;
-                DrawSize(rng, plan.TreasureSize, out int w, out int h);
-                int wayIn = Opposite(steps[c - 1]), wayOut = steps[c];
-                var sides = new List<int> { North, East, South, West }.Where(s => s != wayIn && s != wayOut).ToList();
-                rng.Shuffle(sides);
-                foreach (Placement p in Candidates(rng, path[c], w, h, need, sides))
-                {
-                    if (!Fits(p.Rect, grid, taken, taken.Count)) continue;
-                    treasureOf[c] = p.Rect;
-                    taken.Add(p.Rect);
-                    break;
-                }
-            }
-            if (treasureOf.Count < plan.TreasureRooms) return false;
-
-            // The rooms in the order of the run: each treasure room right after its combat room.
-            var parentOrder = new List<int>(); // for each room, the order of the room it is entered from (-1 for the entrance)
-            int previousOnPath = -1;
-            int elite = plan.EliteRoomNumber(plan.CombatRooms); // work order 017: path rooms 1 to CombatRooms are the combat rooms
-            for (int i = 0; i < path.Count; i++)
-            {
-                int order = level.Rooms.Count;
-                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = order, Elite = kinds[i] == RoomKind.Combat && i == elite });
-                parentOrder.Add(previousOnPath);
-                previousOnPath = order;
-                if (treasureOf.TryGetValue(i, out CellRect treasure))
-                {
-                    level.Rooms.Add(new LevelRoom { Kind = RoomKind.Treasure, Rect = treasure, Order = level.Rooms.Count });
-                    parentOrder.Add(order);
-                }
-            }
-
-            // The doors, in the order of the run.
-            for (int r = 1; r < level.Rooms.Count; r++)
-            {
-                LevelDoor door = DoorBetween(rng, level.Rooms[parentOrder[r]], level.Rooms[r], v.DoorWidth);
-                if (door == null) return false;
-                level.Doors.Add(door);
-            }
-            return true;
+            return PlaceMain(1);
         }
 
         static void DrawSize(LevelRandom rng, RoomSizeRange range, out int w, out int h)
@@ -323,6 +387,53 @@ namespace Roguelike.Rules
                     EnemyKind[] kinds = v.EliteKinds(level.Floor);
                     groups.Add(new EnemyGroup(kinds[rng.Below(kinds.Length)], 1, elite: true));
                 }
+                if (!PlaceGroups(level, room, groups, rng, v)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// What each room of the chain holds on the same seed's floor of version 9 (work order 041: in a line the floor's
+        /// rooms and enemies are as many as they were): its combat rooms in order and then its exit room, each as its groups,
+        /// the elite with its room's. Its attempts are version 9's, layout, contents and validator, without the props.
+        /// </summary>
+        static List<List<EnemyGroup>> FightsOf(ulong seed, int floor, LevelValues v)
+        {
+            for (int attempt = 0; attempt < v.Attempts; attempt++)
+            {
+                var level = new LevelLayout
+                {
+                    Seed = seed, Version = Version, GridCells = v.GridCells, CellSize = v.CellSize, Attempt = attempt + 1, Floor = floor,
+                };
+                if (!TryLayout(level, LevelRandom.Stream(seed, LayoutStage, attempt), v)) continue;
+                if (!PlaceContents(level, LevelRandom.Stream(seed, ContentsStage, attempt), v)) continue;
+                if (LevelValidator.Check(level, v).Count > 0) continue;
+                var fights = new List<List<EnemyGroup>>();
+                foreach (LevelRoom room in LevelGeometry.MainPath(level))
+                    if (room.Kind == RoomKind.Combat || room.Kind == RoomKind.Exit) fights.Add(room.EnemyGroups.Select(g => g.Copy()).ToList());
+                return fights;
+            }
+            throw new InvalidOperationException("No floor of version 9 for seed " + LevelSeed.ToText(seed) + " floor " + floor + " in " + v.Attempts + " attempts");
+        }
+
+        /// <summary>
+        /// The contents of a floor in a line (work order 041): the player's start in the middle of the entrance, and in each
+        /// combat room in order and then the exit room the groups of <paramref name="fights"/> (<see cref="FightsOf"/>), each
+        /// given its point by the rules of <see cref="PlaceGroups"/>, from this stream. Nothing in the treasure rooms.
+        /// </summary>
+        static bool PlaceFights(LevelLayout level, List<List<EnemyGroup>> fights, LevelRandom rng, LevelValues v)
+        {
+            int next = 0;
+            foreach (LevelRoom room in level.Rooms)
+            {
+                if (room.Kind == RoomKind.Entrance)
+                {
+                    room.PlayerStart = room.Middle(v.CellSize);
+                    continue;
+                }
+                if (room.Kind != RoomKind.Combat && room.Kind != RoomKind.Exit) continue;
+                if (next >= fights.Count) return false;
+                List<EnemyGroup> groups = fights[next++].Select(g => g.Copy()).ToList();
                 if (!PlaceGroups(level, room, groups, rng, v)) return false;
             }
             return true;
@@ -574,17 +685,20 @@ namespace Roguelike.Rules
             return door.Line == room.Y ? LevelGenerator.South : door.Line == room.Top ? LevelGenerator.North : -1;
         }
 
-        /// <summary>The rooms of the main path (all but the treasure rooms), in the order of the run.</summary>
+        /// <summary>
+        /// The rooms of the main path (all but the treasure rooms), in the order of the run; on a floor in a line (work order
+        /// 041) every room, the treasure rooms being on the row.
+        /// </summary>
         public static List<LevelRoom> MainPath(LevelLayout level) =>
-            level.Rooms.Where(r => r.Kind != RoomKind.Treasure).OrderBy(r => r.Order).ToList();
+            level.Rooms.Where(r => level.InALine || r.Kind != RoomKind.Treasure).OrderBy(r => r.Order).ToList();
 
         /// <summary>
         /// The door she comes into a room by: for a room of the main path, the door to the room before it on the path;
-        /// for a treasure room, its one door. Null if there is none.
+        /// for a treasure room off the side of a combat room, its one door. Null if there is none.
         /// </summary>
         public static LevelDoor EntryDoor(LevelLayout level, LevelRoom room)
         {
-            if (room.Kind == RoomKind.Treasure) return level.DoorsOf(room.Order).FirstOrDefault();
+            if (room.Kind == RoomKind.Treasure && !level.InALine) return level.DoorsOf(room.Order).FirstOrDefault();
             List<LevelRoom> path = MainPath(level);
             int at = path.IndexOf(room);
             if (at <= 0) return null;

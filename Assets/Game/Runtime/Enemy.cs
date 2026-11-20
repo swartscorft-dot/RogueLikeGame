@@ -303,7 +303,8 @@ namespace Roguelike
         {
             Act();
             // The model shows what it did this frame (work order 011); a corpse already hidden is not posed any more
-            // (work order 026, the second review of 2026-11-20). No other culling: combat reads the poses.
+            // (work order 026, the second review of 2026-11-20). Out of the camera's sight its clips' times still run but
+            // its bones are not posed (work order 032, EnemyLook.CullUnseen): nothing of the game reads its bones.
             if (_look != null && !(_hiddenDead && IsDead)) _look.Tick(this, LookVelocity, Time.time);
         }
 

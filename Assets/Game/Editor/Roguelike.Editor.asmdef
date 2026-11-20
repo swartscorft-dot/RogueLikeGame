@@ -1,0 +1,19 @@
+{
+    "name": "Roguelike.Editor",
+    "rootNamespace": "Roguelike.EditorTools",
+    "references": [
+        "Roguelike.Rules",
+        "Roguelike.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
