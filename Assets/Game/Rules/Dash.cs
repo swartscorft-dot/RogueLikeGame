@@ -35,6 +35,15 @@ namespace Roguelike.Rules
             return true;
         }
 
+        /// <summary>Back to its start: no dash, and ready at once (work order 026: a run starts with a clean slate).</summary>
+        public void Clear()
+        {
+            _startedAt = float.NegativeInfinity;
+            _readyAt = float.NegativeInfinity;
+            _duration = 0f;
+            _invulnerability = 0f;
+        }
+
         public bool IsDashing(float now) => now >= _startedAt && now < _startedAt + _duration;
 
         public bool IsInvulnerable(float now) => now >= _startedAt && now < _startedAt + _invulnerability;

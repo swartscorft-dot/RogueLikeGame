@@ -883,6 +883,30 @@ namespace Roguelike
             Halt();
         }
 
+        /// <summary>
+        /// A clean slate (the review of 2026-11-20, work order 026): an empty focus gauge and no focus window, every
+        /// skill's cooldown and charges and the dash's cooldown ready, and any skill in progress, recast chain, buffered
+        /// press, waiting click, Slide and lying keg ended. Where she stands and the keys held stay. Called when a run
+        /// starts and when a run ends back to the practice room; nothing else calls it.
+        /// </summary>
+        public void StartFresh()
+        {
+            if (_actionKind == ActionKind.Skill) ReportSkillEnded(SkillEnding.Cancelled, Time.time);
+            _action.Cancel();
+            _cast.Cancel();
+            EndAction();
+            _dashing = false;
+            _buffer.Clear();
+            _clicks.Clear();
+            _skillGateUntil = float.NegativeInfinity;
+            EndChain();
+            EndKeyMove();
+            ClearKegs();
+            _focus.Clear();
+            _dash.Clear();
+            _cooldowns.Clear(); // made again, ready, when next asked for
+        }
+
         // ---------------- Simulation ----------------
 
         void Update()
@@ -1156,8 +1180,9 @@ namespace Roguelike
             if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
             if (_snapping || StoodUpInCover || _moveInput == Vector3.zero) return;
             FeelValues feel = Feel;
+            // Her run speed with the run's upgrades, as everywhere else she moves (work order 026, the second review of 2026-11-20).
             GroundPoint next = TakeCoverRules.Slide(_coverShape, GroundPosition, new GroundPoint(_moveInput.x, _moveInput.z),
-                                                    feel.RunSpeed * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
+                                                    feel.RunSpeed * RunSpeedShare * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
             MoveInCover(new Vector3(next.X, transform.position.y, next.Z));
         }
 
@@ -1788,6 +1813,12 @@ namespace Roguelike
                 int taken = spender ? d.TakeMarks() : 0;
                 int dealt = spender ? MarkRules.SpenderDamage(damage, taken, bonusPerMark) : damage;
                 float hitStagger = skill.MarkStaggerBonus > 0f ? PoolRules.SpenderStagger(stagger, taken, skill.MarkStaggerBonus) : stagger;
+                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front. Tried
+                // before the hit's stagger is dealt (the review of 2026-11-20, work order 026): a hit that empties a bar
+                // dazes, the daze drops the windup, and the counter would then find nothing to counter.
+                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
+                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
+                if (counteredThis) countered = true;
                 int applied = Deal(d, dealt, out float focus, hitStagger);
                 if (spender)
                 {
@@ -1797,10 +1828,6 @@ namespace Roguelike
                         Kind = PlayerReportKind.MarksSpent, Slot = slot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
                     });
                 }
-                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front.
-                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
-                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
-                if (counteredThis) countered = true;
                 if (applied <= 0) continue;
                 ReportHit(slot, d, applied, empowered, focus, counteredThis);
                 SpawnHit(look, d, shotPoint);

@@ -490,6 +490,11 @@ namespace Roguelike
         /// </summary>
         public IReadOnlyList<Enemy> Called => _called;
         readonly List<Enemy> _called = new List<Enemy>();
+        /// <summary>The called swarmers by the room they were called into, for the room's "enemies left" (work order 026).</summary>
+        public IReadOnlyDictionary<int, List<Enemy>> CalledByRoom => _calledByRoom;
+        readonly Dictionary<int, List<Enemy>> _calledByRoom = new Dictionary<int, List<Enemy>>();
+        /// <summary>Raised for each swarmer the boss calls, as it is made: the run's record counts its death (work order 026).</summary>
+        public event System.Action<Enemy> EnemyCalled;
 
         /// <summary>
         /// A pack the boss calls (work order 014): <paramref name="count"/> swarmers of the floor's health, at places
@@ -517,6 +522,9 @@ namespace Roguelike
                 e.HealthOverride = Values.HealthOf(EnemyKind.Swarmer);
                 _enemies.Add(e);
                 _called.Add(e);
+                if (!_calledByRoom.TryGetValue(room.Order, out List<Enemy> inRoom)) _calledByRoom[room.Order] = inRoom = new List<Enemy>();
+                inRoom.Add(e);
+                EnemyCalled?.Invoke(e);
                 made.Add(e);
             }
             return made;

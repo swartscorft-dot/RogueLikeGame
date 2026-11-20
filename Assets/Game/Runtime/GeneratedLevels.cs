@@ -309,12 +309,17 @@ namespace Roguelike
         /// </summary>
         public void BackToPracticeRoom()
         {
+            bool fromRun = InRun || Ending != EndKind.None; // work order 026
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
             if (_level == null) return;
             PlayerCharacter player = FindPlayer();
             if (player != null) player.Teleport(_practiceSpotKnown ? _practiceSpot : Vector3.zero);
+            // Work order 026 (the review of 2026-11-20): after a death she is alive at once, where the practice room puts
+            // her, not dead for a moment and then at the scene's start; and a run's focus and cooldowns stay in the run.
+            if (_health != null && !_health.IsAlive) _health.RestoreFull();
+            if (fromRun && player != null) player.StartFresh();
             Remove();
         }
 
@@ -345,6 +350,7 @@ namespace Roguelike
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
+            ClearSpawned(); // what the practice room spawned, of every kind, never follows her into a run (the review of 2026-11-20, work order 026)
             RunSeed = runSeed;
             InRun = true;
             ActCleared = false;
@@ -355,6 +361,8 @@ namespace Roguelike
             Modifiers.CooldownFloor = RunValues.CooldownFloor;
             player.Modifiers = Modifiers;
             player.EquipStartSkills();
+            player.StartFresh(); // work order 026: no focus or cooldown carries into a run
+            _diedWithTheAct.Clear();
             if (_health != null) _health.RestoreFull();
             _runStartedAt = Time.time;
             Record = new RunRecord(RunSeedText, Values.FloorsPerAct);
@@ -418,11 +426,28 @@ namespace Roguelike
                 ActCleared = true;
                 _actTime = Time.time - _runStartedAt;
                 EndRun("act cleared", "ACT CLEARED   run " + RunSeedText + "   time " + SessionSummary.Duration(_actTime));
+                EndTheCalled();
                 OpenEnding(EndKind.ActCleared);
                 return;
             }
             OfferFloorReward();
         }
+
+        /// <summary>
+        /// The act is cleared (work order 026, the review of 2026-11-20): every swarmer the boss called that is still
+        /// alive dies on the spot, so none of theirs lands after it, and those deaths are not her kills.
+        /// </summary>
+        void EndTheCalled()
+        {
+            foreach (Enemy e in _level.Called)
+            {
+                if (e == null || e.IsDead) continue;
+                _diedWithTheAct.Add(e);
+                e.Body.TakeHit(1000000);
+            }
+        }
+
+        readonly HashSet<Enemy> _diedWithTheAct = new HashSet<Enemy>();
 
         void OfferFloorReward()
         {
@@ -467,14 +492,34 @@ namespace Roguelike
         public GeneratedLevel.PlacedProp ChestInReach()
         {
             if (!InRun || _level == null || _player == null || Choice != ChoiceKind.None) return null;
-            foreach (GeneratedLevel.PlacedProp chest in Chests())
+            foreach (GeneratedLevel.PlacedProp chest in _level.Props) // no list made per call (work order 026)
             {
-                if (_chestsOpened.Contains(chest.Room.Order) || chest.Object == null) continue;
+                if (chest.Prop.Model != PropModel.Chest || _chestsOpened.Contains(chest.Room.Order) || chest.Object == null) continue;
                 Vector3 c = chest.Object.transform.position, p = _player.Position;
                 if (new Vector2(c.x - p.x, c.z - p.z).magnitude <= RunValues.ChestReach) return chest;
             }
             return null;
         }
+
+        /// <summary>
+        /// The chest the prompt shows over now: <see cref="ChestInReach"/>, found once a frame and not once per GUI event
+        /// (the review of 2026-11-20, work order 026).
+        /// </summary>
+        public GeneratedLevel.PlacedProp ChestPrompt
+        {
+            get
+            {
+                if (_promptFrame != Time.frameCount)
+                {
+                    _promptFrame = Time.frameCount;
+                    _promptChest = ChestInReach();
+                }
+                return _promptChest;
+            }
+        }
+
+        int _promptFrame = -1;
+        GeneratedLevel.PlacedProp _promptChest;
 
         /// <summary>Opens the chest in reach, if any (the interact key). True when one opened.</summary>
         public bool OpenChest() => OpenChest(ChestInReach());
@@ -485,7 +530,7 @@ namespace Roguelike
         /// </summary>
         public bool OpenChest(GeneratedLevel.PlacedProp chest)
         {
-            if (chest == null || !InRun || Choice != ChoiceKind.None || _chestsOpened.Contains(chest.Room.Order)) return false;
+            if (chest == null || !InRun || Choice != ChoiceKind.None || Paused || _chestsOpened.Contains(chest.Room.Order)) return false; // not under the pause menu (work order 026)
             PlayerCharacter player = FindPlayer();
             var equipped = new List<string>();
             for (int slot = 0; slot < player.Skills.Count; slot++)
@@ -572,6 +617,16 @@ namespace Roguelike
         void Update()
         {
             if (FindPlayer() == null) return;
+            // Death first (work order 026, the second review of 2026-11-20): before a choice (a chest opened on the frame
+            // of the lethal hit), whose screen the death screen closes, and before the interact key.
+            if (_diedPending)
+            {
+                _diedPending = false;
+                string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
+                EndRun("death", line);
+                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
+                if (_level != null) OpenEnding(EndKind.Died);
+            }
             if (Choice != ChoiceKind.None)
             {
                 Time.timeScale = 0f; // a hit stop that ends while the choice is up must not start the game again
@@ -601,15 +656,7 @@ namespace Roguelike
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
                 else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
                 else if (keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
-                else if (keyboard[InteractKey].wasPressedThisFrame) OpenChest();
-            }
-            if (_diedPending)
-            {
-                _diedPending = false;
-                string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
-                EndRun("death", line);
-                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
-                if (_level != null) OpenEnding(EndKind.Died);
+                else if (keyboard[InteractKey].wasPressedThisFrame && !PlayerInputDriver.LetGoThisFrame) OpenChest(); // work order 026
             }
             if (_level == null)
             {
@@ -617,7 +664,8 @@ namespace Roguelike
                 return;
             }
             TrackRoom();
-            if (!Cleared && _level.ExitRoomCleared) FloorFinished();
+            // One screen at a time (work order 026): while paused, the floor's end waits until the game resumes.
+            if (!Cleared && !Paused && _level.ExitRoomCleared) FloorFinished();
         }
 
         // A hit stop puts back the time scale it found when it ends, in its own Update: the choice holds the pause after it.
@@ -648,9 +696,12 @@ namespace Roguelike
             PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant());
         }
 
-        /// <summary>The enemies of a room still alive.</summary>
+        /// <summary>The enemies of a room still alive, and the swarmers the boss called into it (work order 026).</summary>
         int AliveIn(LevelRoom room) =>
-            _level != null && room != null && _level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list) ? list.Count(e => e != null && !e.IsDead) : 0;
+            _level != null && room != null ? Alive(_level.EnemiesByRoom, room) + Alive(_level.CalledByRoom, room) : 0;
+
+        static int Alive(IReadOnlyDictionary<int, List<Enemy>> byRoom, LevelRoom room) =>
+            byRoom.TryGetValue(room.Order, out List<Enemy> list) ? list.Count(e => e != null && !e.IsDead) : 0;
 
         /// <summary>What the box on screen says, line by line; empty when she is not in a floor.</summary>
         public string StatusText()
@@ -696,9 +747,12 @@ namespace Roguelike
             // The developer's box: shown or not, and how far down, as the HUD says (work order 018: F1); as before without one.
             if (inLevel)
             {
-                string text = StatusText();
-                int lines = text.Split('\n').Length;
-                if (ShowDevBox) GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
+                if (ShowDevBox) // the status text is built only when it is shown (work order 026)
+                {
+                    string text = StatusText();
+                    int lines = text.Split('\n').Length;
+                    GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
+                }
                 DrawChestPrompt(scale);
             }
             else if (ShowDevBox)
@@ -715,7 +769,7 @@ namespace Roguelike
         /// <summary>A small prompt over the chest she can open (work order 012).</summary>
         void DrawChestPrompt(float scale)
         {
-            GeneratedLevel.PlacedProp chest = ChestInReach();
+            GeneratedLevel.PlacedProp chest = ChestPrompt;
             Camera cam = Camera.main;
             if (chest == null || cam == null) return;
             Vector3 screen = cam.WorldToScreenPoint(chest.Object.transform.position + Vector3.up * 1.4f);

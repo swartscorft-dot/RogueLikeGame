@@ -248,8 +248,9 @@ namespace Roguelike
         protected virtual void Update()
         {
             Act();
-            // The model shows what it did this frame (work order 011).
-            if (_look != null) _look.Tick(this, LookVelocity, Time.time);
+            // The model shows what it did this frame (work order 011); a corpse already hidden is not posed any more
+            // (work order 026, the second review of 2026-11-20). No other culling: combat reads the poses.
+            if (_look != null && !(_hiddenDead && IsDead)) _look.Tick(this, LookVelocity, Time.time);
         }
 
         /// <summary>The speed over the ground its legs show: the agent's, unless a kind moves itself (the boss's charge).</summary>

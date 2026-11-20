@@ -91,6 +91,8 @@ namespace Roguelike
         void OpenEnding(EndKind kind)
         {
             if (Ending != EndKind.None || kind == EndKind.None) return;
+            CloseChoice(); // one screen at a time (work order 026): the end closes a choice, and gives its time scale back first
+            if (_health != null) _health.Untouchable = true; // the run's result is in: nothing hurts her now (work order 026)
             if (Paused) Paused = false; // the scale from before the pause is the one to come back to
             else _screenScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f;
             Ending = kind;
@@ -105,6 +107,7 @@ namespace Roguelike
             if (!Paused && Ending == EndKind.None) return;
             Paused = false;
             Ending = EndKind.None;
+            if (_health != null) _health.Untouchable = false;
             Time.timeScale = _screenScaleBefore;
             PlayerInputDriver.HeldByScreen = false;
         }
@@ -125,8 +128,13 @@ namespace Roguelike
             if (CurrentRoom != null) record.EnterRoom(CurrentRoom.Order, CurrentRoom.Kind);
             // The same report the play session recorder counts a kill from (EnemyReportKind.Died), once per enemy.
             foreach (Enemy enemy in level.Enemies)
-                if (enemy != null) enemy.Reported += r => { if (r.Kind == EnemyReportKind.Died) record.Kill(); };
+                if (enemy != null) CountKills(record, enemy);
+            level.EnemyCalled += e => CountKills(record, e); // the swarmers the boss calls too (work order 026)
         }
+
+        /// <summary>Its death is her kill, unless it died with the act cleared (work order 026).</summary>
+        void CountKills(RunRecord record, Enemy enemy) =>
+            enemy.Reported += r => { if (r.Kind == EnemyReportKind.Died && !_diedWithTheAct.Contains(enemy)) record.Kill(); };
 
         /// <summary>The run ended: how, with the time and the health she has (her maximum still with the run's upgrades).</summary>
         void RecordEnd(string how)
