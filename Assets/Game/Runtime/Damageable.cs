@@ -90,11 +90,19 @@ namespace Roguelike
         {
             s_All.Clear();
             MarksLost = null;
+            Destroyed = 0;
         }
+
+        /// <summary>
+        /// Targets destroyed since the game started (with their level or scene, or by themselves): a listener that keeps
+        /// targets as keys forgets the gone ones only when this has moved (work order 026, the second review of 2026-11-20).
+        /// </summary>
+        public static int Destroyed { get; private set; }
 
         void Awake() => _health = new Health(MaxHealth);
         void OnEnable() => s_All.Add(this);
         void OnDisable() => s_All.Remove(this);
+        void OnDestroy() => Destroyed++;
 
         void Update()
         {

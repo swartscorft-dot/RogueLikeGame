@@ -295,7 +295,7 @@ namespace Roguelike
                     Fired(r, skill);
                     break;
                 case PlayerReportKind.ShotFired:
-                    Flush(false);
+                    Flush(false, -1); // the basic shot's own hits
                     break;
                 case PlayerReportKind.SkillEnded:
                     // A clean press whose shot never went off (a dash, a teleport) shows nothing.
@@ -323,7 +323,7 @@ namespace Roguelike
                 ShowWord(first, FeedbackRules.Word(FeedbackMoment.Clean));
                 PlayTone(FeedbackTone.Clean);
             }
-            Flush(perfect);
+            Flush(perfect, r.Slot);
         }
 
         /// <summary>Of the hits waiting to be counted, the target nearest her: "the first target it hit". Null for none.</summary>
@@ -341,20 +341,28 @@ namespace Roguelike
             return best;
         }
 
-        /// <summary>Counts the waiting hits into the damage numbers: at the shot that made them, or at the end of the frame.</summary>
-        void Flush(bool perfect)
+        /// <summary>
+        /// Counts the waiting hits into the damage numbers: at the shot that made them, or at the end of the frame. A shot
+        /// takes only its own hits, by its slot (-1 the basic shot; work order 026, the second review of 2026-11-20): a keg
+        /// a Long Shot sets off reports its burst in the middle of the Long Shot's hit, and must not take that hit with it.
+        /// Null takes every one, at the end of the frame.
+        /// </summary>
+        void Flush(bool perfect, int? slot = null)
         {
             if (_pending.Count == 0) return;
             bool shown = NumbersOn;
             int cap = _player != null ? _player.Kit.MaxMarks : 0;
-            foreach (PendingHit hit in _pending)
+            for (int i = 0; i < _pending.Count; i++)
             {
+                PendingHit hit = _pending[i];
+                if (slot.HasValue && hit.Slot != slot.Value) continue;
                 if (!shown || hit.Target == null) continue;
                 NumberKind kind = FeedbackRules.HitKind(perfect, hit.MarksSpent, cap, hit.OnDazed);
                 int key = KeyOf(hit.Target);
                 _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers);
             }
-            _pending.Clear();
+            if (!slot.HasValue) _pending.Clear();
+            else for (int i = _pending.Count - 1; i >= 0; i--) if (_pending[i].Slot == slot.Value) _pending.RemoveAt(i);
             _marksSpent.Clear();
         }
 
@@ -474,17 +482,26 @@ namespace Roguelike
                 if (!used) _scratch.Add(key);
             }
             foreach (int key in _scratch) _anchors.Remove(key);
-            // Targets gone with their level or scene.
-            if (_keys.Count > 64) ForgetGone(_keys);
-            if (_emptiedAt.Count > 64) ForgetGone(_emptiedAt);
-            if (_listening.Count > 64) ForgetGone(_listening);
+            // Targets gone with their level or scene: looked for only when one was destroyed since the last look (work
+            // order 026), not every frame once there are many.
+            if (Damageable.Destroyed != _forgotAt && (_keys.Count > 64 || _emptiedAt.Count > 64 || _listening.Count > 64))
+            {
+                _forgotAt = Damageable.Destroyed;
+                if (_keys.Count > 64) ForgetGone(_keys);
+                if (_emptiedAt.Count > 64) ForgetGone(_emptiedAt);
+                if (_listening.Count > 64) ForgetGone(_listening);
+            }
         }
+
+        int _forgotAt = -1;
+        static readonly List<Damageable> s_Gone = new List<Damageable>();
 
         static void ForgetGone<T>(Dictionary<Damageable, T> map)
         {
-            var gone = new List<Damageable>();
-            foreach (Damageable d in map.Keys) if (d == null) gone.Add(d);
-            foreach (Damageable d in gone) map.Remove(d);
+            s_Gone.Clear();
+            foreach (Damageable d in map.Keys) if (d == null) s_Gone.Add(d);
+            foreach (Damageable d in s_Gone) map.Remove(d);
+            s_Gone.Clear();
         }
 
         FeedbackShown Shown(BoardWord w, float now)

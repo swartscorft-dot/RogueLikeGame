@@ -41,6 +41,8 @@ namespace Roguelike.Rules
 
         // Floors
         public float FloorTile = 4f;             // one copy of a floor texture covers this many metres on a side
+        public int FloorAnisoLevel = 8;          // the floor textures' anisotropic filtering, set on them where the floor materials are made (work order 026): the camera sees the floor at a flat angle
+        public bool FloorTrilinear = true;       // and trilinear filtering between their mip levels
         public Rgb EntranceFloorTint = new Rgb(0.91f, 1f, 0.93f);  // the old grey-box tints, each brought most of the way to white
         public Rgb CombatFloorTint = new Rgb(1f, 0.98f, 0.96f);
         public Rgb TreasureFloorTint = new Rgb(0.87f, 0.92f, 1f);

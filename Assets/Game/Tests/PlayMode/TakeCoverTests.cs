@@ -243,6 +243,35 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
+        public IEnumerator TheSlide_WithARunSpeedUpgrade_IsFasterByIt()
+        {
+            // Work order 026 (the second review of 2026-11-20): a chest's run speed counts in cover too.
+            Wall(Stand + _ahead * (1.2f + 0.15f), 8f, 0.3f);
+            yield return Synced();
+            yield return Ducked();
+            var modifiers = new RunModifiers();
+            modifiers.Take(new Upgrade { Kind = UpgradeKind.RunSpeed, Amount = 0.5f });
+            _player.Modifiers = modifiers;
+            try
+            {
+                Assume.That(_player.RunSpeedShare, Is.EqualTo(1.5f).Within(1e-4f));
+                Vector3 from = _player.Position;
+                float started = Time.time;
+                _player.Steer(_side);
+                while (Time.time < started + 0.4f) yield return null;
+                float went = Vector3.Dot(Flat(_player.Position - from), _side);
+                float expected = _feel.RunSpeed * _player.RunSpeedShare * _feel.CoverMoveShare * (Time.time - started);
+                Assert.That(went, Is.EqualTo(expected).Within(0.15f), "along it at the cover share of her run speed with the upgrade");
+                Assert.That(_player.IsInCover, Is.True);
+                _player.Stop();
+            }
+            finally
+            {
+                _player.Modifiers = null;
+            }
+        }
+
+        [UnityTest]
         public IEnumerator LettingGo_GivesFullMovementAtOnce()
         {
             Prop(PropModel.Sarcophagus, FaceAt(PropModel.Sarcophagus, 1.2f));

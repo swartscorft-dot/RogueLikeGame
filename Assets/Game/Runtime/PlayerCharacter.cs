@@ -160,6 +160,7 @@ namespace Roguelike
         readonly IdentityValues _fallbackIdentity = new IdentityValues();
         readonly ShotLook _fallbackBasicLook = ShotFxDefaults.Basic();
         readonly Dictionary<string, ShotLook> _fallbackLooks = new Dictionary<string, ShotLook>();
+        readonly Dictionary<string, ShotLook> _borrowedLooks = new Dictionary<string, ShotLook>(); // work order 024: switched off
         // The kit (decision 0005).
         readonly KitValues _fallbackKit = new KitValues();
         readonly BasicShotMarks _basicMarks = new BasicShotMarks();
@@ -922,6 +923,30 @@ namespace Roguelike
             Halt();
         }
 
+        /// <summary>
+        /// A clean slate (the review of 2026-11-20, work order 026): an empty focus gauge and no focus window, every
+        /// skill's cooldown and charges and the dash's cooldown ready, and any skill in progress, recast chain, buffered
+        /// press, waiting click, Slide and lying keg ended. Where she stands and the keys held stay. Called when a run
+        /// starts and when a run ends back to the practice room; nothing else calls it.
+        /// </summary>
+        public void StartFresh()
+        {
+            if (_actionKind == ActionKind.Skill) ReportSkillEnded(SkillEnding.Cancelled, Time.time);
+            _action.Cancel();
+            _cast.Cancel();
+            EndAction();
+            _dashing = false;
+            _buffer.Clear();
+            _clicks.Clear();
+            _skillGateUntil = float.NegativeInfinity;
+            EndChain();
+            EndKeyMove();
+            ClearKegs();
+            _focus.Clear();
+            _dash.Clear();
+            _cooldowns.Clear(); // made again, ready, when next asked for
+        }
+
         // ---------------- Simulation ----------------
 
         void Update()
@@ -1195,8 +1220,9 @@ namespace Roguelike
             if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
             if (_snapping || StoodUpInCover || _moveInput == Vector3.zero) return;
             FeelValues feel = Feel;
+            // Her run speed with the run's upgrades, as everywhere else she moves (work order 026, the second review of 2026-11-20).
             GroundPoint next = TakeCoverRules.Slide(_coverShape, GroundPosition, new GroundPoint(_moveInput.x, _moveInput.z),
-                                                    feel.RunSpeed * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
+                                                    feel.RunSpeed * RunSpeedShare * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
             MoveInCover(new Vector3(next.X, transform.position.y, next.Z));
         }
 
@@ -1905,6 +1931,12 @@ namespace Roguelike
                 // Execution (work order 017): more to a dazed target.
                 if (skill.DazedDamageScale != 1f && d.IsDazed) dealt = Mathf.RoundToInt(dealt * Mathf.Max(0f, skill.DazedDamageScale));
                 float hitStagger = skill.MarkStaggerBonus > 0f ? PoolRules.SpenderStagger(stagger, taken, skill.MarkStaggerBonus) : stagger;
+                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front. Tried
+                // before the hit's stagger is dealt (the review of 2026-11-20, work order 026): a hit that empties a bar
+                // dazes, the daze drops the windup, and the counter would then find nothing to counter.
+                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
+                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
+                if (counteredThis) countered = true;
                 bool wasDazed = d.IsDazed;
                 int applied = Deal(d, dealt, out float focus, hitStagger);
                 if (!d.IsAlive) killed = true;
@@ -1917,10 +1949,6 @@ namespace Roguelike
                         Kind = PlayerReportKind.MarksSpent, Slot = slot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
                     });
                 }
-                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front.
-                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
-                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
-                if (counteredThis) countered = true;
                 if (applied <= 0) continue;
                 ReportHit(slot, d, applied, empowered, focus, counteredThis);
                 SpawnHit(look, d, shotPoint);
@@ -1972,8 +2000,11 @@ namespace Roguelike
         {
             ShotLook values = skill == null
                 ? (ShotLooks != null && ShotLooks.Basic != null ? ShotLooks.Basic : _fallbackBasicLook)
-                : (ShotLooks != null ? ShotLooks.For(skill.Name) ?? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
-                  ?? FallbackLook(skill.Name); // a pool skill with no look of its own borrows its nearest's, sound and all (work order 015)
+                : (ShotLooks != null ? ShotLooks.For(skill.Name) : null)
+                  // Work order 024: a pool skill the asset has no look for takes its own from the defaults in memory; only
+                  // with the effects switched off does it borrow its nearest's, sound and all, as before (work order 015).
+                  ?? (CombatEffects.PoolLooksBorrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
+                  ?? FallbackLook(skill.Name);
             bool empowered = IsEmpowered;
             float empoweredScale = ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
             Color rim = empowered ? (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim) : values.Rim;
@@ -1990,8 +2021,13 @@ namespace Roguelike
 
         ShotLook FallbackLook(string skillName)
         {
-            if (!_fallbackLooks.TryGetValue(skillName, out ShotLook look))
-                _fallbackLooks[skillName] = look = ShotFxDefaults.For(skillName);
+            bool borrowed = CombatEffects.PoolLooksBorrowed;
+            Dictionary<string, ShotLook> looks = borrowed ? _borrowedLooks : _fallbackLooks;
+            if (!looks.TryGetValue(skillName, out ShotLook look))
+                looks[skillName] = look = borrowed ? ShotFxDefaults.Borrowed(skillName) : ShotFxDefaults.For(skillName);
+            // Its own look keeps the sound of its nearest in the asset until the asset has a look of its own for it (work order 024).
+            ShotLook nearest = !borrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skillName)) : null;
+            if (nearest != null) ShotFxDefaults.TakeSound(look, nearest);
             return look;
         }
 
