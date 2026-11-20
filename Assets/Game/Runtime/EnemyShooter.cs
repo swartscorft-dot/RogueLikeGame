@@ -32,8 +32,10 @@ namespace Roguelike
     /// drawn on the floor; what it is about to do is read on its body, the draw of its bow, the wind-up effect and sound.
     /// At the release an arrow leaves the bow and flies (<see cref="ShooterValues.Arrows"/>), aimed where she will be if she
     /// keeps her velocity for its flight, times <see cref="ShooterValues.LeadShare"/>, the lead at most
-    /// <see cref="ShooterValues.LeadMost"/> (<see cref="ProjectileRules.LeadAim"/>): standing still or running straight
-    /// she is hit; a turn after the release, a wall or a tall prop, what she ducked behind, or the dash avoids it. On
+    /// <see cref="ShooterValues.LeadMost"/> (<see cref="ProjectileRules.LeadAim"/>). Since work order 039 the arrow is slow
+    /// enough to see and its lead only partial, with a flash at the bow as it leaves: standing still, drifting, or running
+    /// at it or away from it she is hit; running across she is missed behind; a sidestep after the release, a wall or a
+    /// tall prop, what she ducked behind, or the dash avoids it. On
     /// floor <see cref="ShooterValues.FanFromFloor"/> and later, and for an elite on any floor, every third shot is a fan
     /// of three, drawn a little longer with a larger wind-up effect; an elite's other shots are volleys of two, each aimed
     /// as it leaves (<see cref="ShooterTactics"/>). Its distance, its sight and its turns are as before.
@@ -158,7 +160,8 @@ namespace Roguelike
 
         /// <summary>
         /// Looses <paramref name="count"/> arrows from the bow, the middle one aimed where she will be (the lead), the
-        /// others <see cref="ShooterValues.FanDegrees"/> apart, and says so (the release's sound and the log).
+        /// others <see cref="ShooterValues.FanDegrees"/> apart, with one flash at the bow (work order 039), and says so (the
+        /// release's sound and the log).
         /// </summary>
         void Loose(EnemyAttackDefinition attack, int count)
         {
@@ -175,6 +178,7 @@ namespace Roguelike
             ThingsThatFly fly = ThingsThatFly.Ensure();
             for (int i = 0; i < count; i++)
                 fly.Fire(this, attack, ProjectileRules.Arrow(Tuning, bow, ProjectileRules.FanDirection(dir, i, count, Tuning.FanDegrees)));
+            fly.FlashAt(new Vector3(bow.X, 0f, bow.Z), this);
             ThingsThatFly.TellLoosed(this, attack, count);
         }
 

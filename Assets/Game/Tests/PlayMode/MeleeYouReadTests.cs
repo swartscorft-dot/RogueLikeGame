@@ -21,7 +21,9 @@ namespace Roguelike.PlayModeTests
     /// when she steps aside; a Drag pulls her, is broken by a wall or a tall prop and dropped by Stopping Shot, and a pull
     /// stops at what blocks walking; a Crush hurts; stunned she cannot move or act and then can; none of it while paused;
     /// the recorder counts the new attacks; and the damage per ten seconds of an enemy left to attack her freely, before
-    /// and after, at floor 1's and floor 5's scale.
+    /// and after, at floor 1's and floor 5's scale. Since work order 039 the swarmer has no Leap unless its flag is on (the
+    /// Leap's tests turn it on), bites about three times a second for 2, flicks on every other bite and is heard a few
+    /// times a second however many bite.
     ///
     /// The practice brute is switched off: it stays in the scene as the template every enemy here is made from. Every
     /// enemy is made where the test puts it, north of her, and takes no turns. Her health is made large so that none of
@@ -374,6 +376,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ALeap_BitesHerWhereSheStood_AndLandsBesideHerWhenSheSidesteps()
         {
             var e = Make<EnemySwarmer>(EnemyKind.Swarmer, EnemyAt, walks: false);
+            e.Tuning.Leaps = true; // the Leap as 035 built it, kept behind its flag (work order 039)
             EnemyAttackDefinition leap = MeleeAttacks.Find(e.Tuning.Melee, MeleeAttacks.Leap);
             yield return null;
             HerAt(e, 5.5f);
@@ -734,10 +737,11 @@ namespace Roguelike.PlayModeTests
         /// One enemy of a kind left to attack her freely: she stands in its reach in front of it and never dodges, for
         /// twenty seconds of game time, at a floor's damage scale. The damage she took.
         /// </summary>
-        IEnumerator Freely(EnemyKind kind, bool on, int floor, Action<int> got)
+        IEnumerator Freely(EnemyKind kind, bool on, int floor, Action<int> got, Action<MeleeEnemy> tune = null)
         {
             _player.MeleeYouRead = on;
             MeleeEnemy e = Make<MeleeEnemy>(kind, EnemyAt);
+            tune?.Invoke(e);
             e.DamageScale = new LevelValues().DamageScaleOf(floor);
             yield return null;
             float standOff = kind == EnemyKind.Swarmer ? 1f : kind == EnemyKind.Brute ? 1.5f : 2f;
@@ -754,6 +758,13 @@ namespace Roguelike.PlayModeTests
             got(taken);
         }
 
+        /// <summary>
+        /// The brute and the guard: about what they dealt before 035, or up to a third more (work order 035, "Keeping it
+        /// hard"). The swarmer: work order 039's target, not 035's rule (its bite landed 41 of 47 times in Kristian's second
+        /// session of 2026-11-20, about fifteen times what the Lunge did in play): about 60 in ten seconds at floor 5's
+        /// scale, and what a bite of 2 comes to at floor 1's (2 times 0.7 is 1: about 30; the order asked about 45). 035's
+        /// bite (5, twice a second) is measured beside it, as main had it.
+        /// </summary>
         [UnityTest]
         public IEnumerator DamagePerTenSeconds_LeftToAttackHerFreely_IsAboutWhatItWas_OrUpToAThirdMore()
         {
@@ -762,20 +773,173 @@ namespace Roguelike.PlayModeTests
             foreach (EnemyKind kind in new[] { EnemyKind.Swarmer, EnemyKind.Brute, EnemyKind.Guard })
                 foreach (int floor in new[] { 1, 5 })
                 {
-                    int before = 0, after = 0;
+                    int before = 0, after = 0, main = 0;
                     yield return Freely(kind, false, floor, d => before = d);
                     yield return Freely(kind, true, floor, d => after = d);
+                    if (kind == EnemyKind.Swarmer) yield return Freely(kind, true, floor, d => main = d, As035);
                     float ratio = before > 0 ? after / (float)before : float.NaN;
-                    string line = $"[035] {kind} floor {floor} (scale {new LevelValues().DamageScaleOf(floor):0.0}): per 10 s before {before / 2f:0.#}, after {after / 2f:0.#}, x{ratio:0.00}";
+                    string line = $"[035] {kind} floor {floor} (scale {new LevelValues().DamageScaleOf(floor):0.0}): per 10 s before {before / 2f:0.#}, after {after / 2f:0.#}, x{ratio:0.00}"
+                                  + (kind == EnemyKind.Swarmer ? $"; [039] 035's bite {main / 2f:0.#}" : "");
                     lines.Add(line);
                     Debug.Log(line);
                     TestContext.WriteLine(line);
                     Assert.That(before, Is.GreaterThan(0), kind + " dealt something before");
-                    Assert.That(ratio, Is.InRange(0.9f, 1.4f), line);
+                    if (kind != EnemyKind.Swarmer)
+                    {
+                        Assert.That(ratio, Is.InRange(0.9f, 1.4f), line);
+                        continue;
+                    }
+                    EnemyAttackDefinition bite = MeleeAttacks.Find(MeleeAttacks.Swarmer(), MeleeAttacks.Bite);
+                    float each = Mathf.RoundToInt(bite.Damage * new LevelValues().DamageScaleOf(floor));
+                    float expected = each * 10f / (bite.Windup + bite.Recovery);
+                    Assert.That(after / 2f, Is.InRange(expected * 0.75f, expected * 1.1f), line + ": about " + expected.ToString("0") + " in ten seconds");
+                    Assert.That(after, Is.LessThan(main), line + ": less than 035's bite dealt");
                 }
             Time.timeScale = 1f;
             _player.MeleeYouRead = true;
             Debug.Log(string.Join("\n", lines));
+        }
+
+        /// <summary>035's bite, 5 twice a second, as main had it before work order 039.</summary>
+        static void As035(MeleeEnemy e)
+        {
+            EnemyAttackDefinition bite = MeleeAttacks.Find(((EnemySwarmer)e).Tuning.Melee, MeleeAttacks.Bite);
+            bite.Damage = 5;
+            bite.Windup = 0.15f;
+            bite.Recovery = 0.35f;
+        }
+
+        // ---------------- The swarmer that hammers (work order 039) ----------------
+
+        /// <summary>
+        /// Kristian after his second session of 2026-11-20: "I did not mean that the small ones should charge in addition to
+        /// running fast. They just run fast and hammer away when they are close." A swarmer that wakes at the Leap's
+        /// distance runs to her and bites, and never leaps; with its flag on it leaps as before.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator NoSwarmerLeaps_WithTheFlagOff_ItRunsToHerAndBites()
+        {
+            foreach (bool leaps in new[] { false, true })
+            {
+                var e = Make<EnemySwarmer>(EnemyKind.Swarmer, EnemyAt);
+                e.Tuning.Leaps = leaps;
+                yield return null;
+                HerAt(e, 5.5f); // the middle of the Leap's 4 to 7 m
+                var begun = new List<string>();
+                e.Reported += r => { if (r.Kind == EnemyReportKind.AttackStarted) begun.Add(r.Attack); };
+                e.Provoke();
+                float end = Time.time + 3f;
+                bool hopped = false;
+                while (Time.time < end && begun.Count < 3)
+                {
+                    yield return null;
+                    hopped |= e.IsMoving;
+                }
+                string what = (leaps ? "with the flag on" : "with it off") + ": " + string.Join(", ", begun);
+                Debug.Log("[039] a swarmer woken at 5.5 m, " + what);
+                if (leaps) Assert.That(begun.FirstOrDefault(), Is.EqualTo(MeleeAttacks.Leap), what);
+                else
+                {
+                    Assert.That(begun, Is.Not.Empty, what + ": it reached her and attacked");
+                    Assert.That(begun, Is.All.EqualTo(MeleeAttacks.Bite), what);
+                    Assert.That(hopped, Is.False, "no hop");
+                    Assert.That(e.AttacksNow.Select(a => a.Name), Is.EqualTo(new[] { MeleeAttacks.Bite }), "it has no skill");
+                }
+                Object.Destroy(e.gameObject);
+                yield return null;
+            }
+        }
+
+        /// <summary>
+        /// The bite as it is dealt: about three a second, each 2 at a scale of 1, on her standing in reach, for five seconds
+        /// of game time in frames of a sixtieth.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheBite_LandsAboutThreeTimesASecond_For2Each()
+        {
+            var e = Make<EnemySwarmer>(EnemyKind.Swarmer, EnemyAt, walks: false);
+            EnemyAttackDefinition bite = MeleeAttacks.Find(e.AttacksNow, MeleeAttacks.Bite);
+            yield return null;
+            HerAt(e, 1f);
+            var hits = new List<int>();
+            Action<int> hurt = d => hits.Add(d);
+            _health.Damaged += hurt;
+            try
+            {
+                e.Provoke();
+                yield return UntilWindup(e, MeleeAttacks.Bite, 4f);
+                Time.captureDeltaTime = 1f / 60f;
+                int strikes = e.Strikes, landed = e.StrikesLanded;
+                hits.Clear();
+                float t0 = Time.time;
+                while (Time.time - t0 < 5f) yield return null;
+                Time.captureDeltaTime = 0f;
+                float perSecond = (e.Strikes - strikes) / 5f;
+                Debug.Log("[039] the bite: " + perSecond.ToString("0.00") + " a second, " + (e.StrikesLanded - landed) + " landed, damage " + string.Join(" ", hits));
+                Assert.That(perSecond, Is.InRange(2.6f, 3.2f), "about three a second");
+                Assert.That(e.StrikesLanded - landed, Is.EqualTo(e.Strikes - strikes), "each lands on her standing in reach");
+                Assert.That(hits, Is.Not.Empty);
+                Assert.That(hits, Is.All.EqualTo(bite.Damage), "2 each");
+                Assert.That(bite.Damage, Is.EqualTo(2));
+            }
+            finally
+            {
+                Time.captureDeltaTime = 0f;
+                _health.Damaged -= hurt;
+            }
+        }
+
+        /// <summary>
+        /// Eight swarmers on her, biting three times a second each (work order 039: neither the glint nor the strike's
+        /// sound may become a strobe or a buzz): for five seconds, their flicks come on every other bite at most, at most
+        /// twice a second on one, and the strike's sound is heard no more often than RapidStrikeGap allows, across all of
+        /// them.
+        /// Real time, as the sounds' own caps go by it.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator EightSwarmersOnHer_FlickOnEveryOtherBite_AndAreHeardAFewTimesASecond()
+        {
+            PlaceholderSounds sounds = PlaceholderSounds.Ensure();
+            PlaceholderSounds.Requested += OnSound;
+            // Counted as they come: a flick is gone (and null) a tenth of a second after it shows.
+            int flicks = 0;
+            bool counting = false;
+            Action<CombatFx> flick = f => { if (counting && f != null && f.Moment == FxMoment.WindupStarted) flicks++; };
+            CombatEffects.Spawned += flick;
+            var ring = new List<EnemySwarmer>();
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 at = Stand + Quaternion.Euler(0f, i * 45f, 0f) * Vector3.forward * 1.15f;
+                var e = Make<EnemySwarmer>(EnemyKind.Swarmer, at, walks: false);
+                ring.Add(e);
+            }
+            yield return null;
+            _player.Teleport(Stand);
+            foreach (EnemySwarmer e in ring) e.Provoke();
+            yield return Until(() => ring.All(e => e.Strikes > 0), 4f);
+            _sounds.Clear();
+            int strikes = ring.Sum(e => e.Strikes);
+            counting = true;
+            float t0 = Time.time;
+            while (Time.time - t0 < 5f) yield return null;
+            counting = false;
+            CombatEffects.Spawned -= flick;
+            float seconds = Time.time - t0;
+            int bites = ring.Sum(e => e.Strikes) - strikes;
+            int heard = _sounds.Count(r => r.Sound == PlaceholderSound.Strike);
+            string line = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                                        "[039] eight swarmers for {0:0.0} s: {1} bites ({2:0.0} a second), {3} flicks ({4:0.0} a second on one), strike heard {5} times ({6:0.0} a second), her hurt heard {7} times",
+                                        seconds, bites, bites / seconds, flicks, flicks / seconds / 8f, heard, heard / seconds, _sounds.Count(r => r.Sound == PlaceholderSound.Hurt));
+            Debug.Log(line);
+            TestContext.WriteLine(line);
+            Assert.That(bites / seconds / 8f, Is.GreaterThan(2f), "they hammered: " + line);
+            // Every other bite at most; fewer when more of them begin in one frame than the effects' cap on wind-ups a frame
+            // (six), as these eight, woken together, do.
+            Assert.That(flicks, Is.LessThanOrEqualTo(bites / 2 + 8), "a flick on every other bite at most: " + line);
+            Assert.That(flicks, Is.GreaterThanOrEqualTo(bites / 4), "and they are seen: " + line);
+            Assert.That(flicks / seconds / 8f, Is.LessThanOrEqualTo(1f / MeleeYouReadRules.FlickGap + 0.2f), "at most about twice a second on one");
+            Assert.That(heard / seconds, Is.LessThanOrEqualTo(1f / sounds.Values.RapidStrikeGap + 0.5f), "a few times a second, not " + (bites / seconds).ToString("0"));
+            Assert.That(heard, Is.GreaterThan(0), "and heard");
         }
     }
 }

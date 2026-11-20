@@ -89,8 +89,15 @@ namespace Roguelike
 
         protected override void OnWoke() => _tactics.Clear(); // a fresh fight: every skill ready
 
+        /// <summary>
+        /// The ordinary attacks it has begun (work order 039): the effects draw the flick of a rapid one on every n-th only
+        /// (<see cref="MeleeYouReadRules.FlickShows"/>).
+        /// </summary>
+        public int OrdinaryBegun { get; private set; }
+
         protected override void OnWindupStarted(EnemyAttackDefinition attack)
         {
+            if (attack != null && attack.Ordinary) OrdinaryBegun++;
             _moving = false;
             _moveDone = false;
             _move = null;
