@@ -251,6 +251,7 @@ namespace Roguelike.PlayModeTests
                         break;
                     }
                     _levels.PickReward(0); // the first skill offered
+                    if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 the focus choice comes up (work order 025): the first way offered
                     if (_floors.Count > 0) _floors[_floors.Count - 1].Skill = _levels.SkillsTaken.LastOrDefault() ?? "";
                     continue;
                 }
