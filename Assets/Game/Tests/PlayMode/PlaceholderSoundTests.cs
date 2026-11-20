@@ -582,9 +582,12 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ARecordedClipUnderTheResourcesPath_IsPlayedInPlaceOfItsSynthesisedSound()
         {
+            // Kristian records his own sounds one by one (the first, the boss's roar, on 2026-11-20): a sound is
+            // recorded exactly when a clip lies under its name. Below, the test supplies its own clips, so the real
+            // files do not matter to it.
             foreach (PlaceholderSound s in PlaceholderSoundRules.All)
-                Assert.That(_sounds.IsRecorded(s), Is.False, s + ": no recorded clip exists today");
-            Assert.That(Resources.Load<AudioClip>(PlaceholderSoundRules.ResourcePath(PlaceholderSound.Hurt)), Is.Null);
+                Assert.That(_sounds.IsRecorded(s), Is.EqualTo(Resources.Load<AudioClip>(PlaceholderSoundRules.ResourcePath(s)) != null),
+                    s + ": recorded exactly when a clip lies under its name");
             Object.Destroy(_sounds.gameObject);
             yield return null;
             Assert.That(PlaceholderSounds.Current, Is.Null);
