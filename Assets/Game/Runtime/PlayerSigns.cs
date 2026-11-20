@@ -19,8 +19,8 @@ namespace Roguelike
     /// (Triple Tap's last, Backstep's second), a thin ring in her colour lies on the floor round her and closes toward a
     /// fixed band (<see cref="CleanWindowSign"/>): the ring is inside the band exactly while a press is clean, and the band
     /// is lit exactly then, as the game judges that press. Drawn with the effects' own pieces (<see cref="CombatFx"/>),
-    /// following her, on the chain's clock (game time: it stands still in a pause and a hit stop), and gone the moment the
-    /// chain ends, however it ends. On the skill bar the key shows the same in small (<see cref="DrawKeySign"/>). A short,
+    /// following her, on the chain's clock (it stands still in a pause, and runs on through a hit stop as the judge's
+    /// window does: work order 038), and gone the moment the chain ends, however it ends. On the skill bar the key shows the same in small (<see cref="DrawKeySign"/>). A short,
     /// quiet tick (the placeholder sounds' tick, <see cref="PlaceholderSound.Menu"/>) when the clean part opens, so the
     /// rhythm can be learnt by ear; and the first time in a session, a line in the HUD's style: <see cref="CleanWindowSign.Line"/>.
     ///
