@@ -198,6 +198,7 @@ namespace Roguelike
 
         protected override void AfterMove()
         {
+            SendWave(); // work order 036
             if (!_rushing) return;
             HoldRecovery(); // it stands its whole recovery where it stops
             float s = Mathf.Min(_chargeReach, (Time.time - _rushStart) * _rush.Rush);
@@ -240,5 +241,33 @@ namespace Roguelike
         }
 
         protected override Vector3 LookVelocity => _rushing && _rush != null ? _rushDir * _rush.Rush : base.LookVelocity;
+
+        // ---------------- Things that fly (work order 036, 2026-11-20) ----------------
+
+        int _strikesSeen;
+
+        /// <summary>Waves it has sent.</summary>
+        public int WavesSent { get; private set; }
+
+        /// <summary>
+        /// With things that fly on, a Cleave that has just landed sends a wave straight ahead along the ground, from its
+        /// front (<see cref="BossValues.WaveAttack"/>): she sidesteps it or dashes through it; walls stop it, props do not.
+        /// When the Cleave covered her, the wave passes her: one swing hurts her once, by the Cleave. Its strike happened in
+        /// this frame's step, where it stands, before it moved.
+        /// </summary>
+        void SendWave()
+        {
+            if (Strikes == _strikesSeen) return;
+            _strikesSeen = Strikes;
+            EnemyAttackDefinition cleave = Attack;
+            if (!ThingsThatFly.On || cleave == null || cleave.Name != BossValues.Cleave || State != EnemyState.Recover || Player == null) return;
+            GroundPoint me = Ground(transform.position);
+            bool cleaved = EnemyBrain.Hits(cleave, me, Ground(AimPoint), Player.GroundPosition, Placeholders.PlayerRadius, Reach(cleave));
+            Vector3 aim = AimDirection();
+            var dir = new GroundPoint(aim.x, aim.z);
+            ThingsThatFly.Ensure().Fire(this, Tuning.WaveAttack, ProjectileRules.Wave(Tuning, me + dir * Tuning.BodyRadius, dir), sparesHer: cleaved);
+            WavesSent++;
+            ThingsThatFly.TellLoosed(this, Tuning.WaveAttack, 1);
+        }
     }
 }

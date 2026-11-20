@@ -1,3 +1,4 @@
+using System;
 using Roguelike.Rules;
 using UnityEngine;
 using UnityEngine.AI;
@@ -26,6 +27,16 @@ namespace Roguelike
     /// she ducks is stopped at the strike, its line and telegraph ending at the thing she is behind. Asked live, so a
     /// shot that winds up while she peeks and strikes after she ducks again is stopped, and one that strikes while she
     /// is up is not.
+    ///
+    /// Things that fly (work order 036, 2026-11-20; decision 0010; <see cref="ThingsThatFly"/>, on by default): no line is
+    /// drawn on the floor; what it is about to do is read on its body, the draw of its bow, the wind-up effect and sound.
+    /// At the release an arrow leaves the bow and flies (<see cref="ShooterValues.Arrows"/>), aimed where she will be if she
+    /// keeps her velocity for its flight, times <see cref="ShooterValues.LeadShare"/>, the lead at most
+    /// <see cref="ShooterValues.LeadMost"/> (<see cref="ProjectileRules.LeadAim"/>): standing still or running straight
+    /// she is hit; a turn after the release, a wall or a tall prop, what she ducked behind, or the dash avoids it. On
+    /// floor <see cref="ShooterValues.FanFromFloor"/> and later, and for an elite on any floor, every third shot is a fan
+    /// of three, drawn a little longer with a larger wind-up effect; an elite's other shots are volleys of two, each aimed
+    /// as it leaves (<see cref="ShooterTactics"/>). Its distance, its sight and its turns are as before.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public sealed class EnemyShooter : Enemy
@@ -40,6 +51,20 @@ namespace Roguelike
         float _corneredUntil = -1f;
         float _reach;
 
+        // Things that fly (work order 036).
+        readonly ShooterTactics _arrows = new ShooterTactics();
+        LineRenderer _line;             // its aim line, put away while things fly
+        EnemyAttackDefinition _volley;  // a volley's arrows still to leave, and when the next does
+        int _volleyLeft;
+        float _volleyAt;
+        int _levelFloor = -1;
+
+        /// <summary>
+        /// The floor it fights on, for its fans (work order 036): set it, or under 0 it is read from the floor it stands
+        /// in, and 0 in the practice room.
+        /// </summary>
+        [NonSerialized] public int Floor = -1;
+
         public override EnemyKind Kind => EnemyKind.Shooter;
         public override EnemyValues Values => Tuning.Enemy;
         /// <summary>True while it walks away from her to win back its distance.</summary>
@@ -49,6 +74,109 @@ namespace Roguelike
         /// against (an experiment, 2026-11-19), asked now.
         /// </summary>
         public float LineReach => Attack != null ? Reach(Attack) : _reach;
+
+        // ---------------- Things that fly (work order 036) ----------------
+
+        /// <summary>The shots it has begun with things that fly on.</summary>
+        public int ArrowShots => _arrows.Shots;
+        /// <summary>The name of its next shot with things that fly on.</summary>
+        public string NextArrowShot => _arrows.Next(FloorNow, IsElite, Tuning);
+        /// <summary>The floor its fans go by: <see cref="Floor"/>, or the floor it stands in, or 0.</summary>
+        public int FloorNow
+        {
+            get
+            {
+                if (Floor >= 0) return Floor;
+                if (_levelFloor < 0)
+                {
+                    GeneratedLevel level = GetComponentInParent<GeneratedLevel>();
+                    _levelFloor = level != null && level.Layout != null ? level.Layout.Floor : 0;
+                }
+                return _levelFloor;
+            }
+        }
+        /// <summary>The size of its wind-up effect on the body, times the others': a fan's draw shows larger, so it can be told apart.</summary>
+        public float WindupLook => State == EnemyState.Windup && Attack != null && Attack.Name == ShooterValues.ArrowFan ? Tuning.FanWindupLook : 1f;
+
+        static bool IsArrow(EnemyAttackDefinition a) =>
+            a != null && (a.Name == ShooterValues.Arrow || a.Name == ShooterValues.ArrowFan || a.Name == ShooterValues.Volley);
+
+        protected override void Update()
+        {
+            PutAwayTheLine();
+            if (IsDead) _volleyLeft = 0;
+            base.Update();
+        }
+
+        /// <summary>With things that fly on (or an arrow being drawn), no line on the floor: its telegraph is put away.</summary>
+        void PutAwayTheLine()
+        {
+            bool hide = ThingsThatFly.On || IsArrow(Attack);
+            if (hide && Telegraph != null)
+            {
+                _line = Telegraph;
+                Telegraph = null;
+            }
+            else if (!hide && Telegraph == null && _line != null)
+            {
+                Telegraph = _line;
+                _line = null;
+            }
+            if (_line != null && _line.enabled) _line.enabled = false;
+        }
+
+        protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) =>
+            ThingsThatFly.On ? _arrows.Choose(distance, FloorNow, IsElite, Tuning) : base.ChooseAttack(distance, values);
+
+        protected override EnemyAttackDefinition WouldChoose(float distance, EnemyValues values) =>
+            ThingsThatFly.On ? _arrows.Peek(distance, FloorNow, IsElite, Tuning) : base.ChooseAttack(distance, values);
+
+        /// <summary>An arrow is loosed by the shooter itself at the release: the strike hits nothing of its own.</summary>
+        protected override bool StrikesItself(EnemyAttackDefinition attack)
+        {
+            if (!IsArrow(attack)) return false;
+            Loose(attack, ShooterTactics.AtOnce(attack.Name, Tuning));
+            if (attack.Name == ShooterValues.Volley && Tuning.VolleyArrows > 1)
+            {
+                _volley = attack;
+                _volleyLeft = Tuning.VolleyArrows - 1;
+                _volleyAt = Time.time + Tuning.VolleyGap;
+            }
+            return true;
+        }
+
+        protected override void AfterMove()
+        {
+            // A volley's next arrow, aimed as it leaves; a daze or a death drops what is left of it.
+            if (_volleyLeft <= 0 || Time.time < _volleyAt) return;
+            _volleyLeft--;
+            _volleyAt = Time.time + Tuning.VolleyGap;
+            Loose(_volley, 1);
+        }
+
+        protected override void OnDaze() => _volleyLeft = 0;
+
+        /// <summary>
+        /// Looses <paramref name="count"/> arrows from the bow, the middle one aimed where she will be (the lead), the
+        /// others <see cref="ShooterValues.FanDegrees"/> apart, and says so (the release's sound and the log).
+        /// </summary>
+        void Loose(EnemyAttackDefinition attack, int count)
+        {
+            if (attack == null || Player == null) return;
+            GroundPoint me = Ground(transform.position);
+            Vector3 v = Player.Velocity;
+            GroundPoint aim = ProjectileRules.LeadAim(me, Player.GroundPosition, new GroundPoint(v.x, v.z), Tuning.ArrowSpeed,
+                                                      Tuning.LeadShare, Tuning.LeadMost);
+            GroundPoint dir = aim - me;
+            if (dir.Length < 1e-3f) dir = new GroundPoint(transform.forward.x, transform.forward.z);
+            dir = dir * (1f / Mathf.Max(1e-6f, dir.Length));
+            Face(new Vector3(dir.X, 0f, dir.Z));
+            GroundPoint bow = me + dir * (Tuning.BodyRadius * transform.lossyScale.x + 0.2f);
+            ThingsThatFly fly = ThingsThatFly.Ensure();
+            for (int i = 0; i < count; i++)
+                fly.Fire(this, attack, ProjectileRules.Arrow(Tuning, bow, ProjectileRules.FanDirection(dir, i, count, Tuning.FanDegrees)));
+            ThingsThatFly.TellLoosed(this, attack, count);
+        }
 
         protected override bool MayAttack(Vector3 toPlayer, float distance)
         {

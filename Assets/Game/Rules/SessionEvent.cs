@@ -55,6 +55,8 @@ namespace Roguelike.Rules
         public const string CasterCircle = "caster_circle";   // a circle of its cast: name the cast, result placed or off the ground, circle which (from 1)
         public const string CasterCircleFaded = "caster_circle_faded"; // a circle of a countered Grave Rain faded without bursting: name, circle
         public const string EnemyCountered = "enemy_countered"; // Stopping Shot dropped its cast: name the cast
+        // Things that fly (work order 036). Each one's end is an enemy_strike named its attack, with flown "true".
+        public const string EnemyLoose = "enemy_loose";       // what it shot or threw left it: name the attack, count how many at once
         public const string PlayerDamaged = "player_damaged";
         public const string PlayerDeath = "player_death";
         // Melee you read (work order 035): two things that happen to her.
@@ -133,6 +135,7 @@ namespace Roguelike.Rules
 
         // Taking cover (2026-11-19, an experiment).
         public const string StoppedByCover = "stopped by cover"; // how an enemy strike went: what she was in cover behind stopped it
+        public const string StoppedByWall = "stopped by a wall"; // work order 036: a wall or a prop stopped a thing that flew
         public const string Tall = "tall";                    // what she took cover behind
         public const string Low = "low";
         public const string Released = "released";            // how she left cover: the key went up

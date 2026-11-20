@@ -109,7 +109,8 @@ namespace Roguelike.Rules
             Kind = EnemyKind.Shooter, Name = "Crypt_SkeletonArcher_01", Height = 1.9,
             WalkStride = 1.67, RunStride = 3.08,
             ShotLeftOfFacing = 98,
-            AttackClips = new[] { "Shot", "Shoot" },
+            // Work order 036: the arrows that fly are drawn on the same clip, released at its release.
+            AttackClips = new[] { "Shot", "Shoot", ShooterValues.Arrow, "Shoot", ShooterValues.ArrowFan, "Shoot", ShooterValues.Volley, "Shoot" },
             Clips = new[]
             {
                 Idle, WalkClip, RunClip, new EnemyClipSpec("Shoot", 2.833, false, 2.333),
@@ -175,7 +176,8 @@ namespace Roguelike.Rules
             // report said; the strides measured from the feet, 1.79 and 3.38 m/s (the report: about 1.7 and 5.7).
             Kind = EnemyKind.Caster, Name = "Crypt_BoneCaster_01", Height = 1.9, HasStagger = true, Glow = 3,
             WalkStride = 1.79, RunStride = 3.38,
-            AttackClips = new[] { CasterValues.BoneSpikes, "Cast", CasterValues.GraveRain, "CastBig" },
+            // Work order 036: the orb on the quick cast, the fan of orbs on the big one.
+            AttackClips = new[] { CasterValues.BoneSpikes, "Cast", CasterValues.GraveRain, "CastBig", CasterValues.BoneOrb, "Cast", CasterValues.OrbFan, "CastBig" },
             Clips = new[]
             {
                 new EnemyClipSpec("Idle", 3.967, true), new EnemyClipSpec("Walk", 1.000, true), new EnemyClipSpec("Run", 0.600, true),

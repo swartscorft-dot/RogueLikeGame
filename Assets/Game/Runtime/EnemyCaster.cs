@@ -32,6 +32,13 @@ namespace Roguelike
     ///
     /// Each circle belongs to it for the log (<see cref="Enemy.Reported"/>): placed, off the ground, faded, and its burst
     /// as a strike that landed or missed; and the counter.
+    ///
+    /// Things that fly (work order 036, 2026-11-20; decision 0010; <see cref="ThingsThatFly"/>, on by default): it places no
+    /// circles. In Bone Spikes' place in the cast order a slow, large bone orb leaves its hand at the cast's release, aimed
+    /// at where she is then (no lead: it is slow so that it is walked around, and several in the air make the room
+    /// smaller); in Grave Rain's place a fan of <see cref="CasterValues.FanOrbs"/>, <see cref="CasterValues.FanDegrees"/>
+    /// apart, its wind-up blue and counterable as Grave Rain's (Stopping Shot from its front drops it, and nothing leaves).
+    /// Its cast order, distances, sight, turns and caps are as before (<see cref="CasterValues.Orbs"/>).
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public sealed class EnemyCaster : Enemy
@@ -88,8 +95,8 @@ namespace Roguelike
         public bool IsBackingOff => _backingOff;
         /// <summary>The casts it has begun.</summary>
         public int CastsBegun => _tactics.Casts;
-        /// <summary>The name of the cast it begins next.</summary>
-        public string NextCast => _tactics.Next(Tuning);
+        /// <summary>The name of the cast it begins next (work order 036: with things that fly on, an orb's).</summary>
+        public string NextCast => _tactics.Next(Tuning, ThingsThatFly.On);
         /// <summary>Every circle it has placed, in order, those burst and faded too.</summary>
         public IReadOnlyList<Circle> Circles => _circles;
         /// <summary>Circles not placed because their place was off the walkable ground.</summary>
@@ -165,13 +172,21 @@ namespace Roguelike
 
         // ---------------- Its casts ----------------
 
-        protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) => _tactics.Choose(distance, Tuning);
+        protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) => _tactics.Choose(distance, Tuning, ThingsThatFly.On);
 
         /// <summary>The turns' question (work order 034): the next cast if its band holds her, not counted as begun.</summary>
-        protected override EnemyAttackDefinition WouldChoose(float distance, EnemyValues values) => _tactics.Peek(distance, Tuning);
+        protected override EnemyAttackDefinition WouldChoose(float distance, EnemyValues values) => _tactics.Peek(distance, Tuning, ThingsThatFly.On);
 
         protected override void OnWindupStarted(EnemyAttackDefinition attack)
         {
+            if (IsOrb(attack))
+            {
+                // Work order 036: nothing goes on the ground; the orbs leave at the release.
+                _lastCast = attack;
+                _cast = null;
+                _rain.Clear();
+                return;
+            }
             // Its circles are placed after it has walked this frame (AfterMove), so the cast is reported before them.
             _cast = attack;
             _lastCast = attack;
@@ -180,8 +195,37 @@ namespace Roguelike
             _rain.Clear();
         }
 
-        /// <summary>Its strikes are its circles' bursts, each on its own time: the brain's strike hits nothing itself.</summary>
-        protected override bool StrikesItself(EnemyAttackDefinition attack) => true;
+        /// <summary>
+        /// Its strikes are its circles' bursts, each on its own time: the brain's strike hits nothing itself. An orb's cast
+        /// (work order 036) looses its orbs at the strike, the cast's release.
+        /// </summary>
+        protected override bool StrikesItself(EnemyAttackDefinition attack)
+        {
+            if (IsOrb(attack)) Release(attack);
+            return true;
+        }
+
+        static bool IsOrb(EnemyAttackDefinition a) => a != null && (a.Name == CasterValues.BoneOrb || a.Name == CasterValues.OrbFan);
+
+        /// <summary>
+        /// The orbs of a cast leave its hand (work order 036): one, or a fan of <see cref="CasterValues.FanOrbs"/>, the middle
+        /// one aimed at where she is now, and it says so (the release's sound and the log).
+        /// </summary>
+        void Release(EnemyAttackDefinition attack)
+        {
+            if (Player == null) return;
+            int count = attack.Name == CasterValues.OrbFan ? Mathf.Max(1, Tuning.FanOrbs) : 1;
+            GroundPoint me = Ground(transform.position);
+            GroundPoint dir = Player.GroundPosition - me;
+            if (dir.Length < 1e-3f) dir = new GroundPoint(transform.forward.x, transform.forward.z);
+            dir = dir * (1f / Mathf.Max(1e-6f, dir.Length));
+            Face(new Vector3(dir.X, 0f, dir.Z));
+            GroundPoint hand = me + dir * (Tuning.BodyRadius * transform.lossyScale.x + 0.3f);
+            ThingsThatFly fly = ThingsThatFly.Ensure();
+            for (int i = 0; i < count; i++)
+                fly.Fire(this, attack, ProjectileRules.Orb(Tuning, hand, ProjectileRules.FanDirection(dir, i, count, Tuning.FanDegrees)));
+            ThingsThatFly.TellLoosed(this, attack, count);
+        }
 
         protected override void AfterMove() => PlaceDue(Time.time);
 

@@ -65,6 +65,7 @@ namespace Roguelike.PlayModeTests
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             CombatEffects.Spawned += Record;
             yield return Load();
+            ThingsThatFly.Ensure().Values.On = false; // work order 036: these are the tests of the attacks as they were
             _fx = CombatEffects.Ensure();
             yield return null;
             _seen.Clear();

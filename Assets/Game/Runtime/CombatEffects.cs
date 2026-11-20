@@ -528,7 +528,7 @@ namespace Roguelike
             if (!Ask(FxMoment.StrikeHitHer, FxTier.Plain)) return;
             // A caster's circle bursts on its own time, after the cast or the caster itself is over: its colour is that of
             // the cast it belongs to, by the report's name (work order 034).
-            EnemyAttackDefinition a = e is EnemyCaster caster ? CasterTactics.Find(caster.Tuning.Enemy, attack) ?? e.Attack : e.Attack;
+            EnemyAttackDefinition a = e is EnemyCaster caster ? caster.Tuning.Find(attack) ?? e.Attack : e.Attack; // its orbs too (work order 036)
             bool blue = PoolRules.IsCounterable(a);
             FxPiece p = Piece(FxShape.Spark, FxMoment.StrikeHitHer, FxTier.Plain, HerChest,
                               Sizes.HurtSize(amount, _health != null ? _health.Max : Placeholders.PlayerHealth), Values.HurtSeconds,
@@ -550,7 +550,8 @@ namespace Roguelike
             }
             if (!Ask(FxMoment.WindupStarted, FxTier.Minor)) return;
             bool blue = PoolRules.IsCounterable(e.Attack);
-            FxPiece p = Piece(FxShape.Converge, FxMoment.WindupStarted, FxTier.Minor, Middle(e), Values.WindupSize * KindScale(e.Kind),
+            float look = e is EnemyShooter shooter ? shooter.WindupLook : 1f; // work order 036: a fan's draw shows larger
+            FxPiece p = Piece(FxShape.Converge, FxMoment.WindupStarted, FxTier.Minor, Middle(e), Values.WindupSize * KindScale(e.Kind) * look,
                               Values.WindupSeconds, blue ? Values.CounterRim : Values.StrikeRim, blue ? Values.CounterCore : Values.StrikeCore);
             p.Count = Values.WindupSpikes;
             p.TowardCamera = 0.4f;
