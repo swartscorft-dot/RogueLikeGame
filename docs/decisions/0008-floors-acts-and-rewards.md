@@ -55,6 +55,18 @@ Asked afterwards about the things nobody had been able to check, he answered:
 
 Upgrades to a skill (the "tripods" of the first documents) are not placed yet. They may become a second kind of floor reward, or a choice at a chest. Open.
 
+## What he decided on 2026-11-20
+
+Asked that morning, before a day at the office in which the producer was to build without him:
+
+- **Skill upgrades come from one hard room in the middle of every floor.** Of four places offered (a hard room in the middle of the floor, together with the floor reward, in the chests, or not built yet) he chose the first: every floor gets one elite room with a tougher mix; when it is cleared she picks one of three upgrades to skills she has. Five in an act. This answers open question 3 below.
+- **What lasts between runs: a written proposal first, nothing built.** See decision 0009 when it exists.
+- **Most important to have playable that evening: a whole act with the boss.**
+
+Still the producer's defaults, not his: five floors to an act (he was asked on 2026-11-19 and has not answered), the exit room as the floor's hardest fight, and that the elite room can be walked past.
+
+Built on these that day: work order 014 (the knight as act boss, fuller rooms), 015 (a pool of eight skills for the four free keys), 017 (the elite room and the upgrades), 018 (a HUD, a pause menu, screens for death and for a cleared act).
+
 ## What this changes
 
 - `docs/vision/core-loop.md` says: room, pick a tripod, next room, boss. The loop is now: floor, floor reward, next floor, act boss. Not rewritten until he confirms.

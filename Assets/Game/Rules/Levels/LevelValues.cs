@@ -130,7 +130,7 @@ namespace Roguelike.Rules
         public int ShooterHealth = 400;
         public int EnemyHealth = 1200;         // a brute's (3000 until work order 012)
         public int GuardHealth = 3500;
-        public int BossHealth = 9000;          // the act boss: a guard, until the boss model comes
+        public int BossHealth = 18000;         // the act boss (work order 014: the crypt knight; 9000 when it was a guard)
         public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers
         public float LineSpacing = 2f;         // m between two enemies of a line, side by side (work order 012)
         public float MemberSpacing = 1.5f;     // m between two enemies of different groups (work order 012)
@@ -164,29 +164,30 @@ namespace Roguelike.Rules
         public CryptKitValues Crypt = new CryptKitValues();
 
         /// <summary>
-        /// The enemies by floor number (work order 012, first guesses): floor 1 six to eight in a combat room, mostly
-        /// swarmers with a few brutes and a shooter; each floor after it more, with more shooters and brutes; guards from
-        /// floor 2; floor 5 ten to fourteen.
+        /// The enemies by floor number (work order 012, first guesses): mostly swarmers with a few brutes and a shooter on
+        /// floor 1; each floor after it more, with more shooters and brutes; guards from floor 2. Work order 014
+        /// (2026-11-20, Kristian: three to four times the first version's one to three): floor 1 eight to ten in a combat
+        /// room, floor 5 twelve to sixteen, the floors between in even steps (six to eight and ten to fourteen before).
         /// </summary>
         public static FloorEnemies[] DefaultFloors() => new[]
         {
-            new FloorEnemies(6, 8,
+            new FloorEnemies(8, 10,
                 new EnemyMix("swarm", 0.7f, 0.15f, 0.15f, 0),
                 new EnemyMix("swarm and brutes", 0.6f, 0.15f, 0.25f, 0),
                 new EnemyMix("swarm and a shooter", 0.65f, 0.2f, 0.15f, 0)),
-            new FloorEnemies(7, 9,
+            new FloorEnemies(9, 12,
                 new EnemyMix("swarm", 0.55f, 0.2f, 0.25f, 0),
                 new EnemyMix("guarded swarm", 0.55f, 0.2f, 0.25f, 1),
                 new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0)),
-            new FloorEnemies(8, 11,
+            new FloorEnemies(10, 13,
                 new EnemyMix("guarded", 0.45f, 0.25f, 0.3f, 1),
                 new EnemyMix("crossfire", 0.4f, 0.35f, 0.25f, 0),
                 new EnemyMix("heavy", 0.35f, 0.3f, 0.35f, 1)),
-            new FloorEnemies(9, 12,
+            new FloorEnemies(11, 15,
                 new EnemyMix("guarded", 0.4f, 0.3f, 0.3f, 1),
                 new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1),
                 new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0)),
-            new FloorEnemies(10, 14,
+            new FloorEnemies(12, 16,
                 new EnemyMix("guarded", 0.35f, 0.35f, 0.3f, 1),
                 new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1),
                 new EnemyMix("crossfire", 0.4f, 0.3f, 0.3f, 0)),
@@ -218,7 +219,7 @@ namespace Roguelike.Rules
 
         /// <summary>A generated floor's health for an enemy of this kind; the act boss's for the boss.</summary>
         public int HealthOf(EnemyKind kind, bool boss = false) =>
-            boss ? BossHealth
+            boss || kind == EnemyKind.Boss ? BossHealth
             : kind == EnemyKind.Swarmer ? SwarmerHealth
             : kind == EnemyKind.Shooter ? ShooterHealth
             : kind == EnemyKind.Guard ? GuardHealth

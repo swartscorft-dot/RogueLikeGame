@@ -86,6 +86,22 @@ namespace Roguelike.PlayModeTests
                 Assert.That(have.CleanMarkDamageBonus, Is.EqualTo(want.CleanMarkDamageBonus), n + "CleanMarkDamageBonus");
                 // Work order 008: what it takes off a stagger bar.
                 Assert.That(have.Stagger, Is.EqualTo(want.Stagger), n + "Stagger");
+                // Work order 015: the pool's fields.
+                Assert.That(have.Input, Is.EqualTo(want.Input), n + "Input");
+                Assert.That(have.Charges, Is.EqualTo(want.Charges), n + "Charges");
+                Assert.That(have.PerfectFrom, Is.EqualTo(want.PerfectFrom), n + "PerfectFrom");
+                Assert.That(have.PerfectTo, Is.EqualTo(want.PerfectTo), n + "PerfectTo");
+                Assert.That(have.PerfectScale, Is.EqualTo(want.PerfectScale), n + "PerfectScale");
+                Assert.That(have.MarkStaggerBonus, Is.EqualTo(want.MarkStaggerBonus), n + "MarkStaggerBonus");
+                Assert.That(have.TagSeconds, Is.EqualTo(want.TagSeconds), n + "TagSeconds");
+                Assert.That(have.TagDamageShare, Is.EqualTo(want.TagDamageShare), n + "TagDamageShare");
+                Assert.That(have.CounterDaze, Is.EqualTo(want.CounterDaze), n + "CounterDaze");
+                Assert.That(have.CounterHalfAngle, Is.EqualTo(want.CounterHalfAngle), n + "CounterHalfAngle");
+                Assert.That(have.CounterFocus, Is.EqualTo(want.CounterFocus), n + "CounterFocus");
+                Assert.That(have.Fuse, Is.EqualTo(want.Fuse), n + "Fuse");
+                Assert.That(have.ShotBurstScale, Is.EqualTo(want.ShotBurstScale), n + "ShotBurstScale");
+                Assert.That(have.Range, Is.EqualTo(want.Range), n + "Range");
+                Assert.That(have.HalfWidth, Is.EqualTo(want.HalfWidth), n + "HalfWidth");
             }
             IdentityValues id = asset.Identity, idStart = new IdentityValues();
             Assert.That(id.MaxFocus, Is.EqualTo(idStart.MaxFocus), "MaxFocus");

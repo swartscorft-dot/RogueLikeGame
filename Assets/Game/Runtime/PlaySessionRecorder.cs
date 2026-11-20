@@ -356,6 +356,10 @@ namespace Roguelike
                 if (s.Input == SkillInput.Charge) e.AddExtra("charge_time", Text(s.ChargeTime));
                 // The kit (decision 0005).
                 e.AddExtra("equipped", player.IsEquipped(slot) ? "true" : "false");
+                // The key it sits on (work order 015: the place in the list is which skill it is, not its key).
+                int key = player.KeyOfSkill(slot);
+                InputBindings bindings = player.GetComponent<PlayerInputDriver>() is PlayerInputDriver driver ? driver.ActiveBindings : null;
+                e.AddExtra("key", key < 0 ? "none" : bindings != null ? bindings.SkillLabel(key) : key.ToString(CultureInfo.InvariantCulture));
                 e.AddExtra("lock", s.Lock.ToString());
                 if (s.MarksAdded > 0) e.AddExtra("marks_added", s.MarksAdded.ToString(CultureInfo.InvariantCulture));
                 if (s.MarkDamageBonus > 0f) e.AddExtra("mark_bonus", Text(s.MarkDamageBonus));
@@ -603,6 +607,7 @@ namespace Roguelike
                     {
                         var e = new SessionEvent(t, SessionEventTypes.SkillFired, SkillName(r.Slot)) { Slot = r.Slot, Hit = r.Landed };
                         if (InputOf(r.Slot) == SkillInput.Charge) e.Charge = r.Charge;
+                        if (r.Clean) e.Clean = true; // work order 015: a perfect release, or a keg set off by a shot
                         Add(e);
                         break;
                     }
@@ -749,6 +754,19 @@ namespace Roguelike
                         break;
                     case EnemyReportKind.DazeEnded:
                         Add(Of(SessionEventTypes.DazeEnded));
+                        break;
+                    case EnemyReportKind.Charged:
+                        Add(Of(SessionEventTypes.BossCharge, r.Attack));
+                        break;
+                    case EnemyReportKind.CalledPack:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.BossCall);
+                        e.AddExtra("called", r.Count.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
+                    case EnemyReportKind.Angered:
+                        Add(Of(SessionEventTypes.BossAnger));
                         break;
                 }
             }

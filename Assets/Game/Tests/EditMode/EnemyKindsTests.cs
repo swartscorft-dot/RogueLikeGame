@@ -76,6 +76,8 @@ namespace Roguelike.Rules.Tests
             {
                 ["Quick Shot"] = 3f, ["Triple Tap"] = 2f, ["Backstep"] = 5f, ["Scatter Blast"] = 30f,
                 ["Fan Fire"] = 4f, ["Powder Keg"] = 20f, ["Long Shot"] = 15f, ["Heavy Volley"] = 40f,
+                // Work order 015: the pool's four.
+                ["Tag Round"] = 2f, ["Breaker Slug"] = 80f, ["Slide"] = 0f, ["Stopping Shot"] = 3f,
             };
             SkillDefinition[] skills = SkillDefaults.Create();
             Assert.That(skills.Select(s => s.Name), Is.EquivalentTo(want.Keys));
@@ -127,11 +129,12 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             v.EnemyRange(RoomKind.Combat, 1, out int f, out int m);
-            Assert.That((f, m), Is.EqualTo((6, 8)), "floor 1, six to eight");
+            // Work order 014 raised the numbers on purpose: six to eight and ten to fourteen before.
+            Assert.That((f, m), Is.EqualTo((8, 10)), "floor 1, eight to ten");
             v.EnemyRange(RoomKind.Combat, 5, out f, out m);
-            Assert.That((f, m), Is.EqualTo((10, 14)), "floor 5, ten to fourteen");
+            Assert.That((f, m), Is.EqualTo((12, 16)), "floor 5, twelve to sixteen");
             v.EnemyRange(RoomKind.Exit, 1, out f, out m);
-            Assert.That((f, m), Is.EqualTo((9, 12)), "the exit room half as many again");
+            Assert.That((f, m), Is.EqualTo((12, 15)), "the exit room half as many again");
             v.EnemyRange(RoomKind.Entrance, 3, out f, out m);
             Assert.That(m, Is.EqualTo(0));
             v.EnemyRange(RoomKind.Treasure, 3, out f, out m);

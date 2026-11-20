@@ -394,9 +394,13 @@ namespace Roguelike
             lines.Add("Cover  " + K(b.TakeCover) + "  (hold)");
             lines.Add("Interact  " + K(b.Interact));
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;
-            int count = skills != null && b.Skills != null ? Mathf.Min(skills.Count, b.Skills.Length) : 0;
-            for (int slot = 0; slot < count; slot++)
-                lines.Add(b.SkillLabel(slot) + "  " + skills[slot].Name + (_player.IsEquipped(slot) ? "" : "  (not taken)"));
+            // A key and the skill on it are two things since work order 015: each key shows what sits on it now.
+            int count = skills != null && b.Skills != null ? Mathf.Min(_player.KeyCount, b.Skills.Length) : 0;
+            for (int key = 0; key < count; key++)
+            {
+                int slot = _player.SkillOnKey(key);
+                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)"));
+            }
             return lines;
         }
 
@@ -460,7 +464,10 @@ namespace Roguelike
                 GUI.DrawTexture(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), _edge, ScaleMode.StretchToFill);
                 GUI.color = before;
             }
-            DrawHealth();
+            // The skill bar already shows her health beside focus: the HUD draws its own bar only where no skill bar
+            // shows, so health is on screen once (producer, 2026-11-20, when work orders 015 and 018 met).
+            if (!_lookedForSkillBar) { _skillBar = FindAnyObjectByType<SkillBar>(); _lookedForSkillBar = true; }
+            if (_skillBar == null || !_skillBar.isActiveAndEnabled) DrawHealth();
             if (_runBox.Count > 0) DrawRunBox(viewWidth);
             if (PromptText.Length > 0) DrawPrompt(viewWidth);
             if (_levels != null && _levels.EndScreenShown && _endLines.Count > 0) DrawEndScreen(viewWidth);
@@ -485,6 +492,9 @@ namespace Roguelike
             Fill(new Rect(r.x, r.y, t, r.height), c);
             Fill(new Rect(r.xMax - t, r.y, t, r.height), c);
         }
+
+        SkillBar _skillBar;
+        bool _lookedForSkillBar;
 
         void DrawHealth()
         {

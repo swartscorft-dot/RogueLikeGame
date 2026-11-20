@@ -330,12 +330,16 @@ namespace Roguelike.PlayModeTests
                 Assume.That(FlatDistance(d.transform.position, centre), Is.LessThan(skill.Radius), "the group fits in the circle");
 
             Assert.That(_player.PressSkill(Keg, centre), Is.EqualTo(IntentResult.Started));
-            yield return Watching(() => _player.SkillShotsFired >= 1, 3f);
+            // Work order 015: it lies on its fuse with its circle showing, then bursts.
+            yield return Watching(() => _player.KegsBurst >= 1, 4f);
             Assert.That(Of(ShotFxKind.Flash), Is.Empty, "no muzzle flash");
             List<Seen> outlines = Of(ShotFxKind.Outline);
-            Assert.That(outlines.Count, Is.EqualTo(1), "one outline");
-            Assert.That(FlatDistance(outlines[0].Origin, centre), Is.LessThan(0.01f), "around the circle");
-            Assert.That(outlines[0].Size, Is.EqualTo(skill.Radius).Within(1e-3f), "exactly at its edge");
+            Assert.That(outlines.Count, Is.EqualTo(2), "two outlines: the circle while it lies, and the burst's");
+            foreach (Seen o in outlines)
+            {
+                Assert.That(FlatDistance(o.Origin, centre), Is.LessThan(0.01f), "around the circle");
+                Assert.That(o.Size, Is.EqualTo(skill.Radius).Within(1e-3f), "exactly at its edge");
+            }
             Assert.That(Of(ShotFxKind.Spark).Any(s => FlatDistance(s.Origin, centre) < 0.01f && s.Size >= skill.Radius), Is.True,
                         "a burst over the middle, at least as big as the circle's radius");
             Assert.That(Of(ShotFxKind.Streak), Is.Empty, "no streak");

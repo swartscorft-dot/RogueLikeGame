@@ -37,6 +37,8 @@ namespace Roguelike
         const float HomeSlack = 0.3f;
         const float RepathDistance = 0.25f;
         static readonly Color s_DazedTint = new Color(0.55f, 0.75f, 1f);
+        static readonly Color s_CounterBlue = new Color(0.15f, 0.45f, 1f);
+        MaterialPropertyBlock _telegraphBlock;
 
         static readonly List<Enemy> s_All = new List<Enemy>();
         static int s_NextId;
@@ -88,6 +90,7 @@ namespace Roguelike
         bool _appeared;
         bool _tintedDazed;
         float _deadSince = -1f;
+        Func<float, EnemyValues, EnemyAttackDefinition> _choose;
 
         public abstract EnemyKind Kind { get; }
         public abstract EnemyValues Values { get; }
@@ -120,11 +123,11 @@ namespace Roguelike
         public event Action<EnemyReport> Reported;
 
         protected void Report(EnemyReportKind kind, EnemyAttackDefinition attack = null, StrikeOutcome outcome = StrikeOutcome.NoEffect,
-                              int damage = 0, float stagger = 0f, float staggerLeft = 0f) =>
+                              int damage = 0, float stagger = 0f, float staggerLeft = 0f, int count = 0) =>
             Reported?.Invoke(new EnemyReport
             {
                 Kind = kind, Attack = attack?.Name, Outcome = outcome, Damage = damage, Id = Id, EnemyKind = Kind,
-                Stagger = stagger, StaggerLeft = staggerLeft,
+                Stagger = stagger, StaggerLeft = staggerLeft, Count = count,
             });
 
         protected virtual void Awake()
@@ -135,6 +138,7 @@ namespace Roguelike
             _agent.updateRotation = false;
             _agent.angularSpeed = 0f;
             _agent.acceleration = 60f;
+            _choose = ChooseAttack;
             if (Values.UseModels) WearModel();
             _renderers = GetComponentsInChildren<Renderer>();
             _home = transform.position;
@@ -206,6 +210,27 @@ namespace Roguelike
         /// <summary>Wakes it as a hurt would, from wherever she is within its leash: a pack wakes this way.</summary>
         public void Provoke() => _provoked = true;
 
+        /// <summary>Times a counter dropped its attack (work order 015).</summary>
+        public int Countered { get; private set; }
+
+        /// <summary>
+        /// A counter (work order 015, Stopping Shot): while it winds up a counterable attack and the shooter at
+        /// <paramref name="from"/> is within <paramref name="halfAngle"/> degrees of where it faces, the attack is dropped
+        /// with no strike and it is dazed for <paramref name="seconds"/>. True if it was.
+        /// </summary>
+        public bool TryCounter(Vector3 from, float halfAngle, float seconds)
+        {
+            if (!_self.IsAlive || _brain.State != EnemyState.Windup || !PoolRules.IsCounterable(_brain.Attack)) return false;
+            Vector3 f = transform.forward;
+            if (!PoolRules.InFront(Ground(transform.position), new GroundPoint(f.x, f.z), Ground(from), halfAngle)) return false;
+            Countered++;
+            _self.DazeFor(seconds); // OnDazed drops the windup with no strike
+            return true;
+        }
+
+        /// <summary>True while the telegraph shows a counterable attack: drawn blue, not red (work order 015).</summary>
+        public bool TelegraphIsCounterable => IsTelegraphing && PoolRules.IsCounterable(_brain.Attack);
+
         void OnStaggerTaken(float taken, float left) => Report(EnemyReportKind.StaggerTaken, stagger: taken, staggerLeft: left);
 
         void OnDazed()
@@ -214,6 +239,7 @@ namespace Roguelike
             _brain.Cancel(Time.time);
             Halt();
             if (Telegraph != null) Telegraph.enabled = false;
+            OnDaze();
             Report(EnemyReportKind.Dazed);
         }
 
@@ -223,8 +249,11 @@ namespace Roguelike
         {
             Act();
             // The model shows what it did this frame (work order 011).
-            if (_look != null) _look.Tick(this, _agent.velocity, Time.time);
+            if (_look != null) _look.Tick(this, LookVelocity, Time.time);
         }
+
+        /// <summary>The speed over the ground its legs show: the agent's, unless a kind moves itself (the boss's charge).</summary>
+        protected virtual Vector3 LookVelocity => _agent.velocity;
 
         void Act()
         {
@@ -250,7 +279,7 @@ namespace Roguelike
             bool playerAlive = PlayerHealth == null || PlayerHealth.IsAlive;
             EnemyState before = _brain.State;
             bool mayAttack = before != EnemyState.Chase || MayAttack(toPlayer, distance);
-            bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack);
+            bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose);
             EnemyState state = _brain.State;
 
             if (before == EnemyState.Idle && state != EnemyState.Idle)
@@ -300,6 +329,23 @@ namespace Roguelike
 
         /// <summary>Where it goes in the chase: straight at her, unless a kind says otherwise.</summary>
         protected virtual void Chase(Vector3 toPlayer, float distance) => Walk(Player.Position);
+
+        /// <summary>
+        /// In the chase, the attack for this distance, or null to keep walking (work order 014: the boss picks its own);
+        /// the first in its values' list whose band holds her, unless a kind says otherwise.
+        /// </summary>
+        protected virtual EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) =>
+            EnemyBrain.AttackFor(distance, values);
+
+        /// <summary>
+        /// At the strike, before anything is hit: true when the kind strikes this attack itself, over time (work order
+        /// 014: the boss's charge runs down its line and hits her as it passes, through <see cref="Land"/>). Never, unless
+        /// a kind says otherwise.
+        /// </summary>
+        protected virtual bool StrikesItself(EnemyAttackDefinition attack) => false;
+
+        /// <summary>When it is dazed, after the windup is dropped (work order 014: a charge stops where it is).</summary>
+        protected virtual void OnDaze() { }
 
         /// <summary>When it wakes from standing at home.</summary>
         protected virtual void OnWoke() { }
@@ -358,6 +404,7 @@ namespace Roguelike
         void Strike(EnemyAttackDefinition attack)
         {
             Strikes++;
+            if (StrikesItself(attack)) return;
             GroundPoint origin = Ground(transform.position);
             GroundPoint aim = Ground(_aim);
             float reach = Reach(attack);
@@ -370,7 +417,16 @@ namespace Roguelike
                 Report(EnemyReportKind.Struck, attack, StrikeOutcome.StoppedByCover);
                 return;
             }
-            if (!EnemyBrain.Hits(attack, origin, aim, Player.GroundPosition, Placeholders.PlayerRadius, reach))
+            Land(attack, EnemyBrain.Hits(attack, origin, aim, Player.GroundPosition, Placeholders.PlayerRadius, reach));
+        }
+
+        /// <summary>
+        /// The strike's end: when it reached her, she takes its damage (none in the dash's i-frame); either way it is
+        /// reported. A kind that strikes itself (<see cref="StrikesItself"/>) calls it once for the strike.
+        /// </summary>
+        protected void Land(EnemyAttackDefinition attack, bool reached)
+        {
+            if (!reached)
             {
                 Report(EnemyReportKind.Struck, attack, StrikeOutcome.OutOfArea);
                 return;
@@ -402,7 +458,24 @@ namespace Roguelike
             _agent.velocity = Vector3.zero;
         }
 
-        void Face(Vector3 flatDir)
+        /// <summary>
+        /// Starts the windup of this attack at once, aimed at <paramref name="aim"/> and locked there, as the brain does
+        /// from the chase (work order 014: the angry boss's second charge, straight after the first).
+        /// </summary>
+        protected void BeginWindup(EnemyAttackDefinition attack, Vector3 aim)
+        {
+            if (attack == null || _brain.State == EnemyState.Idle) return;
+            _brain.Begin(attack, Time.time);
+            _aim = aim;
+            Face(Flat(aim - transform.position));
+            OnWindupStarted(attack);
+            Report(EnemyReportKind.AttackStarted, attack);
+        }
+
+        /// <summary>Starts its recovery again from now: it stands its whole recovery after a strike that moved it.</summary>
+        protected void HoldRecovery() => _brain.HoldRecovery(Time.time);
+
+        protected void Face(Vector3 flatDir)
         {
             if (flatDir.sqrMagnitude < 0.01f) return;
             transform.rotation = Quaternion.LookRotation(flatDir.normalized, Vector3.up);
@@ -419,6 +492,15 @@ namespace Roguelike
             if (!show) return;
 
             Telegraph.widthMultiplier = Mathf.Lerp(TelegraphThin, TelegraphThick, _brain.WindupProgress(now));
+            // A counterable attack is drawn blue instead of red (work order 015); an empty block gives the material's red.
+            if (_telegraphBlock == null) _telegraphBlock = new MaterialPropertyBlock();
+            _telegraphBlock.Clear();
+            if (PoolRules.IsCounterable(attack))
+            {
+                _telegraphBlock.SetColor("_BaseColor", s_CounterBlue);
+                _telegraphBlock.SetColor("_Color", s_CounterBlue);
+            }
+            Telegraph.SetPropertyBlock(_telegraphBlock);
             Vector3 origin = Flat(transform.position);
             switch (attack.Shape)
             {

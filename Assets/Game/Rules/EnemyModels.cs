@@ -40,6 +40,11 @@ namespace Roguelike.Rules
         public double RunStride;                     // m/s the run clip covers at its own speed, the model as imported
         public bool HasStagger;
         /// <summary>
+        /// Share of its height its lowest point may lie off the floor before the model is lifted or lowered to it (work
+        /// order 014: the knight's cape hangs under its feet, which stand on the floor).
+        /// </summary>
+        public double FloorShare = 0.05;
+        /// <summary>
         /// Degrees to the left of where the body faces that the attack clip's shot leaves at its release, as measured in
         /// Blender: the archer's Shoot fires along its left arm. The body is turned to the right while it plays, by the
         /// angle the look measures on the clip, or by this when it cannot.
@@ -122,10 +127,31 @@ namespace Roguelike.Rules
             },
         };
 
-        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard };
+        /// <summary>
+        /// The act boss (work order 014, 2026-11-20): the horned knight with its cleaver on a pole, a separate mesh on the
+        /// right hand. Its Slam is in the file and not played: the cleaver points straight up in it. The charge has no
+        /// clip of its own: it stands in Idle through the windup and runs in Run.
+        /// </summary>
+        public static readonly EnemyModelSpec Boss = new EnemyModelSpec
+        {
+            // As Unity imports it (the Blender report said 3.0 m to the helmet, takes a frame longer): 3.317 m as bound,
+            // the horns' tips; the cape hangs 0.27 m under the feet in the file's pose, so it is not lifted for that.
+            Kind = EnemyKind.Boss, Name = "Crypt_BossKnight_01", Height = 3.317, HasStagger = true, FloorShare = 0.1,
+            WalkStride = 2.97, RunStride = 5.47,
+            AttackClips = new[] { BossValues.Cleave, "Attack", BossValues.Spin, "Spin" },
+            Clips = new[]
+            {
+                Idle, WalkClip, RunClip,
+                new EnemyClipSpec("Attack", 2.800, false, 1.067), new EnemyClipSpec("Spin", 2.500, false, 0.967),
+                new EnemyClipSpec("Stagger", 2.833, false), Death,
+            },
+        };
+
+        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss };
 
         public static EnemyModelSpec Of(EnemyKind kind) =>
-            kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard : Brute;
+            kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard
+            : kind == EnemyKind.Boss ? Boss : Brute;
 
         /// <summary>
         /// The clip's own name in a take name as an exporter writes it: "Armature|Idle" is "Idle". The part after the

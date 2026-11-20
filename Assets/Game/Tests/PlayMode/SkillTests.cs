@@ -21,6 +21,7 @@ namespace Roguelike.PlayModeTests
     public class SkillTests
     {
         const int Quick = 0, Keg = 1, Fan = 2, Long = 3, Volley = 5; // key order: Q W E R, S D F G
+        const int Breaker = 9; // work order 015: in the pool, on no key of its own
 
         static readonly Vector3 NearA = new Vector3(2f, 0f, 1f); // A is 2.3 m away here, B 5.8 m
 
@@ -44,7 +45,7 @@ namespace Roguelike.PlayModeTests
             _driver = Object.FindAnyObjectByType<PlayerInputDriver>();
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             Assert.That(_player.SkillSet, Is.Not.Null, "the player uses the skill settings asset");
-            Assert.That(_player.Skills.Count, Is.EqualTo(8));
+            Assert.That(_player.Skills.Count, Is.EqualTo(12)); // work order 015: eight start and pool skills grew to twelve
             _feel = _player.Feel;
             _a = Dummy("Dummy_A");
             _b = Dummy("Dummy_B");
@@ -112,7 +113,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.PressSkill(Keg, center), Is.EqualTo(IntentResult.Started));
             yield return new WaitForSeconds(skill.Startup * 0.5f);
             Assert.That(Lost(_d) + Lost(_e) + Lost(_f), Is.EqualTo(0), "nothing lands before the startup is over");
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            // Work order 015: the keg lands, lies on its fuse, then bursts.
+            yield return Until(() => _player.KegsBurst > 0, 4f);
 
             Assert.That(Lost(_d), Is.EqualTo(skill.Damage));
             Assert.That(Lost(_e), Is.EqualTo(skill.Damage));
@@ -130,7 +132,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
 
             Assert.That(_player.PressSkill(Keg, center), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            yield return Until(() => _player.KegsBurst > 0, 4f); // work order 015: after its fuse
 
             Assert.That(_player.SkillShotsFired, Is.EqualTo(1), "it went off");
             Assert.That(Lost(_d) + Lost(_e) + Lost(_f), Is.EqualTo(0), "but short of the point that was aimed at");
@@ -294,14 +296,15 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Buffer_ASkillPressedLateInAnothersRecovery_FiresWhenItEnds()
         {
-            // Powder Keg since decision 0005 (2026-11-19): Quick Shot's recovery became too short to press in.
-            SkillDefinition first = Skill(Keg);
+            // Powder Keg since decision 0005 (2026-11-19): Quick Shot's recovery became too short to press in. Breaker Slug
+            // since work order 015, when the keg became light with a short recovery.
+            SkillDefinition first = Skill(Breaker);
             Assume.That(first.Recovery, Is.GreaterThan(_feel.InputBuffer * 0.5f + 0.03f));
 
-            Assert.That(_player.PressSkill(Keg, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            Assert.That(_player.PressSkill(Breaker, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return new WaitForSeconds(first.Startup + first.Recovery - _feel.InputBuffer * 0.5f);
             // Decision 0004: with the free recovery the first skill is over for everything but the next skill.
-            Assume.That(_player.ActiveSkillSlot == Keg || _player.FreeRecoverySlot == Keg, Is.True, "the press lands in the first skill's recovery");
+            Assume.That(_player.ActiveSkillSlot == Breaker || _player.FreeRecoverySlot == Breaker, Is.True, "the press lands in the first skill's recovery");
 
             Assert.That(_player.PressSkill(Volley, _a.transform.position), Is.EqualTo(IntentResult.Buffered));
             yield return Until(() => _player.ActiveSkillSlot == Volley, 1f);
@@ -312,11 +315,12 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Buffer_AChargeSkillReleasedWhileItWaits_FiresWithNoCharge()
         {
             // Powder Keg, on B, since decision 0005 (2026-11-19): Quick Shot's recovery became too short to press in.
-            SkillDefinition first = Skill(Keg);
+            // Breaker Slug since work order 015, when the keg became light with a short recovery.
+            SkillDefinition first = Skill(Breaker);
             SkillDefinition charge = Skill(Long);
             Assume.That(first.Recovery, Is.GreaterThan(_feel.InputBuffer * 0.5f + 0.03f));
 
-            Assert.That(_player.PressSkill(Keg, _b.transform.position), Is.EqualTo(IntentResult.Started));
+            Assert.That(_player.PressSkill(Breaker, _b.transform.position), Is.EqualTo(IntentResult.Started));
             yield return new WaitForSeconds(first.Startup + first.Recovery - _feel.InputBuffer * 0.5f);
             Assert.That(_player.PressSkill(Long, _a.transform.position), Is.EqualTo(IntentResult.Buffered));
             _player.ReleaseSkill(Long);
@@ -369,10 +373,13 @@ namespace Roguelike.PlayModeTests
             Vector2 onA = ScreenOf(_a.transform.position);
             _idle = new InputFrame { CursorScreen = onA };
 
-            for (int slot = 0; slot < _player.Skills.Count; slot++)
+            // Work order 015: eight keys, each starting the skill on it (with every skill had, the skill of its own place).
+            for (int key = 0; key < _player.KeyCount; key++)
             {
-                yield return Feed(new InputFrame { CursorScreen = onA, SkillsPressed = 1 << slot });
-                Assert.That(_player.ActiveSkillSlot, Is.EqualTo(slot), $"skill key {slot} starts skill {slot}");
+                int slot = _player.SkillOnKey(key);
+                Assert.That(slot, Is.EqualTo(key));
+                yield return Feed(new InputFrame { CursorScreen = onA, SkillsPressed = 1 << key });
+                Assert.That(_player.ActiveSkillSlot, Is.EqualTo(slot), $"skill key {key} starts skill {slot}");
                 Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill));
                 _player.Teleport(_player.Position); // clear it, so the next key is not buffered
                 yield return null;
