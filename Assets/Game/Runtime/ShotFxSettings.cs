@@ -172,8 +172,31 @@ namespace Roguelike
 
         public static ShotLook[] AllSkills() => Names.Select(For).ToArray();
 
+        /// <summary>
+        /// The existing skill whose look and sound a pool skill of work order 015 (2026-11-20) borrows while the ShotFx
+        /// asset has none of its own: the nearest in weapon and shape. "" for any other name.
+        /// </summary>
+        public static string Nearest(string name)
+        {
+            switch (name)
+            {
+                case "Tag Round": return "Quick Shot";        // a light pistol line
+                case "Breaker Slug": return "Scatter Blast";  // the shotgun
+                case "Stopping Shot": return "Backstep";      // a pistol line with a heavier kick
+                case "Slide": return "Backstep";              // it fires nothing; the nearest move
+                default: return "";
+            }
+        }
+
         public static ShotLook For(string name)
         {
+            string nearest = Nearest(name);
+            if (nearest.Length > 0)
+            {
+                ShotLook borrowed = For(nearest);
+                borrowed.Name = name;
+                return borrowed;
+            }
             switch (name)
             {
                 case "Quick Shot":    return Look(name, new Color(1f, 0.5f, 0.1f), 1f, 0.1f, 0.4f, 0.16f, 1f, 0.16f, recoil: 1.5f);

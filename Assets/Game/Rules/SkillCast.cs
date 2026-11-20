@@ -166,6 +166,19 @@ namespace Roguelike.Rules
             return Clamp01((Math.Min(now, ChannelEnd) - _start) / _skill.ChargeTime);
         }
 
+        /// <summary>
+        /// For a Charge skill: seconds charged by now, from the press to the release (or to the longest hold if that came
+        /// first). 0 for other skills and when nothing runs. Work order 015: what Long Shot's perfect band is judged on.
+        /// </summary>
+        public float ChargedSeconds(float now)
+        {
+            if (!_running || _skill.Input != SkillInput.Charge) return 0f;
+            return Math.Max(0f, Math.Min(now, ChannelEnd) - _start);
+        }
+
+        /// <summary>True once the key was let go before the longest hold ran out: not a charge that fired by itself.</summary>
+        public bool ReleasedByKey => _running && _release < ChannelStart + Math.Max(0f, _skill.HoldMax);
+
         /// <summary>How far the startup has come, 0 to 1: 0 before it begins, 1 from the first hit on. 0 when nothing runs.</summary>
         public float StartupProgress(float now)
         {

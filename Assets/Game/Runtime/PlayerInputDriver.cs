@@ -13,7 +13,10 @@ namespace Roguelike
         public bool ShootPressed;       // the shoot button went down: one basic shot toward the cursor
         public bool DashPressed;        // Space
         public bool IdentityPressed;    // Z: spend a full focus gauge on the empowered mode
-        /// <summary>Skill bindings that went down this frame. Bit 0 is the first skill slot, bit 1 the second, and so on.</summary>
+        /// <summary>
+        /// Skill bindings that went down this frame. Bit 0 is the first skill key, bit 1 the second, and so on; the skill
+        /// on each key is the character's (work order 015: <see cref="PlayerCharacter.SkillOnKey"/>).
+        /// </summary>
         public int SkillsPressed;
         /// <summary>Skill bindings that are down this frame, same bits. One that went down this frame counts as down.</summary>
         public int SkillsHeld;
@@ -112,10 +115,13 @@ namespace Roguelike
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
 
+            // The bits are keys; the skill on each key comes from her bar (work order 015). An empty key does nothing.
             int held = input.SkillsHeld | input.SkillsPressed;
-            for (int slot = 0; slot < 32; slot++)
+            for (int key = 0; key < 32; key++)
             {
-                int bit = 1 << slot;
+                int bit = 1 << key;
+                int slot = _player.SkillOnKey(key);
+                if (slot < 0) continue;
                 if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, cursor);
                 if ((_skillsHeldBefore & bit) != 0 && (held & bit) == 0) _player.ReleaseSkill(slot);
             }

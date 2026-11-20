@@ -42,13 +42,25 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 3
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
   - Name: Powder Keg
     Input: 1
     Shape: 1
     Cooldown: 14
     Damage: 180
-    Startup: 0.5
-    Recovery: 0.2
+    Startup: 0.2
+    Recovery: 0.1
     HitCount: 1
     HitInterval: 0.1
     Range: 8
@@ -61,7 +73,7 @@ MonoBehaviour:
     ChargeTime: 1
     MinChargeDamage: 0.3
     StartEquipped: 0
-    Lock: 0
+    Lock: 1
     MarksAdded: 0
     MarkInterval: 0
     MarkDamageBonus: 0
@@ -71,6 +83,18 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 20
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 1.5
+    ShotBurstScale: 1.5
   - Name: Fan Fire
     Input: 2
     Shape: 2
@@ -100,6 +124,18 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 4
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
   - Name: Long Shot
     Input: 3
     Shape: 0
@@ -129,6 +165,18 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 15
+    Charges: 1
+    PerfectFrom: 0.8
+    PerfectTo: 1
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
   - Name: Scatter Blast
     Input: 0
     Shape: 2
@@ -158,6 +206,18 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 30
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
   - Name: Heavy Volley
     Input: 4
     Shape: 0
@@ -187,6 +247,18 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 40
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
   - Name: Backstep
     Input: 0
     Shape: 0
@@ -216,6 +288,18 @@ MonoBehaviour:
     OpeningMove: 1
     CleanMarkDamageBonus: 0.5
     Stagger: 5
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
   - Name: Triple Tap
     Input: 0
     Shape: 0
@@ -245,6 +329,182 @@ MonoBehaviour:
     OpeningMove: 0
     CleanMarkDamageBonus: 0
     Stagger: 2
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
+  - Name: Tag Round
+    Input: 0
+    Shape: 0
+    Cooldown: 6
+    Damage: 40
+    Startup: 0.15
+    Recovery: 0.1
+    HitCount: 1
+    HitInterval: 0.1
+    Range: 12
+    HalfWidth: 0.3
+    Radius: 2.5
+    Angle: 50
+    MoveDistance: 0
+    HoldMax: 2
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 1
+    MarksAdded: 1
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
+    Stagger: 2
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 8
+    TagDamageShare: 0.1
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
+  - Name: Breaker Slug
+    Input: 0
+    Shape: 0
+    Cooldown: 20
+    Damage: 150
+    Startup: 0.25
+    Recovery: 0.4
+    HitCount: 1
+    HitInterval: 0.1
+    Range: 7
+    HalfWidth: 0.6
+    Radius: 2.5
+    Angle: 50
+    MoveDistance: 0
+    HoldMax: 2
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 0
+    MarksAdded: 0
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
+    Stagger: 80
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0.3
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
+  - Name: Slide
+    Input: 5
+    Shape: 0
+    Cooldown: 12
+    Damage: 0
+    Startup: 0.35
+    Recovery: 0
+    HitCount: 1
+    HitInterval: 0.1
+    Range: 12
+    HalfWidth: 0.3
+    Radius: 2.5
+    Angle: 50
+    MoveDistance: 6
+    HoldMax: 2
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 1
+    MarksAdded: 0
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
+    Stagger: 0
+    Charges: 2
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 0
+    CounterHalfAngle: 60
+    CounterFocus: 0
+    Fuse: 0
+    ShotBurstScale: 1.5
+  - Name: Stopping Shot
+    Input: 0
+    Shape: 0
+    Cooldown: 10
+    Damage: 60
+    Startup: 0.15
+    Recovery: 0.1
+    HitCount: 1
+    HitInterval: 0.1
+    Range: 12
+    HalfWidth: 0.3
+    Radius: 2.5
+    Angle: 50
+    MoveDistance: 0
+    HoldMax: 2
+    TickInterval: 0.15
+    ChargeTime: 1
+    MinChargeDamage: 0.3
+    StartEquipped: 0
+    Lock: 1
+    MarksAdded: 1
+    MarkInterval: 0
+    MarkDamageBonus: 0
+    RecastCount: 1
+    RecastWindow: 0.6
+    CleanTapMarks: 0
+    OpeningMove: 0
+    CleanMarkDamageBonus: 0
+    Stagger: 3
+    Charges: 1
+    PerfectFrom: 0
+    PerfectTo: 0
+    PerfectScale: 2
+    MarkStaggerBonus: 0
+    TagSeconds: 0
+    TagDamageShare: 0
+    CounterDaze: 2
+    CounterHalfAngle: 60
+    CounterFocus: 0.33333334
+    Fuse: 0
+    ShotBurstScale: 1.5
   Identity:
     MaxFocus: 100
     FocusPerDamage: 0.005

@@ -215,7 +215,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.PressSkill(Keg, Ahead(6f)), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.SkillShotsFired >= 1, 3f);
             ShotFx outline = Newest(ShotFxKind.Outline);
-            yield return Until(() => _player.Action == ActionKind.None, 3f);
+            yield return Until(() => _player.KegsBurst > 0, 4f); // work order 015: it lies on its fuse, then bursts
             yield return new WaitForSeconds(0.1f);
 
             Assert.That(outline, Is.Not.Null, "the circle shows where it landed");

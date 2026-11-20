@@ -121,7 +121,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(PlayerInputDriver.HeldByChoice, Is.True);
             Assert.That(_levels.OfferedSkills.Count, Is.EqualTo(3));
             foreach (int slot in _levels.OfferedSkills) Assert.That(_player.IsEquipped(slot), Is.False, "never one she has");
-            Assert.That(_levels.OfferedSkills, Is.EqualTo(FloorRewards.Offer(RunSeed, 1, Enumerable.Range(0, 8).Select(_player.IsEquipped).ToList(), 3)),
+            Assert.That(_levels.OfferedSkills, Is.EqualTo(FloorRewards.Offer(RunSeed, 1, Enumerable.Range(0, _player.Skills.Count).Select(_player.IsEquipped).ToList(), 3)),
                         "drawn from the run's seed");
 
             // Paused: frames go by and game time does not.
@@ -135,7 +135,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.PickReward(1), Is.True);
             Assert.That(Time.timeScale, Is.EqualTo(1f), "the game goes on");
             Assert.That(PlayerInputDriver.HeldByChoice, Is.False);
-            Assert.That(_player.IsEquipped(picked), Is.True, "the picked skill is equipped in its own slot");
+            Assert.That(_player.IsEquipped(picked), Is.True, "the picked skill is equipped");
+            Assert.That(_player.KeyOfSkill(picked), Is.EqualTo(1), "on the first free key (work order 015)");
             Assert.That(EquippedCount(), Is.EqualTo(5));
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.Level.Layout.Floor, Is.EqualTo(2));
@@ -237,6 +238,13 @@ namespace Roguelike.PlayModeTests
             }
             Assert.That(_levels.Floor, Is.EqualTo(5));
             Assert.That(EquippedCount(), Is.EqualTo(8), "eight skills after four floors");
+            // Work order 015: on eight keys, one each, the four taken on the four keys that were free, in key order.
+            var onKeys = Enumerable.Range(0, _player.KeyCount).Select(_player.SkillOnKey).ToList();
+            Assert.That(onKeys.All(s => s >= 0), Is.True, "no key is empty");
+            Assert.That(onKeys.Distinct().Count(), Is.EqualTo(8), "eight skills on eight keys");
+            Assert.That(new[] { 1, 2, 3, 5 }.Select(k => _player.Skills[onKeys[k]].Name), Is.EqualTo(_levels.SkillsTaken),
+                        "taken in order onto the first free key each time");
+            Assert.That(_player.FirstFreeKey, Is.EqualTo(-1));
             Assert.That(_levels.SkillsTaken.Count, Is.EqualTo(4));
             GeneratedLevel level = _levels.Level;
             Assert.That(level.Boss, Is.Not.Null, "the act boss");

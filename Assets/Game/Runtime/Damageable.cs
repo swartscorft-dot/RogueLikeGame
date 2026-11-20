@@ -56,7 +56,34 @@ namespace Roguelike
         public event Action Dazed;
         /// <summary>Raised when the daze ended and the bar was full again.</summary>
         public event Action DazeEnded;
-        public bool IsDazed => Stagger != null && Stagger.IsDazed(Time.time);
+        public bool IsDazed => (Stagger != null && Stagger.IsDazed(Time.time)) || Time.time < _dazedUntil;
+
+        // Work order 015 (2026-11-20).
+        readonly Tag _tag = new Tag();
+        float _dazedUntil = float.NegativeInfinity;
+
+        /// <summary>True while Tag Round's tag is on it: her hits deal more (<see cref="ScaleForTag"/>).</summary>
+        public bool IsTagged => IsAlive && _tag.IsOn(Time.time);
+        public float TagRemaining => IsAlive ? _tag.Remaining(Time.time) : 0f;
+
+        /// <summary>Tags it for this long, this share more damage from her; a new tag starts it again. A dead target takes none.</summary>
+        public void ApplyTag(float seconds, float share)
+        {
+            if (IsAlive) _tag.Apply(Time.time, seconds, share);
+        }
+
+        /// <summary>One of her hits on it, raised while it is tagged.</summary>
+        public int ScaleForTag(int damage) => _tag.Scale(damage, Time.time);
+
+        /// <summary>
+        /// Dazed for this long whether or not it has a stagger bar (a counter, Stopping Shot): <see cref="IsDazed"/> is true
+        /// and an enemy stands still. It does not raise the damage it takes, as an emptied bar's daze does.
+        /// </summary>
+        public void DazeFor(float seconds)
+        {
+            _dazedUntil = Mathf.Max(_dazedUntil, Time.time + Mathf.Max(0f, seconds));
+            Dazed?.Invoke();
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -126,6 +153,8 @@ namespace Roguelike
 
         public void Refill()
         {
+            _tag.Clear();
+            _dazedUntil = float.NegativeInfinity;
             _health.Reset();
             ClearMarks(MarkLoss.Reset);
             Stagger?.Reset();
@@ -136,6 +165,8 @@ namespace Roguelike
         {
             MaxHealth = max;
             _health = new Health(max);
+            _tag.Clear();
+            _dazedUntil = float.NegativeInfinity;
             ClearMarks(MarkLoss.Reset);
             Stagger?.Reset();
         }

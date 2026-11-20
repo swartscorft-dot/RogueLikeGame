@@ -26,6 +26,9 @@ namespace Roguelike
         static readonly Color s_FullRim = new Color(1f, 0.15f, 0.08f);
         static readonly Color s_FullCore = new Color(1f, 0.75f, 0.55f);
         static readonly Color s_Empty = new Color(0.12f, 0.12f, 0.12f);
+        static readonly Color s_TagRim = new Color(0.2f, 1f, 0.45f);
+        static readonly Color s_TagCore = new Color(0.8f, 1f, 0.85f);
+        bool _shownTag;
         const float RimGlow = 2f;
         const float CoreGlow = 3f;
 
@@ -96,19 +99,31 @@ namespace Roguelike
             Camera cam = Camera.main;
             if (cam != null) transform.rotation = cam.transform.rotation;
 
-            _renderer.enabled = count > 0;
-            if (count == _shownCount && Max == _shownMax && lit == _shownLit) return;
+            bool tagged = _target.IsTagged;
+            _renderer.enabled = count > 0 || tagged;
+            if (count == _shownCount && Max == _shownMax && lit == _shownLit && tagged == _shownTag) return;
             _shownCount = count;
             _shownMax = Max;
             _shownLit = lit;
+            _shownTag = tagged;
             Build(count, Mathf.Max(count, Max), lit);
         }
+
+        /// <summary>True while the tag's sign is drawn (work order 015). For tests.</summary>
+        public bool TagShown => _renderer != null && _renderer.enabled && _shownTag;
 
         void Build(int count, int slots, bool lit)
         {
             _verts.Clear();
             _colors.Clear();
             _tris.Clear();
+            // Tag Round's tag (work order 015): a larger green diamond left of the row, while it lasts.
+            if (_shownTag)
+            {
+                var at = new Vector3(-(slots + 1) * Spacing * 0.5f - 0.15f, 0f, 0f);
+                Diamond(at, PipSize * 0.65f, Drawn(s_TagRim, RimGlow));
+                Diamond(at + new Vector3(0f, 0f, -0.02f), PipSize * 0.65f * CoreShare, Drawn(s_TagCore, CoreGlow));
+            }
             bool full = count >= Max;
             Color rim = Drawn(full ? s_FullRim : s_Rim, RimGlow);
             Color core = Drawn(full ? s_FullCore : s_Core, CoreGlow);

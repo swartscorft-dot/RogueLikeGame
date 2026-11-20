@@ -732,7 +732,8 @@ namespace Roguelike
                     int slot = _offeredSkills[i];
                     SkillDefinition s = player.Skills[slot];
                     text = string.Format(s_Inv, "{0}   {1}   key {2}   cooldown {3:0.#} s   {4}\n{5}", i + 1, s.Name,
-                                         bindings != null ? bindings.SkillLabel(slot) : "?", s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
+                                         bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", // the key it will go on (work order 015)
+                                         s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
                 }
                 else
                 {

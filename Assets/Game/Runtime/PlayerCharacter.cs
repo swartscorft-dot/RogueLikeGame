@@ -155,7 +155,28 @@ namespace Roguelike
         readonly KitValues _fallbackKit = new KitValues();
         readonly BasicShotMarks _basicMarks = new BasicShotMarks();
         readonly RecastChain _chain = new RecastChain();
-        readonly List<bool> _equipped = new List<bool>();
+        // The pool (work order 015): the skills she has and the keys they sit on, made from the skill list when first asked.
+        readonly SkillLoadout _loadout = new SkillLoadout();
+        bool _loadoutReady;
+        bool _loadoutAll;
+        bool _castPerfect; // the Charge skill in use was let go inside its perfect band
+        // Slide (work order 015): a skill that moves her along the move keys, beside whatever else she does.
+        bool _keyMoving;
+        int _keyMoveSlot = -1;
+        Vector3 _keyMoveFrom, _keyMoveTo;
+        float _keyMoveStartedAt, _keyMoveSeconds;
+        // Powder Keg's kegs that lie on their fuse (work order 015).
+        struct LyingKeg
+        {
+            public SkillDefinition Skill;
+            public int Slot;
+            public GroundPoint Centre;
+            public float BurstAt;
+            public ShotFx Circle;
+        }
+        readonly List<LyingKeg> _kegs = new List<LyingKeg>();
+        /// <summary>How near a shot's line must pass a lying keg's middle to set it off, in m (work order 015, a guess).</summary>
+        public const float KegRadius = 0.5f;
         readonly Dictionary<Damageable, float> _markedAt = new Dictionary<Damageable, float>(); // by the skill in use, for its mark interval
         bool _castClean; // the shot of the skill in use came from a clean press: a clean tap or a clean spend
         bool _castMoves;   // the skill in use moves her over its startup (MoveDistance): not the shot after an opening move
@@ -310,8 +331,39 @@ namespace Roguelike
 
         // ---------------- Skills, for the skill bar, the aim indicator and tests ----------------
 
-        public IReadOnlyList<SkillDefinition> Skills =>
-            SkillSet != null && SkillSet.Skills != null && SkillSet.Skills.Length > 0 ? SkillSet.Skills : _fallbackSkills;
+        /// <summary>
+        /// The skills, in their list order: the settings asset's, and after them, from the start values in memory, any
+        /// skill the code knows that the asset lacks by name (work order 015: an asset from before the pool still has all
+        /// twelve). Nothing is written to the asset.
+        /// </summary>
+        public IReadOnlyList<SkillDefinition> Skills
+        {
+            get
+            {
+                SkillDefinition[] own = SkillSet != null ? SkillSet.Skills : null;
+                if (own == null || own.Length == 0) return _fallbackSkills;
+                if (!ReferenceEquals(own, _completedFrom))
+                {
+                    _completedFrom = own;
+                    _completed = own;
+                    var missing = new List<SkillDefinition>();
+                    foreach (SkillDefinition s in _fallbackSkills)
+                    {
+                        bool have = false;
+                        foreach (SkillDefinition o in own) have |= o != null && o.Name == s.Name;
+                        if (!have) missing.Add(s);
+                    }
+                    if (missing.Count > 0)
+                    {
+                        var all = new List<SkillDefinition>(own);
+                        all.AddRange(missing);
+                        _completed = all.ToArray();
+                    }
+                }
+                return _completed;
+            }
+        }
+        SkillDefinition[] _completedFrom, _completed;
 
         /// <summary>The slot of the skill in use, or -1.</summary>
         public int ActiveSkillSlot => _actionKind == ActionKind.Skill ? _castSlot : -1;
@@ -324,6 +376,28 @@ namespace Roguelike
         public Vector3 AimPoint => _aimPoint;
         public float SkillCooldownRemaining(int slot) =>
             slot >= 0 && slot < Skills.Count ? CooldownFor(slot).Remaining(Time.time) : 0f;
+        /// <summary>Charges of the slot's skill ready now (work order 015): 1 or 0 for a skill with one charge.</summary>
+        public int SkillChargesReady(int slot) => slot >= 0 && slot < Skills.Count ? CooldownFor(slot).Charges(Time.time) : 0;
+        /// <summary>Seconds until the slot's skill gets its next charge back; 0 when all are ready.</summary>
+        public float SkillNextCharge(int slot) => slot >= 0 && slot < Skills.Count ? CooldownFor(slot).NextCharge(Time.time) : 0f;
+        /// <summary>Seconds the Charge skill in use has charged (work order 015: the perfect band is judged on it); 0 otherwise.</summary>
+        public float SkillChargedSeconds => _actionKind == ActionKind.Skill ? _cast.ChargedSeconds(Time.time) : 0f;
+        /// <summary>True when the Charge skill in use, let go now, would be a perfect release (work order 015).</summary>
+        public bool InPerfectBand => _actionKind == ActionKind.Skill && _cast.Phase(Time.time) == SkillPhase.Channel
+                                     && PoolRules.IsPerfect(_cast.Skill, _cast.ChargedSeconds(Time.time));
+        /// <summary>Perfect releases so far (work order 015).</summary>
+        public int PerfectReleases { get; private set; }
+        /// <summary>True while Slide moves her (work order 015).</summary>
+        public bool IsKeyMoving => _keyMoving;
+        /// <summary>Kegs lying on their fuse now (work order 015).</summary>
+        public int KegsLying => _kegs.Count;
+        /// <summary>Where the latest keg lies, or lay; for tests.</summary>
+        public Vector3 LastKegPoint { get; private set; }
+        /// <summary>Kegs that burst, by their fuse or by a shot.</summary>
+        public int KegsBurst { get; private set; }
+        public int KegsSetOffByShots { get; private set; }
+        /// <summary>Counters that dropped an attack (work order 015, Stopping Shot).</summary>
+        public int Counters { get; private set; }
         /// <summary>
         /// The slot whose recovery is running free (decision 0004): the skill is over for the basic shot and the move
         /// keys, but the next skill waits for it. -1 when none.
@@ -356,25 +430,51 @@ namespace Roguelike
 
         public KitValues Kit => SkillSet != null && SkillSet.Kit != null ? SkillSet.Kit : _fallbackKit;
 
+        /// <summary>
+        /// The skills she has and the keys they sit on (work order 015, 2026-11-20). A "slot" everywhere in this class is
+        /// a skill's place in <see cref="Skills"/>, which says which skill it is; a key is a place on the bar
+        /// (<see cref="SkillOnKey"/>), which the input, the skill bar and the reward screen go through. Made from the
+        /// skill list the first time it is asked for, and again by <see cref="EquipStartSkills"/>.
+        /// </summary>
+        SkillLoadout Loadout
+        {
+            get
+            {
+                bool all = Kit.StartWithAllSkills;
+                if (!_loadoutReady || _loadoutAll != all)
+                {
+                    _loadout.Start(Skills, all);
+                    _loadoutReady = true;
+                    _loadoutAll = all;
+                }
+                return _loadout;
+            }
+        }
+
+        /// <summary>The keys of the bar: eight, in the order of the bindings' skill keys.</summary>
+        public int KeyCount => SkillLoadout.KeyCount;
+        /// <summary>The slot of the skill on a key, or -1 for an empty key.</summary>
+        public int SkillOnKey(int key) => Loadout.SkillOn(key);
+        /// <summary>The key a slot's skill sits on, or -1 when it is on none.</summary>
+        public int KeyOfSkill(int slot) => Loadout.KeyOf(slot);
+        /// <summary>The key a skill taken now would go on: the first free one in key order, or -1.</summary>
+        public int FirstFreeKey => Loadout.FirstFreeKey;
+
         /// <summary>True when the slot holds a skill she can use: one she started the run with, or was given since.</summary>
-        public bool IsEquipped(int slot)
+        public bool IsEquipped(int slot) => slot >= 0 && slot < Skills.Count && (Kit.StartWithAllSkills || Loadout.Has(slot));
+
+        /// <summary>
+        /// She has the slot's skill from now on, on the first free key if it is on none (work order 015); with no key free
+        /// she has it all the same, for the intents. For the floor reward, tests and tools. Returns its key, or -1.
+        /// </summary>
+        public int EquipSkill(int slot)
         {
-            if (slot < 0 || slot >= Skills.Count) return false;
-            if (Kit.StartWithAllSkills) return true;
-            while (_equipped.Count <= slot) _equipped.Add(Skills[_equipped.Count].StartEquipped);
-            return _equipped[slot];
+            if (slot < 0 || slot >= Skills.Count) return -1;
+            return Loadout.Take(slot);
         }
 
-        /// <summary>Puts the slot's skill on the bar: its key works from now on. For tests and for the rewards to come.</summary>
-        public void EquipSkill(int slot)
-        {
-            if (slot < 0 || slot >= Skills.Count) return;
-            IsEquipped(slot);
-            _equipped[slot] = true;
-        }
-
-        /// <summary>Back to the skills a run starts with. For tests and tools.</summary>
-        public void EquipStartSkills() => _equipped.Clear();
+        /// <summary>Back to the skills a run starts with, on their own keys. For a new run, tests and tools.</summary>
+        public void EquipStartSkills() => _loadoutReady = false;
 
         /// <summary>
         /// The run's upgrades (work order 012, <see cref="RunModifiers"/>), read where the values are used: damage dealt,
@@ -614,8 +714,12 @@ namespace Roguelike
             if (!CooldownFor(slot).IsReady(Time.time))
                 return SkillPressed(slot, IntentResult.Rejected, CooldownFor(slot).Remaining(Time.time));
             _shotCursor = point; // a press comes with the cursor: the arms held up after the skill follow it from here
-            // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer.
-            if (IsLocked || Time.time < _skillGateUntil)
+            // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer. Slide (work
+            // order 015) is its own move: it waits only for a dash, a committed skill or a Slide still moving her.
+            bool waits = Skills[slot].Input == SkillInput.KeyMove
+                ? _dashing || _keyMoving || (_actionKind == ActionKind.Skill && !IsInLightSkill)
+                : IsLocked || Time.time < _skillGateUntil;
+            if (waits)
             {
                 _bufferedSkillReleased = false;
                 return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
@@ -770,6 +874,8 @@ namespace Roguelike
             _skillGateUntil = float.NegativeInfinity;
             _moveInput = Vector3.zero;
             EndChain();
+            EndKeyMove();
+            ClearKegs();
             if (_inCover) LeaveCover(CoverLeaving.Other);
             _coverHeld = false;
             _peekUntil = float.NegativeInfinity;
@@ -785,6 +891,7 @@ namespace Roguelike
             float now = Time.time;
             ApplyMovementFeel(feel);
             ExpireChain(now);
+            BurstKegsOnFuse(now);
 
             if (_dashing)
             {
@@ -794,6 +901,7 @@ namespace Roguelike
                 if (_dash.IsDashing(now)) return;
                 _dashing = false;
             }
+            if (_keyMoving) KeyMove(now);
             UpdateCover(feel, now);
 
             if (_actionKind == ActionKind.BasicShot)
@@ -977,7 +1085,7 @@ namespace Roguelike
         {
             if (_inCover && (!feel.TakeCover || !_coverHeld || _shelter == null || !_shelter.isActiveAndEnabled))
                 LeaveCover(_coverHeld ? CoverLeaving.Other : CoverLeaving.Released);
-            if (!_inCover && feel.TakeCover && _coverHeld && !IsLocked) TryTakeCover(feel, now);
+            if (!_inCover && feel.TakeCover && _coverHeld && !IsLocked && !_keyMoving) TryTakeCover(feel, now);
             if (!_inCover) return;
 
             Vector3 at = transform.position;
@@ -1064,6 +1172,12 @@ namespace Roguelike
         void MoveAlong(Vector3 direction, float speed)
         {
             if (!_agent.isOnNavMesh) return;
+            // While Slide moves her (work order 015) nothing else does: no walk, no slow of a shot, no skill's slide.
+            if (_keyMoving)
+            {
+                Halt();
+                return;
+            }
             _agent.isStopped = false;
             _agent.SetDestination(transform.position + direction * SteerLookAhead);
             // Start at once, as the movement always has: the agent would otherwise wait a frame for its path.
@@ -1213,6 +1327,109 @@ namespace Roguelike
             _agent.velocity = Vector3.zero;
         }
 
+        // ---------------- Slide: a skill that moves her along the move keys (work order 015, 2026-11-20) ----------------
+        // Not the slowdown of decision 0004 (SkillSlide, _sliding): this is a skill of its own. She moves MoveDistance
+        // along the held move keys (the way she faces with none held) over its Startup, on the NavMesh as the dash is, with
+        // no invulnerability. It is no action: a basic shot starts and goes off during it as anywhere, and does not slow
+        // it, for nothing else moves her while it runs. A dash ends it. Its charges are the cooldown's (Cooldown.MaxCharges).
+
+        void StartKeyMove(int slot)
+        {
+            SkillDefinition skill = Skills[slot];
+            float now = Time.time;
+            Vector3 dir = _moveInput != Vector3.zero ? _moveInput : Flat(transform.forward);
+            if (dir.sqrMagnitude < 1e-6f) dir = Vector3.forward;
+            dir.Normalize();
+            LeaveCover(CoverLeaving.MovingSkill); // a skill that moves her takes her out of cover, as the dash does
+            CooldownFor(slot).Start(now, CooldownOf(slot));
+            _keyMoving = true;
+            _keyMoveSlot = slot;
+            _keyMoveFrom = transform.position;
+            _keyMoveTo = _keyMoveFrom + dir * skill.MoveDistance;
+            _keyMoveStartedAt = now;
+            _keyMoveSeconds = Mathf.Max(0f, skill.Startup);
+            Halt();
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
+            KeyMove(now);
+        }
+
+        void KeyMove(float now)
+        {
+            float k = _keyMoveSeconds > 0f ? Mathf.Clamp01((now - _keyMoveStartedAt) / _keyMoveSeconds) : 1f;
+            Vector3 target = Vector3.Lerp(_keyMoveFrom, _keyMoveTo, k);
+            if (_agent.isOnNavMesh)
+            {
+                _agent.velocity = Vector3.zero;
+                // NavMeshAgent.Move keeps her on the NavMesh, so it stops at walls and edges, as the dash does.
+                _agent.Move(Flat(target - transform.position));
+            }
+            if (k >= 1f) EndKeyMove();
+        }
+
+        void EndKeyMove()
+        {
+            if (!_keyMoving) return;
+            _keyMoving = false;
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillEnded, Slot = _keyMoveSlot, Ending = SkillEnding.RanOut });
+            _keyMoveSlot = -1;
+        }
+
+        // ---------------- Powder Keg: thrown, then set off (work order 015, 2026-11-20) ----------------
+        // A skill with a Fuse does not burst where it lands: the keg lies there with its circle showing, and bursts when the
+        // fuse runs out, or at once, for ShotBurstScale times the damage, when a shot of hers passes through it (a basic
+        // shot, or a line skill; the shot goes on). Each keg is its own: two would lie and burst apart.
+
+        void PlaceKeg(SkillDefinition skill, SkillArea area, Look look)
+        {
+            GroundPoint c = area.Centre;
+            var centre = new Vector3(c.X, 0f, c.Z);
+            LastKegPoint = centre;
+            ShotFx circle = ShotFx.Outline(centre, skill.Radius, skill.Fuse, look.Paint, ShotFxMaterial);
+            _kegs.Add(new LyingKeg { Skill = skill, Slot = _castSlot, Centre = c, BurstAt = Time.time + skill.Fuse, Circle = circle });
+        }
+
+        void BurstKegsOnFuse(float now)
+        {
+            for (int i = _kegs.Count - 1; i >= 0; i--)
+                if (i < _kegs.Count && now >= _kegs[i].BurstAt) BurstKeg(i, 1f);
+        }
+
+        /// <summary>Sets off every lying keg a line from <paramref name="origin"/> toward <paramref name="aim"/>, this long and wide, passes through.</summary>
+        void SetOffKegs(GroundPoint origin, GroundPoint aim, float range, float halfWidth, float length)
+        {
+            for (int i = _kegs.Count - 1; i >= 0; i--)
+            {
+                if (i >= _kegs.Count) continue;
+                LyingKeg keg = _kegs[i];
+                if (!LineShot.Hits(origin, aim, range, halfWidth, keg.Centre, KegRadius, length)) continue;
+                KegsSetOffByShots++;
+                BurstKeg(i, Mathf.Max(0f, keg.Skill.ShotBurstScale));
+            }
+        }
+
+        void BurstKeg(int index, float damageScale)
+        {
+            LyingKeg keg = _kegs[index];
+            _kegs.RemoveAt(index);
+            if (keg.Circle != null) Destroy(keg.Circle.gameObject);
+            KegsBurst++;
+            var area = new SkillArea(keg.Skill, keg.Centre, keg.Centre, CoverQuery);
+            Look look = LookFor(keg.Skill, 1f);
+            Vector3 shotPoint = SpawnSkillFx(keg.Skill, look, area);
+            PlaySound(look);
+            int damage = Mathf.RoundToInt(SkillRules.Damage(keg.Skill, 1f) * damageScale);
+            bool landed = HitArea(keg.Skill, keg.Slot, area, look, shotPoint, damage, keg.Skill.Stagger, clean: false, out _);
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = keg.Slot, Landed = landed, Charge = 1f, Clean = damageScale > 1f });
+            if (landed) HitStop.Trigger(Feel.HitStop);
+        }
+
+        void ClearKegs()
+        {
+            foreach (LyingKeg keg in _kegs)
+                if (keg.Circle != null) Destroy(keg.Circle.gameObject);
+            _kegs.Clear();
+        }
+
         // ---------------- Dash ----------------
 
         bool StartDash(Vector3 point)
@@ -1232,6 +1449,7 @@ namespace Roguelike
             _rising = false;
             _skillGateUntil = float.NegativeInfinity;
             EndChain(); // and a recast chain (decision 0005)
+            EndKeyMove(); // and Slide (work order 015): the dash takes over
             _dashFrom = transform.position;
             _dashTo = _dashFrom + dir * feel.DashDistance;
             _dashing = true;
@@ -1282,6 +1500,11 @@ namespace Roguelike
         void StartSkill(int slot, Vector3 point, bool recast = false)
         {
             SkillDefinition skill = Skills[slot];
+            if (skill.Input == SkillInput.KeyMove)
+            {
+                StartKeyMove(slot);
+                return;
+            }
             bool light = skill.Lock == SkillLock.Light;
             // A skill moves her over its startup, but the shot after an opening move does not: Backstep hops on its
             // first press only (amended 2026-11-19).
@@ -1362,7 +1585,10 @@ namespace Roguelike
         Cooldown CooldownFor(int slot)
         {
             while (_cooldowns.Count <= slot) _cooldowns.Add(new Cooldown());
-            return _cooldowns[slot];
+            Cooldown cooldown = _cooldowns[slot];
+            // Charges (work order 015): read live from the skill, so a change in the asset applies at once.
+            if (slot < Skills.Count && Skills[slot] != null) cooldown.MaxCharges = Skills[slot].Charges;
+            return cooldown;
         }
 
         /// <summary>
@@ -1397,6 +1623,12 @@ namespace Roguelike
             SpawnFlash(look, muzzle, end - muzzle);
             SpawnStreak(look, muzzle, end, 1f);
             if (stopped) SpawnCoverHit(look, end);
+            // A lying keg on the shot's way, up to where it ended, goes off at once (work order 015).
+            if (_kegs.Count > 0)
+            {
+                float reach = hit != null ? hit.GroundPosition.DistanceTo(origin) : Mathf.Min(stop, feel.BasicShotRange);
+                SetOffKegs(origin, aim, feel.BasicShotRange, feel.BasicShotHalfWidth, reach);
+            }
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
             int applied = Deal(hit, Placeholders.BasicShotDamage, out float focus);
@@ -1461,6 +1693,7 @@ namespace Roguelike
         {
             IdentityValues identity = Identity;
             if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
+            damage = target.ScaleForTag(damage); // Tag Round's tag (work order 015)
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
             focus = _focus.AddDamage(applied, identity, Time.time);
             return applied;
@@ -1482,17 +1715,59 @@ namespace Roguelike
             var aim = new GroundPoint(origin.X + flatAim.x, origin.Z + flatAim.z);
             var area = new SkillArea(skill, origin, aim, CoverQuery);
 
-            Look look = LookFor(skill, charge);
+            // Long Shot's perfect band (work order 015): let go by the key inside it, the shot deals the perfect scale
+            // times the full-charge damage and stagger, gains focus as a clean tap does, and is drawn that much wider.
+            bool perfect = skill.Input == SkillInput.Charge && _cast.ReleasedByKey
+                           && PoolRules.IsPerfect(skill, _cast.ChargedSeconds(Time.time));
+            Look look = LookFor(skill, perfect ? 1f : charge);
+            if (perfect) look.Width *= Mathf.Max(1f, skill.PerfectScale);
+            // A keg (work order 015) lands and lies on its fuse: nothing is hit yet.
+            if (skill.Fuse > 0f && skill.Shape == SkillShape.Circle)
+            {
+                PlaceKeg(skill, area, look);
+                Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = false, Charge = charge });
+                return false;
+            }
             Vector3 shotPoint = SpawnSkillFx(skill, look, area);
             PlaySound(look); // once per hit of a burst, per tick of a hold, per landing
 
-            int damage = SkillRules.Damage(skill, charge);
+            int damage = perfect ? PoolRules.PerfectDamage(skill) : SkillRules.Damage(skill, charge);
+            float stagger = perfect ? skill.Stagger * Mathf.Max(0f, skill.PerfectScale) : skill.Stagger;
             // A clean tap (decision 0005) hits harder by itself; a clean spend (Backstep, amended 2026-11-19) instead
             // takes the marks, as a spender does, for its own bonus per mark.
             if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * Kit.CleanDamage);
-            bool spender = MarkRules.Spends(skill, _castClean);
-            float bonusPerMark = MarkRules.BonusPerMark(skill, _castClean);
-            bool landed = false;
+            if (perfect)
+            {
+                PerfectReleases++;
+                _focus.Add(Identity.FocusPerCleanTap, Identity, Time.time);
+            }
+            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first);
+
+            // Tag Round (work order 015): the first target it hit is tagged; a tag on a tagged target starts it again.
+            if (skill.TagSeconds > 0f && first != null && first.IsAlive)
+            {
+                first.ApplyTag(skill.TagSeconds, skill.TagDamageShare);
+                MarkPips.For(first, ShotFxMaterial); // its sign shows beside the marks
+            }
+            // A line goes through every lying keg on it, and sets each off (work order 015).
+            if (skill.Shape == SkillShape.Line && _kegs.Count > 0)
+                SetOffKegs(area.Origin, area.Aim, skill.Range, skill.HalfWidth, area.Stop);
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = landed, Charge = charge, Clean = perfect });
+            return landed;
+        }
+
+        /// <summary>
+        /// Every living target the area touches takes the hit: damage, stagger, marks or the spending of them, a counter.
+        /// True if any took damage. <paramref name="first"/> is the target nearest the area's origin that took damage.
+        /// </summary>
+        bool HitArea(SkillDefinition skill, int slot, SkillArea area, Look look, Vector3 shotPoint, int damage, float stagger,
+                     bool clean, out Damageable first)
+        {
+            first = null;
+            float firstDistance = float.PositiveInfinity;
+            bool spender = MarkRules.Spends(skill, clean);
+            float bonusPerMark = MarkRules.BonusPerMark(skill, clean);
+            bool landed = false, countered = false;
             IReadOnlyList<Damageable> all = Damageable.All;
             for (int i = 0; i < all.Count; i++)
             {
@@ -1500,26 +1775,42 @@ namespace Roguelike
                 if (!d.IsAlive) continue;
                 if (!area.Hits(d.GroundPosition, d.Radius)) continue;
                 bool empowered = IsEmpowered;
-                // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005).
+                // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005);
+                // Breaker Slug's bonus per mark is stagger, not damage (work order 015).
                 int taken = spender ? d.TakeMarks() : 0;
                 int dealt = spender ? MarkRules.SpenderDamage(damage, taken, bonusPerMark) : damage;
-                int applied = Deal(d, dealt, out float focus, skill.Stagger);
+                float hitStagger = skill.MarkStaggerBonus > 0f ? PoolRules.SpenderStagger(stagger, taken, skill.MarkStaggerBonus) : stagger;
+                int applied = Deal(d, dealt, out float focus, hitStagger);
                 if (spender)
                 {
                     float markFocus = _focus.Add(taken * Identity.FocusPerMarkSpent, Identity, Time.time);
                     Report(new PlayerReport
                     {
-                        Kind = PlayerReportKind.MarksSpent, Slot = _castSlot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
+                        Kind = PlayerReportKind.MarksSpent, Slot = slot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
                     });
                 }
+                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front.
+                if (skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
+                    && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze))
+                    countered = true;
                 if (applied <= 0) continue;
-                ReportHit(_castSlot, d, applied, empowered, focus);
+                ReportHit(slot, d, applied, empowered, focus);
                 SpawnHit(look, d, shotPoint);
                 SkillShotHits++;
                 landed = true;
                 if (!spender) MarkFromSkill(skill, d);
+                float distance = d.GroundPosition.DistanceTo(area.Origin);
+                if (distance < firstDistance)
+                {
+                    firstDistance = distance;
+                    first = d;
+                }
             }
-            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = landed, Charge = charge });
+            if (countered)
+            {
+                Counters++;
+                _focus.Add(Identity.MaxFocus * Mathf.Clamp01(skill.CounterFocus), Identity, Time.time);
+            }
             return landed;
         }
 
@@ -1552,7 +1843,8 @@ namespace Roguelike
         {
             ShotLook values = skill == null
                 ? (ShotLooks != null && ShotLooks.Basic != null ? ShotLooks.Basic : _fallbackBasicLook)
-                : (ShotLooks != null ? ShotLooks.For(skill.Name) : null) ?? FallbackLook(skill.Name);
+                : (ShotLooks != null ? ShotLooks.For(skill.Name) ?? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
+                  ?? FallbackLook(skill.Name); // a pool skill with no look of its own borrows its nearest's, sound and all (work order 015)
             bool empowered = IsEmpowered;
             float empoweredScale = ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
             Color rim = empowered ? (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim) : values.Rim;

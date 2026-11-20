@@ -15,6 +15,12 @@ namespace Roguelike.Rules
         Charge,
         /// <summary>Press: a long cast with a bar, then one heavy hit.</summary>
         Casting,
+        /// <summary>
+        /// Press: she moves MoveDistance along the move keys (the way she faces with none held) over Startup, on the NavMesh,
+        /// and hits nothing (work order 015, 2026-11-20: Slide). It is not a skill in use: she can shoot basic shots
+        /// through it and they do not slow it. Not the slowdown of decision 0004 (<see cref="SkillSlide"/>).
+        /// </summary>
+        KeyMove,
     }
 
     /// <summary>The area a skill hits.</summary>
@@ -77,6 +83,20 @@ namespace Roguelike.Rules
         public float CleanMarkDamageBonus = 0f; // above 0: a clean last press takes all marks off each target it hits, this much more damage per mark, instead of a clean tap
         // Work order 008: what it takes off a stagger bar (StaggerBar), per hit, on each target it hits. The basic shot takes none.
         public float Stagger = 0f;
+
+        // Work order 015 (2026-11-20): the pool of eight. All first guesses.
+        public int Charges = 1;            // uses that can be stored; each recharges in Cooldown, one at a time (Slide: 2)
+        public float PerfectFrom = 0f;     // s after a charge began: from here to PerfectTo a release is perfect (Long Shot). Both 0: no band
+        public float PerfectTo = 0f;
+        public float PerfectScale = 2f;    // a perfect release deals this times the full-charge damage and stagger
+        public float MarkStaggerBonus = 0f; // spender of stagger, above 0: takes all marks off each target it hits, this much more stagger per mark (Breaker Slug)
+        public float TagSeconds = 0f;      // above 0: the first target it hits is tagged this long (Tag Round); a new tag starts it again
+        public float TagDamageShare = 0f;  // a tagged target takes this share more damage from everything she does
+        public float CounterDaze = 0f;     // above 0: a counter (Stopping Shot). A hit on an enemy winding up a counterable attack, from its front, drops it and dazes it this long
+        public float CounterHalfAngle = 60f; // degrees either side of where the enemy faces that count as its front
+        public float CounterFocus = 0f;    // share of the focus gauge a counter fills
+        public float Fuse = 0f;            // above 0: a circle that lies this long after it lands, then bursts (Powder Keg); a shot of hers through it sets it off at once
+        public float ShotBurstScale = 1.5f; // a keg set off by a shot deals this times the damage
     }
 
     /// <summary>
@@ -95,7 +115,10 @@ namespace Roguelike.Rules
     }
 
     /// <summary>
-    /// The eight skills of the first class, in key order: Q W E R, S D F G.
+    /// The twelve skills of the first class. The first eight are in the key order they had when each had its own key;
+    /// since work order 015 (2026-11-20) the place in the list is only which skill it is, and the key it sits on is kept
+    /// apart (<see cref="SkillLoadout"/>): the four start skills on the keys they had, a skill taken later on the first
+    /// free key. The pool is the eight that are not start skills; four were added by that order.
     /// The first five came in G3, one per input type. Scatter Blast, Backstep and Triple Tap came in G4.
     /// See docs/slices/g3-skills.md and docs/slices/g4-kit.md.
     /// Decision 0005 (2026-11-19) made them a kit: the pistols set up (marks), the shotgun cashes in. A run starts with
@@ -113,13 +136,17 @@ namespace Roguelike.Rules
             switch (name)
             {
                 case "Quick Shot": return "A fast pistol shot down a line that marks what it hits. You keep moving.";
-                case "Powder Keg": return "Throw a keg that bursts where you aim and hits everything round it.";
+                case "Powder Keg": return "Throw a keg that bursts after a short fuse; shoot it to set it off at once, harder.";
                 case "Fan Fire": return "Hold to spray a cone of shots; marks what it hits, once a second.";
-                case "Long Shot": return "Hold to charge, let go for one long shot; the longer the charge, the harder it hits.";
+                case "Long Shot": return "Hold to charge, let go for one long shot; let go in the green band for double damage.";
                 case "Scatter Blast": return "A shotgun blast in a cone that takes every mark off what it hits for more damage.";
                 case "Heavy Volley": return "A long cast, then a wide, heavy line of fire that spends marks for more damage.";
                 case "Backstep": return "Hop back, then press again to shoot; late in the window the shot spends the marks.";
                 case "Triple Tap": return "Three quick shots, one a press; each marks, and a clean last press marks twice.";
+                case "Tag Round": return "A light shot that marks and tags what it hits first: it takes 10% more damage for 8 s.";
+                case "Breaker Slug": return "A short, wide slug that breaks guard: it spends marks for more stagger, not damage.";
+                case "Slide": return "Slide 6 m the way you move, shooting as you go. Two charges.";
+                case "Stopping Shot": return "A shot that stops a blue attack from the front: the enemy is dazed, focus fills.";
                 default: return "";
             }
         }
@@ -133,6 +160,7 @@ namespace Roguelike.Rules
             return builds && spends ? "builds marks, spends them on a clean press"
                  : builds ? "builds marks"
                  : spends ? "spends marks"
+                 : s.MarkStaggerBonus > 0f ? "spends marks for stagger" // work order 015
                  : "no marks";
         }
 
@@ -147,8 +175,12 @@ namespace Roguelike.Rules
             },
             new SkillDefinition
             {
+                // A two-step since work order 015 (2026-11-20): thrown light, 0.2 s to land, it lies 1.5 s and bursts;
+                // a shot of hers through it sets it off at once for one and a half times the damage. Startup 0.5 s and
+                // committed before.
                 Name = "Powder Keg", Input = SkillInput.Point, Shape = SkillShape.Circle,
-                Cooldown = 14f, Damage = 180, Startup = 0.5f, Recovery = 0.2f, Range = 8f, Radius = 2.5f,
+                Cooldown = 14f, Damage = 180, Startup = 0.2f, Recovery = 0.1f, Range = 8f, Radius = 2.5f,
+                Lock = SkillLock.Light, Fuse = 1.5f, ShotBurstScale = 1.5f,
                 Stagger = 20f,
             },
             new SkillDefinition
@@ -164,6 +196,7 @@ namespace Roguelike.Rules
                 Name = "Long Shot", Input = SkillInput.Charge, Shape = SkillShape.Line,
                 Cooldown = 12f, Damage = 300, Startup = 0.1f, Recovery = 0.4f, Range = 16f, HalfWidth = 0.25f,
                 HoldMax = 2.5f, ChargeTime = 1f, MinChargeDamage = 0.3f,
+                PerfectFrom = 0.8f, PerfectTo = 1f, PerfectScale = 2f, // the perfect band (work order 015)
                 Stagger = 15f,
             },
             new SkillDefinition
@@ -202,6 +235,41 @@ namespace Roguelike.Rules
                 StartEquipped = true, Lock = SkillLock.Light, MarksAdded = 1,
                 RecastCount = 3, RecastWindow = 0.6f, CleanTapMarks = 2,
                 Stagger = 2f, // per shot
+            },
+            // The four that came with the pool (work order 015, 2026-11-20). None is on a key at the start.
+            new SkillDefinition
+            {
+                // Keep it up on the big target: the first target hit is tagged for 8 s and takes 10 % more from her.
+                Name = "Tag Round", Input = SkillInput.Normal, Shape = SkillShape.Line,
+                Cooldown = 6f, Damage = 40, Startup = 0.15f, Recovery = 0.1f, Range = 12f, HalfWidth = 0.3f,
+                Lock = SkillLock.Light, MarksAdded = 1,
+                TagSeconds = 8f, TagDamageShare = 0.1f,
+                Stagger = 2f,
+            },
+            new SkillDefinition
+            {
+                // Stagger on demand: a spender of stagger, 30 % more per mark taken, no more damage.
+                Name = "Breaker Slug", Input = SkillInput.Normal, Shape = SkillShape.Line,
+                Cooldown = 20f, Damage = 150, Startup = 0.25f, Recovery = 0.4f, Range = 7f, HalfWidth = 0.6f,
+                MarkStaggerBonus = 0.3f,
+                Stagger = 80f,
+            },
+            new SkillDefinition
+            {
+                // A second way to move: 6 m over 0.35 s along the move keys, no invulnerability, two charges.
+                Name = "Slide", Input = SkillInput.KeyMove, Shape = SkillShape.Line,
+                Cooldown = 12f, Damage = 0, Startup = 0.35f, Recovery = 0f, MoveDistance = 6f,
+                Lock = SkillLock.Light, Charges = 2,
+            },
+            new SkillDefinition
+            {
+                // The counter: on an enemy winding up a blue attack, from its front, the attack is dropped, it is dazed
+                // 2 s and her focus fills by a third. Otherwise an ordinary shot that marks.
+                Name = "Stopping Shot", Input = SkillInput.Normal, Shape = SkillShape.Line,
+                Cooldown = 10f, Damage = 60, Startup = 0.15f, Recovery = 0.1f, Range = 12f, HalfWidth = 0.3f,
+                Lock = SkillLock.Light, MarksAdded = 1,
+                CounterDaze = 2f, CounterHalfAngle = 60f, CounterFocus = 1f / 3f,
+                Stagger = 3f,
             },
         };
     }
