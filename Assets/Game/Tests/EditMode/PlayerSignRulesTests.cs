@@ -232,7 +232,8 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSwitches_AreOnByDefault()
         {
-            Assert.That(V.CleanWindow, Is.True);
+            Assert.That(V.CleanWindow, Is.False, "the ring: off by default since work order 040"); // changed deliberately for work order 040
+            Assert.That(V.KeyStrip, Is.True, "the key's strip and the tick stay");
             Assert.That(V.FocusFull, Is.True);
         }
 

@@ -136,10 +136,16 @@ namespace Roguelike.Rules
         /// press after the window is no shot at all (the chain is over), and the earlier presses of a chain have no timing.
         /// <paramref name="shot"/> is which shot of the chain the press fired.
         /// </summary>
-        public static TimingMiss RecastMiss(SkillDefinition skill, int shot, bool clean)
+        public static TimingMiss RecastMiss(SkillDefinition skill, int shot, bool clean) => RecastMiss(skill, shot, clean, false);
+
+        /// <summary>
+        /// As above, and <paramref name="late"/>: the press came after the clean part, in the window (work order 040: the
+        /// clean part comes early, so a press can now miss it either way): LATE, not EARLY.
+        /// </summary>
+        public static TimingMiss RecastMiss(SkillDefinition skill, int shot, bool clean, bool late)
         {
             if (skill == null || clean || skill.RecastCount < 2 || shot < skill.RecastCount) return TimingMiss.None;
-            return RecastChain.HasCleanPress(skill) ? TimingMiss.Early : TimingMiss.None;
+            return RecastChain.HasCleanPress(skill) ? (late ? TimingMiss.Late : TimingMiss.Early) : TimingMiss.None;
         }
 
         /// <summary>

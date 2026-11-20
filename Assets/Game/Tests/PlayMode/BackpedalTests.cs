@@ -66,7 +66,7 @@ namespace Roguelike.PlayModeTests
             _player.Shoot(_a.transform.position);
             Assert.That(_player.ShotTurnsBody, Is.True, "a target straight behind is outside the front angle");
             float deadline = Time.realtimeSinceStartup + 2f;
-            while (Time.realtimeSinceStartup < deadline && (hitAt < 0f || Time.time < hitAt + 0.3f))
+            while (Time.realtimeSinceStartup < deadline && (hitAt < 0f || Time.time < hitAt + Mathf.Min(0.3f, OffTheMark.ShotTurnHold(_feel) - 0.2f))) // inside the hold, which work order 040 shortened
             {
                 _player.AimAt(_a.transform.position);
                 int hits = _a.HitsTaken;
@@ -149,7 +149,7 @@ namespace Roguelike.PlayModeTests
                 if (turnBackAt >= 0f && freeAt < 0f && _player.FacingMode == ShotFacing.Mode.Free) freeAt = Time.time;
             }
             Assert.That(turnBackAt, Is.GreaterThan(0f), "the hold ran out");
-            Assert.That(turnBackAt - firedAt, Is.GreaterThanOrEqualTo(_feel.ShotTurnHold - 0.1f), "not before its time after the shot");
+            Assert.That(turnBackAt - firedAt, Is.GreaterThanOrEqualTo(OffTheMark.ShotTurnHold(_feel) - 0.1f), "not before its time after the shot");
             Assert.That(freeAt - turnBackAt, Is.GreaterThan(_feel.ShotTurnTime * 0.6f), "turning back took time, not one frame");
             Assert.That(FastestTurn(steps), Is.LessThan(180f / _feel.ShotTurnTime * 1.15f), "at the shot turn rate");
             yield return null;

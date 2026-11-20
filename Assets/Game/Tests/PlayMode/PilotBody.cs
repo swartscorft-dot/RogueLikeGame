@@ -88,6 +88,9 @@ namespace Roguelike.PlayModeTests
         public bool IsRecastWindowOpen => _p.IsRecastWindowOpen;
         public float RecastWindowLeft => _p.RecastWindowLeft;
         public float RecastCleanShare => _p.RecastCleanShare;
+        public float RecastSinceOpened => _p.RecastSinceOpened; // work order 040: where the clean part lies, as the game places it
+        public float RecastCleanFrom => _p.RecastCleanFrom;
+        public float RecastCleanTo => _p.RecastCleanTo;
         public bool IsFocusFull => _p.IsFocusFull;
         public int KegsLying => _p.KegsLying;
         public Vector3 LastKegPoint => _p.LastKegPoint;

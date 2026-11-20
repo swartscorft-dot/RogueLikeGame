@@ -601,7 +601,7 @@ namespace Roguelike.PlayModeTests
 
     /// <summary>
     /// The Ace (work order 022), the upper bound: the Kiter, playing the timings right. Triple Tap's and Backstep's last
-    /// press halfway into the clean part of the window (so Backstep's shot is late and spends); Long Shot let go in the
+    /// press halfway into the clean part of the window (so Backstep's shot spends); Long Shot let go in the
     /// middle of its perfect band; Stopping Shot kept for a blue wind-up from the front while a kind with one is among the
     /// foes, and used then; focus spent the moment it is full; a keg thrown and then shot (a basic shot at the keg while
     /// an enemy stands within its burst).
@@ -619,7 +619,7 @@ namespace Roguelike.PlayModeTests
         protected override bool RecastNow(PilotSkill skill)
         {
             float clean = Me.RecastCleanShare;
-            return clean <= 0f || Me.RecastWindowLeft <= clean * 0.5f;
+            return clean <= 0f || Me.RecastSinceOpened >= (Me.RecastCleanFrom + Me.RecastCleanTo) * 0.5f; // halfway into the clean part, wherever it lies (work order 040)
         }
 
         protected override bool MayStart(PilotSkill skill, List<EnemySeen> foes, EnemySeen target)

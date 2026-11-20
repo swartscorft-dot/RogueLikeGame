@@ -279,7 +279,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.RecastCleanShare, Is.EqualTo(kit.CleanShare).Within(1e-5f), "the third can");
-            if (clean) yield return Until(() => _player.RecastWindowLeft <= kit.CleanShare * 0.5f, 2f);
+            if (clean) yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
             Assume.That(_player.IsRecastWindowOpen, Is.True);
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "the third press");
             yield return Until(() => _a.HitsTaken >= 3, 2f);
@@ -398,7 +398,7 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            Assume.That(_player.RecastWindowLeft, Is.GreaterThan(_player.RecastCleanShare), "early: not in the clean part");
+            Assume.That(_player.RecastSinceOpened, Is.LessThan(_player.RecastCleanFrom), "early: not in the clean part"); // where it lies since work order 040
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _a.HitsTaken >= 1, 2f);
             yield return Until(() => _player.Action == ActionKind.None, 2f);
@@ -425,7 +425,7 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            yield return Until(() => _player.RecastWindowLeft <= kit.CleanShare * 0.5f, 2f);
+            yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
             Assume.That(_player.IsRecastWindowOpen, Is.True, "still in the window");
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the clean press");
             yield return Until(() => _a.HitsTaken >= 1, 2f);
@@ -548,7 +548,7 @@ namespace Roguelike.PlayModeTests
                     stepping = false;
                 }
                 bool free = !_player.IsLocked && _player.SkillGateRemaining <= 0f;
-                bool inCleanPart = _player.RecastWindowLeft <= _player.RecastCleanShare * 0.5f;
+                bool inCleanPart = _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f;
                 if (_player.RecastSlot == Triple && _player.IsRecastWindowOpen && (_player.RecastCleanShare <= 0f || inCleanPart))
                     _player.PressSkill(Triple, at);
                 else if (_player.RecastSlot == Backstep && _player.IsRecastWindowOpen && (!cleanBackstep || inCleanPart))

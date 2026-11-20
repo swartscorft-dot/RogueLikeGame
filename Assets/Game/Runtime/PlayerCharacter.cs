@@ -67,7 +67,8 @@ namespace Roguelike
     ///   cancels it. Committed skills keep the rules of decision 0004 above.
     /// - Recast skills (<see cref="SkillDefinition.RecastCount"/>, Triple Tap): one shot per press, the next press in
     ///   the window that opens when a shot has gone off (<see cref="RecastChain"/>); the last one clean in the window's
-    ///   last share. A dash or another skill ends the chain; the cooldown runs from the first press.
+    ///   clean part (<see cref="CleanPart"/>: early in it since work order 040, before that its last share), never a press
+    ///   that waited in the buffer. A dash or another skill ends the chain; the cooldown runs from the first press.
     /// - Backstep (amended 2026-11-19 after Kristian played: a second, harder way to spend marks) is a chain of two that
     ///   opens with a move (<see cref="SkillDefinition.OpeningMove"/>): the first press is the hop and fires nothing;
     ///   when it ends she is free and the window opens; the second press fires the shot at the cursor. A clean second
@@ -622,12 +623,38 @@ namespace Roguelike
         /// <summary>For a bar, 1 to 0: how much of the open recast window is left.</summary>
         public float RecastWindowLeft => _chain.WindowLeft(Time.time);
         /// <summary>
-        /// The share of the open window, at its end, in which the next press is clean; 0 when the next press cannot be
-        /// clean (not the last, or the skill has neither a clean tap nor a clean spend).
+        /// The share of the open window in which the next press is clean (the clean part's length over the window's); 0
+        /// when the next press cannot be clean (not the last, or the skill has neither a clean tap nor a clean spend).
+        /// Before work order 040 the clean part was always that share at the window's end; where it lies now is
+        /// <see cref="RecastCleanFrom"/> to <see cref="RecastCleanTo"/>.
         /// </summary>
-        public float RecastCleanShare =>
+        public float RecastCleanShare
+        {
+            get
+            {
+                CleanPart part = RecastCleanPart;
+                float window = _chain.Window;
+                return part.Any && window > 0f ? Mathf.Clamp01((part.To - part.From) / window) : 0f;
+            }
+        }
+        // Work order 040 (Kristian's second session of 2026-11-20): the clean part comes early in the window, and the cast
+        // bar shows the chain from the press before to the end of the window. They read only.
+        /// <summary>
+        /// The clean part of the open window, in seconds after it opened (<see cref="CleanPart.Of"/>: early, or with
+        /// <see cref="KitValues.CleanEarly"/> off the last share); primed (work order 025) the whole window; none when the next
+        /// press cannot be clean.
+        /// </summary>
+        public CleanPart RecastCleanPart =>
             _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? (_chainPrimed ? 1f : Mathf.Clamp01(Kit.CleanShare)) : 0f; // primed (work order 025): all of the window
+                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : CleanPart.Of(Kit, _chain.Window)) : default;
+        /// <summary>Seconds after the window opened that its clean part begins, and ends; both 0 when the next press cannot be clean.</summary>
+        public float RecastCleanFrom => RecastCleanPart.From;
+        public float RecastCleanTo => RecastCleanPart.To;
+        /// <summary>Seconds since the press of the chain's current shot (or its opening move), on game time; -1 with no chain.</summary>
+        public float RecastSincePress => _chain.Slot >= 0 ? Time.time - _chainPressAt : -1f;
+        /// <summary>Seconds from that press to the window opening: the startup of the shot, or of Backstep's hop; 0 with no chain.</summary>
+        public float RecastLead => _chain.Slot >= 0 && _chain.Slot < Skills.Count && Skills[_chain.Slot] != null ? Mathf.Max(0f, Skills[_chain.Slot].Startup) : 0f;
+        float _chainPressAt;
         /// <summary>Presses of the recast chain running, or 0 (work order 025: five for Triple Tap in Steady Hand's window).</summary>
         public int RecastCount => _chain.Slot >= 0 ? _chain.Count : 0;
         // Work order 037 (Kristian's session of 2026-11-20): what the signs of the clean press read (PlayerSigns). They
@@ -867,13 +894,15 @@ namespace Roguelike
         }
 
         /// <summary>
-        /// What a press of this slot's key is to the recast chain now (decision 0005). A primed chain's press of its last
-        /// shot is clean wherever in the window it falls (Hair Trigger, work order 025).
+        /// What a press of this slot's key is to the recast chain now (decision 0005), its clean part as the kit places it
+        /// (work order 040). A press that waited in the buffer from before the window opened (<paramref name="buffered"/>) is
+        /// a shot, never clean. A primed chain's press of its last shot is clean wherever in the window it falls, a buffered
+        /// one too, as before (Hair Trigger, work order 025: its timing counts as right).
         /// </summary>
-        RecastPress JudgeRecast(int slot, float now)
+        RecastPress JudgeRecast(int slot, float now, bool buffered = false)
         {
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
-            RecastPress judged = _chain.Judge(slot, now, Kit.CleanShare, hasClean);
+            RecastPress judged = _chain.Judge(slot, now, CleanPart.Of(Kit, _chain.Window), hasClean, buffered);
             return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
         }
 
@@ -891,9 +920,11 @@ namespace Roguelike
         void Recast(int slot, Vector3 point, bool clean)
         {
             float now = Time.time;
+            // Work order 040: a press of the last shot after the clean part, in the window, was late (the word says so).
+            bool late = !clean && _chain.Slot == slot && RecastCleanPart.IsAfter(_chain.SinceOpened(now));
             _chain.Recast();
             float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
-            Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus });
+            Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus, Late = late });
             if (_actionKind == ActionKind.Skill)
             {
                 ReportSkillEnded(SkillEnding.RanOut, now);
@@ -942,7 +973,7 @@ namespace Roguelike
         bool StartWaitingSkill(Press press, float now)
         {
             ExpireChain(now);
-            RecastPress recast = JudgeRecast(press.Slot, now);
+            RecastPress recast = JudgeRecast(press.Slot, now, buffered: true); // work order 040: a press that waited is never clean
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 Recast(press.Slot, press.Point, recast == RecastPress.Clean);
@@ -1607,20 +1638,26 @@ namespace Roguelike
             _rising = skill == null || !_castMoves;
             _riseFrom = share;
             _riseStartedAt = now;
+            _riseOfChain = skill != null && skill.RecastCount > 1; // work order 040: a recast chain's shot rises quicker (OffTheMark)
         }
+
+        // Work order 040 (Kristian's second session of 2026-11-20: quicker off the mark after shooting). The three numbers
+        // that hold her back after a shot are read through OffTheMark: with FeelValues.QuickOffTheMark on, the quicker ones
+        // beside them; off, as before.
+        bool _riseOfChain; // the rise running is after a recast chain's shot
 
         void ApplyMovementFeel(FeelValues feel)
         {
             if (Time.timeScale > 0f) _lastVelocity = _agent.velocity;
-            if (_rising && SkillSlide.IsRisen(_riseFrom, Time.time - _riseStartedAt, feel.SkillSpeedRecovery)) _rising = false;
+            if (_rising && SkillSlide.IsRisen(_riseFrom, Time.time - _riseStartedAt, OffTheMark.SkillSpeedRecovery(feel, _riseOfChain))) _rising = false;
             // A shot on the move that was cancelled before it went off ends the slow at once.
             if (_easing && _easeFiredAfter < 0f && !_movingShot) _easing = false;
-            if (_easing && MovingShot.IsOver(Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSlowdown, feel.MovingShotRecovery))
+            if (_easing && MovingShot.IsOver(Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel)))
                 _easing = false;
             // The backpedal cap: held turned away from her movement by a shot, she moves at no more than a share of
             // run speed, eased in and out (decision 0003, a guess).
             _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time, feel.BackpedalSpeedShare,
-                                 feel.MovingShotSlowdown, feel.MovingShotRecovery);
+                                 feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel));
             _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
@@ -1805,7 +1842,7 @@ namespace Roguelike
             _shotTurnsBody = BodyMustTurnToward(Flat(_aimPoint - transform.position), feel);
             // A shot that must turn the body starts the hold: she turns to the aim at the shot turn rate, and the
             // upper body and arms cover what the body has not turned yet. A shot while held renews it.
-            _shotFacing.ShotStarted(_shotTurnsBody, Time.time, feel.ShotTurnHold);
+            _shotFacing.ShotStarted(_shotTurnsBody, Time.time, OffTheMark.ShotTurnHold(feel)); // work order 040
             _actionKind = ActionKind.BasicShot;
             _movingShot = onTheMove;
             if (onTheMove)
@@ -1851,7 +1888,7 @@ namespace Roguelike
                 // angle, held turned while she backpedals; within it the upper body aims. No stop, no slide.
                 _sliding = false;
                 _slideFrom = 0f;
-                _shotFacing.ShotStarted(BodyMustTurnToward(Flat(point - transform.position), feel), Time.time, feel.ShotTurnHold);
+                _shotFacing.ShotStarted(BodyMustTurnToward(Flat(point - transform.position), feel), Time.time, OffTheMark.ShotTurnHold(feel)); // work order 040
             }
             else
             {
@@ -1886,6 +1923,7 @@ namespace Roguelike
             ActionsStarted++;
             ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : skill.Startup;
             _cast.Start(skill, Time.time);
+            _chainPressAt = Time.time; // work order 040: the cast bar's chain runs from this press (read only while a chain runs)
             // Snap Shot (work order 017): a Charge skill with no charging is let go at its press, and fires as a perfect release.
             if (skill.Input == SkillInput.Charge && skill.NoCharge) _cast.Release(Time.time);
             _markedAt.Clear();
@@ -2444,9 +2482,9 @@ namespace Roguelike
             float share = Mathf.Min(_backpedalCap.Share,
                                     _easing
                                         ? MovingShot.SpeedShare(_easeFrom, now - _easeStartedAt, _easeFiredAfter, feel.MovingShotSpeedShare,
-                                                                feel.MovingShotSlowdown, feel.MovingShotRecovery)
+                                                                feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel)) // work order 040
                                         : 1f);
-            if (_rising) share = Mathf.Min(share, SkillSlide.RiseShare(_riseFrom, now - _riseStartedAt, feel.SkillSpeedRecovery));
+            if (_rising) share = Mathf.Min(share, SkillSlide.RiseShare(_riseFrom, now - _riseStartedAt, OffTheMark.SkillSpeedRecovery(feel, _riseOfChain)));
             if (IsSkillSliding) share = Mathf.Min(share, SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, feel.SkillSlowdown));
             return share;
         }
