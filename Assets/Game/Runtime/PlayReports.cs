@@ -84,6 +84,8 @@ namespace Roguelike
         // Work order 035.
         public float Seconds;         // Stunned, Pulled: how long it holds her
         public string By;             // Stunned, Pulled: the attack that did it
+        // Work order 040.
+        public bool Late;             // RecastPressed: not clean, and after the clean part of its window (it comes early now)
     }
 
     /// <summary>

@@ -30,9 +30,29 @@ namespace Roguelike
     /// facing at the clip's release, measured once on the clip (about 97 degrees; the table's 98 if it cannot be).
     /// Its bow is set on the hand as exported while it shoots; otherwise it hangs upright, a turn measured on the hand
     /// at the first frame of Idle.
+    ///
+    /// Out of sight (work order 032, 2026-11-20, <see cref="CullUnseen"/>): what it shows is worked out every frame as
+    /// before (the clip, its time and its weight), but the graph is evaluated, and the skinned meshes are skinned, only
+    /// while the enemy is in the main camera's view or within <see cref="ViewMargin"/> metres of it (so its shadow and
+    /// its first frame in view are posed). Nothing of the game reads its bones: its shots and strikes go from its body's
+    /// place and radius, never from a hand. Whatever asks for a bone (<see cref="Bone"/>, the archer's arm and bow) is
+    /// given the pose of this moment, evaluated then if it was skipped. Off, every enemy is evaluated every frame.
     /// </summary>
     public sealed class EnemyLook
     {
+        /// <summary>
+        /// Work order 032: an enemy out of the camera's view and its margin is not posed (its clips' times still run). On
+        /// by default; the benchmark and the tests turn it off to compare (<see cref="PerformanceSwitches"/>).
+        /// </summary>
+        public static bool CullUnseen = true;
+        /// <summary>Metres round the camera's view within which an enemy is posed though not in it: its shadow, its next step in.</summary>
+        public const float ViewMargin = 8f;
+
+        static readonly Plane[] s_planes = new Plane[6];
+        static int s_planesFrame = -1;
+        static Camera s_planesCamera;
+        static bool s_havePlanes;
+
         public const string PivotName = "Model";
         /// <summary>The start of the name of a material made here for one enemy's model; it goes with the enemy.</summary>
         public const string MaterialPrefix = "EnemyModel_";
@@ -69,6 +89,10 @@ namespace Roguelike
             s_models.Clear();
             s_clips.Clear();
             s_measures.Clear();
+            CullUnseen = true;
+            s_planesFrame = -1;
+            s_planesCamera = null;
+            s_havePlanes = false;
         }
 
         public readonly EnemyModelSpec Spec;
@@ -111,6 +135,15 @@ namespace Roguelike
         public bool IsValid => _graph.IsValid();
         /// <summary>The times it was shown (<see cref="Tick"/>): for tests (work order 026).</summary>
         public int Ticks { get; private set; }
+        /// <summary>The times its graph was evaluated (work order 032): for tests and the benchmark.</summary>
+        public int Evaluations { get; private set; }
+        /// <summary>False while its bones hold an earlier pose than what it shows now, its graph skipped out of sight (work order 032).</summary>
+        public bool Posed => !_stale;
+        /// <summary>Was it in the camera's view, or near it, at its last <see cref="Tick"/> (work order 032)?</summary>
+        public bool InSight { get; private set; } = true;
+
+        bool _stale;
+        readonly Enemy _enemy;
         /// <summary>The clip it is playing or blending into.</summary>
         public string Playing => _target >= 0 ? _specs[_target].Name : null;
         /// <summary>Seconds into the clip it is playing or blending into.</summary>
@@ -181,6 +214,7 @@ namespace Roguelike
         EnemyLook(Enemy enemy, EnemyModelSpec spec, GameObject source)
         {
             Spec = spec;
+            _enemy = enemy;
             var pivot = new GameObject(PivotName);
             pivot.layer = enemy.gameObject.layer;
             Pivot = pivot.transform;
@@ -260,7 +294,7 @@ namespace Roguelike
                 if (!Measured.ShotTurnMeasured) MeasureShotTurn(enemy.transform);
             }
             Show(Index("Idle"), true, restart: true);
-            Apply();
+            Apply(force: true); // its first pose, and the bow's rest measured on it, whether or not it is in sight
         }
 
         /// <summary>
@@ -285,6 +319,7 @@ namespace Roguelike
         /// <summary>The bone of that name (by the end of its name), or null.</summary>
         public Transform Bone(string name)
         {
+            PoseNow();
             if (_bones.TryGetValue(name, out Transform t)) return t;
             foreach (KeyValuePair<string, Transform> kv in _bones)
                 if (EnemyModelSpec.IsTake(kv.Key, name)) return _bones[name] = kv.Value;
@@ -328,7 +363,20 @@ namespace Roguelike
         }
 
         /// <summary>Degrees between the bow's long side and straight up; -1 without a bow.</summary>
-        public float BowUpAngle() => _bow == null ? -1f : UpAngle(_bow);
+        public float BowUpAngle()
+        {
+            PoseNow();
+            return _bow == null ? -1f : UpAngle(_bow);
+        }
+
+        /// <summary>
+        /// Its bones in the pose it shows now (work order 032): evaluated at once when its last frame was out of sight and
+        /// skipped it. Whatever reads a bone asks this first.
+        /// </summary>
+        public void PoseNow()
+        {
+            if (_stale && _graph.IsValid()) Apply(force: true);
+        }
 
         /// <summary>
         /// Shows the enemy at this moment: picks the clip for what it does, sets the clips' times and weights, and
@@ -508,7 +556,12 @@ namespace Roguelike
             }
         }
 
-        void Apply()
+        /// <summary>
+        /// Sets the clips' weights and times and evaluates the graph; out of sight (work order 032), with
+        /// <paramref name="force"/> off, the weights and times are set but the graph is not evaluated and the skinned
+        /// meshes are not skinned off screen, until it is in sight or something asks for a bone.
+        /// </summary>
+        void Apply(bool force = false)
         {
             for (int i = 0; i < _specs.Length; i++)
             {
@@ -518,7 +571,20 @@ namespace Roguelike
             }
             float shooting = _shootInput >= 0 ? _weights[_shootInput] : 0f;
             Pivot.localRotation = Quaternion.Euler(0f, Measured.Yaw + Measured.ShotTurn * shooting, 0f);
+            if (!force)
+            {
+                InSight = !CullUnseen || InView();
+                SkinOffScreen(InSight);
+                if (!InSight)
+                {
+                    _stale = true;
+                    if (_bow != null) _bow.localRotation = _shootInput >= 0 && (_target == _shootInput || _weights[_shootInput] > 0f) ? _bowShooting : _bowResting;
+                    return;
+                }
+            }
             _graph.Evaluate(0f);
+            Evaluations++;
+            _stale = false;
 
             if (_bow == null) return;
             if (!_bowRestMeasured && _target >= 0 && _specs[_target].Name == "Idle")
@@ -537,6 +603,45 @@ namespace Roguelike
             }
             bool shoot = _shootInput >= 0 && (_target == _shootInput || _weights[_shootInput] > 0f);
             _bow.localRotation = shoot ? _bowShooting : _bowResting;
+        }
+
+        // ---------------- In sight (work order 032) ----------------
+
+        bool _skinOffScreen = true;
+
+        /// <summary>
+        /// Is the enemy in the main camera's view, or within <see cref="ViewMargin"/> of it? A box round it as tall as its
+        /// model is shown and as wide again each side (a weapon's reach, a fall), grown by the margin. True without a camera.
+        /// </summary>
+        bool InView()
+        {
+            Camera cam = MainCamera();
+            if (cam == null || _enemy == null) return true;
+            float h = (float)Spec.Height * Mathf.Abs(_enemy.transform.lossyScale.y);
+            Vector3 feet = _enemy.transform.position;
+            var box = new Bounds(new Vector3(feet.x, feet.y + h * 0.5f, feet.z),
+                                 new Vector3(2f * (h + ViewMargin), h + 2f * ViewMargin, 2f * (h + ViewMargin)));
+            return GeometryUtility.TestPlanesAABB(s_planes, box);
+        }
+
+        /// <summary>The main camera, its view's planes worked out once a frame; null without one.</summary>
+        static Camera MainCamera()
+        {
+            if (s_planesFrame == Time.frameCount) return s_havePlanes ? s_planesCamera : null;
+            s_planesFrame = Time.frameCount;
+            s_planesCamera = Camera.main;
+            s_havePlanes = s_planesCamera != null;
+            if (s_havePlanes) GeometryUtility.CalculateFrustumPlanes(s_planesCamera, s_planes);
+            return s_havePlanes ? s_planesCamera : null;
+        }
+
+        /// <summary>The skinned meshes are skinned off screen (as before) only while it is in sight: out of it, not at all.</summary>
+        void SkinOffScreen(bool on)
+        {
+            if (_skinOffScreen == on) return;
+            _skinOffScreen = on;
+            foreach (Renderer r in Renderers)
+                if (r is SkinnedMeshRenderer s) s.updateWhenOffscreen = on;
         }
 
         // ---------------- The model ----------------

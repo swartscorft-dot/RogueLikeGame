@@ -11,8 +11,70 @@ namespace Roguelike.Rules
         Early,
         /// <summary>Inside the window: the next shot.</summary>
         Shot,
-        /// <summary>Inside the last share of the final window: the next shot, and a clean tap.</summary>
+        /// <summary>Inside the clean part of the final window (<see cref="CleanPart"/>): the next shot, and a clean tap.</summary>
         Clean,
+    }
+
+    /// <summary>
+    /// Where in an open recast window the press of the chain's last shot is clean, in seconds after the window opened,
+    /// both edges inside (work order 040, Kristian's second session of 2026-11-20). Until then it was always the window's
+    /// last share (<see cref="KitValues.CleanShare"/>, <see cref="Last"/>): 0.40 to 0.60 s after Triple Tap's shot went off,
+    /// about 0.55 to 0.75 s after the press, twice his own rhythm of about 0.36 s, so "there is no point completing the F
+    /// shot: the timing must come much earlier". Now it is <see cref="KitValues.CleanFrom"/> to <see cref="KitValues.CleanTo"/>
+    /// after the window opens (<see cref="Early"/>): his rhythm, held a hair. A press after it and before the window ends
+    /// is a plain shot, late (<see cref="IsAfter"/>). <see cref="Of"/> picks the placement the switch
+    /// (<see cref="KitValues.CleanEarly"/>) says.
+    /// </summary>
+    public readonly struct CleanPart
+    {
+        /// <summary>Seconds after the window opened that the clean part begins, and ends.</summary>
+        public readonly float From, To;
+
+        public CleanPart(float from, float to)
+        {
+            From = from;
+            To = to;
+        }
+
+        /// <summary>True when there is a clean part at all.</summary>
+        public bool Any => To > From;
+
+        /// <summary>
+        /// True when a press this long after the window opened is in the clean part: from its start (a hair early counts,
+        /// as before) to its end, both inside. For the last share, exactly <see cref="RecastChain.IsClean"/>.
+        /// </summary>
+        public bool Contains(float sinceOpened) => Any && sinceOpened >= From - Edge && sinceOpened <= To + Edge;
+
+        /// <summary>True when a press this long after the window opened comes after the clean part: late (work order 040).</summary>
+        public bool IsAfter(float sinceOpened) => Any && sinceOpened > To + Edge;
+
+        const float Edge = 1e-5f; // s: the clock's rounding at either edge (at its end too since work order 040; a window run out is no press at all)
+
+        /// <summary>The placement before work order 040: the window's last share.</summary>
+        public static CleanPart Last(float window, float cleanShare)
+        {
+            float w = Math.Max(0f, window);
+            float share = Math.Max(0f, Math.Min(1f, cleanShare));
+            return new CleanPart(w * (1f - share), w);
+        }
+
+        /// <summary>The placement of work order 040: from <paramref name="from"/> to <paramref name="to"/> seconds after the window opened, inside it.</summary>
+        public static CleanPart Early(float window, float from, float to)
+        {
+            float w = Math.Max(0f, window);
+            float f = Math.Max(0f, Math.Min(w, from));
+            return new CleanPart(f, Math.Max(f, Math.Min(w, to)));
+        }
+
+        /// <summary>The whole window (Hair Trigger's priming, work order 025: the timing counts as right anywhere in it).</summary>
+        public static CleanPart Whole(float window) => new CleanPart(0f, Math.Max(0f, window));
+
+        /// <summary>The clean part of a window this long, as the kit's switch places it: early (work order 040) or the last share.</summary>
+        public static CleanPart Of(KitValues kit, float window)
+        {
+            kit = kit ?? new KitValues();
+            return kit.CleanEarly ? Early(window, kit.CleanFrom, kit.CleanTo) : Last(window, kit.CleanShare);
+        }
     }
 
     /// <summary>
@@ -20,7 +82,9 @@ namespace Roguelike.Rules
     /// first shot; when a shot has gone off, a window of <see cref="SkillDefinition.RecastWindow"/> opens, and a press
     /// of the same key inside it fires the next shot, up to <see cref="SkillDefinition.RecastCount"/> shots. After the
     /// last shot, or when a window runs out, the chain is over. The press that fires the last shot is clean when it
-    /// falls in the last <see cref="KitValues.CleanShare"/> of its window and the skill has a clean tap
+    /// falls in the clean part of its window (<see cref="CleanPart"/>: since work order 040 early in it, before that its
+    /// last <see cref="KitValues.CleanShare"/>), is no press that waited from before the window opened (a buffered press
+    /// fires the instant it opens: mashing never counts), and the skill has a clean tap
     /// (<see cref="SkillDefinition.CleanTapMarks"/> above 0) or a clean spend (<see cref="SkillDefinition.CleanMarkDamageBonus"/>
     /// above 0). A press after the window has run out is no shot: the chain is over. Time is passed in, in seconds.
     ///
@@ -90,13 +154,20 @@ namespace Roguelike.Rules
         /// <summary>True when a window was open and has run out by now: the chain is over, short of its count.</summary>
         public bool Expired(float now) => _slot >= 0 && !float.IsPositiveInfinity(_openedAt) && now + _ranOn > _openedAt + _window;
 
-        /// <summary>What a press of this slot's key is, now.</summary>
-        public RecastPress Judge(int slot, float now, float cleanShare, bool hasCleanTap)
+        /// <summary>What a press of this slot's key is, now, with the clean part the window's last share (as before work order 040).</summary>
+        public RecastPress Judge(int slot, float now, float cleanShare, bool hasCleanTap) =>
+            Judge(slot, now, CleanPart.Last(_window, cleanShare), hasCleanTap);
+
+        /// <summary>
+        /// What a press of this slot's key is, now, with this clean part (work order 040). <paramref name="buffered"/>: the
+        /// press waited from before the window opened and fires now; it is a shot, never clean.
+        /// </summary>
+        public RecastPress Judge(int slot, float now, CleanPart clean, bool hasCleanTap, bool buffered = false)
         {
             if (_slot < 0 || slot != _slot || Expired(now)) return RecastPress.None;
             if (now < _openedAt) return RecastPress.Early;
             bool last = _shots + 1 >= _count;
-            return last && hasCleanTap && IsClean(now - _openedAt + _ranOn, _window, cleanShare) ? RecastPress.Clean : RecastPress.Shot;
+            return last && hasCleanTap && !buffered && clean.Contains(now - _openedAt + _ranOn) ? RecastPress.Clean : RecastPress.Shot;
         }
 
         /// <summary>
@@ -114,7 +185,7 @@ namespace Roguelike.Rules
         public static bool HasCleanPress(SkillDefinition skill) =>
             skill != null && (skill.CleanTapMarks > 0 || skill.CleanMarkDamageBonus > 0f);
 
-        /// <summary>True when a press this long after its window opened falls in the window's last share.</summary>
+        /// <summary>True when a press this long after its window opened falls in the window's last share (the placement before work order 040).</summary>
         public static bool IsClean(float sinceOpened, float window, float cleanShare)
         {
             float share = Math.Max(0f, Math.Min(1f, cleanShare));

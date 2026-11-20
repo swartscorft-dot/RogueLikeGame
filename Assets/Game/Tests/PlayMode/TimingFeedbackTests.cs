@@ -171,8 +171,8 @@ namespace Roguelike.PlayModeTests
             {
                 yield return Until(() => _player.IsRecastWindowOpen, 2f);
                 bool last = press == skill.RecastCount;
-                if (last && clean) yield return Until(() => _player.RecastWindowLeft <= _player.Kit.CleanShare * 0.5f, 2f);
-                if (last && !clean) Assume.That(_player.RecastWindowLeft, Is.GreaterThan(_player.RecastCleanShare), "early: not in the clean part");
+                if (last && clean) yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
+                if (last && !clean) Assume.That(_player.RecastSinceOpened, Is.LessThan(_player.RecastCleanFrom), "early: not in the clean part"); // where it lies since work order 040
                 Assume.That(_player.IsRecastWindowOpen, Is.True);
                 Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "press " + press);
             }

@@ -13,8 +13,17 @@ namespace Roguelike.Rules
     [Serializable]
     public sealed class PlayerSignValues
     {
-        /// <summary>Off: no ring, no mark on the key, no tick and no line: the clean press as it was before.</summary>
-        public bool CleanWindow = true;
+        /// <summary>
+        /// The ring on the floor round her and its once-a-session line. Off by default since work order 040 (Kristian's
+        /// second session of 2026-11-20: he looks at the cast bar instead, <see cref="CastBarValues.On"/>).
+        /// </summary>
+        public bool CleanWindow = false;
+        /// <summary>
+        /// The key's strip on the skill bar and the tick when the clean part opens (work order 037; since work order 040 a
+        /// switch of their own, for they stay when the ring is off). Off with <see cref="CleanWindow"/> off too: no ring, no
+        /// mark on the key, no tick and no line: the clean press as it was before work order 037.
+        /// </summary>
+        public bool KeyStrip = true;
         /// <summary>Off: no flash, word, pulse or key beside the gauge when focus is full: the gauge as it was before.</summary>
         public bool FocusFull = true;
 
@@ -90,6 +99,54 @@ namespace Roguelike.Rules
         /// <summary>Is the ring inside the band: exactly when a press now would be clean.</summary>
         public static bool InBand(float sinceOpened, float window, float cleanShare) =>
             sinceOpened >= 0f && cleanShare > 0f && RecastChain.IsClean(sinceOpened, window, cleanShare);
+
+        // Work order 040 (Kristian's second session of 2026-11-20): the clean part may lie anywhere in the window
+        // (CleanPart), not only at its end. The ring closes at one speed to the band's outer edge as the clean part opens,
+        // to its inner edge as it ends, and on inward past the band at the same speed until the window runs out, so it is
+        // inside the band exactly while a press is clean. For the last share the three below give what the three above do.
+
+        /// <summary>The ring never closes tighter than this, in metres (work order 040: after an early clean part it closes on past the band).</summary>
+        const float LeastRadius = 0.3f;
+
+        /// <summary>Is there a ring at all, for a clean part placed anywhere: a chain runs, its next press can be clean, and its window has not run out.</summary>
+        public static bool Shows(bool chainRuns, CleanPart clean, float window, float sinceOpened) =>
+            chainRuns && clean.Any && window > 0f && sinceOpened <= window;
+
+        /// <summary>The ring's outer edge when the window opens, for a clean part placed anywhere: as far out as it closes by the clean part's start.</summary>
+        public static float StartRadius(CleanPart clean, PlayerSignValues v)
+        {
+            float band = Math.Max(0f, v.BandOuter - v.BandInner);
+            float length = clean.To - clean.From;
+            if (clean.From <= 0f || length <= 1e-6f) return v.BandOuter;
+            return Math.Min(Math.Max(v.BandOuter, v.MostRadius), v.BandOuter + band / length * clean.From);
+        }
+
+        /// <summary>The ring's outer edge <paramref name="sinceOpened"/> seconds after the window opened, for a clean part placed anywhere.</summary>
+        public static float RingRadius(float sinceOpened, CleanPart clean, PlayerSignValues v)
+        {
+            float start = StartRadius(clean, v);
+            if (sinceOpened <= 0f) return start;
+            if (sinceOpened < clean.From) return start + (v.BandOuter - start) * (sinceOpened / clean.From);
+            float length = clean.To - clean.From;
+            if (length <= 1e-6f) return v.BandInner;
+            if (sinceOpened <= clean.To) return v.BandOuter + (v.BandInner - v.BandOuter) * ((sinceOpened - clean.From) / length);
+            float speed = Math.Max(0f, v.BandOuter - v.BandInner) / length;
+            return Math.Max(Math.Min(LeastRadius, v.BandInner), v.BandInner - speed * (sinceOpened - clean.To));
+        }
+
+        /// <summary>Is the ring inside the band, for a clean part placed anywhere: exactly when a press now would be clean.</summary>
+        public static bool InBand(float sinceOpened, CleanPart clean) => sinceOpened >= 0f && clean.Contains(sinceOpened);
+
+        /// <summary>
+        /// The key's strip (work order 040): its band from this share of the strip, counted from its left end, where the
+        /// mark (<see cref="MarkShare"/>) ends as the window runs out; and the band's width, the share of the window that is
+        /// clean. For the last share, from 0 (the left end) and that share, as before.
+        /// </summary>
+        public static float KeyBandFrom(CleanPart clean, float window) =>
+            window <= 0f || !clean.Any ? 0f : Math.Max(0f, Math.Min(1f, 1f - clean.To / window));
+
+        public static float KeyBandWidth(CleanPart clean, float window) =>
+            window <= 0f || !clean.Any ? 0f : Math.Max(0f, Math.Min(1f, (clean.To - clean.From) / window));
 
         /// <summary>The mark on the key, 1 to 0: the share of the window left (1 before it opens), where the ring is.</summary>
         public static float MarkShare(float sinceOpened, float window)

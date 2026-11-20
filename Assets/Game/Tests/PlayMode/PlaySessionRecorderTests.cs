@@ -329,7 +329,7 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the hop");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            yield return Until(() => _player.RecastWindowLeft <= kitValues.CleanShare * 0.5f, 2f);
+            yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
             Assume.That(_player.IsRecastWindowOpen, Is.True);
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Started), "the clean shot");
             yield return Until(() => _player.Action == ActionKind.None && _player.RecastSlot == -1, 2f);
