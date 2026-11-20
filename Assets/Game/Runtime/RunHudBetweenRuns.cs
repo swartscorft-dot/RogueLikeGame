@@ -159,8 +159,7 @@ namespace Roguelike
             const float w = 680f, startH = 32f, rowH = 40f, gap = 4f;
             float h = 50f + 44f + startH + gap + pieces.Length * (rowH + gap) + 20f + 40f;
             var r = new Rect((viewWidth - w) * 0.5f, Mathf.Max(6f, (SkillBar.LayoutHeight - h) * 0.5f), w, h);
-            Fill(r, s_Back);
-            Frame(r, s_Accent);
+            Panel(r, s_Accent, r.y + 46f); // work order 045: in the skin, a flat panel and a rule under the title
             GUI.Label(new Rect(r.x, r.y + 8f, w, 36f), _betweenLines[0], _pauseTitle);
             float y = r.y + 50f;
             GUI.Label(new Rect(r.x + 30f, y, w * 0.4f, 20f), _betweenLines[1], _big);

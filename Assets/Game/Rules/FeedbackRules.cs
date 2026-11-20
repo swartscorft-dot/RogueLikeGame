@@ -81,6 +81,8 @@ namespace Roguelike.Rules
         /// one frame): the higher rank stays. Across moments the newer word always wins.
         /// </summary>
         public int Rank;
+        /// <summary>The moment it is the word of (work order 045: the interface's skin draws PERFECT and COUNTER on a plate).</summary>
+        public FeedbackMoment Moment;
     }
 
     /// <summary>What a missed timing was.</summary>
@@ -103,6 +105,13 @@ namespace Roguelike.Rules
         /// EARLY or LATE (a press that missed its timing). <paramref name="marks"/> and <paramref name="cap"/> are for marks.
         /// </summary>
         public static FeedbackWord Word(FeedbackMoment moment, int marks = 0, int cap = 0)
+        {
+            FeedbackWord word = WordOf(moment, marks, cap);
+            word.Moment = moment;
+            return word;
+        }
+
+        static FeedbackWord WordOf(FeedbackMoment moment, int marks, int cap)
         {
             switch (moment)
             {
