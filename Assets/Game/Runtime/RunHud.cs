@@ -29,9 +29,10 @@ namespace Roguelike
     ///
     /// The pause menu: Esc pauses (not while a choice is up, when Esc does nothing) and Esc again resumes. Its lines,
     /// picked with a click or the arrow keys and Enter: Resume; Restart the run (F5's new run; "Start a run" in the
-    /// practice room); Leave to the practice room (F7, only in a floor); Quit (only in a built player); and the two
-    /// settings of <see cref="GameSettings"/>, changed with a click or the left and right arrows. Under it, the keys as
-    /// they are bound now (<see cref="InputBindings"/>).
+    /// practice room); Leave to the practice room (F7, only in a floor); Quit (only in a built player); and the
+    /// settings of <see cref="GameSettings"/>, changed with a click or the left and right arrows: the dash direction, the
+    /// volume, and damage numbers on or off (work order 019, 2026-11-20). Under it, the keys as they are bound now
+    /// (<see cref="InputBindings"/>).
     ///
     /// The end screens, once the game has stopped: "You died" or "Act cleared", the floor and the room she reached, the
     /// run's time, enemies killed, the skills taken in order, the upgrades taken, her health left (act cleared), the
@@ -48,7 +49,7 @@ namespace Roguelike
         public const Key DevTextKey = Key.F1;
 
         /// <summary>The lines of the pause menu, in the order shown.</summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -229,6 +230,7 @@ namespace Roguelike
                     // Enter or a click on the line itself goes up a step, and round to 0 after 100 %.
                     GameSettings.SetVolumeStep(GameSettings.VolumeStep >= SettingsRules.VolumeSteps ? 0 : GameSettings.VolumeStep + 1);
                     break;
+                case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
             }
             return true;
         }
@@ -247,6 +249,11 @@ namespace Roguelike
             if (line == MenuLine.Volume)
             {
                 GameSettings.SetVolumeStep(SettingsRules.StepVolume(GameSettings.VolumeStep, delta));
+                return true;
+            }
+            if (line == MenuLine.DamageNumbers)
+            {
+                GameSettings.SetDamageNumbers(!TimingFeedback.NumbersOn); // either way it flips (work order 019)
                 return true;
             }
             return false;
@@ -363,6 +370,7 @@ namespace Roguelike
             if (!Application.isEditor) _menu.Add(MenuLine.Quit);
             _menu.Add(MenuLine.DashDirection);
             _menu.Add(MenuLine.Volume);
+            _menu.Add(MenuLine.DamageNumbers);
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
 
@@ -376,6 +384,7 @@ namespace Roguelike
                 case MenuLine.Leave: return "Leave to the practice room   (" + GeneratedLevels.PracticeRoomKey + ")";
                 case MenuLine.Quit: return "Quit";
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
+                case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }
@@ -573,7 +582,7 @@ namespace Roguelike
                 MenuLine line = _menu[i];
                 var row = new Rect(r.x + 30f, y, w - 60f, rowH);
                 if (i == Selected) Frame(new Rect(row.x - 3f, row.y - 3f, row.width + 6f, row.height + 6f), s_Accent);
-                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume;
+                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers;
                 if (setting)
                 {
                     const float arrow = 36f;

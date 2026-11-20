@@ -1419,7 +1419,7 @@ namespace Roguelike
             PlaySound(look);
             int damage = Mathf.RoundToInt(SkillRules.Damage(keg.Skill, 1f) * damageScale);
             bool landed = HitArea(keg.Skill, keg.Slot, area, look, shotPoint, damage, keg.Skill.Stagger, clean: false, out _);
-            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = keg.Slot, Landed = landed, Charge = 1f, Clean = damageScale > 1f });
+            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = keg.Slot, Landed = landed, Charge = 1f, Clean = damageScale > 1f, At = keg.Centre });
             if (landed) HitStop.Trigger(Feel.HitStop);
         }
 
@@ -1680,9 +1680,12 @@ namespace Roguelike
             return landed;
         }
 
-        /// <summary>Reports damage she dealt: by a skill's slot, or -1 for the basic shot.</summary>
-        void ReportHit(int slot, Damageable target, int damage, bool empowered, float focus) =>
-            Report(new PlayerReport { Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered, Focus = focus });
+        /// <summary>Reports damage she dealt: by a skill's slot, or -1 for the basic shot; and whether the hit countered (work order 019).</summary>
+        void ReportHit(int slot, Damageable target, int damage, bool empowered, float focus, bool countered = false) =>
+            Report(new PlayerReport
+            {
+                Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered, Focus = focus, Countered = countered,
+            });
 
         /// <summary>
         /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005), and what
@@ -1752,7 +1755,12 @@ namespace Roguelike
             // A line goes through every lying keg on it, and sets each off (work order 015).
             if (skill.Shape == SkillShape.Line && _kegs.Count > 0)
                 SetOffKegs(area.Origin, area.Aim, skill.Range, skill.HalfWidth, area.Stop);
-            Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = landed, Charge = charge, Clean = perfect });
+            // Held: the seconds charged, so the timing feedback can tell a release before the band from one after it (work order 019).
+            Report(new PlayerReport
+            {
+                Kind = PlayerReportKind.SkillFired, Slot = _castSlot, Landed = landed, Charge = charge, Clean = perfect,
+                Held = _cast.ChargedSeconds(Time.time),
+            });
             return landed;
         }
 
@@ -1790,11 +1798,11 @@ namespace Roguelike
                     });
                 }
                 // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front.
-                if (skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
-                    && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze))
-                    countered = true;
+                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
+                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
+                if (counteredThis) countered = true;
                 if (applied <= 0) continue;
-                ReportHit(slot, d, applied, empowered, focus);
+                ReportHit(slot, d, applied, empowered, focus, counteredThis);
                 SpawnHit(look, d, shotPoint);
                 SkillShotHits++;
                 landed = true;

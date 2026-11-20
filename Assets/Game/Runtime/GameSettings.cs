@@ -15,15 +15,21 @@ namespace Roguelike
     /// Nothing is read until <see cref="Load"/> (the HUD does it when it starts), so a test that never makes the HUD
     /// plays with the asset's dash and full volume whatever this machine has stored; <see cref="Unload"/> (the HUD going)
     /// puts both back.
+    ///
+    /// A third (work order 019, 2026-11-20): damage numbers on or off, under <see cref="DamageNumbersKey"/>, the same way:
+    /// an override read where the numbers are made (<see cref="TimingFeedback"/>); without one they show
+    /// (<see cref="FeedbackValues.DamageNumbers"/>).
     /// </summary>
     public static class GameSettings
     {
         public const string DashKey = "Roguelike.Settings.DashDirection";
         public const string VolumeKey = "Roguelike.Settings.Volume";
+        public const string DamageNumbersKey = "Roguelike.Settings.DamageNumbers";
 
         static bool s_loaded;
         static int s_dash = SettingsRules.NoOverride;
         static int s_volume = SettingsRules.DefaultVolumeStep;
+        static int s_numbers = FeedbackRules.NoOverride;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -31,6 +37,7 @@ namespace Roguelike
             s_loaded = false;
             s_dash = SettingsRules.NoOverride;
             s_volume = SettingsRules.DefaultVolumeStep;
+            s_numbers = FeedbackRules.NoOverride;
         }
 
         public static bool IsLoaded => s_loaded;
@@ -45,6 +52,7 @@ namespace Roguelike
             s_dash = PlayerPrefs.GetInt(DashKey, SettingsRules.NoOverride);
             if (s_dash != SettingsRules.DashTowardCursor && s_dash != SettingsRules.DashTowardMovement) s_dash = SettingsRules.NoOverride;
             s_volume = SettingsRules.VolumeStep(PlayerPrefs.GetInt(VolumeKey, SettingsRules.DefaultVolumeStep));
+            s_numbers = FeedbackRules.StoredNumbers(PlayerPrefs.GetInt(DamageNumbersKey, FeedbackRules.NoOverride));
             s_loaded = true;
             AudioListener.volume = SettingsRules.Volume(s_volume);
         }
@@ -75,6 +83,20 @@ namespace Roguelike
             s_volume = SettingsRules.VolumeStep(step);
             AudioListener.volume = SettingsRules.Volume(s_volume);
             PlayerPrefs.SetInt(VolumeKey, s_volume);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>The stored damage numbers value: -1 none, 0 off, 1 on (work order 019).</summary>
+        public static int DamageNumbersStored => s_numbers;
+
+        /// <summary>Are damage numbers shown? The override if there is one, else <paramref name="fallback"/>.</summary>
+        public static bool DamageNumbers(bool fallback) => FeedbackRules.ShowsDamageNumbers(s_numbers, fallback);
+
+        /// <summary>Turns damage numbers on or off and keeps it.</summary>
+        public static void SetDamageNumbers(bool on)
+        {
+            s_numbers = on ? FeedbackRules.NumbersOn : FeedbackRules.NumbersOff;
+            PlayerPrefs.SetInt(DamageNumbersKey, s_numbers);
             PlayerPrefs.Save();
         }
     }
