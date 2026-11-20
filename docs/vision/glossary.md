@@ -28,6 +28,16 @@ Kristian asked for agreed terms on 2026-11-19, after playing a generated level w
 | **Rack** | hylle | In the between-runs trial: the pieces she owns, of which she equips as many as her budget of points allows. |
 | **Piece** | brikke | One thing on the rack: a rule that changes for the next run, or a capped stat step. |
 | **Feat** | bragd | Something done once that raises the rack's budget by a point. |
+| **Ordinary attack** | vanlig angrep | A melee enemy's attack in reach on a short cycle, for little damage, with almost no wind-up. Takes no turn to attack. |
+| **Skill** (an enemy's) | ferdighet | An enemy's attack on its own cooldown that does what its kind is for: the leap, the shield bash, the drag, the crush. |
+| **Tell** | tegn | What shows on an enemy's body that it is about to attack: its clip and a glint. Not a shape on the floor. |
+| **Glint** | glimt | The flash in front of an enemy as it attacks: red when it only hurts, blue when Stopping Shot can counter it. |
+| **Stunned** | stunnet | She cannot move or act for a moment. Only from a blue attack. |
+| **Pulled** | dratt | She is moved to an enemy and cannot act meanwhile. Only from a blue attack. |
+| **Fan** | vifte | Three arrows or orbs loosed at once, a few degrees apart. |
+| **Volley** | salve | Two arrows one after the other. |
+| **Wave** | bølge | What the boss's Cleave sends along the ground. |
+| **Clean press** | rent trykk | The last press of a recast chain made inside the lit band. |
 | **Pack** | flokk | Several weak enemies that wake and fight together. |
 | **Cover** | dekning | A wall or a tall prop that stops shots. |
 | **Practice room** | treningsrom | The hand-built room with the dummies. Not part of a run. |

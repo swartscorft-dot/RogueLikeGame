@@ -44,8 +44,30 @@ All numbers are first guesses. The attacks as they were stay in the code as data
 
 New for her: being **stunned** and being **pulled**, each short and each shown plainly. Both come only from blue attacks, which Stopping Shot can counter.
 
+## What was built on it the same evening (2026-11-20)
+
+Three switches, all on by default; each one off gives that part of the game as he played it that afternoon. Nobody has seen any of it: no captures are taken, and he judges the look by playing.
+
+**Melee you read** (work order 035; `MeleeYouRead` on the Player object). The numbers the agent ended on, after measuring that an enemy left to attack her freely deals 1.03 to 1.33 times what it did:
+
+| Kind | Ordinary attack | Skills |
+|---|---|---|
+| Swarmer | Bite: 5, twice a second, while it keeps chasing | Leap from 4 to 7 m, 10, aimed where she was when it left the ground |
+| Brute | Stroke: 13 every 1.1 s, 2.2 m, 100 degrees | Shield bash (blue): 0.6 s raised, a lunge of up to 5 m in 0.3 s, 15 and a stun of 0.5 s; every 6 s. No Shockwave. |
+| Guard | Fist: 24 every 1.8 s, 2.6 m | Drag (blue): 0.9 s, pulls her in from 4 to 9 m unless a wall or tall prop is between them or she dashes. Crush: 1.1 s, 40, likes to follow a Drag. |
+
+No floor shape for these three; a glint in front of the enemy, red or blue; an ordinary attack has no wind-up sound, so that sound always means a skill; an ordinary attack takes no turn to attack. She can be stunned (never again within 1.5 s) and pulled, each shown on her with a word.
+
+**Things that fly** (work order 036; `On` on the ThingsThatFly object). One pooled projectile, stopped by walls, tall props and the cover she has ducked behind; the dash passes it.
+
+- Shooter: no aim line; an arrow at 24 m/s that leads her fully (at most 5 m); from floor 3, and for an elite, every third shot a fan of three after a longer draw; an elite's ordinary shot is a volley of two. It shoots from 17 m (was 14). Measured over thirty seconds against one shooter: standing still 13 hits as before; running straight 8 hits (0 before); running and turning every second 7 (1 or 2 before).
+- Caster: no circles; a bone orb at 7 m/s, 1.8 m across, 40 damage (Bone Spikes was 25), no lead; every third cast a blue, counterable fan of three at 35 each (Grave Rain was 20 a circle). Standing still she takes about what she took; running straight she takes less than before (the orbs do not lead).
+- Boss: every floor shape stays; a landed Cleave also sends a wave 6 m wide, 14 m far, for half the Cleave's damage; one swing hurts once.
+
+**The test pilot cannot see any of this**: its view reads floor shapes. Until it is taught to read bodies and things that fly, no balance flight says anything about this game.
+
 ## Open, for Kristian
 
-1. Is being stunned, even for half a second, acceptable in a game about tempo? (The alternative for the brute: a knock-back.)
+1. Is being stunned, even for half a second, acceptable in a game about tempo? He named stunning himself ("noen stunner"), so it was built; the alternative for the brute is a knock-back.
 2. Should the boss lose its floor shapes too once the tells have been played?
 3. Pillar 4's wording. Today: "Readable combat. Telegraphs, stagger and counter make you lose to your own mistakes." with "Lost Ark bosses with colour-coded telegraphs" as its model. Proposed: "**Readable combat.** You read the enemy and what flies at you: tells on the body, things you can dodge, stagger and counter. You lose to your own mistakes." with "a screen of coloured shapes to step out of" added to what it is not like.
