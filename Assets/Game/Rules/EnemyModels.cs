@@ -31,6 +31,11 @@ namespace Roguelike.Rules
         public const double FadeSeconds = 0.15;      // s a clip blends into the next
         public const double MinAttackSpeed = 0.5;    // the attack clips play no slower than half speed
         public const double MaxAttackSpeed = 2;      // nor faster than double
+        /// <summary>
+        /// An ordinary attack's clip (work order 035: a tell of 0.15 to 0.5 s, the animation the warning) may play up to
+        /// four times as fast, so the whole clip plays for every blow instead of only its last part.
+        /// </summary>
+        public const double OrdinaryMaxAttackSpeed = 4;
 
         public EnemyKind Kind;
         public string Name;
@@ -90,7 +95,8 @@ namespace Roguelike.Rules
         {
             Kind = EnemyKind.Swarmer, Name = "Crypt_Ghoul_01", Height = 1.1, Walk = "CrouchWalk",
             WalkStride = 0.77, RunStride = 1.77,
-            AttackClips = new[] { "Lunge", "Attack" },
+            // Work order 035: the Bite and the Leap play its one attack clip, at the speed each needs.
+            AttackClips = new[] { "Lunge", "Attack", MeleeAttacks.Bite, "Attack", MeleeAttacks.Leap, "Attack" },
             Clips = new[]
             {
                 Idle, new EnemyClipSpec("CrouchWalk", 1.133, true), WalkClip, RunClip,
@@ -115,7 +121,8 @@ namespace Roguelike.Rules
         {
             Kind = EnemyKind.Brute, Name = "Crypt_SkeletonWarrior_01", Height = 1.8,
             WalkStride = 1.63, RunStride = 3.0,
-            AttackClips = new[] { "Slam", "Slam", "Shockwave", "Attack" },
+            // Work order 035: the Stroke plays the sword's Attack, the Shield bash the Slam.
+            AttackClips = new[] { "Slam", "Slam", "Shockwave", "Attack", MeleeAttacks.Stroke, "Attack", MeleeAttacks.ShieldBash, "Slam" },
             Clips = new[]
             {
                 Idle, WalkClip, RunClip, new EnemyClipSpec("Attack", 2.800, false, 1.067),
@@ -127,7 +134,8 @@ namespace Roguelike.Rules
         {
             Kind = EnemyKind.Guard, Name = "Crypt_BoneBrute_01", Height = 2.6, HasStagger = true,
             WalkStride = 2.14, RunStride = 3.91,
-            AttackClips = new[] { "Slam", "Slam", "Sweep", "Sweep" },
+            // Work order 035: the Fist and the Drag play the one-armed Sweep, the Crush the two-armed Slam.
+            AttackClips = new[] { "Slam", "Slam", "Sweep", "Sweep", MeleeAttacks.Fist, "Sweep", MeleeAttacks.Drag, "Sweep", MeleeAttacks.Crush, "Slam" },
             Clips = new[]
             {
                 Idle, WalkClip, RunClip, new EnemyClipSpec("Slam", 3.000, false, 1.633),

@@ -48,8 +48,11 @@ namespace Roguelike.Rules
         public float ToneVolume = 0.33f;    // the share of the basic shot's volume a tone plays at
     }
 
-    /// <summary>The moments that take skill (work order 019): each gives one word.</summary>
-    public enum FeedbackMoment { Clean, Perfect, Counter, MarksSpent, Boom, Dazed, Early, Late }
+    /// <summary>
+    /// The moments that take skill (work order 019): each gives one word. Work order 035: Stunned and Pulled, two things
+    /// that happen to her, a word over her each.
+    /// </summary>
+    public enum FeedbackMoment { Clean, Perfect, Counter, MarksSpent, Boom, Dazed, Early, Late, Stunned, Pulled }
 
     /// <summary>The colours of the feedback, named for where they come from; the game picks the colour for each.</summary>
     public enum FeedbackTint
@@ -116,6 +119,9 @@ namespace Roguelike.Rules
                 case FeedbackMoment.Boom: return new FeedbackWord { Text = "BOOM", Tint = FeedbackTint.Boom, Size = FeedbackSize.Normal, Rank = 1 };
                 case FeedbackMoment.Dazed: return new FeedbackWord { Text = "DAZED", Tint = FeedbackTint.Dazed, Size = FeedbackSize.Normal, Rank = 3 };
                 case FeedbackMoment.Early: return new FeedbackWord { Text = "EARLY", Tint = FeedbackTint.Miss, Size = FeedbackSize.Small, Rank = 0 };
+                // Work order 035: in the blue of the attacks that do it, which Stopping Shot could have countered.
+                case FeedbackMoment.Stunned: return new FeedbackWord { Text = "STUNNED", Tint = FeedbackTint.Counter, Size = FeedbackSize.Normal, Rank = 3 };
+                case FeedbackMoment.Pulled: return new FeedbackWord { Text = "PULLED", Tint = FeedbackTint.Counter, Size = FeedbackSize.Normal, Rank = 3 };
                 default: return new FeedbackWord { Text = "LATE", Tint = FeedbackTint.Miss, Size = FeedbackSize.Small, Rank = 0 };
             }
         }

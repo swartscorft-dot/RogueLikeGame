@@ -57,6 +57,9 @@ namespace Roguelike.Rules
         public const string EnemyCountered = "enemy_countered"; // Stopping Shot dropped its cast: name the cast
         public const string PlayerDamaged = "player_damaged";
         public const string PlayerDeath = "player_death";
+        // Melee you read (work order 035): two things that happen to her.
+        public const string PlayerStunned = "player_stunned"; // she was stunned: name the attack, seconds how long
+        public const string PlayerPulled = "player_pulled";   // she was pulled in: name the attack, seconds how long
 
         public const string Move = "move";                    // a sample, a few times a second, of whether she is moving
 

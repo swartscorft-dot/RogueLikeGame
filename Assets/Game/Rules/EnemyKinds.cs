@@ -58,6 +58,8 @@ namespace Roguelike.Rules
                 },
             },
         };
+        /// <summary>Its attacks with melee you read on (work order 035, <see cref="MeleeAttacks.Swarmer"/>): the Bite and the Leap.</summary>
+        public EnemyAttackDefinition[] Melee = MeleeAttacks.Swarmer();
         public float PackWakeRange = 10f;   // m: when one wakes, every swarmer this near it wakes too
         public float Spacing = 0.8f;        // m kept between two swarmers
         public float StopShort = 0.9f;      // m from her where it stops walking
@@ -118,6 +120,8 @@ namespace Roguelike.Rules
                 },
             },
         };
+        /// <summary>Its attacks with melee you read on (work order 035, <see cref="MeleeAttacks.Guard"/>): the Fist, the Drag and the Crush.</summary>
+        public EnemyAttackDefinition[] Melee = MeleeAttacks.Guard();
         public StaggerValues Stagger = new StaggerValues();
         public float BodyRadius = 0.9f;     // m, the capsule: large
         public float BodyHeight = 2.8f;     // m

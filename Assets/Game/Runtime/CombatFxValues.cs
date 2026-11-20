@@ -163,6 +163,23 @@ namespace Roguelike
         public float HerChest = 1.1f;
         public float HurtSeconds = 0.16f;
 
+        [Header("21. Melee you read (work order 035): the glint on an enemy, and her stunned and pulled")]
+        [Tooltip("A skill's glint at its full size, on a brute: it grows to this through the windup and snaps at the strike.")]
+        public float GlintSize = 1.6f;
+        public float GlintSnapSeconds = 0.2f;
+        [Tooltip("An ordinary attack's glint: one small flick as its windup begins.")]
+        public float FlickSize = 0.8f;
+        public float FlickSeconds = 0.16f;
+        [Tooltip("The glint's height, a share of the enemy's height: about its chest or weapon.")]
+        public float GlintHeight = 0.6f;
+        [Tooltip("The glint's place in front of the enemy, m on a brute.")]
+        public float GlintForward = 0.55f;
+        public float StunnedRadius = 0.45f;
+        public float StunnedOverHead = 0.35f;
+        public float StunnedSpin = 240f;   // degrees a second: faster than an enemy's daze
+        public float PulledWidth = 0.55f;
+        public float PulledHeight = 0.9f;
+
         [Header("19 and 20. The run")]
         public int ChestStars = 7;
         public float ChestStar = 0.38f;

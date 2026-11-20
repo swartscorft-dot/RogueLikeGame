@@ -31,6 +31,9 @@ namespace Roguelike
         // The focus choice (work order 025, 2026-11-20). FocusPressed says the way the gauge worked (FocusMode).
         PrimeUsed,      // Slot, Prime: a skill started primed by Hair Trigger, and what it gained
         PrimeLapsed,    // a priming ran out with no skill to use it
+        // Melee you read (work order 035, 2026-11-20): two things that happen to her.
+        Stunned,        // Seconds, By: a stun began
+        Pulled,         // Seconds, By: a pull began
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -78,6 +81,9 @@ namespace Roguelike
         // Work order 025.
         public FocusMode FocusMode;   // FocusPressed: the way the gauge worked when it was pressed
         public PrimeUse Prime;        // PrimeUsed: what the skill gained from the priming
+        // Work order 035.
+        public float Seconds;         // Stunned, Pulled: how long it holds her
+        public string By;             // Stunned, Pulled: the attack that did it
     }
 
     /// <summary>
