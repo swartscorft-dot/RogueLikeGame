@@ -1,6 +1,6 @@
 # 0009 What lasts between runs
 
-Status: **proposal by the producer, 2026-11-20. Nothing is built.** Kristian asked that morning for a written proposal and no code ("Skriv et forslag, bygg ingenting"). The research behind it is `docs/research/reports/m1-meta-progression.md` (a web research job of the same day; its quotes are not checked against the sources by the producer, and it marks its own gaps).
+Status: **proposal by the producer, 2026-11-20. He has not ruled on it.** Later the same day he asked for a first version to be built behind a switch so he could try it (work order 029): it is in the game, **off by default**, turned on with the line "Between runs (trial)" in the pause menu. Off, nothing is earned, shown or saved. What was built follows this proposal, with nine pieces and a budget of 3 to 8 points; the save is `between-runs.json` under the game's persistent data folder. When this was first written: Kristian asked that morning for a written proposal and no code ("Skriv et forslag, bygg ingenting"). The research behind it is `docs/research/reports/m1-meta-progression.md` (a web research job of the same day; its quotes are not checked against the sources by the producer, and it marks its own gaps).
 
 ## What is already fixed
 
