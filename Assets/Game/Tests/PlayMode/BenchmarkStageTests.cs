@@ -56,6 +56,7 @@ namespace Roguelike.PlayModeTests
         {
             _stage = BenchmarkStage.Begin(BenchmarkScenario.Floor5Boss);
             Assert.That(_stage, Is.Not.Null);
+            StandsWithinEveryLeash();
             yield return Frames(12);
             GeneratedLevel level = _stage.Level;
             Assert.That(level, Is.Not.Null);
@@ -80,12 +81,14 @@ namespace Roguelike.PlayModeTests
                 Assert.That(e.Body.MaxHealth, Is.EqualTo(BenchmarkStage.EnemyHealth), e.name);
             }
             Assert.That(_player.GetComponent<PlayerHealth>().Untouchable, Is.True, "she cannot be hurt");
+            Assert.That(GeneratedLevels.Current.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.None), "nothing waits for a choice");
         }
 
         [UnityTest]
         public IEnumerator Floor1Combat_TheFullestCombatRoom_EveryEnemyOfItAwake_SheShootsTheNearest()
         {
             _stage = BenchmarkStage.Begin(BenchmarkScenario.Floor1Combat);
+            StandsWithinEveryLeash();
             yield return Frames(3);
             GeneratedLevel level = _stage.Level;
             Assert.That(level.Layout.Floor, Is.EqualTo(1));
@@ -118,6 +121,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Floor5Combat_IsFloor5sFullestCombatRoom()
         {
             _stage = BenchmarkStage.Begin(BenchmarkScenario.Floor5Combat);
+            StandsWithinEveryLeash();
             yield return Frames(3);
             Assert.That(_stage.Level.Layout.Floor, Is.EqualTo(5));
             Assert.That(_stage.Room, Is.SameAs(BenchmarkStage.FullestCombatRoom(_stage.Level)));
@@ -135,6 +139,22 @@ namespace Roguelike.PlayModeTests
             Assert.That(GeneratedLevels.Current.IsInLevel, Is.False);
             Assert.That(_stage.Input().HasValue, Is.False, "no input: she stands");
             Assert.That(_stage.Target(), Is.Null);
+        }
+
+        /// <summary>
+        /// Work order 032, as amended for the floor in one row (work order 041): where she is put, every enemy of the room is
+        /// within its leash of her (farther, the game does not wake it when provoked) and she is clear of each one's body.
+        /// </summary>
+        void StandsWithinEveryLeash()
+        {
+            Assert.That(_stage.Room, Is.Not.Null);
+            Assert.That(_stage.Level.RoomAt(_stage.Stand), Is.SameAs(_stage.Room), "her place is in the room");
+            foreach (Enemy e in _stage.Level.EnemiesByRoom[_stage.Room.Order])
+            {
+                float d = Vector3.Distance(Flat(e.transform.position), Flat(_stage.Stand));
+                Assert.That(d, Is.LessThan(e.Values.LeashRange), e.name + " within its leash of her");
+                Assert.That(d, Is.GreaterThanOrEqualTo(e.Body.Radius + BenchmarkStage.StandClear - 1e-3f), e.name + " not on her");
+            }
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
