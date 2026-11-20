@@ -134,8 +134,11 @@ namespace Roguelike
             return !_backingOff && SeesHer();
         }
 
-        /// <summary>Does it see her: no wall or tall prop between at its sight height, and not covered by what she is in cover against?</summary>
-        public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position);
+        /// <summary>
+        /// Does it see her: no wall or tall prop between at its sight height, and not covered by what she is in cover against?
+        /// Its orbs pass over a low prop she is down beside in a quick duck (work order 043), so a duck does not hide her from it.
+        /// </summary>
+        public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position, ProjectileKind.Orb);
 
         /// <summary>Does it see that point, with no wall or tall prop between at its sight height (as the shooter and the boss)?</summary>
         public bool Sees(Vector3 point)

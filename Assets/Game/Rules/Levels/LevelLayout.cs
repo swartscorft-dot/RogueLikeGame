@@ -7,8 +7,9 @@ namespace Roguelike.Rules
 {
     /// <summary>
     /// The kinds of room of a floor (decision 0008, 2026-11-19; work order 012 renamed them from Start, Reward and Boss):
-    /// the entrance, the combat rooms, the treasure rooms (small side rooms, a chest in each) and the exit room (the
-    /// floor's hardest fight; on the act's last floor it holds the act boss).
+    /// the entrance, the combat rooms, the treasure rooms (small rooms, a chest in each: off the sides of combat rooms
+    /// until work order 041, in the row of rooms since) and the exit room (the floor's hardest fight; on the act's last
+    /// floor it holds the act boss).
     /// </summary>
     public enum RoomKind { Entrance, Combat, Treasure, Exit }
 
@@ -211,6 +212,12 @@ namespace Roguelike.Rules
         public int Attempt;
         /// <summary>The floor's number in its act, 1 to <see cref="LevelValues.FloorsPerAct"/> (work order 012): it decides the enemies, and the last holds the act boss.</summary>
         public int Floor = 1;
+        /// <summary>
+        /// Every room in one row, the treasure rooms on it (work order 041, <see cref="LevelValues.InALine"/>): the rooms
+        /// in the order of the run are the row, each joined to the next. False: the chain with the treasure rooms off its
+        /// sides, as before. The validator reads the rules a floor keeps from it.
+        /// </summary>
+        public bool InALine;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
 
@@ -289,8 +296,8 @@ namespace Roguelike.Rules
         public string Describe(bool props = true)
         {
             var sb = new StringBuilder();
-            sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) floor {6} version {2} grid {3} cell {4:R} attempt {5}\n",
-                            Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor);
+            sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) floor {6} version {2} grid {3} cell {4:R} attempt {5}{7}\n",
+                            Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor, InALine ? " in a line" : ""); // work order 041
             foreach (LevelRoom r in Rooms)
             {
                 sb.Append(r.Order).Append(' ').Append(r.Kind).Append(r.Elite ? " elite" : "").Append(' ').Append(r.Rect);

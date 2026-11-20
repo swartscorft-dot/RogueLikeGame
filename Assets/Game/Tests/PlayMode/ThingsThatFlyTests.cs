@@ -44,7 +44,7 @@ namespace Roguelike.PlayModeTests
         GeneratedLevels _levels;
         ThingsThatFly _fly;
         FeelValues _feel;
-        bool _takeCoverWas, _coverStopsWas;
+        bool _takeCoverWas, _coverStopsWas, _quickDuckWas;
         string _folder;
         PlaySessionRecorder _recorder;
         readonly List<Object> _made = new List<Object>();
@@ -69,6 +69,7 @@ namespace Roguelike.PlayModeTests
             _coverStopsWas = _feel.CoverStopsShots;
             _feel.TakeCover = true;
             _feel.CoverStopsShots = true;
+            _quickDuckWas = _feel.QuickDuck; _feel.QuickDuck = false; // work order 043: taking cover as it was, the quick duck off
             _practiceEnemy = Object.FindAnyObjectByType<EnemyBrute>();
             Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy, to copy");
             _practiceEnemy.enabled = false;
@@ -94,6 +95,7 @@ namespace Roguelike.PlayModeTests
             {
                 _feel.TakeCover = _takeCoverWas; // the feel values live in an asset
                 _feel.CoverStopsShots = _coverStopsWas;
+                _feel.QuickDuck = _quickDuckWas;
             }
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;

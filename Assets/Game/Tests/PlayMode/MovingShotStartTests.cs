@@ -146,7 +146,7 @@ namespace Roguelike.PlayModeTests
                 Limit = _player.SpeedLimit,
                 Speed = _player.Speed,
                 Curve = MovingShot.SpeedShare(fromShare, since, firedAfter, _feel.MovingShotSpeedShare,
-                                              _feel.MovingShotSlowdown, _feel.MovingShotRecovery),
+                                              _feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(_feel)),
             };
         }
 
@@ -163,7 +163,7 @@ namespace Roguelike.PlayModeTests
                 yield return null;
                 if (firedAfter < 0f && _player.BasicShotsFired > shotsBefore) firedAfter = Time.time - startedAt;
                 frames.Add(Measure(fromShare, startedAt, firedAfter));
-                if (firedAfter >= 0f && MovingShot.IsOver(Time.time - startedAt - 0.1f, firedAfter, _feel.MovingShotSlowdown, _feel.MovingShotRecovery))
+                if (firedAfter >= 0f && MovingShot.IsOver(Time.time - startedAt - 0.1f, firedAfter, _feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(_feel)))
                     break;
             }
             setFired(firedAfter >= 0f);

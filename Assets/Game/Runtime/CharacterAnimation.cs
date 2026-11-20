@@ -386,7 +386,7 @@ namespace Roguelike
             Transform model = Animator.transform;
             Transform parent = model.parent;
             if (model == Player.transform || parent == null) return;
-            if (Player.IsInCover)
+            if (Player.IsInCover || Player.IsQuickDucking) // work order 043: the quick duck leans toward its prop too
             {
                 Vector3 away = Player.CoverOutward;
                 if (away.sqrMagnitude > 1e-6f) _leanToward = -away;

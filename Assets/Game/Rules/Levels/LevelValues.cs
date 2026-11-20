@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Roguelike.Rules
 {
@@ -23,7 +24,8 @@ namespace Roguelike.Rules
     /// <summary>
     /// The plan of a floor (decision 0008, 2026-11-19; work order 012): how many rooms of each kind and how big. Data,
     /// not code, so other plans can be tried. The main path is the entrance, <see cref="CombatRooms"/> combat rooms and
-    /// the exit room, one after another; the treasure rooms are short dead ends, each off a different combat room.
+    /// the exit room, one after another; the treasure rooms are short dead ends, each off a different combat room (with
+    /// <see cref="LevelValues.InALine"/> off; on, work order 041, they are rooms of the row, <see cref="LineBetween"/>).
     /// Until work order 012: five combat rooms, four reward rooms and a boss room.
     /// Work order 017 (decision 0008 as amended 2026-11-20, Kristian: "one hard room in the middle of every floor"): one of
     /// the combat rooms is the elite room, <see cref="EliteRoomNumber"/>.
@@ -46,6 +48,53 @@ namespace Roguelike.Rules
         /// first, 2 the second, 3 the second, 4 the third, 5 the third, 6 the fourth. 0: none (no combat room, or off).
         /// </summary>
         public int EliteRoomNumber(int combatRooms) => !EliteRoom || combatRooms <= 0 ? 0 : combatRooms / 2 + 1;
+
+        /// <summary>
+        /// The rooms between the entrance and the exit of a floor in a line (work order 041, Kristian's second session of
+        /// 2026-11-20: "I need the run to be more linear", and asked how, every room of a floor in one row): the combat
+        /// rooms in order with the treasure rooms between them. A treasure room stands in a gap between two combat rooms,
+        /// one to a gap, so it is never first after the entrance, never last before the exit and never next to another.
+        /// The gaps are taken in this order, counted from the middle combat room m (the elite room's,
+        /// <see cref="EliteRoomNumber"/>, whether the floor has one or not), gap k being the one after combat room k: the
+        /// one just before it (m - 1), the one after the combat room past it (m + 1), the one just after it (m), then
+        /// outward, m - 2, m + 2, m - 3 and so on, each only while it is a gap. Four combat rooms (the plan's): C C T L T C;
+        /// five: C C T L C T C (the order's first guess); three: C T L T C; six: C C C T L C T C. With fewer gaps than
+        /// treasure rooms (fewer combat rooms than treasure rooms and one, no plan of this game) the rest stand after the
+        /// last combat room.
+        /// </summary>
+        public List<RoomKind> LineBetween()
+        {
+            int n = Math.Max(0, CombatRooms), treasures = Math.Max(0, TreasureRooms);
+            int middle = n / 2 + 1;
+            var gaps = new List<int>();
+            void Take(int gap)
+            {
+                if (gap >= 1 && gap <= n - 1 && !gaps.Contains(gap)) gaps.Add(gap);
+            }
+            Take(middle - 1);
+            Take(middle + 1);
+            Take(middle);
+            for (int d = 2; d <= n; d++)
+            {
+                Take(middle - d);
+                Take(middle + d);
+            }
+            var after = new int[n + 1]; // treasure rooms after combat room k (0: before the first)
+            for (int i = 0; i < treasures; i++)
+            {
+                if (i < gaps.Count) after[gaps[i]]++;
+                else after[n]++;
+            }
+            var line = new List<RoomKind>();
+            for (int k = 1; k <= n; k++)
+            {
+                line.Add(RoomKind.Combat);
+                for (int i = 0; i < after[k]; i++) line.Add(RoomKind.Treasure);
+            }
+            if (n == 0)
+                for (int i = 0; i < treasures; i++) line.Add(RoomKind.Treasure);
+            return line;
+        }
 
         public RoomSizeRange SizeOf(RoomKind kind) =>
             kind == RoomKind.Entrance ? EntranceSize
@@ -212,6 +261,21 @@ namespace Roguelike.Rules
 
         // The crypt wall kit (work order 016, 2026-11-20): how a floor looks, never what it is
         public bool CryptKit = true;           // off: the grey boxes as before, for comparing; the generator never reads it
+
+        // A floor in a line (work order 041; Kristian's second session of 2026-11-20: "It is not quite intuitive where the
+        // chest rooms are; I end up double-checking several rooms for them. I need the run to be more linear", and asked
+        // how linear, fully): on, every room of a floor is in one row, the treasure rooms between the combat rooms
+        // (LevelPlan.LineBetween), and each room holds the enemies the same seed's floor of version 9 holds there (the
+        // generator's summary). Off: every seed's floor is version 9's, field for field.
+        public bool InALine = true;
+        // The doors that say what is behind them (work order 041, his answer: marked doors, and what is done shown): a sign
+        // over the doorway on to a treasure room, the elite room or the exit room, and its light (DoorSignRules). Off, none.
+        // The generator never reads it.
+        public bool DoorSigns = true;
+        // The small map in the corner (work order 041, his answer: a small map, and opened chests and cleared rooms shown):
+        // FloorMapRules. Off, no map. The generator never reads it.
+        public bool FloorMap = true;
+        public DoorSignValues Signs = new DoorSignValues(); // the signs' and the map's numbers (work order 041)
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();

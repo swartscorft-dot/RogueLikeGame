@@ -50,9 +50,9 @@ namespace Roguelike.Rules
 
     /// <summary>
     /// The moments that take skill (work order 019): each gives one word. Work order 035: Stunned and Pulled, two things
-    /// that happen to her, a word over her each.
+    /// that happen to her, a word over her each. Work order 043: Ducked, a quick duck that stopped something, over her.
     /// </summary>
-    public enum FeedbackMoment { Clean, Perfect, Counter, MarksSpent, Boom, Dazed, Early, Late, Stunned, Pulled }
+    public enum FeedbackMoment { Clean, Perfect, Counter, MarksSpent, Boom, Dazed, Early, Late, Stunned, Pulled, Ducked }
 
     /// <summary>The colours of the feedback, named for where they come from; the game picks the colour for each.</summary>
     public enum FeedbackTint
@@ -122,6 +122,8 @@ namespace Roguelike.Rules
                 // Work order 035: in the blue of the attacks that do it, which Stopping Shot could have countered.
                 case FeedbackMoment.Stunned: return new FeedbackWord { Text = "STUNNED", Tint = FeedbackTint.Counter, Size = FeedbackSize.Normal, Rank = 3 };
                 case FeedbackMoment.Pulled: return new FeedbackWord { Text = "PULLED", Tint = FeedbackTint.Counter, Size = FeedbackSize.Normal, Rank = 3 };
+                // Work order 043: a timing that worked, in the green of the other timings' words.
+                case FeedbackMoment.Ducked: return new FeedbackWord { Text = "DUCKED", Tint = FeedbackTint.Clean, Size = FeedbackSize.Normal, Rank = 3 };
                 default: return new FeedbackWord { Text = "LATE", Tint = FeedbackTint.Miss, Size = FeedbackSize.Small, Rank = 0 };
             }
         }
@@ -136,10 +138,16 @@ namespace Roguelike.Rules
         /// press after the window is no shot at all (the chain is over), and the earlier presses of a chain have no timing.
         /// <paramref name="shot"/> is which shot of the chain the press fired.
         /// </summary>
-        public static TimingMiss RecastMiss(SkillDefinition skill, int shot, bool clean)
+        public static TimingMiss RecastMiss(SkillDefinition skill, int shot, bool clean) => RecastMiss(skill, shot, clean, false);
+
+        /// <summary>
+        /// As above, and <paramref name="late"/>: the press came after the clean part, in the window (work order 040: the
+        /// clean part comes early, so a press can now miss it either way): LATE, not EARLY.
+        /// </summary>
+        public static TimingMiss RecastMiss(SkillDefinition skill, int shot, bool clean, bool late)
         {
             if (skill == null || clean || skill.RecastCount < 2 || shot < skill.RecastCount) return TimingMiss.None;
-            return RecastChain.HasCleanPress(skill) ? TimingMiss.Early : TimingMiss.None;
+            return RecastChain.HasCleanPress(skill) ? (late ? TimingMiss.Late : TimingMiss.Early) : TimingMiss.None;
         }
 
         /// <summary>

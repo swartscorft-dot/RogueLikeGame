@@ -86,7 +86,7 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _a.HitsTaken >= 1, 2f);
             if (firedAt < 0f) firedAt = Time.time;
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "one shot, and it hit");
-            float due = Mathf.Max(firedAt, slowAt) + _feel.MovingShotRecovery + 0.03f;
+            float due = Mathf.Max(firedAt, slowAt) + OffTheMark.MovingShotRecovery(_feel) + 0.03f; // the quicker one beside it (work order 040)
             yield return Until(() => Time.time >= due - 0.06f, 3f);
             Assert.That(_player.SpeedLimit, Is.LessThan(_feel.RunSpeed), "not yet at full speed shortly before the recovery time is up");
             yield return Until(() => Time.time >= due, 3f);

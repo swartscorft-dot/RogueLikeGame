@@ -67,7 +67,8 @@ namespace Roguelike
     ///   cancels it. Committed skills keep the rules of decision 0004 above.
     /// - Recast skills (<see cref="SkillDefinition.RecastCount"/>, Triple Tap): one shot per press, the next press in
     ///   the window that opens when a shot has gone off (<see cref="RecastChain"/>); the last one clean in the window's
-    ///   last share. A dash or another skill ends the chain; the cooldown runs from the first press.
+    ///   clean part (<see cref="CleanPart"/>: early in it since work order 040, before that its last share), never a press
+    ///   that waited in the buffer. A dash or another skill ends the chain; the cooldown runs from the first press.
     /// - Backstep (amended 2026-11-19 after Kristian played: a second, harder way to spend marks) is a chain of two that
     ///   opens with a move (<see cref="SkillDefinition.OpeningMove"/>): the first press is the hop and fires nothing;
     ///   when it ends she is free and the window opens; the second press fires the shot at the cursor. A clean second
@@ -118,6 +119,15 @@ namespace Roguelike
     ///   moves her itself (Backstep's hop), leave cover at once. With the key still held she takes cover again when she
     ///   is free and something is in reach.
     /// <see cref="FeelValues.TakeCover"/> off, the key does nothing.
+    ///
+    /// The quick duck (Kristian's answer of 2026-11-20 to the cover report, proposal C; work order 043): with
+    /// <see cref="FeelValues.QuickDuck"/> on, all of taking cover above is off and the key going down is a tap
+    /// (<see cref="TapCover"/>, the rules in <see cref="QuickDuck"/>): beside a low prop she drops where she stands for a
+    /// moment and rises by herself; nothing moves her. While she is down she cannot shoot or use a skill (a click waits,
+    /// a skill press waits as at the end of a lock), a move key not held at the tap or the dash ends it at once, and the
+    /// prop she ducked at stops arrows loosed from its far side (<see cref="ShieldsFrom(Vector3, ProjectileKind)"/>). The
+    /// nearest low prop a tap would work at shows a rim light (<see cref="QuickDuckRim"/>); a stop shows a spark, a sound
+    /// and the word DUCKED. With it on, the altar, the grave marker and the broken pillar stop no shot (<see cref="PropSort"/>).
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class PlayerCharacter : MonoBehaviour
@@ -266,6 +276,16 @@ namespace Roguelike
         float _peekUntil = float.NegativeInfinity; // stood up by a shot or a skill: ducked again from this moment
         Vector3 _coverLastPos;
         Vector3 _coverVelocity; // how fast she moved in cover over the last frame: the agent's own velocity stays 0 there
+        // The quick duck (Kristian's answer of 2026-11-20 to the cover report, proposal C; work order 043).
+        readonly QuickDuck _duck = new QuickDuck();
+        readonly QuickDuckRim _rim = new QuickDuckRim();
+        Shelter _duckShelter;   // what she ducked beside
+        CoverShape _duckShape;  // its footprint at the tap
+        Vector3 _duckHeldAtTap; // the move keys held at the tap, until they are let go
+        bool _peekShot;         // the basic shot going on is her first soon after a duck that stopped something
+        Vector3 _duckStopAt;    // where the thing a duck stopped ended, told by what flies just before its end is told
+        bool _duckStopAtKnown;
+        System.Func<bool> _duckSort;
 
         // ---------------- State, for the readout and for tests ----------------
 
@@ -285,9 +305,9 @@ namespace Roguelike
         public Vector3 MoveInput => _moveInput;
         /// <summary>
         /// True while a move key is held and she is free to move: not dashing and not in a skill, or in a light one. Never
-        /// in cover, where the keys slide her along it instead.
+        /// in cover, where the keys slide her along it instead, nor down in a quick duck (work order 043).
         /// </summary>
-        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && !_inCover && !_held.IsHeld && (_actionKind != ActionKind.Skill || IsInLightSkill);
+        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && !_inCover && !_duck.IsDown && !_held.IsHeld && (_actionKind != ActionKind.Skill || IsInLightSkill);
 
         // ---------------- Taking cover (Kristian 2026-11-19, an experiment) ----------------
 
@@ -295,20 +315,26 @@ namespace Roguelike
         public bool IsCoverHeld => _coverHeld;
         /// <summary>True while she is in cover against a wall or a prop: moving there, ducked, or stood up by a shot or a skill.</summary>
         public bool IsInCover => _inCover;
-        /// <summary>True while she is ducked in cover: there, and no shot or skill or its peek time stands her up.</summary>
-        public bool IsDucked => _inCover && !_snapping && !StoodUpInCover;
+        /// <summary>
+        /// True while she is ducked in cover: there, and no shot or skill or its peek time stands her up; or down in a quick
+        /// duck (work order 043).
+        /// </summary>
+        public bool IsDucked => (_inCover && !_snapping && !StoodUpInCover) || _duck.IsDown;
         bool StoodUpInCover => _actionKind != ActionKind.None || Time.time < _peekUntil;
         /// <summary>True when what she is in cover against is tall cover (it stops shots for anyone).</summary>
         public bool CoverIsTall => _inCover && _coverTall;
         /// <summary>What she is in cover against, or null.</summary>
         public Shelter CoverObject => _inCover ? _shelter : null;
-        /// <summary>The way from what she is in cover against to her, flat and of length 1; zero out of cover.</summary>
+        /// <summary>
+        /// The way from what she is in cover against (or down beside in a quick duck) to her, flat and of length 1; zero
+        /// out of cover.
+        /// </summary>
         public Vector3 CoverOutward
         {
             get
             {
-                if (!_inCover) return Vector3.zero;
-                GroundPoint n = _coverShape.Outward(GroundPosition);
+                if (!_inCover && !_duck.IsDown) return Vector3.zero;
+                GroundPoint n = (_inCover ? _coverShape : _duckShape).Outward(GroundPosition);
                 return new Vector3(n.X, 0f, n.Z);
             }
         }
@@ -320,17 +346,83 @@ namespace Roguelike
         /// <summary>
         /// Is she covered against a shot from this point by what she is in cover against? Only in cover, only when it lies
         /// between them, and a low prop only while she is ducked (<see cref="TakeCoverRules.Shields"/>). Walls and tall
-        /// props stop shots for anyone as well, through <see cref="Cover"/>; this is the part that is hers.
+        /// props stop shots for anyone as well, through <see cref="Cover"/>; this is the part that is hers. The shot is
+        /// an arrow (the shooter's sight and its shot): down in a quick duck it is covered too (work order 043).
         /// </summary>
-        public bool ShieldsFrom(Vector3 shooter) =>
-            _inCover && TakeCoverRules.Shields(_coverShape, _coverTall, IsDucked, GroundPosition, new GroundPoint(shooter.x, shooter.z));
+        public bool ShieldsFrom(Vector3 shooter) => ShieldsFrom(shooter, ProjectileKind.Arrow);
 
-        /// <summary>Metres from a point along a flat direction before what she is in cover against; <paramref name="max"/> when not.</summary>
-        public float CoverEntry(Vector3 from, Vector3 direction, float max) =>
-            _inCover ? _coverShape.Entry(new GroundPoint(from.x, from.z), new GroundPoint(direction.x, direction.z), max) : max;
+        /// <summary>
+        /// The same for a thing of <paramref name="kind"/> loosed from <paramref name="shooter"/>: in cover as above,
+        /// whatever its kind; down in a quick duck (work order 043) only an arrow, and only with the prop she ducked at
+        /// between them (<see cref="QuickDuckRules.Shields"/>): an orb passes over a low prop.
+        /// </summary>
+        public bool ShieldsFrom(Vector3 shooter, ProjectileKind kind)
+        {
+            var from = new GroundPoint(shooter.x, shooter.z);
+            if (_inCover) return TakeCoverRules.Shields(_coverShape, _coverTall, IsDucked, GroundPosition, from);
+            return _duck.IsDown && QuickDuckRules.Shields(_duckShape, GroundPosition, from, kind);
+        }
 
-        /// <summary>An enemy shot was stopped by what she is in cover against: counted, for the readout and tests.</summary>
-        public void NoteEnemyShotStoppedByCover() => EnemyShotsStoppedByCover++;
+        /// <summary>
+        /// Metres from a point along a flat direction before what she is in cover against (or down beside in a quick duck);
+        /// <paramref name="max"/> when not.
+        /// </summary>
+        public float CoverEntry(Vector3 from, Vector3 direction, float max)
+        {
+            if (!_inCover && !_duck.IsDown) return max;
+            return (_inCover ? _coverShape : _duckShape).Entry(new GroundPoint(from.x, from.z), new GroundPoint(direction.x, direction.z), max);
+        }
+
+        /// <summary>
+        /// An enemy shot was stopped by what she is in cover against: counted, for the readout and tests. Down in a quick
+        /// duck (work order 043) it is the duck's: counted, and a spark, a sound and the word.
+        /// </summary>
+        public void NoteEnemyShotStoppedByCover()
+        {
+            EnemyShotsStoppedByCover++;
+            if (_duck.IsDown) DuckStoppedOne();
+        }
+
+        /// <summary>
+        /// Where a thing that flew ended on what she is down beside (work order 043), told just before its end is: the
+        /// duck's spark goes there. Without it (the shooter's old line) the spark goes on the prop's far side.
+        /// </summary>
+        public void NoteCoverStopAt(Vector3 at)
+        {
+            if (!_duck.IsDown) return;
+            _duckStopAt = at;
+            _duckStopAtKnown = true;
+        }
+
+        // ---------------- The quick duck (work order 043), for the readout and tests ----------------
+
+        /// <summary>True while the quick duck's switch is on (and taking cover's): the cover key ducks her instead of taking cover.</summary>
+        public bool QuickDuckOn => Feel.TakeCover && Feel.QuickDuck;
+        /// <summary>True while she is down in a quick duck.</summary>
+        public bool IsQuickDucking => _duck.IsDown;
+        /// <summary>What she is down beside, or null.</summary>
+        public Shelter DuckObject => _duck.IsDown ? _duckShelter : null;
+        /// <summary>Seconds until a tap ducks her again; 0 when it would (or while she is down).</summary>
+        public float DuckWaitLeft => _duck.WaitLeft(Time.time);
+        /// <summary>When the duck going on (or the last) began, when she rises by herself, and when she last rose.</summary>
+        public float DuckDownAt => _duck.DownAt;
+        public float DuckUpAt => _duck.UpAt;
+        public float DuckRoseAt => _duck.RoseAt;
+        /// <summary>What the duck going on has stopped so far.</summary>
+        public int DuckStoppedNow => _duck.Stopped;
+        /// <summary>Ducks taken, of them those that stopped something; taps with no low prop in reach; things ducks stopped.</summary>
+        public int DucksTaken { get; private set; }
+        public int DucksThatStopped { get; private set; }
+        public int DuckTapsWithNothing { get; private set; }
+        public int ShotsStoppedByDuck { get; private set; }
+        /// <summary>Basic shots that were the timing's reward: the first soon after a duck that stopped something.</summary>
+        public int PeekShots { get; private set; }
+        /// <summary>The low prop the rim light is on now, or null.</summary>
+        public Shelter DuckRimOn => _rim.Shown ? _rim.On : null;
+        /// <summary>The rim light itself, for tests.</summary>
+        public QuickDuckRim DuckRim => _rim;
+        /// <summary>True while something of hers may stop a thing loosed at her: she is in cover, or down in a quick duck.</summary>
+        public bool HidesBehindSomething => _inCover || _duck.IsDown;
         /// <summary>True while a light skill runs (decision 0005): she moves under it as under a basic shot.</summary>
         public bool IsInLightSkill => _actionKind == ActionKind.Skill && _cast.Skill != null && _cast.Skill.Lock == SkillLock.Light;
         /// <summary>True once the cursor has been reported; <see cref="LookPoint"/> is then where it is on the ground.</summary>
@@ -622,12 +714,38 @@ namespace Roguelike
         /// <summary>For a bar, 1 to 0: how much of the open recast window is left.</summary>
         public float RecastWindowLeft => _chain.WindowLeft(Time.time);
         /// <summary>
-        /// The share of the open window, at its end, in which the next press is clean; 0 when the next press cannot be
-        /// clean (not the last, or the skill has neither a clean tap nor a clean spend).
+        /// The share of the open window in which the next press is clean (the clean part's length over the window's); 0
+        /// when the next press cannot be clean (not the last, or the skill has neither a clean tap nor a clean spend).
+        /// Before work order 040 the clean part was always that share at the window's end; where it lies now is
+        /// <see cref="RecastCleanFrom"/> to <see cref="RecastCleanTo"/>.
         /// </summary>
-        public float RecastCleanShare =>
+        public float RecastCleanShare
+        {
+            get
+            {
+                CleanPart part = RecastCleanPart;
+                float window = _chain.Window;
+                return part.Any && window > 0f ? Mathf.Clamp01((part.To - part.From) / window) : 0f;
+            }
+        }
+        // Work order 040 (Kristian's second session of 2026-11-20): the clean part comes early in the window, and the cast
+        // bar shows the chain from the press before to the end of the window. They read only.
+        /// <summary>
+        /// The clean part of the open window, in seconds after it opened (<see cref="CleanPart.Of"/>: early, or with
+        /// <see cref="KitValues.CleanEarly"/> off the last share); primed (work order 025) the whole window; none when the next
+        /// press cannot be clean.
+        /// </summary>
+        public CleanPart RecastCleanPart =>
             _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? (_chainPrimed ? 1f : Mathf.Clamp01(Kit.CleanShare)) : 0f; // primed (work order 025): all of the window
+                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : CleanPart.Of(Kit, _chain.Window)) : default;
+        /// <summary>Seconds after the window opened that its clean part begins, and ends; both 0 when the next press cannot be clean.</summary>
+        public float RecastCleanFrom => RecastCleanPart.From;
+        public float RecastCleanTo => RecastCleanPart.To;
+        /// <summary>Seconds since the press of the chain's current shot (or its opening move), on game time; -1 with no chain.</summary>
+        public float RecastSincePress => _chain.Slot >= 0 ? Time.time - _chainPressAt : -1f;
+        /// <summary>Seconds from that press to the window opening: the startup of the shot, or of Backstep's hop; 0 with no chain.</summary>
+        public float RecastLead => _chain.Slot >= 0 && _chain.Slot < Skills.Count && Skills[_chain.Slot] != null ? Mathf.Max(0f, Skills[_chain.Slot].Startup) : 0f;
+        float _chainPressAt;
         /// <summary>Presses of the recast chain running, or 0 (work order 025: five for Triple Tap in Steady Hand's window).</summary>
         public int RecastCount => _chain.Slot >= 0 ? _chain.Count : 0;
         // Work order 037 (Kristian's session of 2026-11-20): what the signs of the clean press read (PlayerSigns). They
@@ -738,16 +856,46 @@ namespace Roguelike
         /// <summary>
         /// The cover key (Left Ctrl to start with; Kristian 2026-11-19, an experiment): held or not. Given every frame by
         /// the input; it holds until it is changed. Held, she takes cover against a wall or prop in reach when she is free;
-        /// let go, she leaves cover at once and the move keys work at full speed from this frame on.
+        /// let go, she leaves cover at once and the move keys work at full speed from this frame on. With the quick duck on
+        /// (work order 043) the key going down is a tap (<see cref="TapCover"/>) and holding it does nothing more.
         /// </summary>
         public void HoldCover(bool held)
         {
+            bool pressed = held && !_coverHeld;
             _coverHeld = held;
             if (!held && _inCover) LeaveCover(CoverLeaving.Released);
+            if (pressed && QuickDuckOn) TapCover();
         }
 
-        /// <summary>True while she cannot start a basic shot now: a shot, a skill or a dash is going.</summary>
-        bool Busy => _actionKind != ActionKind.None || _dashing || _held.IsHeld;
+        /// <summary>
+        /// Press: a tap of the cover key with the quick duck on (work order 043, <see cref="QuickDuck"/>). With a low prop
+        /// within <see cref="FeelValues.DuckReach"/> she drops where she stands for <see cref="FeelValues.DuckSeconds"/>; with
+        /// none, nothing happens but a small dull sound, and no wait starts. Down already, the key waiting, or she cannot
+        /// duck now (a skill, a dash, Slide, stunned or pulled, dead, a choice, paused): nothing. A basic shot that has not
+        /// gone off is dropped by the duck, as a dash drops it. For the input and tests.
+        /// </summary>
+        public DuckTap TapCover()
+        {
+            FeelValues feel = Feel;
+            if (!feel.TakeCover || !feel.QuickDuck) return DuckTap.Off;
+            float now = Time.time;
+            bool may = MayDuckNow;
+            Shelter at = null;
+            CoverShape shape = default;
+            bool found = _duck.Ready(now) && may && FindLowProp(feel, out at, out shape);
+            DuckTap tap = _duck.Tap(now, may, found, feel.DuckSeconds);
+            if (tap == DuckTap.Ducked) StartDuck(at, shape);
+            else if (tap == DuckTap.NothingInReach)
+            {
+                DuckTapsWithNothing++;
+                if (PlaceholderSounds.Current != null) PlaceholderSounds.Current.AskFor(PlaceholderSound.EnemyHit, DuckNothingVolume); // its dull tick
+                Report(new PlayerReport { Kind = PlayerReportKind.DuckNothing });
+            }
+            return tap;
+        }
+
+        /// <summary>True while she cannot start a basic shot now: a shot, a skill or a dash is going, or she is down in a quick duck (work order 043).</summary>
+        bool Busy => _actionKind != ActionKind.None || _dashing || _held.IsHeld || _duck.IsDown;
 
         /// <summary>Let go of the move keys: she stands. A shot or dash in progress still finishes. For tests and tools.</summary>
         public void Stop()
@@ -828,9 +976,9 @@ namespace Roguelike
             // the shot it follows has gone off it waits like any press during a skill.
             ExpireChain(Time.time);
             RecastPress recast = JudgeRecast(slot, Time.time);
-            if (_held.IsHeld && recast != RecastPress.None)
+            if ((_held.IsHeld || _duck.IsDown) && recast != RecastPress.None)
             {
-                // Stunned or pulled (work order 035): even a recast waits, as in a lock.
+                // Stunned or pulled (work order 035), or down in a quick duck (work order 043): even a recast waits, as in a lock.
                 _shotCursor = point;
                 _bufferedSkillReleased = false;
                 return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
@@ -856,6 +1004,7 @@ namespace Roguelike
             bool waits = Skills[slot].Input == SkillInput.KeyMove
                 ? _dashing || _keyMoving || _held.IsHeld || (_actionKind == ActionKind.Skill && !IsInLightSkill)
                 : IsLocked || Time.time < _skillGateUntil;
+            waits |= _duck.IsDown; // down in a quick duck no skill starts (work order 043): it waits, as in a lock
             if (waits)
             {
                 _bufferedSkillReleased = false;
@@ -867,13 +1016,15 @@ namespace Roguelike
         }
 
         /// <summary>
-        /// What a press of this slot's key is to the recast chain now (decision 0005). A primed chain's press of its last
-        /// shot is clean wherever in the window it falls (Hair Trigger, work order 025).
+        /// What a press of this slot's key is to the recast chain now (decision 0005), its clean part as the kit places it
+        /// (work order 040). A press that waited in the buffer from before the window opened (<paramref name="buffered"/>) is
+        /// a shot, never clean. A primed chain's press of its last shot is clean wherever in the window it falls, a buffered
+        /// one too, as before (Hair Trigger, work order 025: its timing counts as right).
         /// </summary>
-        RecastPress JudgeRecast(int slot, float now)
+        RecastPress JudgeRecast(int slot, float now, bool buffered = false)
         {
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
-            RecastPress judged = _chain.Judge(slot, now, Kit.CleanShare, hasClean);
+            RecastPress judged = _chain.Judge(slot, now, CleanPart.Of(Kit, _chain.Window), hasClean, buffered);
             return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
         }
 
@@ -891,9 +1042,11 @@ namespace Roguelike
         void Recast(int slot, Vector3 point, bool clean)
         {
             float now = Time.time;
+            // Work order 040: a press of the last shot after the clean part, in the window, was late (the word says so).
+            bool late = !clean && _chain.Slot == slot && RecastCleanPart.IsAfter(_chain.SinceOpened(now));
             _chain.Recast();
             float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
-            Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus });
+            Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus, Late = late });
             if (_actionKind == ActionKind.Skill)
             {
                 ReportSkillEnded(SkillEnding.RanOut, now);
@@ -942,7 +1095,7 @@ namespace Roguelike
         bool StartWaitingSkill(Press press, float now)
         {
             ExpireChain(now);
-            RecastPress recast = JudgeRecast(press.Slot, now);
+            RecastPress recast = JudgeRecast(press.Slot, now, buffered: true); // work order 040: a press that waited is never clean
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 Recast(press.Slot, press.Point, recast == RecastPress.Clean);
@@ -1051,6 +1204,9 @@ namespace Roguelike
             if (_inCover) LeaveCover(CoverLeaving.Other);
             _coverHeld = false;
             _peekUntil = float.NegativeInfinity;
+            EndDuck(DuckEnd.Other); // a quick duck ends, with no wait left and no reward (work order 043): death, a restart, a new floor
+            _duck.Clear();
+            _rim.Hide();
             _held.Clear(); // a stun or a pull ends (work order 035): death, a restart, a new floor
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
@@ -1185,6 +1341,8 @@ namespace Roguelike
             _skillGateUntil = float.NegativeInfinity;
             EndKeyMove();
             if (_inCover) LeaveCover(CoverLeaving.Other);
+            EndDuck(DuckEnd.Other); // and a quick duck (work order 043)
+            _rim.Hide();
             Halt();
         }
 
@@ -1393,6 +1551,12 @@ namespace Roguelike
                 CoverSlide();
                 return;
             }
+            if (_duck.IsDown)
+            {
+                // Down in a quick duck nothing moves her (work order 043); a move key not held at the tap ends the duck first.
+                if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
+                return;
+            }
             if (_moveInput == Vector3.zero)
             {
                 if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
@@ -1409,9 +1573,11 @@ namespace Roguelike
         /// </summary>
         void UpdateCover(FeelValues feel, float now)
         {
-            if (_inCover && (!feel.TakeCover || !_coverHeld || _shelter == null || !_shelter.isActiveAndEnabled))
+            UpdateDuck(feel, now); // work order 043
+            // With the quick duck on, taking cover is off (work order 043).
+            if (_inCover && (!feel.TakeCover || feel.QuickDuck || !_coverHeld || _shelter == null || !_shelter.isActiveAndEnabled))
                 LeaveCover(_coverHeld ? CoverLeaving.Other : CoverLeaving.Released);
-            if (!_inCover && feel.TakeCover && _coverHeld && !IsLocked && !_keyMoving) TryTakeCover(feel, now);
+            if (!_inCover && feel.TakeCover && !feel.QuickDuck && _coverHeld && !IsLocked && !_keyMoving) TryTakeCover(feel, now);
             if (!_inCover) return;
 
             Vector3 at = transform.position;
@@ -1495,6 +1661,163 @@ namespace Roguelike
             if (d.sqrMagnitude > 1e-10f && _agent.isOnNavMesh) _agent.Move(d);
         }
 
+        // ---------------- The quick duck (Kristian's answer of 2026-11-20 to the cover report, proposal C; work order 043) ----------------
+
+        /// <summary>How loud the duck's sounds play, as a share of their own volume (first guesses).</summary>
+        const float DuckNothingVolume = 0.6f, DuckStopVolume = 0.7f;
+        /// <summary>Metres over the ground of the spark where a duck stopped something: about where an arrow flies.</summary>
+        const float DuckSparkHeight = 0.9f;
+        /// <summary>The skill whose stagger the timing's reward deals: a strong hit that exists (no new strength).</summary>
+        const string PeekStaggerOf = "Scatter Blast";
+
+        /// <summary>
+        /// May a duck start now? Not in a skill, a dash or Slide, not stunned or pulled, and never while she is dead, a run's
+        /// result is in, the game is paused or a choice is open (as for a stun or a pull, <see cref="MayBeHeldNow"/>).
+        /// </summary>
+        bool MayDuckNow => !_dashing && _actionKind != ActionKind.Skill && !_keyMoving && !_held.IsHeld && MayBeHeldNow;
+
+        /// <summary>
+        /// May a duck going on go on? Not once she is dead or a run's result is in. A pause or a choice only holds it, as
+        /// game time stands still; a stun, a pull, a restart and a new floor end it where they happen.
+        /// </summary>
+        bool DuckMayGoOn
+        {
+            get
+            {
+                if (_herHealth == null) _herHealth = GetComponent<PlayerHealth>();
+                return _herHealth == null || (_herHealth.IsAlive && !_herHealth.Untouchable);
+            }
+        }
+
+        /// <summary>The props' sort follows her switch, live (<see cref="Cover.QuickDuckSort"/>).</summary>
+        bool DuckSortIsOn() => this != null && QuickDuckOn;
+
+        /// <summary>
+        /// Every frame she is not dashing (with taking cover): the props' sort follows the switch; a duck ends when the
+        /// switch goes off, she may not be down any more or the prop is gone, rises by itself when its time is up, and ends
+        /// at a move key that was not held at the tap; and the rim light goes on the low prop a tap would work at.
+        /// </summary>
+        void UpdateDuck(FeelValues feel, float now)
+        {
+            if (_duckSort == null) _duckSort = DuckSortIsOn;
+            Cover.QuickDuckSort = _duckSort;
+            if (_duck.IsDown)
+            {
+                if (_moveInput == Vector3.zero) _duckHeldAtTap = Vector3.zero; // let go: the next key ends it
+                if (!feel.TakeCover || !feel.QuickDuck || !DuckMayGoOn || _duckShelter == null || !_duckShelter.isActiveAndEnabled)
+                    EndDuck(DuckEnd.Other);
+                else if (_duck.RisesBy(now)) EndDuck(DuckEnd.Rose);
+                else if (QuickDuckRules.MoveEnds(new GroundPoint(_duckHeldAtTap.x, _duckHeldAtTap.z), new GroundPoint(_moveInput.x, _moveInput.z)))
+                    EndDuck(DuckEnd.Moved);
+            }
+            if (feel.TakeCover && feel.QuickDuck && _duck.Ready(now) && MayDuckNow && FindLowProp(feel, out Shelter at, out CoverShape shape))
+                _rim.Show(at, shape, ShotFxMaterial);
+            else
+                _rim.Hide();
+        }
+
+        /// <summary>
+        /// The nearest low prop within <see cref="FeelValues.DuckReach"/> of her, her middle to its edge: a shelter that is not
+        /// tall (<see cref="Shelter.IsTall"/>). A wall or a tall prop is never one. Nothing is allocated.
+        /// </summary>
+        bool FindLowProp(FeelValues feel, out Shelter best, out CoverShape bestShape)
+        {
+            GroundPoint her = GroundPosition;
+            best = null;
+            bestShape = default;
+            float bestDistance = feel.DuckReach;
+            IReadOnlyList<Shelter> all = Shelter.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                Shelter s = all[i];
+                if (s == null || !s.TryShape(out CoverShape shape)) continue;
+                float distance = shape.Distance(her);
+                if (distance > bestDistance || s.IsTall) continue; // in reach (QuickDuckRules.InReach) and nearer than the best so far
+                best = s;
+                bestShape = shape;
+                bestDistance = distance;
+            }
+            return best != null;
+        }
+
+        /// <summary>
+        /// She drops where she stands beside the prop: no snap, no slide. A basic shot that has not gone off is dropped, as a
+        /// dash drops it, and one that has is over: she cannot shoot while down.
+        /// </summary>
+        void StartDuck(Shelter at, CoverShape shape)
+        {
+            if (_actionKind == ActionKind.BasicShot)
+            {
+                _action.Cancel();
+                EndAction();
+            }
+            _duckShelter = at;
+            _duckShape = shape;
+            _duckHeldAtTap = _moveInput;
+            _duckStopAtKnown = false;
+            _rim.Hide();
+            Halt();
+            DucksTaken++;
+            Report(new PlayerReport { Kind = PlayerReportKind.Ducked, By = at != null ? at.name : null });
+        }
+
+        /// <summary>The duck going on ends, and the key's wait runs from the moment she is up: its own time when she rose by herself.</summary>
+        void EndDuck(DuckEnd why)
+        {
+            if (!_duck.IsDown) return;
+            _duck.End(why == DuckEnd.Rose ? _duck.UpAt : Time.time, Feel.DuckWait);
+            int stopped = _duck.StoppedLast;
+            if (stopped > 0) DucksThatStopped++;
+            _duckShelter = null;
+            _duckStopAtKnown = false;
+            Report(new PlayerReport { Kind = PlayerReportKind.DuckEnded, DuckEnd = why, Shot = stopped });
+        }
+
+        /// <summary>
+        /// The duck stopped a thing that flew at her (or the shooter's old line): counted, a spark at the prop where it
+        /// ended (her shots' spark on cover), the placeholder sounds' heavy low impact, and the word DUCKED over her.
+        /// </summary>
+        void DuckStoppedOne()
+        {
+            _duck.StoppedOne();
+            ShotsStoppedByDuck++;
+            Vector3 at = _duckStopAtKnown ? _duckStopAt : FarSideOfDuck();
+            _duckStopAtKnown = false;
+            SpawnCoverHit(LookFor(null, 0f), new Vector3(at.x, DuckSparkHeight, at.z));
+            if (PlaceholderSounds.Current != null) PlaceholderSounds.Current.AskFor(PlaceholderSound.Strike, DuckStopVolume);
+            Report(new PlayerReport { Kind = PlayerReportKind.DuckStopped, At = new GroundPoint(at.x, at.z) });
+        }
+
+        /// <summary>The middle of the far side of what she is down beside, seen from her: where a shot from beyond it meets it.</summary>
+        Vector3 FarSideOfDuck()
+        {
+            GroundPoint c = _duckShape.Centre, away = c - GroundPosition;
+            float length = away.Length;
+            away = length > 1e-4f ? away * (1f / length) : new GroundPoint(transform.forward.x, transform.forward.z);
+            GroundPoint p = _duckShape.Closest(c + away * 10f);
+            return new Vector3(p.X, 0f, p.Z);
+        }
+
+        /// <summary>
+        /// A basic shot starts: is it the timing's reward, her first started within <see cref="FeelValues.DuckPeekWindow"/>
+        /// of rising from a duck that stopped something? Either way her first shot has had its turn.
+        /// </summary>
+        bool TakePeekShot(FeelValues feel)
+        {
+            bool peek = _duck.TakePeekShot(Time.time, feel.DuckPeekWindow) && feel.DuckPeekShot && QuickDuckOn;
+            if (peek) PeekShots++;
+            return peek;
+        }
+
+        /// <summary>The stagger the basic shot going off deals: Scatter Blast's for the timing's reward, else none (as always).</summary>
+        float TakePeekStagger()
+        {
+            if (!_peekShot) return 0f;
+            _peekShot = false;
+            int slot = SlotOf(PeekStaggerOf);
+            return slot >= 0 && Skills[slot] != null ? Mathf.Max(0f, Skills[slot].Stagger) : 0f;
+        }
+
         /// <summary>Moves her along a flat direction of length 1 at this speed, steering the agent a little way ahead.</summary>
         void MoveAlong(Vector3 direction, float speed)
         {
@@ -1560,6 +1883,7 @@ namespace Roguelike
         bool PressReady(float now)
         {
             if (!_buffer.TryPeek(out Press waiting)) return false;
+            if (_duck.IsDown) return false; // waits out a quick duck, and is judged when she rises as at the end of a lock (work order 043)
             if (waiting.Kind == PressKind.Skill && now < _skillGateUntil) return false; // waits out a free recovery
             FeelValues feel = Feel;
             // A gate is set only by a free recovery, and a new skill, a dash or a teleport clears it.
@@ -1607,20 +1931,26 @@ namespace Roguelike
             _rising = skill == null || !_castMoves;
             _riseFrom = share;
             _riseStartedAt = now;
+            _riseOfChain = skill != null && skill.RecastCount > 1; // work order 040: a recast chain's shot rises quicker (OffTheMark)
         }
+
+        // Work order 040 (Kristian's second session of 2026-11-20: quicker off the mark after shooting). The three numbers
+        // that hold her back after a shot are read through OffTheMark: with FeelValues.QuickOffTheMark on, the quicker ones
+        // beside them; off, as before.
+        bool _riseOfChain; // the rise running is after a recast chain's shot
 
         void ApplyMovementFeel(FeelValues feel)
         {
             if (Time.timeScale > 0f) _lastVelocity = _agent.velocity;
-            if (_rising && SkillSlide.IsRisen(_riseFrom, Time.time - _riseStartedAt, feel.SkillSpeedRecovery)) _rising = false;
+            if (_rising && SkillSlide.IsRisen(_riseFrom, Time.time - _riseStartedAt, OffTheMark.SkillSpeedRecovery(feel, _riseOfChain))) _rising = false;
             // A shot on the move that was cancelled before it went off ends the slow at once.
             if (_easing && _easeFiredAfter < 0f && !_movingShot) _easing = false;
-            if (_easing && MovingShot.IsOver(Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSlowdown, feel.MovingShotRecovery))
+            if (_easing && MovingShot.IsOver(Time.time - _easeStartedAt, _easeFiredAfter, feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel)))
                 _easing = false;
             // The backpedal cap: held turned away from her movement by a shot, she moves at no more than a share of
             // run speed, eased in and out (decision 0003, a guess).
             _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time, feel.BackpedalSpeedShare,
-                                 feel.MovingShotSlowdown, feel.MovingShotRecovery);
+                                 feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel));
             _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
@@ -1769,6 +2099,8 @@ namespace Roguelike
             dir.Normalize();
 
             LeaveCover(CoverLeaving.Dash); // the dash leaves cover at once (Kristian 2026-11-19, an experiment)
+            EndDuck(DuckEnd.Dashed); // and ends a quick duck at once (work order 043)
+            _rim.Hide();
             Halt();
             // A dash ends a skill's slide and the ease back up after one at once, and a free recovery with them:
             // a dash cancels a skill, recovery and all.
@@ -1800,12 +2132,13 @@ namespace Roguelike
         /// </summary>
         void StartBasicShot(FeelValues feel, bool onTheMove)
         {
+            _peekShot = TakePeekShot(feel); // the quick duck's reward (work order 043)
             if (!onTheMove) Halt();
             _aimPoint = AimEnd(_shotCursor);
             _shotTurnsBody = BodyMustTurnToward(Flat(_aimPoint - transform.position), feel);
             // A shot that must turn the body starts the hold: she turns to the aim at the shot turn rate, and the
             // upper body and arms cover what the body has not turned yet. A shot while held renews it.
-            _shotFacing.ShotStarted(_shotTurnsBody, Time.time, feel.ShotTurnHold);
+            _shotFacing.ShotStarted(_shotTurnsBody, Time.time, OffTheMark.ShotTurnHold(feel)); // work order 040
             _actionKind = ActionKind.BasicShot;
             _movingShot = onTheMove;
             if (onTheMove)
@@ -1851,7 +2184,7 @@ namespace Roguelike
                 // angle, held turned while she backpedals; within it the upper body aims. No stop, no slide.
                 _sliding = false;
                 _slideFrom = 0f;
-                _shotFacing.ShotStarted(BodyMustTurnToward(Flat(point - transform.position), feel), Time.time, feel.ShotTurnHold);
+                _shotFacing.ShotStarted(BodyMustTurnToward(Flat(point - transform.position), feel), Time.time, OffTheMark.ShotTurnHold(feel)); // work order 040
             }
             else
             {
@@ -1886,6 +2219,7 @@ namespace Roguelike
             ActionsStarted++;
             ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : skill.Startup;
             _cast.Start(skill, Time.time);
+            _chainPressAt = Time.time; // work order 040: the cast bar's chain runs from this press (read only while a chain runs)
             // Snap Shot (work order 017): a Charge skill with no charging is let go at its press, and fires as a perfect release.
             if (skill.Input == SkillInput.Charge && skill.NoCharge) _cast.Release(Time.time);
             _markedAt.Clear();
@@ -1947,6 +2281,7 @@ namespace Roguelike
         bool ResolveBasicShot()
         {
             BasicShotsFired++;
+            float peekStagger = TakePeekStagger(); // the quick duck's reward (work order 043): 0 for every other basic shot
             FeelValues feel = Feel;
             Look look = LookFor(null, 0f);
             Vector3 muzzle = NextMuzzle(out bool leftHand);
@@ -1978,7 +2313,7 @@ namespace Roguelike
             }
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
-            int applied = Deal(hit, Placeholders.BasicShotDamage, out float focus);
+            int applied = Deal(hit, Placeholders.BasicShotDamage, out float focus, peekStagger);
             if (applied <= 0) return ShotFired(false);
             ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);
@@ -2444,9 +2779,9 @@ namespace Roguelike
             float share = Mathf.Min(_backpedalCap.Share,
                                     _easing
                                         ? MovingShot.SpeedShare(_easeFrom, now - _easeStartedAt, _easeFiredAfter, feel.MovingShotSpeedShare,
-                                                                feel.MovingShotSlowdown, feel.MovingShotRecovery)
+                                                                feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel)) // work order 040
                                         : 1f);
-            if (_rising) share = Mathf.Min(share, SkillSlide.RiseShare(_riseFrom, now - _riseStartedAt, feel.SkillSpeedRecovery));
+            if (_rising) share = Mathf.Min(share, SkillSlide.RiseShare(_riseFrom, now - _riseStartedAt, OffTheMark.SkillSpeedRecovery(feel, _riseOfChain)));
             if (IsSkillSliding) share = Mathf.Min(share, SkillSlide.SlideShare(_slideFrom, now - _slideStartedAt, feel.SkillSlowdown));
             return share;
         }
