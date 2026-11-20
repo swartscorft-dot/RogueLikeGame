@@ -63,6 +63,9 @@ namespace Roguelike.Rules
         public const string RewardTake = "reward_take";       // a floor reward was taken: floor, name the skill
         public const string ChestOpen = "chest_open";         // a chest was opened and an upgrade taken: floor, room, offered joined by " | ", name the one taken
         public const string RunEnd = "run_end";               // the run ended: result death, act cleared or left; floor, room and its kind, seconds since the run started
+        // Taking cover (Kristian 2026-11-19, an experiment). A shot it stopped is an enemy_strike with result "stopped by cover".
+        public const string CoverEnter = "cover_enter";       // she took cover: name is "tall" or "low", what she is behind
+        public const string CoverLeave = "cover_leave";       // she left cover: result says how (released, dash, moving skill, other)
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>
@@ -98,6 +101,15 @@ namespace Roguelike.Rules
         public const string Complete = "complete";            // how a recast chain ended
         public const string Early = "early";
         public const string Removed = "removed";              // an enemy taken out of the game awake
+
+        // Taking cover (2026-11-19, an experiment).
+        public const string StoppedByCover = "stopped by cover"; // how an enemy strike went: what she was in cover behind stopped it
+        public const string Tall = "tall";                    // what she took cover behind
+        public const string Low = "low";
+        public const string Released = "released";            // how she left cover: the key went up
+        public const string DashLeft = "dash";
+        public const string MovingSkill = "moving skill";
+        public const string Other = "other";
     }
 
     /// <summary>

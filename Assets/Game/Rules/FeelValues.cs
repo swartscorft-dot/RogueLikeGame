@@ -41,6 +41,15 @@ namespace Roguelike.Rules
         // Cover
         public bool CoverStopsShots = true;       // walls and tall props stop her shots and skills, and the shooter's line (Kristian 2026-11-19); off, her shots pass through as before
 
+        // Taking cover (Kristian 2026-11-19, an experiment: hold Left Ctrl to lean into a wall or prop and duck shots from afar; first guesses)
+        public bool TakeCover = true;             // the switch; off, the key does nothing
+        public float CoverReach = 1.5f;           // m from her to the edge of a wall or a prop that blocks walking, within which the key takes cover there
+        public float CoverSnapTime = 0.15f;       // s, at most, to move to stand against it
+        public float CoverStandOff = 0.6f;        // m from its edge to her middle where she stands against it
+        public float CoverMoveShare = 0.4f;       // share of run speed she slides along it at
+        public float CoverSlideAngle = 60f;       // degrees: a move key further off its face than this does nothing while the key is held
+        public float CoverPeekTime = 0.25f;       // s she stays up after a shot or a skill from cover before she ducks again
+
         // Aiming and shooting on the move (basic shot only)
         public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)
         public float ShotTurnTime = 0.2f;         // s for a half turn of the body to a shot aimed outside the front angle, and back to the run after

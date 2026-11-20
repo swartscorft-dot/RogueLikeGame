@@ -21,7 +21,8 @@ namespace Roguelike
     /// Cover (Kristian, 2026-11-19: shots are stopped by walls and pillars): every wall, and every prop at least
     /// <see cref="PropValues.CoverHeight"/> tall, carries <see cref="Cover"/>, which stops her shots and skills and the
     /// shooter's sight and line; she and the shooter shoot over a lower prop. The enemies' strikes on the ground do not
-    /// look at cover. Then the enemies of each enemy point stand there, of
+    /// look at cover. Every wall and every prop, tall or low, also carries <see cref="Shelter"/>: she can take cover
+    /// against it (Kristian, 2026-11-19, an experiment). Then the enemies of each enemy point stand there, of
     /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed.
     ///
     /// Positions: the level's ground point (x, y) in metres is the world point (x, 0, y) moved so that the start
@@ -217,6 +218,7 @@ namespace Roguelike
             wall.transform.localScale = vertical ? new Vector3(t, height, along) : new Vector3(along, height, t);
             wall.GetComponent<Renderer>().sharedMaterial = material;
             wall.AddComponent<Cover>(); // every wall, the low near ones too, stops shots (Kristian, 2026-11-19)
+            wall.AddComponent<Shelter>(); // and she can take cover against it (Kristian, 2026-11-19, an experiment)
             WallLayer = wall.layer;
             Walls++;
             if (low) LowWalls++;
@@ -248,6 +250,7 @@ namespace Roguelike
                     GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
                     bool cover = prop.IsCover(Values.PropRules);
                     if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
+                    go.AddComponent<Shelter>(); // she can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment)
                     _props.Add(new PlacedProp { Room = room, Prop = prop, Object = go, IsCover = cover });
                 }
             }

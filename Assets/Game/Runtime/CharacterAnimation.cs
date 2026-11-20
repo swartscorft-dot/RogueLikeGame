@@ -22,6 +22,9 @@ namespace Roguelike
     /// point the character faces, and each hand is turned so that the weapon in it points there. The hand
     /// keeps hold of its weapon exactly as it was placed. No clip in the library holds a pistol in each hand,
     /// and this way the guns always point where the shot goes.
+    ///
+    /// Ducked in cover (an experiment, 2026-11-19) the whole model is lowered and leaned toward the cover in code; there
+    /// is no duck clip (<see cref="DuckDrop"/>, <see cref="DuckLean"/>).
     /// </summary>
     public sealed class CharacterAnimation : MonoBehaviour
     {
@@ -100,6 +103,14 @@ namespace Roguelike
         [Tooltip("With the cursor behind her, degrees past straight behind it must go before the head swaps to the other side.")]
         public float LookHoldBehind = 30f;
 
+        [Header("Ducked in cover (Kristian 2026-11-19, an experiment; guesses)")]
+        [Tooltip("Metres the whole model is lowered while she is ducked in cover. No duck clip exists: the floor hides what goes under it.")]
+        public float DuckDrop = 0.55f;
+        [Tooltip("Degrees the model leans toward what she is in cover against while ducked, turning about her feet.")]
+        public float DuckLean = 22f;
+        [Tooltip("Seconds to duck down, and to come up again for a shot.")]
+        public float DuckBlend = 0.08f;
+
         static readonly int s_Idle = Animator.StringToHash(IdleState);
         static readonly int s_Run = Animator.StringToHash(RunState);
         static readonly int s_Shoot = Animator.StringToHash(ShootState);
@@ -127,6 +138,12 @@ namespace Roguelike
         float _look;          // degrees the head is turned toward the cursor, before the hand-over to the aim
         float _lookSide = 1f; // which side the head holds when the cursor is behind her
         PlayerHealth _health;
+        // Ducked in cover: how far down, the model's own place under the character, and the way it leans.
+        float _duck;
+        bool _duckMoved;
+        Vector3 _modelRestPosition;
+        Quaternion _modelRestRotation = Quaternion.identity;
+        Vector3 _leanToward = Vector3.forward;
         // The shoulders' local pose before the look held them back: what the clips do not animate is put back at the
         // start of the next LateUpdate, or the look would pile up frame after frame.
         readonly System.Collections.Generic.List<LookUndo> _lookUndo = new System.Collections.Generic.List<LookUndo>();
@@ -168,6 +185,8 @@ namespace Roguelike
             if (Player == null || Animator == null) { enabled = false; return; }
             Animator.applyRootMotion = false;
             if (Hips != null) _hipsRest = Animator.transform.InverseTransformPoint(Hips.position);
+            _modelRestPosition = Animator.transform.localPosition;
+            _modelRestRotation = Animator.transform.localRotation;
             if (RightWeapon != null) _rightWeaponRest = RightWeapon.localRotation;
             if (LeftWeapon != null) _leftWeaponRest = LeftWeapon.localRotation;
             _health = Player.GetComponent<PlayerHealth>();
@@ -305,6 +324,7 @@ namespace Roguelike
             }
             _lookUndo.Clear();
             float now = Time.time;
+            Duck();
             if (Hips != null)
             {
                 Transform root = Animator.transform;
@@ -353,6 +373,43 @@ namespace Roguelike
             SeatInHand(RightWeapon, RightHand, outwardSign: -1f);
             SeatInHand(LeftWeapon, LeftHand, outwardSign: 1f);
         }
+
+        /// <summary>
+        /// Ducked in cover (Kristian 2026-11-19, an experiment). No duck clip exists, so the whole model, the object the
+        /// Animator is on, is lowered by <see cref="DuckDrop"/> and leaned <see cref="DuckLean"/> degrees toward what she
+        /// is in cover against, about the model's own origin (where it stands on the character), blended in and out over <see cref="DuckBlend"/>. The
+        /// clips play on as they are. Out of cover the model is put back where it rests. A model that is the character's
+        /// own object is never moved: that would move her.
+        /// </summary>
+        void Duck()
+        {
+            Transform model = Animator.transform;
+            Transform parent = model.parent;
+            if (model == Player.transform || parent == null) return;
+            if (Player.IsInCover)
+            {
+                Vector3 away = Player.CoverOutward;
+                if (away.sqrMagnitude > 1e-6f) _leanToward = -away;
+            }
+            float wanted = Player.IsDucked ? 1f : 0f;
+            _duck = DuckBlend > 0f ? Mathf.MoveTowards(_duck, wanted, Time.deltaTime / DuckBlend) : wanted;
+            if (_duck <= 0f)
+            {
+                if (!_duckMoved) return;
+                model.localPosition = _modelRestPosition;
+                model.localRotation = _modelRestRotation;
+                _duckMoved = false;
+                return;
+            }
+            Vector3 axis = Vector3.Cross(Vector3.up, _leanToward);
+            Quaternion lean = axis.sqrMagnitude > 1e-6f ? Quaternion.AngleAxis(DuckLean * _duck, axis.normalized) : Quaternion.identity;
+            model.position = parent.TransformPoint(_modelRestPosition) + Vector3.down * (DuckDrop * _duck);
+            model.rotation = lean * parent.rotation * _modelRestRotation;
+            _duckMoved = true;
+        }
+
+        /// <summary>0 with the model where it rests, 1 with it lowered and leaned all the way for a duck in cover.</summary>
+        public float DuckWeight => _duck;
 
         /// <summary>
         /// Puts the middle of the weapon where the grip settings say, measured from the wrist in the weapon's
