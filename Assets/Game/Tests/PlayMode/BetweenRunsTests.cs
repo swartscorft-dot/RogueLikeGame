@@ -78,6 +78,7 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.StatsAndTiers = false; // work order 050: a chest's health step of today (+10) on top of Thick Hide
             _hud = RunHud.Ensure();
             yield return null;
             Assert.That(GeneratedLevels.BetweenRunsSavePathInUse, Is.EqualTo(SavePath), "never the game's own save");

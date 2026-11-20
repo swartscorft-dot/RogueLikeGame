@@ -152,7 +152,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ChestOffer_IsTwoDifferentUpgrades_TheSameForTheSameRun_AndNamesASkillSheHas()
         {
-            var v = new RunValues();
+            var v = new RunValues { StatsAndTiers = false }; // work order 050: today's eleven rows
             var equipped = new List<string> { "Quick Shot", "Scatter Blast", "Backstep", "Triple Tap" };
             var kinds = new HashSet<UpgradeKind>();
             for (ulong run = 0; run < 200; run++)
