@@ -89,6 +89,8 @@ namespace Roguelike.Rules
         public float CoverShare => Seconds > 0f ? CoverSeconds / Seconds : float.NaN;
         /// <summary>Enemy strikes that what she was in cover behind stopped.</summary>
         public int StrikesStoppedByCover;
+        /// <summary>Things that flew at her that a wall or a prop stopped (work order 036).</summary>
+        public int StrikesStoppedByWall;
 
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
@@ -810,6 +812,7 @@ namespace Roguelike.Rules
             // Taking cover (2026-11-19, an experiment); the time in cover is added by Compute, which has the stretches.
             s.CoversTaken = events.Count(e => e.Type == SessionEventTypes.CoverEnter);
             s.StrikesStoppedByCover = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover);
+            s.StrikesStoppedByWall = events.Count(e => e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByWall);
             return s;
         }
 
@@ -1001,6 +1004,8 @@ namespace Roguelike.Rules
             d.Add("  avoided by the dash", Int(a.StrikesAvoidedByDash), fights ? Int(f.StrikesAvoidedByDash) : "-");
             if (stats.HasCover)
                 d.Add("  stopped by the cover she ducked behind", Int(a.StrikesStoppedByCover), fights ? Int(f.StrikesStoppedByCover) : "-");
+            if (a.StrikesStoppedByWall > 0) // work order 036, only in a log that has any
+                d.Add("  stopped by a wall or prop", Int(a.StrikesStoppedByWall), fights ? Int(f.StrikesStoppedByWall) : "-");
             d.Add("Damage taken", Int(a.DamageTaken), fights ? Int(f.DamageTaken) : "-");
             d.Add("Dashes / that avoided a strike", a.Dashes + " / " + Share(a.DashesThatAvoided, a.Dashes),
                   fights ? f.Dashes + " / " + Share(f.DashesThatAvoided, f.Dashes) : "-");

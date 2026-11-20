@@ -51,6 +51,7 @@ namespace Roguelike.PlayModeTests
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
+            ThingsThatFly.Ensure().Values.On = false; // work order 036: these are the tests of the attacks as they were
             yield return null;
             _player = Object.FindAnyObjectByType<PlayerCharacter>();
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");

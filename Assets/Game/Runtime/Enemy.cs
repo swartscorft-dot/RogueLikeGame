@@ -652,6 +652,46 @@ namespace Roguelike
             }
         }
 
+        // ---------------- Things that fly (work order 036, 2026-11-20) ----------------
+
+        /// <summary>
+        /// How one of what it shot or threw ended (work order 036, decision 0010: what is shot at her flies;
+        /// <see cref="ThingsThatFly"/>), told by the projectile, also after this enemy died. It met her: she takes its
+        /// attack's damage as from a strike (an elite's and the floor's scale too; none in the dash's protected part). What
+        /// she ducked behind stopped it, as it stops a shot today; a wall or a prop stopped it; its flight ran out; or it
+        /// passed her spared (the boss's wave when its Cleave had hit her). Reported as a strike of its attack, with
+        /// <see cref="EnemyReport.Flown"/> set, so everything that counts strikes counts it.
+        /// </summary>
+        public void ProjectileEnded(EnemyAttackDefinition attack, ProjectileEnd end)
+        {
+            if (attack == null) return;
+            StrikeOutcome outcome = StrikeOutcome.OutOfArea;
+            int applied = 0;
+            switch (end)
+            {
+                case ProjectileEnd.MetHer:
+                {
+                    bool invulnerable = Player != null && Player.IsInvulnerable; // read before the hit, as Land does
+                    int damage = DamageScale == 1f ? attack.Damage : Mathf.RoundToInt(attack.Damage * Mathf.Max(0f, DamageScale));
+                    applied = PlayerHealth != null ? PlayerHealth.TakeHit(damage) : 0;
+                    if (applied > 0) StrikesLanded++;
+                    outcome = applied > 0 ? StrikeOutcome.Landed : invulnerable ? StrikeOutcome.AvoidedByDash : StrikeOutcome.NoEffect;
+                    break;
+                }
+                case ProjectileEnd.StoppedByCover:
+                    if (Player != null) Player.NoteEnemyShotStoppedByCover();
+                    outcome = StrikeOutcome.StoppedByCover;
+                    break;
+                case ProjectileEnd.StoppedByWall: outcome = StrikeOutcome.StoppedByWall; break;
+                case ProjectileEnd.Spared: outcome = StrikeOutcome.NoEffect; break;
+            }
+            Reported?.Invoke(new EnemyReport
+            {
+                Kind = EnemyReportKind.Struck, Attack = attack.Name, Outcome = outcome, Damage = applied, Id = Id, EnemyKind = Kind,
+                Elite = IsElite, Flown = true,
+            });
+        }
+
         protected static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
         protected static GroundPoint Ground(Vector3 v) => new GroundPoint(v.x, v.z);
     }
