@@ -84,7 +84,7 @@ namespace Roguelike
         MetaState _metaState;
         bool _metaRun;          // the run going on started with the switch on
         bool _eliteEntrySeen;
-        bool _eliteDipped;      // under half health in this floor's elite room (or on the floor, if she never went in)
+        bool _eliteDipped;      // under half health in this floor's elite room, while she was in it (work order 033)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void LoadBetweenRunsSwitch()
@@ -98,15 +98,34 @@ namespace Roguelike
             string path = BetweenRunsSavePathInUse;
             _metaState = MetaSaveFile.Load(path, MetaValues, out MetaLoad how, out string keptAs);
             BetweenRunsLoad = how;
-            if (how == MetaLoad.Damaged || how == MetaLoad.Newer)
+            if (how == MetaLoad.Unreadable)
+                Debug.LogWarning("Between runs: the save at " + path + " is there but could not be read now. What lasts between runs does nothing "
+                                 + "until it can be: nothing is earned or saved over it, and it is tried again the next time it is needed.");
+            else if (how == MetaLoad.Damaged || how == MetaLoad.Newer)
                 Debug.LogWarning("Between runs: the save at " + path + " could not be used (" + how + ")"
                                  + (keptAs.Length > 0 ? "; kept as " + keptAs : "") + ". Starting from an empty save.");
             else Debug.Log("Between runs: save " + (how == MetaLoad.Read ? "read from " : "not found, an empty one at ") + path);
         }
 
+        /// <summary>
+        /// The save is needed now (a run starts, the screen opens): read it if it never was, or if it could not be read the
+        /// last time (the second reviews of 2026-11-20, work order 033). False while it still cannot be read.
+        /// </summary>
+        bool BetweenRunsReadable()
+        {
+            if (_metaState == null || BetweenRunsLoad == MetaLoad.Unreadable) LoadBetweenRuns();
+            return BetweenRunsLoad != MetaLoad.Unreadable;
+        }
+
         void SaveBetweenRuns()
         {
             if (!MetaOn || _metaState == null) return;
+            if (BetweenRunsLoad == MetaLoad.Unreadable)
+            {
+                // Work order 033: never an empty save written over one that could not be read.
+                Debug.LogWarning("Between runs: not saved, the save at " + BetweenRunsSavePathInUse + " could not be read");
+                return;
+            }
             if (!MetaSaveFile.Save(BetweenRunsSavePathInUse, _metaState, out string error))
                 Debug.LogWarning("Between runs: the save could not be written: " + error);
         }
@@ -138,7 +157,7 @@ namespace Roguelike
             CloseChoice();
             if (_level != null) BackToPracticeRoom(); // closes the screens, brings her back to life, removes the floor
             else CloseScreens();
-            _ = BetweenRunsState; // read the save now
+            BetweenRunsReadable(); // read the save now, again if it could not be read before (work order 033)
             BetweenRunsSeed = seed;
             BetweenRunsNote = "";
             _screenScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f;
@@ -265,6 +284,7 @@ namespace Roguelike
             _metaRun = false;
             Earnings = null;
             if (!MetaOn) return;
+            if (!BetweenRunsReadable()) return; // work order 033: the save is there but cannot be read now: this run is no meta run
             MetaState s = BetweenRunsState;
             MetaRack.Apply(s, MetaValues, Modifiers.Meta, StruckOutSkill);
             _metaRun = true;
@@ -333,7 +353,10 @@ namespace Roguelike
                       + (fresh.Count > 0 ? "; feats: " + string.Join(", ", fresh.Select(MetaFeats.Words)) : ""));
         }
 
-        /// <summary>Every frame of a run: is she under half health in the elite room (or before she has been in it)?</summary>
+        /// <summary>
+        /// Every frame of a run, after the room she is in is tracked: is she under half health in the elite room? Only
+        /// there (the second reviews of 2026-11-20, work order 033): a dip after stepping out of it is not in it.
+        /// </summary>
         void BetweenRunsTick()
         {
             if (!_metaRun || _health == null || EliteRoomDone) return;
@@ -342,7 +365,17 @@ namespace Roguelike
                 _eliteEntrySeen = true;
                 _eliteDipped = false;
             }
-            if (_health.Current * 2 < _health.Max) _eliteDipped = true;
+            if (CurrentRoom != null && CurrentRoom.Elite && _health.Current * 2 < _health.Max) _eliteDipped = true;
+        }
+
+        /// <summary>
+        /// The pause menu's Quit, before the game quits (the second reviews of 2026-11-20, work order 033): a run started
+        /// with what lasts between runs on ends the way leaving does (F7), so what it earned reaches the save. With the
+        /// trial off nothing changes.
+        /// </summary>
+        public void EndRunToQuit()
+        {
+            if (InRun && _metaRun) BackToPracticeRoom();
         }
 
         /// <summary>Not That One: the struck-out skill counts as had, so the floor reward never draws it.</summary>

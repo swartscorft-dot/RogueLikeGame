@@ -226,6 +226,7 @@ namespace Roguelike
                 case MenuLine.Leave: _levels.BackToPracticeRoom(); break;
                 case MenuLine.Quit:
                     _levels.Resume();
+                    _levels.EndRunToQuit(); // work order 033: what the trial's run earned reaches the save first
                     Application.Quit();
                     break;
                 case MenuLine.DashDirection: ChangeSetting(line, 1); break;

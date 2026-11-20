@@ -75,6 +75,10 @@ namespace Roguelike
         /// <summary>True when it installed itself at the start of Play.</summary>
         public bool StartedByItself { get; private set; }
 
+        /// <summary>For tests (work order 033): the enemies it listens to, and how many times it looked for gone ones.</summary>
+        public int Listening => _enemies.Count;
+        public int GoneLooks { get; private set; }
+
         readonly AudioClip[] _clips = new AudioClip[PlaceholderSoundRules.All.Length];
         readonly bool[] _recorded = new bool[PlaceholderSoundRules.All.Length];
         readonly SoundCrowd _crowd = new SoundCrowd();
@@ -213,8 +217,13 @@ namespace Roguelike
             if (_player != _listeningPlayer || _health != _listeningHealth) Listen(_player, _health);
             IReadOnlyList<Enemy> all = Enemy.All;
             for (int i = 0; i < all.Count; i++) Hear(all[i]);
-            if (_enemies.Count > 64) ForgetGone();
+            // Looked for only when a target was destroyed since the last look (the second reviews of 2026-11-20, work
+            // order 033, as work order 026 did in TimingFeedback): not every frame once there are many.
+            if (_enemies.Count > 64 && Damageable.Destroyed != _forgotAt) ForgetGone();
         }
+
+        int _forgotAt = -1;
+        readonly List<Enemy> _gone = new List<Enemy>();
 
         void Listen(PlayerCharacter player, PlayerHealth health)
         {
@@ -246,9 +255,12 @@ namespace Roguelike
 
         void ForgetGone()
         {
-            var gone = new List<Enemy>();
-            foreach (Enemy e in _enemies.Keys) if (e == null) gone.Add(e);
-            foreach (Enemy e in gone) _enemies.Remove(e);
+            GoneLooks++;
+            _forgotAt = Damageable.Destroyed;
+            _gone.Clear();
+            foreach (Enemy e in _enemies.Keys) if (e == null) _gone.Add(e);
+            foreach (Enemy e in _gone) _enemies.Remove(e);
+            _gone.Clear();
         }
 
         /// <summary>Nothing it does may break the fight it listens to: a fault here is logged once and dropped.</summary>
@@ -324,8 +336,8 @@ namespace Roguelike
             int chests = levels != null ? levels.ChestsOpened.Count : 0;
             RunRecord record = levels != null ? levels.Record : null;
             // A skill upgrade from an elite room is a pick too (where work orders 017 and 021 met, 2026-11-20).
-            // And the focus choice (work order 025).
-            int picks = record != null ? record.Skills.Count + record.Upgrades.Count + record.SkillUpgrades.Count + (record.FocusChoice.Length > 0 ? 1 : 0) : 0;
+            // And the focus choice (work order 025). The one count the effects use as well (work order 033).
+            int picks = record != null ? record.Picks : 0;
             bool paused = levels != null && levels.Paused;
             int line = RunHud.Current != null ? RunHud.Current.Selected : 0;
             bool focus = _player != null && _player.IsFocusFull;

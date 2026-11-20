@@ -51,11 +51,15 @@ namespace Roguelike
 
         /// <summary>The pieces it has live now.</summary>
         public int Live => _budget.Live;
+        /// <summary>For tests (work order 033): the enemies it listens to, and how many times it looked for gone ones.</summary>
+        public int Listening => _enemies.Count;
+        public int GoneLooks { get; private set; }
 
         struct Due
         {
             public float At;
             public Action Act;
+            public bool Unscaled; // At is real time (work order 033)
         }
 
         struct Charge
@@ -104,6 +108,8 @@ namespace Roguelike
         int _slideSlot = -1;
         Vector3 _slideFrom;
         GeneratedLevel _levelSeen;
+        GeneratedLevel _dueLevel; // the floor what waits in _due was asked on (work order 033)
+        bool _dueInRun;
         RunRecord _recordSeen;
         int _picksSeen;
 
@@ -208,8 +214,13 @@ namespace Roguelike
             if (_player != _listeningPlayer || _health != _listeningHealth) Listen(_player, _health);
             IReadOnlyList<Enemy> all = Enemy.All;
             for (int i = 0; i < all.Count; i++) Hear(all[i]);
-            if (_enemies.Count > 64) ForgetGone();
+            // Looked for only when a target was destroyed since the last look (the second reviews of 2026-11-20, work
+            // order 033, as work order 026 did in TimingFeedback): not every frame once there are many.
+            if (_enemies.Count > 64 && Damageable.Destroyed != _forgotAt) ForgetGone();
         }
+
+        int _forgotAt = -1;
+        readonly List<Enemy> _gone = new List<Enemy>();
 
         void Listen(PlayerCharacter player, PlayerHealth health)
         {
@@ -231,7 +242,10 @@ namespace Roguelike
 
         void ForgetGone()
         {
-            var gone = new List<Enemy>();
+            GoneLooks++;
+            _forgotAt = Damageable.Destroyed;
+            List<Enemy> gone = _gone;
+            gone.Clear();
             foreach (Enemy e in _enemies.Keys) if (e == null) gone.Add(e);
             foreach (Enemy e in gone) _enemies.Remove(e);
             gone.Clear();
@@ -240,6 +254,7 @@ namespace Roguelike
             gone.Clear();
             foreach (Enemy e in _orbits.Keys) if (e == null) gone.Add(e);
             foreach (Enemy e in gone) _orbits.Remove(e);
+            gone.Clear();
         }
 
         /// <summary>Nothing it does may break the fight it shows: a fault here is logged once and dropped.</summary>
@@ -390,7 +405,8 @@ namespace Roguelike
             return look ?? ShotFxDefaults.For(skill.Name);
         }
 
-        void Later(float seconds, Action act) => _due.Add(new Due { At = Time.time + Mathf.Max(0f, seconds), Act = act });
+        void Later(float seconds, Action act, bool unscaled = false) =>
+            _due.Add(new Due { At = (unscaled ? Time.unscaledTime : Time.time) + Mathf.Max(0f, seconds), Act = act, Unscaled = unscaled });
 
         // ---------------- The enemies ----------------
 
@@ -531,15 +547,17 @@ namespace Roguelike
             });
         }
 
-        void Shards(FxMoment moment, FxTier tier, Vector3 at, float star, float reach, float piece, int count)
+        void Shards(FxMoment moment, FxTier tier, Vector3 at, float star, float reach, float piece, int count, bool unscaled = false)
         {
             FxPiece s = Piece(FxShape.Spark, moment, tier, at, star, Values.DeathStarSeconds, Values.BoneRim, Values.BoneCore);
             s.TowardCamera = 0.5f;
+            s.Unscaled = unscaled;
             Put(s);
             FxPiece p = Piece(FxShape.Shards, moment, tier, at, reach, Values.ShardSeconds, Values.BoneRim, Values.BoneCore);
             p.Count = count;
             p.PieceSize = piece;
             p.TowardCamera = 0.5f;
+            p.Unscaled = unscaled;
             Put(p);
         }
 
@@ -647,19 +665,26 @@ namespace Roguelike
             }
         }
 
-        /// <summary>10. The boss's death: three staggered bursts of shards over half a second, and a wide ring. Never dropped.</summary>
+        /// <summary>
+        /// 10. The boss's death: three staggered bursts of shards over half a second, and a wide ring. Never dropped. On real
+        /// time (the second reviews of 2026-11-20, work order 033): the act is cleared as it dies and the game slows to a
+        /// stop over half a second of real time, only about a quarter of a second of game time; all of it is seen on the
+        /// "Act cleared" screen.
+        /// </summary>
         void BossDeath(Enemy e)
         {
             if (!Ask(FxMoment.BossDied, FxTier.Key)) return;
             float top = TopOf(e);
             Vector3 feet = Feet(e);
-            Put(Band(FxShape.Ring, FxMoment.BossDied, FxTier.Key, feet, Values.BossDeathRing, Values.BossDeathSeconds, Values.BossRim, Values.BossCore));
+            FxPiece ring = Band(FxShape.Ring, FxMoment.BossDied, FxTier.Key, feet, Values.BossDeathRing, Values.BossDeathSeconds, Values.BossRim, Values.BossCore);
+            ring.Unscaled = true;
+            Put(ring);
             var offsets = new[] { new Vector3(0f, 0.55f, 0f), new Vector3(-0.7f, 0.4f, 0.35f), new Vector3(0.6f, 0.75f, -0.3f) };
             for (int i = 0; i < offsets.Length; i++)
             {
                 Vector3 at = feet + new Vector3(offsets[i].x, offsets[i].y * top, offsets[i].z);
                 Later(i * Values.BossBurstGap, () => Shards(FxMoment.BossDied, FxTier.Key, at, Values.BossBurstStar, Values.BossShardReach,
-                                                            Values.BossShardSize, Sizes.ShardCount(EnemyKind.Boss)));
+                                                            Values.BossShardSize, Sizes.ShardCount(EnemyKind.Boss), unscaled: true), unscaled: true);
             }
             Later(e.ShownDeadFor(e.Values), () =>
             {
@@ -962,8 +987,9 @@ namespace Roguelike
                 }
             }
             RunRecord record = levels != null ? levels.Record : null;
-            // The focus choice is a pick too (work order 025).
-            int picks = record != null ? record.Skills.Count + record.Upgrades.Count + (record.FocusChoice.Length > 0 ? 1 : 0) : 0;
+            // The focus choice is a pick too (work order 025), and an elite room's skill upgrade: the one count the sounds
+            // use as well (the second reviews of 2026-11-20, work order 033).
+            int picks = record != null ? record.Picks : 0;
             if (record != null && record == _recordSeen && picks > _picksSeen) ChoiceTaken();
             _recordSeen = record;
             _picksSeen = picks;
@@ -1045,12 +1071,22 @@ namespace Roguelike
 
         void RunDue()
         {
+            // Work order 033 (the second reviews of 2026-11-20): what waits belongs to the floor it was asked on. All of it
+            // is cancelled when that floor is removed or another is built, and what waits on game time when the run ends
+            // (the end's slow-down would hold it until the screen is answered, and then let it go at the old place).
+            GeneratedLevels levels = GeneratedLevels.Current;
+            GeneratedLevel level = levels != null ? levels.Level : null;
+            bool inRun = levels != null && levels.InRun;
+            if (!ReferenceEquals(level, _dueLevel)) _due.Clear(); // by reference: a floor destroyed since is not "no floor"
+            else if (_dueInRun && !inRun) _due.RemoveAll(d => !d.Unscaled);
+            _dueLevel = level;
+            _dueInRun = inRun;
             if (_due.Count == 0) return;
-            float now = Time.time;
+            float now = Time.time, real = Time.unscaledTime;
             _dueNow.Clear();
             for (int i = _due.Count - 1; i >= 0; i--)
             {
-                if (_due[i].At > now) continue;
+                if (_due[i].At > (_due[i].Unscaled ? real : now)) continue;
                 _dueNow.Add(_due[i]);
                 _due.RemoveAt(i);
             }

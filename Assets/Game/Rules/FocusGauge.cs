@@ -97,6 +97,16 @@ namespace Roguelike.Rules
             _windowSeconds = 0f;
         }
 
+        /// <summary>
+        /// Ends a window that runs, and keeps the focus (the second reviews of 2026-11-20, work order 033: a window opened
+        /// on floor 1 must not carry into the way of the gauge picked after it).
+        /// </summary>
+        public void EndWindow()
+        {
+            _empoweredUntil = float.NegativeInfinity;
+            _windowSeconds = 0f;
+        }
+
         public float DamageMultiplier(float now, IdentityValues values) => IsEmpowered(now) ? values.EmpoweredDamage : 1f;
 
         /// <summary>Damage after the empowered mode's multiplier, rounded to a whole number.</summary>
