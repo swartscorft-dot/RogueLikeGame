@@ -156,7 +156,11 @@ namespace Roguelike.Rules
     {
         public const string Stage = "chest";
 
-        public static List<Upgrade> Offer(ulong runSeed, int floor, int chest, IReadOnlyList<string> equippedSkills, RunValues values)
+        /// <summary>
+        /// <paramref name="extra"/> more than the values say (work order 029: Deep Chests, the first chest of a floor); the
+        /// first ones drawn are the same either way.
+        /// </summary>
+        public static List<Upgrade> Offer(ulong runSeed, int floor, int chest, IReadOnlyList<string> equippedSkills, RunValues values, int extra = 0)
         {
             LevelRandom rng = LevelRandom.Stream(runSeed, Stage, floor * 64 + chest);
             var rows = Enumerable.Range(0, values.Upgrades?.Length ?? 0).ToList();
@@ -164,7 +168,7 @@ namespace Roguelike.Rules
             var offer = new List<Upgrade>();
             foreach (int i in rows)
             {
-                if (offer.Count >= values.UpgradesOffered) break;
+                if (offer.Count >= values.UpgradesOffered + Math.Max(0, extra)) break;
                 UpgradeDefinition d = values.Upgrades[i];
                 string skill = d.Skill ?? "";
                 if (d.Kind == UpgradeKind.Cooldown && skill.Length == 0)
@@ -196,7 +200,17 @@ namespace Roguelike.Rules
             if (u != null) _taken.Add(u);
         }
 
-        public void Clear() => _taken.Clear();
+        /// <summary>
+        /// The pieces of the rack equipped for this run (work order 029, decision 0009, a proposal he has not ruled on): empty
+        /// unless what lasts between runs is switched on, and empty they change none of the numbers here.
+        /// </summary>
+        public RunMetaEffects Meta { get; } = new RunMetaEffects();
+
+        public void Clear()
+        {
+            _taken.Clear();
+            Meta.Clear();
+        }
 
         float Sum(UpgradeKind kind, string skill = null)
         {
@@ -208,15 +222,21 @@ namespace Roguelike.Rules
 
         /// <summary>Maximum health added.</summary>
         public int BonusMaxHealth => (int)Math.Round(Sum(UpgradeKind.MaxHealth));
-        /// <summary>The share of damage dealt: 1 plus each damage upgrade's share.</summary>
-        public float DamageShare => 1f + Sum(UpgradeKind.Damage);
+        /// <summary>Her maximum in the run from her own (work order 029): raised by the rack's share, then the chests' health added.</summary>
+        public int MaxHealthFor(int own) =>
+            (Meta.MaxHealthShare != 0f ? (int)Math.Round(own * (1.0 + Meta.MaxHealthShare), MidpointRounding.AwayFromZero) : own) + BonusMaxHealth;
+        /// <summary>The share of damage dealt: 1 plus each damage upgrade's share, times the rack's step (work order 029).</summary>
+        public float DamageShare => (1f + Sum(UpgradeKind.Damage)) * (1f + Meta.DamageShare);
         public int ScaleDamage(int damage) => damage <= 0 ? damage : (int)Math.Round(damage * DamageShare, MidpointRounding.AwayFromZero);
         /// <summary>The share of a skill's own cooldown it runs: 1 less each cut to it, never under <see cref="CooldownFloor"/>.</summary>
         public float CooldownShare(string skill) => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.Cooldown, skill ?? ""));
         public float RunSpeedShare => 1f + Sum(UpgradeKind.RunSpeed);
         public int FirstMarkBonus(string skill) => (int)Math.Round(Sum(UpgradeKind.FirstMark, skill ?? ""));
-        /// <summary>The share of the dash's own cooldown it runs (work order 017): 1 less each cut, never under <see cref="CooldownFloor"/>.</summary>
-        public float DashCooldownShare => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.DashCooldown));
+        /// <summary>
+        /// The share of the dash's own cooldown it runs (work order 017): 1 less each cut, never under <see cref="CooldownFloor"/>;
+        /// times Spare Step's longer recharge (work order 029).
+        /// </summary>
+        public float DashCooldownShare => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.DashCooldown)) * Meta.DashRechargeScale;
 
         /// <summary>The upgrades taken, in short form, the same ones counted together: "+10 hp x2, +5% dmg".</summary>
         public string ShortText()

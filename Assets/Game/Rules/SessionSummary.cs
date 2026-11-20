@@ -192,6 +192,15 @@ namespace Roguelike.Rules
         /// <summary>Elite rooms entered and cleared (work order 017), and the seconds each clear took from the first step in.</summary>
         public int ElitesEntered, ElitesCleared;
         public readonly List<float> EliteSeconds = new List<float>();
+        /// <summary>
+        /// What lasts between runs (work order 029), only when the run started with it switched on: the pieces equipped,
+        /// the currency earned and from what, in the order first earned, and the feats done for the first time.
+        /// </summary>
+        public bool HasMeta;
+        public string MetaEquipped = "";
+        public int MetaEarned;
+        public readonly List<KeyValuePair<string, int>> MetaFrom = new List<KeyValuePair<string, int>>();
+        public readonly List<string> MetaFeats = new List<string>();
         /// <summary>How it ended, in words; "still going" when the session ended first.</summary>
         public string Ended = "still going";
     }
@@ -427,6 +436,26 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.SkillUpgradeTake:
                         run.SkillUpgrades.Add(e.Name ?? "?");
+                        break;
+                    // Work order 029.
+                    case SessionEventTypes.MetaLoadout:
+                        run.HasMeta = true;
+                        run.MetaEquipped = string.IsNullOrEmpty(e.Name) ? "" : e.Name.Replace(" | ", ", ");
+                        break;
+                    case SessionEventTypes.MetaEarn:
+                    {
+                        run.HasMeta = true;
+                        int amount = Number(e, "amount");
+                        run.MetaEarned += amount;
+                        string from = e.Name ?? "?";
+                        int at = run.MetaFrom.FindIndex(p => p.Key == from);
+                        if (at < 0) run.MetaFrom.Add(new KeyValuePair<string, int>(from, amount));
+                        else run.MetaFrom[at] = new KeyValuePair<string, int>(from, run.MetaFrom[at].Value + amount);
+                        break;
+                    }
+                    case SessionEventTypes.MetaFeat:
+                        run.HasMeta = true;
+                        run.MetaFeats.Add(e.Name ?? "?");
                         break;
                     case SessionEventTypes.RunEnd:
                     {
@@ -858,6 +887,12 @@ namespace Roguelike.Rules
                 sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
                   .AppendLine(run.EliteSeconds.Count == 0 ? "" : " (" + string.Join(", ", run.EliteSeconds.Select(Duration)) + ")");
                 sb.Append("  skill upgrades   ").AppendLine(run.SkillUpgrades.Count == 0 ? "-" : string.Join(", ", run.SkillUpgrades));
+                // Work order 029: one line, only when the run started with what lasts between runs switched on.
+                if (run.HasMeta)
+                    sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)
+                      .Append(";  earned ").Append(run.MetaEarned)
+                      .Append(run.MetaFrom.Count == 0 ? "" : " (" + string.Join(", ", run.MetaFrom.Select(p => p.Key + " " + p.Value)) + ")")
+                      .Append(";  new feats ").AppendLine(run.MetaFeats.Count == 0 ? "-" : string.Join(", ", run.MetaFeats));
             }
             sb.AppendLine();
 
