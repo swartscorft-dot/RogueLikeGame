@@ -105,6 +105,13 @@ namespace Roguelike.Rules
             : kind == EnemyKind.Swarmer ? TurnSort.Light
             : TurnSort.None;
 
+        /// <summary>
+        /// Does starting this attack take a turn? Every attack but an ordinary one (decision 0010; work order 035,
+        /// 2026-11-20): a melee enemy's attack in reach on a short cycle is never held back; its skills wait their turn as
+        /// the heavy attacks always have. Every attack from before work order 035 takes one, so nothing changes for them.
+        /// </summary>
+        public static bool TakesTurn(EnemyAttackDefinition attack) => attack != null && !attack.Ordinary;
+
         /// <summary>Is a sort ever held back? Heavy and ranged, with the rule on.</summary>
         public bool Holds(TurnSort sort) => Values.On && (sort == TurnSort.Heavy || sort == TurnSort.Ranged);
 

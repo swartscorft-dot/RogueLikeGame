@@ -41,6 +41,7 @@ namespace Roguelike.PlayModeTests
             ThingsThatFly.Ensure().Values.On = false; // work order 036: these are the tests of the attacks as they were
             yield return null;
             _player = Object.FindAnyObjectByType<PlayerCharacter>();
+            _player.MeleeYouRead = false; // work order 035: these tests are of the swarmer's, brute's and guard's attacks from before
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _practiceEnemy = Object.FindAnyObjectByType<EnemyBrute>();

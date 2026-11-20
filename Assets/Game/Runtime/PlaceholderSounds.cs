@@ -134,6 +134,12 @@ namespace Roguelike
         /// <summary>True when a sound plays a recorded clip from the Resources folder.</summary>
         public bool IsRecorded(PlaceholderSound sound) => _recorded[(int)sound];
 
+        /// <summary>
+        /// A sound asked for by another of the game's signs (work order 037: the clean window's tick), under the same rules
+        /// as its own: nothing while it is off or the game is paused, and the crowd rule at the end of the frame.
+        /// </summary>
+        public void AskFor(PlaceholderSound sound, float gain = 1f) => Safely(() => Ask(sound, gain));
+
         void Awake()
         {
             MakeClips();
@@ -284,7 +290,9 @@ namespace Roguelike
             if (!moment.HasValue) return;
             // The windup's attack is the enemy's own at its report: blue when it can be countered (work order 015).
             bool counterable = r.Kind == EnemyReportKind.AttackStarted && enemy != null && PoolRules.IsCounterable(enemy.Attack);
-            Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable));
+            // An ordinary attack's windup is silent (work order 035): the windup sounds mean a skill.
+            bool ordinary = r.Kind == EnemyReportKind.AttackStarted && enemy != null && enemy.Attack != null && enemy.Attack.Ordinary;
+            Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable, ordinary));
         });
 
         /// <summary>Work order 036: what flies is heard as it leaves, with its kind's strike (the shooter's arrow, the others' strike).</summary>

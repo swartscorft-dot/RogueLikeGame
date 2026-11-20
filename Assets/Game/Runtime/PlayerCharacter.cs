@@ -140,6 +140,10 @@ namespace Roguelike
         public Transform LeftMuzzle;
         [Tooltip("Plays the shot sounds. Optional: without it the shots are silent.")]
         public ShotSounds Sounds;
+        [Header("Melee you read (work order 035)")]
+        [Tooltip("On: the swarmer, the brute and the guard show no shapes on the floor and fight with their ordinary attacks and skills, " +
+                 "read on their bodies (decision 0010). Off: they fight exactly as before work order 035, floor shapes and all. Read live.")]
+        public bool MeleeYouRead = true;
 
         enum PressKind { Dash, Skill }
 
@@ -283,7 +287,7 @@ namespace Roguelike
         /// True while a move key is held and she is free to move: not dashing and not in a skill, or in a light one. Never
         /// in cover, where the keys slide her along it instead.
         /// </summary>
-        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && !_inCover && (_actionKind != ActionKind.Skill || IsInLightSkill);
+        public bool IsMoving => _moveInput != Vector3.zero && !_dashing && !_inCover && !_held.IsHeld && (_actionKind != ActionKind.Skill || IsInLightSkill);
 
         // ---------------- Taking cover (Kristian 2026-11-19, an experiment) ----------------
 
@@ -626,12 +630,21 @@ namespace Roguelike
                 ? (_chainPrimed ? 1f : Mathf.Clamp01(Kit.CleanShare)) : 0f; // primed (work order 025): all of the window
         /// <summary>Presses of the recast chain running, or 0 (work order 025: five for Triple Tap in Steady Hand's window).</summary>
         public int RecastCount => _chain.Slot >= 0 ? _chain.Count : 0;
+        // Work order 037 (Kristian's session of 2026-11-20): what the signs of the clean press read (PlayerSigns). They
+        // read only; nothing here changes when a press is clean.
+        /// <summary>The recast window's length in seconds, of the chain running; 0 with none.</summary>
+        public float RecastWindowSeconds => _chain.Window;
+        /// <summary>Seconds since the window for the next press opened, past its length once it has run out; -1 before it opens or with no chain.</summary>
+        public float RecastSinceOpened => _chain.SinceOpened(Time.time);
+        /// <summary>True when a press of the chain's key now would be clean: judged exactly as that press itself would be.</summary>
+        public bool RecastPressWouldBeClean =>
+            _chain.Slot >= 0 && _chain.Slot < Skills.Count && !_chain.Expired(Time.time) && JudgeRecast(_chain.Slot, Time.time) == RecastPress.Clean;
 
         /// <summary>
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
         /// neither does a free recovery (decision 0004), which holds back only the next skill (<see cref="SkillGateRemaining"/>).
         /// </summary>
-        public bool IsLocked => _dashing || _actionKind == ActionKind.Skill;
+        public bool IsLocked => _dashing || _actionKind == ActionKind.Skill || _held.IsHeld; // stunned or pulled too (work order 035)
         /// <summary>True from the moment a basic shot has gone off until its recovery is over or is cut short.</summary>
         public bool IsInShotRecovery => _actionKind == ActionKind.BasicShot && _action.HitResolved;
         public bool IsInvulnerable => _dash.IsInvulnerable(Time.time);
@@ -734,7 +747,7 @@ namespace Roguelike
         }
 
         /// <summary>True while she cannot start a basic shot now: a shot, a skill or a dash is going.</summary>
-        bool Busy => _actionKind != ActionKind.None || _dashing;
+        bool Busy => _actionKind != ActionKind.None || _dashing || _held.IsHeld;
 
         /// <summary>Let go of the move keys: she stands. A shot or dash in progress still finishes. For tests and tools.</summary>
         public void Stop()
@@ -752,6 +765,7 @@ namespace Roguelike
             _dash.MaxCharges = Modifiers != null ? Modifiers.Meta.DashCharges : 1; // work order 029: Spare Step
             if (_dashing || !_dash.CanStart(Time.time))
                 return DashPressed(IntentResult.Rejected, _dashing ? 0f : _dash.CooldownRemaining(Time.time));
+            if (_held.IsHeld) return DashPressed(BufferPress(PressKind.Dash, point), 0f); // stunned or pulled: it waits, as in a lock (work order 035)
 
             DropWaitingClick(); // a dash drops a waiting click
             _shotFacing.End(turnBack: false); // and ends the backpedal at once: the dash faces its own way
@@ -814,6 +828,13 @@ namespace Roguelike
             // the shot it follows has gone off it waits like any press during a skill.
             ExpireChain(Time.time);
             RecastPress recast = JudgeRecast(slot, Time.time);
+            if (_held.IsHeld && recast != RecastPress.None)
+            {
+                // Stunned or pulled (work order 035): even a recast waits, as in a lock.
+                _shotCursor = point;
+                _bufferedSkillReleased = false;
+                return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
+            }
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 _shotCursor = point;
@@ -833,7 +854,7 @@ namespace Roguelike
             // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer. Slide (work
             // order 015) is its own move: it waits only for a dash, a committed skill or a Slide still moving her.
             bool waits = Skills[slot].Input == SkillInput.KeyMove
-                ? _dashing || _keyMoving || (_actionKind == ActionKind.Skill && !IsInLightSkill)
+                ? _dashing || _keyMoving || _held.IsHeld || (_actionKind == ActionKind.Skill && !IsInLightSkill)
                 : IsLocked || Time.time < _skillGateUntil;
             if (waits)
             {
@@ -1014,6 +1035,7 @@ namespace Roguelike
             if (_inCover) LeaveCover(CoverLeaving.Other);
             _coverHeld = false;
             _peekUntil = float.NegativeInfinity;
+            _held.Clear(); // a stun or a pull ends (work order 035): death, a restart, a new floor
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
         }
@@ -1039,6 +1061,7 @@ namespace Roguelike
             ClearKegs();
             _focus.Clear();
             _prime.Clear(); // and no priming (work order 025)
+            _held.Clear(); // and no stun or pull (work order 035)
             _dash.Clear();
             _cooldowns.Clear(); // made again, ready, when next asked for
             // The basic shot too (the second reviews of 2026-11-20, work order 033): no hits counted toward its next mark,
@@ -1071,6 +1094,95 @@ namespace Roguelike
         /// <summary>The dashes the dash holds now (work order 029).</summary>
         public int DashMaxCharges => _dash.MaxCharges;
 
+        // ---------------- Stunned and pulled (work order 035, 2026-11-20; decision 0010) ----------------
+        // Two things the melee kinds' blue skills do to her (MeleeEnemy): the brute's Shield bash stuns her, the guard's
+        // Drag pulls her in. Stunned: for its time she cannot move, shoot, use a skill or dash; a press meanwhile waits in
+        // the input buffer as in a lock and keeps only what the buffer allows at its end; it never stacks or chains
+        // (HeldState: none while she is held, and none for HeldState.StunGrace after one ends). Pulled: she is moved along
+        // the ground toward the puller on the NavMesh, stopping at walls and props as her own movement does, and cannot
+        // act meanwhile; afterwards she acts at once. Neither starts while she is dead, a run's result is in, the game is
+        // paused or a choice is open; both end at once on death, a restart and leaving a floor (Teleport, StartFresh).
+
+        readonly HeldState _held = new HeldState();
+        PlayerHealth _herHealth;
+
+        /// <summary>True while a stun holds her (work order 035).</summary>
+        public bool IsStunned => _held.IsStunned;
+        /// <summary>True while a pull moves her (work order 035).</summary>
+        public bool IsPulled => _held.IsPulled;
+        /// <summary>True while she is stunned or pulled: she cannot act (work order 035).</summary>
+        public bool IsHeld => _held.IsHeld;
+        /// <summary>What holds her and since when; for the effects and tests.</summary>
+        public HeldState HeldBy => _held;
+        public int TimesStunned { get; private set; }
+        public int TimesPulled { get; private set; }
+
+        bool MayBeHeldNow
+        {
+            get
+            {
+                if (_herHealth == null) _herHealth = GetComponent<PlayerHealth>();
+                GeneratedLevels levels = GeneratedLevels.Current;
+                return MeleeYouReadRules.MayBeHeld(_herHealth == null || _herHealth.IsAlive, _herHealth != null && _herHealth.Untouchable,
+                                                   levels != null && levels.Paused, levels != null && levels.Choice != GeneratedLevels.ChoiceKind.None);
+            }
+        }
+
+        /// <summary>Stuns her for <paramref name="seconds"/> (work order 035), unless she may not be held now; <paramref name="by"/> names the attack. True if it did.</summary>
+        public bool Stun(float seconds, string by = null)
+        {
+            if (!MayBeHeldNow || !_held.TryStun(Time.time, seconds)) return false;
+            Interrupt();
+            TimesStunned++;
+            Report(new PlayerReport { Kind = PlayerReportKind.Stunned, Seconds = seconds, By = by });
+            return true;
+        }
+
+        /// <summary>Pulls her to <paramref name="to"/> over <paramref name="seconds"/> (work order 035), unless she may not be held now. True if it did.</summary>
+        public bool Pull(Vector3 to, float seconds, string by = null)
+        {
+            if (!MayBeHeldNow || !_held.TryPull(Time.time, GroundPosition, new GroundPoint(to.x, to.z), seconds)) return false;
+            Interrupt();
+            TimesPulled++;
+            Report(new PlayerReport { Kind = PlayerReportKind.Pulled, Seconds = seconds, By = by });
+            return true;
+        }
+
+        /// <summary>A stun or a pull takes her: what she was doing is dropped, as a teleport drops it, where she stands.</summary>
+        void Interrupt()
+        {
+            if (_actionKind == ActionKind.Skill) ReportSkillEnded(SkillEnding.Cancelled, Time.time);
+            _action.Cancel();
+            _cast.Cancel();
+            EndAction();
+            _dashing = false;
+            _buffer.Clear();
+            DropWaitingClick();
+            _shotFacing.End(turnBack: false);
+            _easing = false;
+            _sliding = false;
+            _rising = false;
+            _skillGateUntil = float.NegativeInfinity;
+            EndKeyMove();
+            if (_inCover) LeaveCover(CoverLeaving.Other);
+            Halt();
+        }
+
+        /// <summary>Each frame: a pull moves her along; true while she is still held, false once it is over (she acts at once).</summary>
+        bool UpdateHeld(float now)
+        {
+            if (!_held.IsHeld) return false;
+            if (_held.IsPulled)
+            {
+                GroundPoint p = _held.PullPoint(now);
+                Vector3 step = Flat(new Vector3(p.X, 0f, p.Z) - transform.position);
+                if (_agent.isOnNavMesh && step.sqrMagnitude > 1e-10f) _agent.Move(step); // on the NavMesh: it stops at walls and props
+            }
+            if (_held.Step(now) != HeldKind.None) return false;
+            Halt();
+            return true;
+        }
+
         // ---------------- Simulation ----------------
 
         void Update()
@@ -1085,6 +1197,7 @@ namespace Roguelike
                 PrimesLapsed++;
                 Report(new PlayerReport { Kind = PlayerReportKind.PrimeLapsed }); // Hair Trigger's priming, unused (work order 025)
             }
+            if (UpdateHeld(now)) return; // stunned or pulled: nothing else this frame (work order 035)
 
             if (_dashing)
             {

@@ -34,6 +34,23 @@ namespace Roguelike.Rules
         /// </summary>
         public float Rush = 0f;
 
+        // Melee you read (decision 0010; work order 035, 2026-11-20): what the swarmer's, the brute's and the guard's new
+        // attacks are besides their shape (MeleeAttacks). Every attack from before leaves them at their defaults.
+        /// <summary>An ordinary attack: in reach, on a short cycle, little damage; it takes no turn to attack (<see cref="AttackTurns.TakesTurn"/>).</summary>
+        public bool Ordinary = false;
+        /// <summary>s from the start of one use's windup to the earliest start of the next: a skill's own cooldown. 0: none.</summary>
+        public float Cooldown = 0f;
+        /// <summary>What it does besides striking where it stands: hop to her, lunge at her, pull her in (<see cref="MeleeMove"/>).</summary>
+        public MeleeMove Move = MeleeMove.None;
+        /// <summary>s of it: a hop or a lunge takes the last this many seconds of the windup; a pull takes this long on her.</summary>
+        public float MoveSeconds = 0f;
+        /// <summary>s she is stunned when it lands (the brute's Shield bash). 0: none.</summary>
+        public float Stun = 0f;
+        /// <summary>m in front of the enemy she is pulled to (the guard's Drag).</summary>
+        public float PullTo = 0f;
+        /// <summary>The skill it likes to follow: chosen first, its own cooldown or not, right after that one (the guard's Crush after a Drag).</summary>
+        public string Follows = "";
+
         public EnemyAttackDefinition Copy() => (EnemyAttackDefinition)MemberwiseClone();
     }
 
