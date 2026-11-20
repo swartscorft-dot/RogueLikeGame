@@ -748,6 +748,7 @@ namespace Roguelike
         /// </summary>
         public IntentResult DashToward(Vector3 point)
         {
+            _dash.MaxCharges = Modifiers != null ? Modifiers.Meta.DashCharges : 1; // work order 029: Spare Step
             if (_dashing || !_dash.CanStart(Time.time))
                 return DashPressed(IntentResult.Rejected, _dashing ? 0f : _dash.CooldownRemaining(Time.time));
 
@@ -1039,7 +1040,16 @@ namespace Roguelike
             _prime.Clear(); // and no priming (work order 025)
             _dash.Clear();
             _cooldowns.Clear(); // made again, ready, when next asked for
+            // Work order 029 (the rack between runs, only when it is switched on and a piece says so): Spare Step's dash
+            // charges, and Steady Start's focus.
+            _dash.MaxCharges = Modifiers != null ? Modifiers.Meta.DashCharges : 1;
+            if (Modifiers != null && Modifiers.Meta.StartFocusShare > 0f) _focus.Add(Identity.MaxFocus * Modifiers.Meta.StartFocusShare, Identity, Time.time);
         }
+
+        /// <summary>Dashes ready now (work order 029: two with Spare Step); 1 or 0 otherwise.</summary>
+        public int DashChargesReady => _dash.ChargesReady(Time.time);
+        /// <summary>The dashes the dash holds now (work order 029).</summary>
+        public int DashMaxCharges => _dash.MaxCharges;
 
         // ---------------- Simulation ----------------
 
@@ -1896,6 +1906,8 @@ namespace Roguelike
         void AddMarks(Damageable target, int marks, int slot)
         {
             if (marks <= 0 || target == null || !target.IsAlive) return;
+            // Work order 029 (Marked Target, a piece of the rack between runs): a hit that marks a target with none gives more.
+            if (Modifiers != null && Modifiers.Meta.FirstMarkExtra > 0 && target.MarkCount == 0) marks += Modifiers.Meta.FirstMarkExtra;
             KitValues kit = Kit;
             // The run's Lasting marks (work order 025): they stay longer.
             int after = target.AddMarks(marks, kit.MaxMarks, kit.MarkLifetime + (Modifiers != null ? Modifiers.MarkLifetimeBonus : 0f));

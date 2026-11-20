@@ -195,6 +195,15 @@ namespace Roguelike.Rules
         /// <summary>The focus choice taken (work order 025), "" before; and, from then on, the gauge's spends and Hair Trigger's primings.</summary>
         public string FocusChoice = "";
         public int FocusSpends, PrimesUsed, PrimesLapsed;
+        /// <summary>
+        /// What lasts between runs (work order 029), only when the run started with it switched on: the pieces equipped,
+        /// the currency earned and from what, in the order first earned, and the feats done for the first time.
+        /// </summary>
+        public bool HasMeta;
+        public string MetaEquipped = "";
+        public int MetaEarned;
+        public readonly List<KeyValuePair<string, int>> MetaFrom = new List<KeyValuePair<string, int>>();
+        public readonly List<string> MetaFeats = new List<string>();
         /// <summary>How it ended, in words; "still going" when the session ended first.</summary>
         public string Ended = "still going";
     }
@@ -443,6 +452,26 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.PrimeLapsed:
                         run.PrimesLapsed++;
+                        break;
+                    // Work order 029.
+                    case SessionEventTypes.MetaLoadout:
+                        run.HasMeta = true;
+                        run.MetaEquipped = string.IsNullOrEmpty(e.Name) ? "" : e.Name.Replace(" | ", ", ");
+                        break;
+                    case SessionEventTypes.MetaEarn:
+                    {
+                        run.HasMeta = true;
+                        int amount = Number(e, "amount");
+                        run.MetaEarned += amount;
+                        string from = e.Name ?? "?";
+                        int at = run.MetaFrom.FindIndex(p => p.Key == from);
+                        if (at < 0) run.MetaFrom.Add(new KeyValuePair<string, int>(from, amount));
+                        else run.MetaFrom[at] = new KeyValuePair<string, int>(from, run.MetaFrom[at].Value + amount);
+                        break;
+                    }
+                    case SessionEventTypes.MetaFeat:
+                        run.HasMeta = true;
+                        run.MetaFeats.Add(e.Name ?? "?");
                         break;
                     case SessionEventTypes.RunEnd:
                     {
@@ -878,6 +907,12 @@ namespace Roguelike.Rules
                 sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
                     : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0
                         ? ", primed skills used " + run.PrimesUsed + ", lapsed " + run.PrimesLapsed : ""));
+                // Work order 029: one line, only when the run started with what lasts between runs switched on.
+                if (run.HasMeta)
+                    sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)
+                      .Append(";  earned ").Append(run.MetaEarned)
+                      .Append(run.MetaFrom.Count == 0 ? "" : " (" + string.Join(", ", run.MetaFrom.Select(p => p.Key + " " + p.Value)) + ")")
+                      .Append(";  new feats ").AppendLine(run.MetaFeats.Count == 0 ? "-" : string.Join(", ", run.MetaFeats));
             }
             sb.AppendLine();
 

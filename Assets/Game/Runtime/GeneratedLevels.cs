@@ -62,6 +62,9 @@ namespace Roguelike
     /// The end of a run, the pause and the run's record (work order 018, 2026-11-20) are in GeneratedLevelsScreens.cs:
     /// death no longer takes her to the practice room at once; the game slows to a stop and the death screen waits for
     /// a key, and so does the act-cleared screen.
+    ///
+    /// What lasts between runs (work order 029, decision 0009, a proposal he has not ruled on) is in
+    /// GeneratedLevelsBetweenRuns.cs, behind a switch that is off by default; off, none of it does anything.
     /// </summary>
     public sealed partial class GeneratedLevels : MonoBehaviour
     {
@@ -401,6 +404,7 @@ namespace Roguelike
             _skillsTaken.Clear();
             Modifiers.Clear();
             Modifiers.CooldownFloor = RunValues.CooldownFloor;
+            ApplyBetweenRuns(); // work order 029: the rack's pieces, only with the switch on
             player.Modifiers = Modifiers;
             SkillUpgrades.Clear(); // a new run starts with no skill upgrade (work order 017)
             player.SkillUpgrades = SkillUpgrades;
@@ -417,11 +421,15 @@ namespace Roguelike
             return EnterFloor(1);
         }
 
-        /// <summary>A new run from a new seed (F5).</summary>
-        public GeneratedLevel StartNewRun() => StartRun(FreshSeed());
+        /// <summary>
+        /// A new run from a new seed (F5). Work order 029: with what lasts between runs switched on and no run going on, the
+        /// screen between runs comes up instead (null is returned), and its start begins the run.
+        /// </summary>
+        public GeneratedLevel StartNewRun() => OpensBetweenRuns(null) ? null : StartRun(FreshSeed());
 
-        /// <summary>The same run seed again from floor 1 (F6); a new run if there was none.</summary>
-        public GeneratedLevel RestartRun() => RunSeed.HasValue ? StartRun(RunSeed.Value) : StartNewRun();
+        /// <summary>The same run seed again from floor 1 (F6); a new run if there was none. The screen between runs as for F5.</summary>
+        public GeneratedLevel RestartRun() =>
+            RunSeed.HasValue ? (OpensBetweenRuns(RunSeed) ? null : StartRun(RunSeed.Value)) : StartNewRun();
 
         GeneratedLevel EnterFloor(int floor)
         {
@@ -431,6 +439,7 @@ namespace Roguelike
             RecordFloor(level);
             _floorStartedAt = Time.time;
             PlaySessionRecorder.Current?.NoteFloorEntered(floor, LevelSeed.ToText(seed));
+            BetweenRunsFloorEntered(floor); // work order 029
             return level;
         }
 
@@ -444,6 +453,7 @@ namespace Roguelike
             InRun = false;
             LastRunLine = line;
             RecordEnd(how);
+            BetweenRunsRunEnded(); // work order 029: what the run earned is kept, with the switch on
             PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null ? CurrentRoom.Order + 1 : 0,
                                                       CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt);
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
@@ -472,10 +482,12 @@ namespace Roguelike
             if (!InRun) return;
             float took = Time.time - _floorStartedAt;
             PlaySessionRecorder.Current?.NoteFloorFinished(Floor, took, _health != null ? _health.Current : 0);
+            BetweenRunsFloorCleared(); // work order 029
             if (Floor >= Values.FloorsPerAct)
             {
                 ActCleared = true;
                 _actTime = Time.time - _runStartedAt;
+                BetweenRunsActCleared(); // work order 029: the act boss
                 EndRun("act cleared", "ACT CLEARED   run " + RunSeedText + "   time " + SessionSummary.Duration(_actTime));
                 EndTheCalled();
                 OpenEnding(EndKind.ActCleared);
@@ -505,6 +517,7 @@ namespace Roguelike
             PlayerCharacter player = FindPlayer();
             var equipped = new List<bool>();
             for (int slot = 0; slot < player.Skills.Count; slot++) equipped.Add(player.IsEquipped(slot));
+            StrikeOutOfOffer(player, equipped); // work order 029: Not That One
             _offeredSkills.Clear();
             _offeredSkills.AddRange(FloorRewards.Offer(RunSeed ?? 0UL, Floor, equipped, RunValues.SkillsOffered));
             if (_offeredSkills.Count == 0)
@@ -593,11 +606,12 @@ namespace Roguelike
             var equipped = new List<string>();
             for (int slot = 0; slot < player.Skills.Count; slot++)
                 if (player.IsEquipped(slot)) equipped.Add(player.Skills[slot].Name);
+            int extra = FirstChestExtra; // work order 029: Deep Chests, asked before this chest counts
             _chestsOpened.Add(chest.Room.Order);
             _offeredUpgrades.Clear();
             // Work order 025: no Mend at full health, no row the run has taken its most times.
             bool fullHealth = _health == null || _health.Current >= _health.Max;
-            _offeredUpgrades.AddRange(ChestUpgrades.Offer(RunSeed ?? 0UL, Floor, chest.Room.Order, equipped, RunValues, Modifiers, fullHealth));
+            _offeredUpgrades.AddRange(ChestUpgrades.Offer(RunSeed ?? 0UL, Floor, chest.Room.Order, equipped, RunValues, Modifiers, fullHealth, extra));
             if (_offeredUpgrades.Count == 0) return true;
             _openChest = chest;
             OpenChoice(ChoiceKind.Chest);
@@ -636,8 +650,10 @@ namespace Roguelike
             for (int slot = 0; slot < player.Skills.Count; slot++)
                 if (player.IsEquipped(slot) && player.Skills[slot] != null) had.Add(player.Skills[slot].Name);
             _offeredSkillUpgrades.Clear();
-            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeValues.Table, had, SkillUpgrades.Taken, UpgradeValues.Offered));
+            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeValues.Table, had, SkillUpgrades.Taken,
+                                                                   UpgradeValues.Offered + Modifiers.Meta.EliteOffersExtra)); // work order 029: Knight's Trophy
             SkillUpgradeOffers++;
+            BetweenRunsEliteCleared(); // work order 029
             PlaySessionRecorder.Current?.NoteSkillUpgradeOffered(Floor, _offeredSkillUpgrades.Select(u => u.FullName + " (" + u.KindWord + ")").ToList(),
                                                                  _offeredSkillUpgrades.Count == 0);
             if (_offeredSkillUpgrades.Count == 0)
@@ -749,8 +765,9 @@ namespace Roguelike
                 Time.timeScale = 0f; // a hit stop that ends while the choice is up must not start the game again
                 if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard choiceKeys)
                 {
+                    // 4 for a fourth line, which only the rack between runs gives (work order 029: Knight's Trophy).
                     int pick = choiceKeys.digit1Key.wasPressedThisFrame ? 0 : choiceKeys.digit2Key.wasPressedThisFrame ? 1
-                             : choiceKeys.digit3Key.wasPressedThisFrame ? 2 : -1;
+                             : choiceKeys.digit3Key.wasPressedThisFrame ? 2 : choiceKeys.digit4Key.wasPressedThisFrame ? 3 : -1;
                     if (pick >= 0)
                     {
                         if (Choice == ChoiceKind.FloorReward) PickReward(pick);
@@ -759,17 +776,19 @@ namespace Roguelike
                         else PickUpgrade(pick);
                     }
                     else if (choiceKeys[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
+                    else if (choiceKeys[RedrawKey].wasPressedThisFrame) RedrawOffer(); // work order 029: Second Look, only when it can
                 }
                 return;
             }
             HoldScreens();
             if (InRun) Record?.SetTime(Time.time - _runStartedAt);
+            if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat
             if (PlayerInputDriver.ReadRealDevices && Keyboard.current is Keyboard keyboard)
             {
                 if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
                 else if (keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
                 else if (keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
-                else if (Paused || Ending != EndKind.None) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018)
+                else if (Paused || Ending != EndKind.None || BetweenRunsUp) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029)
                 else if (keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
                 else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
@@ -978,7 +997,7 @@ namespace Roguelike
                     return;
                 }
             }
-            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), "The game is paused.   F7 leaves the run.");
+            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), "The game is paused.   F7 leaves the run." + RedrawWords());
         }
     }
 }

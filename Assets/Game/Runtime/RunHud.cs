@@ -31,7 +31,8 @@ namespace Roguelike
     /// picked with a click or the arrow keys and Enter: Resume; New run (F5's new seed; "Start a run" in the practice
     /// room); in a run, Same run again (F6's same seed from floor 1; work order 026); Leave to the practice room (F7, only in a floor); Quit (only in a built player); and the
     /// settings of <see cref="GameSettings"/>, changed with a click or the left and right arrows: the dash direction, the
-    /// volume, and damage numbers on or off (work order 019, 2026-11-20). Under it, the keys as they are bound now
+    /// volume, and damage numbers on or off (work order 019, 2026-11-20); and "Between runs (trial)", the switch of what
+    /// lasts between runs (work order 029, RunHudBetweenRuns.cs, with its screen). Under it, the keys as they are bound now
     /// (<see cref="InputBindings"/>).
     ///
     /// The end screens, once the game has stopped: "You died" or "Act cleared", the floor and the room she reached, the
@@ -43,13 +44,13 @@ namespace Roguelike
     /// <see cref="AnswerEndScreen"/>). It installs itself when Play starts under the same rule as
     /// <see cref="GeneratedLevels"/> (never in a test run); tests make one with <see cref="Ensure"/>.
     /// </summary>
-    public sealed class RunHud : MonoBehaviour
+    public sealed partial class RunHud : MonoBehaviour
     {
         public const Key PauseKey = Key.Escape;
         public const Key DevTextKey = Key.F1;
 
-        /// <summary>The lines of the pause menu, in the order shown.</summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun }
+        /// <summary>The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch, last.</summary>
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -200,6 +201,7 @@ namespace Roguelike
         {
             Find();
             if (_levels == null || _levels.Choice != GeneratedLevels.ChoiceKind.None) return false;
+            if (_levels.BetweenRunsUp) return _levels.LeaveBetweenRuns(); // work order 029: to the practice room
             if (_levels.Ending != GeneratedLevels.EndKind.None)
                 return _levels.EndScreenShown && _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.PracticeRoom);
             if (_levels.Paused) return _levels.Resume();
@@ -232,6 +234,7 @@ namespace Roguelike
                     GameSettings.SetVolumeStep(GameSettings.VolumeStep >= SettingsRules.VolumeSteps ? 0 : GameSettings.VolumeStep + 1);
                     break;
                 case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
+                case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
             }
             return true;
         }
@@ -255,6 +258,11 @@ namespace Roguelike
             if (line == MenuLine.DamageNumbers)
             {
                 GameSettings.SetDamageNumbers(!TimingFeedback.NumbersOn); // either way it flips (work order 019)
+                return true;
+            }
+            if (line == MenuLine.BetweenRuns)
+            {
+                BetweenRunsSwitch.Set(!BetweenRunsOn); // either way it flips (work order 029)
                 return true;
             }
             return false;
@@ -290,6 +298,11 @@ namespace Roguelike
                 return;
             }
             bool enter = keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame;
+            if (_levels.BetweenRunsUp)
+            {
+                BetweenRunsKeys(keyboard, enter); // work order 029
+                return;
+            }
             if (_levels.Ending != GeneratedLevels.EndKind.None)
             {
                 if (enter && _levels.EndScreenShown) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.NewRun);
@@ -359,9 +372,11 @@ namespace Roguelike
                 _endLines.Add("Skill upgrades  " + record.SkillUpgradesText); // work order 017
                 _endLines.Add("Focus  " + record.FocusChoiceText); // work order 025
                 if (!died) _endLines.Add(string.Format(s_Inv, "Health left  {0} / {1}", record.HealthLeft, record.MaxHealth));
+                AddBetweenRunsEndLines(); // work order 029: nothing with the switch off
                 _endLines.Add("Run seed  " + record.Seed);
             }
             if (_levels != null && _levels.Paused) BuildMenu();
+            BuildBetweenRunsLines(); // work order 029
         }
 
         void BuildMenu()
@@ -375,6 +390,7 @@ namespace Roguelike
             _menu.Add(MenuLine.DashDirection);
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
+            _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
 
@@ -390,6 +406,7 @@ namespace Roguelike
                 case MenuLine.Quit: return "Quit";
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
+                case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }
@@ -491,6 +508,7 @@ namespace Roguelike
             if (PromptText.Length > 0) DrawPrompt(viewWidth);
             if (_levels != null && _levels.EndScreenShown && _endLines.Count > 0) DrawEndScreen(viewWidth);
             else if (_levels != null && _levels.Paused) DrawPause(viewWidth);
+            else if (_levels != null && _levels.BetweenRunsUp) DrawBetweenRuns(viewWidth); // work order 029
 
             GUI.color = before;
             GUI.matrix = matrixBefore;
@@ -592,7 +610,7 @@ namespace Roguelike
                 MenuLine line = _menu[i];
                 var row = new Rect(r.x + 30f, y, w - 60f, rowH);
                 if (i == Selected) Frame(new Rect(row.x - 3f, row.y - 3f, row.width + 6f, row.height + 6f), s_Accent);
-                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers;
+                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns;
                 if (setting)
                 {
                     const float arrow = 36f;

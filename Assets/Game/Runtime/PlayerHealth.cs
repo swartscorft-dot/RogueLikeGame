@@ -33,7 +33,7 @@ namespace Roguelike
         public void RefreshMax()
         {
             RunModifiers m = _player != null ? _player.Modifiers : null;
-            _health.SetMax(MaxHealth + (m != null ? m.BonusMaxHealth : 0));
+            _health.SetMax(m != null ? m.MaxHealthFor(MaxHealth) : MaxHealth); // the rack's share too (work order 029), then the chests'
         }
 
         /// <summary>Gives back health, up to the maximum; returns what was given.</summary>

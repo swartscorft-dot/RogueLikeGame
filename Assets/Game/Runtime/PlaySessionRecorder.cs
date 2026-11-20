@@ -925,6 +925,19 @@ namespace Roguelike
             }
         }
 
+        // ---------------- Between runs (work order 029; only with that trial switched on) ----------------
+
+        /// <summary>A run started with the rack switched on: the pieces equipped, the currency then, the budget and the points used.</summary>
+        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used) =>
+            Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
+
+        /// <summary>The run earned currency: how much, from what (floor, elite room, act boss), on which floor.</summary>
+        public void NoteBetweenRunsEarned(int amount, string from, int floor) =>
+            Note(SessionEventTypes.MetaEarn, from, "amount", Int(amount), "floor", Int(floor));
+
+        /// <summary>A feat done for the first time, by its name in the save, when the run ended.</summary>
+        public void NoteBetweenRunsFeat(string feat) => Note(SessionEventTypes.MetaFeat, feat);
+
         void OnDamaged(int amount)
         {
             if (!_recording) return;
