@@ -21,73 +21,75 @@ namespace Roguelike.Rules
     }
 
     /// <summary>
-    /// The plan of a run: how many rooms of each kind and how big. Data, not code, so other plans can be tried.
-    /// The main path is the start room, <see cref="CombatRooms"/> combat rooms and the boss room; the reward rooms
-    /// are small side rooms, each off a different combat room.
+    /// The plan of a floor (decision 0008, 2026-11-19; work order 012): how many rooms of each kind and how big. Data,
+    /// not code, so other plans can be tried. The main path is the entrance, <see cref="CombatRooms"/> combat rooms and
+    /// the exit room, one after another; the treasure rooms are short dead ends, each off a different combat room.
+    /// Until work order 012: five combat rooms, four reward rooms and a boss room.
     /// </summary>
     [Serializable]
     public sealed class LevelPlan
     {
-        public int CombatRooms = 5;
-        public int RewardRooms = 4;
+        public int CombatRooms = 4;
+        public int TreasureRooms = 2;
 
-        public RoomSizeRange StartSize = new RoomSizeRange(4, 4);
+        public RoomSizeRange EntranceSize = new RoomSizeRange(4, 4);
         public RoomSizeRange CombatSize = new RoomSizeRange(5, 7);
-        public RoomSizeRange RewardSize = new RoomSizeRange(3, 3);
-        public RoomSizeRange BossSize = new RoomSizeRange(8, 8);
-
-        /// <summary>
-        /// What stands in each combat room, in the order of the path (work order 008): one entry per enemy point. A
-        /// combat room past the end of the list gets the last entry. Which point gets which entry is drawn from the
-        /// seed. With the start values: a pack of four swarmers; two brutes; two shooters and a brute; a pack of four
-        /// swarmers and a shooter; a guard and two swarmers.
-        /// </summary>
-        public RoomEnemies[] CombatEnemies = DefaultCombatEnemies();
-        /// <summary>What stands in the boss room, at its middle: a guard, with <see cref="LevelValues.BossHealth"/>.</summary>
-        public RoomEnemies BossEnemies = new RoomEnemies(new EnemyGroup(EnemyKind.Guard));
-
-        public static RoomEnemies[] DefaultCombatEnemies() => new[]
-        {
-            new RoomEnemies(new EnemyGroup(EnemyKind.Swarmer, 4)),
-            new RoomEnemies(new EnemyGroup(EnemyKind.Brute), new EnemyGroup(EnemyKind.Brute)),
-            new RoomEnemies(new EnemyGroup(EnemyKind.Shooter), new EnemyGroup(EnemyKind.Shooter), new EnemyGroup(EnemyKind.Brute)),
-            new RoomEnemies(new EnemyGroup(EnemyKind.Swarmer, 4), new EnemyGroup(EnemyKind.Shooter)),
-            new RoomEnemies(new EnemyGroup(EnemyKind.Guard), new EnemyGroup(EnemyKind.Swarmer), new EnemyGroup(EnemyKind.Swarmer)),
-        };
+        public RoomSizeRange TreasureSize = new RoomSizeRange(3, 3);
+        public RoomSizeRange ExitSize = new RoomSizeRange(8, 8);   // the old boss room's
 
         public RoomSizeRange SizeOf(RoomKind kind) =>
-            kind == RoomKind.Start ? StartSize
+            kind == RoomKind.Entrance ? EntranceSize
             : kind == RoomKind.Combat ? CombatSize
-            : kind == RoomKind.Reward ? RewardSize
-            : BossSize;
-
-        /// <summary>What the combat room with this number on the path (0 for the first) holds, one group per enemy point.</summary>
-        public EnemyGroup[] CombatGroups(int combatNumber)
-        {
-            if (CombatEnemies == null || CombatEnemies.Length == 0) return new[] { new EnemyGroup(EnemyKind.Brute) };
-            RoomEnemies room = CombatEnemies[Math.Max(0, Math.Min(CombatEnemies.Length - 1, combatNumber))];
-            return room?.Groups ?? Array.Empty<EnemyGroup>();
-        }
-
-        /// <summary>What a room of this kind holds; <paramref name="combatNumber"/> counts the combat rooms only. Empty for the start and reward rooms.</summary>
-        public EnemyGroup[] GroupsFor(RoomKind kind, int combatNumber) =>
-            kind == RoomKind.Combat ? CombatGroups(combatNumber)
-            : kind == RoomKind.Boss ? BossEnemies?.Groups ?? Array.Empty<EnemyGroup>()
-            : Array.Empty<EnemyGroup>();
-
-        /// <summary>Enemy points in the combat room with this number on the path (0 for the first): one per group of its plan.</summary>
-        public int EnemiesInCombatRoom(int combatNumber) => CombatGroups(combatNumber).Length;
+            : kind == RoomKind.Treasure ? TreasureSize
+            : ExitSize;
     }
 
-    /// <summary>What one room holds: a group per enemy point (work order 008).</summary>
+    /// <summary>
+    /// One mix of enemies a room may hold (decision 0008, work order 012): the shares of the room's enemies, guards
+    /// apart, that are swarmers, shooters and brutes, and how many guards stand with them. A kind with a share above 0
+    /// gets at least one; the swarmers take what rounding leaves over.
+    /// </summary>
     [Serializable]
-    public sealed class RoomEnemies
+    public sealed class EnemyMix
     {
-        public EnemyGroup[] Groups = Array.Empty<EnemyGroup>();
+        public string Name = "";
+        public float Swarmers;
+        public float Shooters;
+        public float Brutes;
+        public int Guards;
 
-        public RoomEnemies() { }
+        public EnemyMix() { }
 
-        public RoomEnemies(params EnemyGroup[] groups) => Groups = groups;
+        public EnemyMix(string name, float swarmers, float shooters, float brutes, int guards)
+        {
+            Name = name;
+            Swarmers = swarmers;
+            Shooters = shooters;
+            Brutes = brutes;
+            Guards = guards;
+        }
+    }
+
+    /// <summary>
+    /// The enemies of the rooms of one floor number (work order 012): how many in a combat room (drawn from
+    /// <see cref="Fewest"/> to <see cref="Most"/>; the exit room <see cref="LevelValues.ExitRoomShare"/> as many), and
+    /// the mixes a room's are drawn from.
+    /// </summary>
+    [Serializable]
+    public sealed class FloorEnemies
+    {
+        public int Fewest;
+        public int Most;
+        public EnemyMix[] Mixes = Array.Empty<EnemyMix>();
+
+        public FloorEnemies() { }
+
+        public FloorEnemies(int fewest, int most, params EnemyMix[] mixes)
+        {
+            Fewest = fewest;
+            Most = most;
+            Mixes = mixes;
+        }
     }
 
     /// <summary>
@@ -111,7 +113,7 @@ namespace Roguelike.Rules
         // What is in the rooms
         public float WallClearance = 1.5f;     // m from a wall or a door's opening to any start or enemy point
         public float EnemyFromEntry = 8f;      // m from the door she enters a combat room by to any of its enemies
-        public float EnemySpacing = 4f;        // m between two enemies of a room
+        public float EnemySpacing = 4f;        // m between two enemy points of a room
         public float PointStep = 1f;           // m between the places considered for an enemy
 
         // The grey-box level
@@ -122,16 +124,108 @@ namespace Roguelike.Rules
         public float OffsetX = 500f;           // m, where the start room's middle is put, far to one side of the practice room
         public float OffsetZ = 0f;
 
-        // Enemies
-        public int EnemyHealth = 3000;         // a brute's; the other kinds have their own (work order 008)
-        public int BossHealth = 9000;          // the boss room's enemy, whatever its kind
-        public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers; under WallClearance
+        // Enemies' health in a generated floor (work order 012: a room is 20 to 40 s of fighting for a kit that deals
+        // about 250 damage a second). They override the kinds' own, which the practice room keeps.
+        public int SwarmerHealth = 150;
+        public int ShooterHealth = 400;
+        public int EnemyHealth = 1200;         // a brute's (3000 until work order 012)
+        public int GuardHealth = 3500;
+        public int BossHealth = 9000;          // the act boss: a guard, until the boss model comes
+        public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers
+        public float LineSpacing = 2f;         // m between two enemies of a line, side by side (work order 012)
+        public float MemberSpacing = 1.5f;     // m between two enemies of different groups (work order 012)
+
+        // Groups (work order 012): enemies stand in groups, a point each.
+        public int PackFewest = 3;             // swarmers in a pack, when there are this many to share out
+        public int PackMost = 5;
+        public int ShooterLineMost = 3;        // shooters in a line
+        public int BruteLineMost = 2;          // brutes side by side
+        public float FarBand = 0.6f;           // shooters stand at least this share of the room's farthest place from the door in
+        public float MiddleBandFrom = 0.3f;    // brutes and guards between these shares
+        public float MiddleBandTo = 0.85f;
+
+        // The act (decision 0008, 2026-11-19, the producer's proposal: an act is five floors; floors 1 to 4 end with a new
+        // skill, floor 5 with the act boss).
+        public int FloorsPerAct = 5;
+        public float ExitRoomShare = 1.5f;     // the exit room holds this many times a combat room's enemies
+        public int GuardsMostInRoom = 1;       // from floor 2: one guard a combat room at most
+        public int GuardsMostInExit = 2;       // two in an exit room, the act boss counted
+        public int GuardsFromFloor = 2;
+        public FloorEnemies[] Floors = DefaultFloors();
 
         // Props (work order 009)
         public bool Props = true;              // off: levels are generated and built without props
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
+
+        /// <summary>
+        /// The enemies by floor number (work order 012, first guesses): floor 1 six to eight in a combat room, mostly
+        /// swarmers with a few brutes and a shooter; each floor after it more, with more shooters and brutes; guards from
+        /// floor 2; floor 5 ten to fourteen.
+        /// </summary>
+        public static FloorEnemies[] DefaultFloors() => new[]
+        {
+            new FloorEnemies(6, 8,
+                new EnemyMix("swarm", 0.7f, 0.15f, 0.15f, 0),
+                new EnemyMix("swarm and brutes", 0.6f, 0.15f, 0.25f, 0),
+                new EnemyMix("swarm and a shooter", 0.65f, 0.2f, 0.15f, 0)),
+            new FloorEnemies(7, 9,
+                new EnemyMix("swarm", 0.55f, 0.2f, 0.25f, 0),
+                new EnemyMix("guarded swarm", 0.55f, 0.2f, 0.25f, 1),
+                new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0)),
+            new FloorEnemies(8, 11,
+                new EnemyMix("guarded", 0.45f, 0.25f, 0.3f, 1),
+                new EnemyMix("crossfire", 0.4f, 0.35f, 0.25f, 0),
+                new EnemyMix("heavy", 0.35f, 0.3f, 0.35f, 1)),
+            new FloorEnemies(9, 12,
+                new EnemyMix("guarded", 0.4f, 0.3f, 0.3f, 1),
+                new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1),
+                new EnemyMix("crossfire", 0.45f, 0.35f, 0.2f, 0)),
+            new FloorEnemies(10, 14,
+                new EnemyMix("guarded", 0.35f, 0.35f, 0.3f, 1),
+                new EnemyMix("heavy", 0.3f, 0.35f, 0.35f, 1),
+                new EnemyMix("crossfire", 0.4f, 0.3f, 0.3f, 0)),
+        };
+
+        /// <summary>The enemies of this floor number; past the table's end its last row, before it its first.</summary>
+        public FloorEnemies EnemiesOf(int floor)
+        {
+            if (Floors == null || Floors.Length == 0) return new FloorEnemies(1, 1, new EnemyMix("brute", 0f, 0f, 1f, 0));
+            return Floors[Math.Max(0, Math.Min(Floors.Length - 1, floor - 1))];
+        }
+
+        /// <summary>The fewest and most enemies a room of this kind holds on this floor; 0 for the entrance and treasure rooms.</summary>
+        public void EnemyRange(RoomKind kind, int floor, out int fewest, out int most)
+        {
+            fewest = most = 0;
+            FloorEnemies f = EnemiesOf(floor);
+            if (kind == RoomKind.Combat)
+            {
+                fewest = f.Fewest;
+                most = f.Most;
+            }
+            else if (kind == RoomKind.Exit)
+            {
+                fewest = (int)Math.Ceiling(f.Fewest * ExitRoomShare - 1e-6);
+                most = (int)Math.Floor(f.Most * ExitRoomShare + 1e-6);
+            }
+        }
+
+        /// <summary>A generated floor's health for an enemy of this kind; the act boss's for the boss.</summary>
+        public int HealthOf(EnemyKind kind, bool boss = false) =>
+            boss ? BossHealth
+            : kind == EnemyKind.Swarmer ? SwarmerHealth
+            : kind == EnemyKind.Shooter ? ShooterHealth
+            : kind == EnemyKind.Guard ? GuardHealth
+            : EnemyHealth;
+
+        /// <summary>The most guards a room of this kind may hold on this floor, the act boss counted.</summary>
+        public int GuardsMost(RoomKind kind, int floor) =>
+            floor < GuardsFromFloor && !(kind == RoomKind.Exit && floor >= FloorsPerAct) ? 0
+            : kind == RoomKind.Exit ? GuardsMostInExit
+            : kind == RoomKind.Combat ? GuardsMostInRoom
+            : 0;
     }
 
     /// <summary>

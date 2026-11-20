@@ -44,6 +44,12 @@ namespace Roguelike
         /// </summary>
         public static bool ReadRealDevices = true;
 
+        /// <summary>
+        /// True while a choice is on screen (work order 012: the floor reward, a chest): the game is paused and the keys
+        /// and clicks pick from the choice, so none reaches the character.
+        /// </summary>
+        public static bool HeldByChoice;
+
         /// <summary>Where frames come from. Null means the mouse and keyboard. Return null for "no input this frame".</summary>
         public Func<InputFrame?> InputSource;
 
@@ -65,7 +71,11 @@ namespace Roguelike
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => ReadRealDevices = true;
+        static void ResetStatics()
+        {
+            ReadRealDevices = true;
+            HeldByChoice = false;
+        }
 
         void Awake()
         {
@@ -75,6 +85,7 @@ namespace Roguelike
 
         void Update()
         {
+            if (HeldByChoice) return;
             InputFrame? read = InputSource != null ? InputSource() : ReadDevices();
             if (read == null) return;
             InputFrame input = read.Value;

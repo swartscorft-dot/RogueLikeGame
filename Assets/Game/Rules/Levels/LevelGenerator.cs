@@ -5,69 +5,81 @@ using System.Linq;
 namespace Roguelike.Rules
 {
     /// <summary>
-    /// Makes a level from a seed: the same seed always gives the same level (for the same <see cref="Version"/> and
-    /// the same values), and every seed gives one that <see cref="LevelValidator"/> finds no fault in.
+    /// Makes a floor from a seed and the floor's number in its act: the same seed and number always give the same floor
+    /// (for the same <see cref="Version"/> and the same values), and every seed gives one that
+    /// <see cref="LevelValidator"/> finds no fault in.
     ///
-    /// Layout (its own stream, "layout"). The start room is put in the middle of the grid. Each room of the main path
-    /// (the combat rooms in order, then the boss room) is put against a side of the room before it, sharing a stretch
+    /// Layout (its own stream, "layout"). The entrance is put in the middle of the grid. Each room of the main path
+    /// (the combat rooms in order, then the exit room) is put against a side of the room before it, sharing a stretch
     /// of wall at least a door and a wall cell either side of it long: no corridors. Sizes are drawn per room. A room
     /// may not overlap another or leave the grid, the path may not go the same way more than
-    /// <see cref="LevelValues.MostInARow"/> times running (so it wanders), and the boss room may not touch the start
-    /// room (so it does not fold back on itself). When a room fits nowhere, the room before it is taken back and put
-    /// in its next place, and so on back along the path. Then the reward rooms: combat rooms are taken in a drawn order
-    /// and each gets one against a free side, until there are enough. Last, each door is put at a drawn place on the
-    /// stretch its two rooms share, with wall on both sides of it.
+    /// <see cref="LevelValues.MostInARow"/> times running, and the exit room may not touch the entrance (so it does not
+    /// fold back on itself). The way on reads (decision 0008, 2026-11-19, work order 012): a room's way out is never
+    /// on the wall of its way in, and the opposite wall is tried first, the two side walls after it in a drawn order.
+    /// When a room fits nowhere, the room before it is taken back and put in its next place, and so on back along the
+    /// path. Then the treasure rooms: combat rooms are taken in a drawn order and each gets one against a side wall
+    /// (one that holds neither its door in nor its door out), until there are enough. Last, each door is put at a drawn
+    /// place on the stretch its two rooms share, with wall on both sides of it.
     ///
     /// When an attempt cannot be finished (no place for a room even after taking rooms back, too many rooms put down
-    /// and taken back, or no place for the reward rooms), the next attempt starts again from a new stream made from
-    /// the seed and the attempt's number. The result is still a function of the seed alone.
+    /// and taken back, no place for the treasure rooms, or no place for a room's enemies), the next attempt starts again
+    /// from a new stream made from the seed and the attempt's number. The result is still a function of the seed and
+    /// the floor's number alone.
     ///
-    /// Contents (their own stream, "contents"): the player's start in the middle of the start room; in each combat
-    /// room an enemy point per group of the plan's entry for it (<see cref="LevelPlan.CombatEnemies"/>), away from the
-    /// walls, from the door she enters by and from each other, and then the room's groups dealt out to its points in
-    /// a drawn order; one enemy point in the middle of the boss room with the plan's boss group; nothing in the
-    /// reward rooms.
+    /// Contents (their own stream, "contents"; work order 012): the player's start in the middle of the entrance. Each
+    /// combat room draws how many enemies it holds from its floor's range (<see cref="LevelValues.EnemiesOf"/>), the
+    /// exit room <see cref="LevelValues.ExitRoomShare"/> as many, and a mix from its floor's table; the enemies are
+    /// shared out into groups (packs of swarmers, lines of shooters, brutes side by side, guards alone), and each group
+    /// gets a point: shooters at the far side of the room from the door in, guards and brutes between, swarmers
+    /// anywhere, every enemy of every group clear of the walls, the doors and the way in, and of the other groups. On the
+    /// act's last floor the exit room holds the act boss, at its middle where it can stand, with a full room of others.
+    /// Nothing in the treasure rooms.
     ///
-    /// Version 2 (work order 008) gave each enemy point a kind of enemy. Only the contents changed: the layout stream
-    /// is as it was, so old seeds keep their rooms and doors.
-    ///
-    /// Props (their own stream, "props"; work order 009, version 3): after the contents, the props of every room
-    /// (<see cref="PropPlacer"/>), unless <see cref="LevelValues.Props"/> is off. The layout and contents streams are
-    /// as they were, and the props stage never makes an attempt fail (a prop with no place is left out), so old seeds
-    /// keep their rooms, doors and enemy points.
+    /// Version 2 (work order 008) gave each enemy point a kind of enemy. Version 3 (work order 009) added the props on
+    /// their own stream ("props") after the contents, unless <see cref="LevelValues.Props"/> is off; the props stage
+    /// never makes an attempt fail (a prop with no place is left out). Version 4 (work order 012): the chain of rooms,
+    /// two treasure rooms, the floor's number, and the enemies in groups.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 3;
+        public const int Version = 4;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
         public const string PropsStage = "props";
 
         // The sides of a room, as the ways a path can step.
-        const int North = 0, East = 1, South = 2, West = 3;
+        public const int North = 0, East = 1, South = 2, West = 3;
+
+        public static int Opposite(int side) => (side + 2) % 4;
+
+        /// <summary>The first floor of an act, for callers that do not say.</summary>
+        public static LevelLayout Generate(ulong seed, LevelValues values = null, int contentsWarmUp = 0, int propsWarmUp = 0) =>
+            Generate(seed, 1, values, contentsWarmUp, propsWarmUp);
 
         /// <summary>
-        /// The level of this seed. <paramref name="contentsWarmUp"/> throws away that many draws at the start of the
-        /// contents stage, and <paramref name="propsWarmUp"/> of the props stage; they are there for the tests that show
-        /// a change to one stage leaves the others alone.
+        /// The floor of this seed and number (1 to <see cref="LevelValues.FloorsPerAct"/>). <paramref name="contentsWarmUp"/>
+        /// throws away that many draws at the start of the contents stage, and <paramref name="propsWarmUp"/> of the props
+        /// stage; they are there for the tests that show a change to one stage leaves the others alone.
         /// </summary>
-        public static LevelLayout Generate(ulong seed, LevelValues values = null, int contentsWarmUp = 0, int propsWarmUp = 0)
+        public static LevelLayout Generate(ulong seed, int floor, LevelValues values = null, int contentsWarmUp = 0, int propsWarmUp = 0)
         {
             values = values ?? new LevelValues();
+            floor = Math.Max(1, Math.Min(values.FloorsPerAct, floor));
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {
                 var level = new LevelLayout
                 {
                     Seed = seed, Version = Version, GridCells = values.GridCells, CellSize = values.CellSize, Attempt = attempt + 1,
+                    Floor = floor,
                 };
                 if (!TryLayout(level, LevelRandom.Stream(seed, LayoutStage, attempt), values)) continue;
 
                 LevelRandom contents = LevelRandom.Stream(seed, ContentsStage, attempt);
                 for (int i = 0; i < contentsWarmUp; i++) contents.NextBits();
-                PlaceContents(level, contents, values);
+                if (!PlaceContents(level, contents, values)) continue;
 
                 faults = LevelValidator.Validate(level, values);
                 if (faults.Count > 0) continue;
@@ -81,7 +93,7 @@ namespace Roguelike.Rules
                 if (faults.Count == 0) return level;
                 throw new InvalidOperationException("The props of seed " + LevelSeed.ToText(seed) + " break a rule: " + string.Join("; ", faults));
             }
-            throw new InvalidOperationException("No valid level for seed " + LevelSeed.ToText(seed) + " in " + values.Attempts + " attempts"
+            throw new InvalidOperationException("No valid level for seed " + LevelSeed.ToText(seed) + " floor " + floor + " in " + values.Attempts + " attempts"
                                                 + (faults != null ? ": " + string.Join("; ", faults) : ""));
         }
 
@@ -99,15 +111,15 @@ namespace Roguelike.Rules
             int grid = v.GridCells;
             int need = v.DoorWidth + 2;
 
-            var kinds = new List<RoomKind> { RoomKind.Start };
+            var kinds = new List<RoomKind> { RoomKind.Entrance };
             for (int i = 0; i < plan.CombatRooms; i++) kinds.Add(RoomKind.Combat);
-            kinds.Add(RoomKind.Boss);
+            kinds.Add(RoomKind.Exit);
 
             var path = new List<CellRect>();
             var steps = new List<int>(); // steps[i]: the side of room i that room i + 1 stands against
             int placements = 0;
 
-            DrawSize(rng, plan.StartSize, out int sw, out int sh);
+            DrawSize(rng, plan.EntranceSize, out int sw, out int sh);
             path.Add(new CellRect((grid - sw) / 2, (grid - sh) / 2, sw, sh));
             if (!Fits(path[0], grid, path, 0)) return false;
 
@@ -123,12 +135,27 @@ namespace Roguelike.Rules
             {
                 if (i == kinds.Count) return true;
                 DrawSize(rng, plan.SizeOf(kinds[i]), out int w, out int h);
-                foreach (Placement c in Candidates(rng, path[i - 1], w, h, need))
+                // The way on (work order 012): from the entrance any way; after it straight on first, then a turn to
+                // either side in a drawn order, never back through the wall she came in by.
+                List<int> sides;
+                if (steps.Count == 0)
+                {
+                    sides = new List<int> { North, East, South, West };
+                    rng.Shuffle(sides);
+                }
+                else
+                {
+                    int on = steps[steps.Count - 1];
+                    var turns = new List<int> { (on + 1) % 4, (on + 3) % 4 };
+                    rng.Shuffle(turns);
+                    sides = new List<int> { on, turns[0], turns[1] };
+                }
+                foreach (Placement c in Candidates(rng, path[i - 1], w, h, need, sides))
                 {
                     if (placements >= v.PlacementsPerAttempt) return false;
                     if (TooStraight(c.Side)) continue;
                     if (!Fits(c.Rect, grid, path, path.Count)) continue;
-                    if (kinds[i] == RoomKind.Boss && c.Rect.Touches(path[0])) continue;
+                    if (kinds[i] == RoomKind.Exit && c.Rect.Touches(path[0])) continue;
                     placements++;
                     path.Add(c.Rect);
                     steps.Add(c.Side);
@@ -141,27 +168,30 @@ namespace Roguelike.Rules
 
             if (!PlaceMain(1)) return false;
 
-            // The reward rooms, each against a different combat room (path rooms 1 to CombatRooms).
+            // The treasure rooms, each against a side wall of a different combat room (path rooms 1 to CombatRooms).
             var taken = new List<CellRect>(path);
-            var rewardOf = new Dictionary<int, CellRect>();
+            var treasureOf = new Dictionary<int, CellRect>();
             var combats = Enumerable.Range(1, plan.CombatRooms).ToList();
             rng.Shuffle(combats);
             foreach (int c in combats)
             {
-                if (rewardOf.Count == plan.RewardRooms) break;
-                DrawSize(rng, plan.RewardSize, out int w, out int h);
-                foreach (Placement p in Candidates(rng, path[c], w, h, need))
+                if (treasureOf.Count == plan.TreasureRooms) break;
+                DrawSize(rng, plan.TreasureSize, out int w, out int h);
+                int wayIn = Opposite(steps[c - 1]), wayOut = steps[c];
+                var sides = new List<int> { North, East, South, West }.Where(s => s != wayIn && s != wayOut).ToList();
+                rng.Shuffle(sides);
+                foreach (Placement p in Candidates(rng, path[c], w, h, need, sides))
                 {
                     if (!Fits(p.Rect, grid, taken, taken.Count)) continue;
-                    rewardOf[c] = p.Rect;
+                    treasureOf[c] = p.Rect;
                     taken.Add(p.Rect);
                     break;
                 }
             }
-            if (rewardOf.Count < plan.RewardRooms) return false;
+            if (treasureOf.Count < plan.TreasureRooms) return false;
 
-            // The rooms in the order of the run: each reward room right after its combat room.
-            var parentOrder = new List<int>(); // for each room, the order of the room it is entered from (-1 for the start)
+            // The rooms in the order of the run: each treasure room right after its combat room.
+            var parentOrder = new List<int>(); // for each room, the order of the room it is entered from (-1 for the entrance)
             int previousOnPath = -1;
             for (int i = 0; i < path.Count; i++)
             {
@@ -169,9 +199,9 @@ namespace Roguelike.Rules
                 level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = order });
                 parentOrder.Add(previousOnPath);
                 previousOnPath = order;
-                if (rewardOf.TryGetValue(i, out CellRect reward))
+                if (treasureOf.TryGetValue(i, out CellRect treasure))
                 {
-                    level.Rooms.Add(new LevelRoom { Kind = RoomKind.Reward, Rect = reward, Order = level.Rooms.Count });
+                    level.Rooms.Add(new LevelRoom { Kind = RoomKind.Treasure, Rect = treasure, Order = level.Rooms.Count });
                     parentOrder.Add(order);
                 }
             }
@@ -194,13 +224,11 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// Every place for a room of w by h against a side of <paramref name="a"/>, sharing at least
-        /// <paramref name="need"/> cells of wall with it: the sides in a drawn order, and the places along each side in a
-        /// drawn order.
+        /// <paramref name="need"/> cells of wall with it: the sides in the order given, and the places along each side in
+        /// a drawn order.
         /// </summary>
-        static IEnumerable<Placement> Candidates(LevelRandom rng, CellRect a, int w, int h, int need)
+        static IEnumerable<Placement> Candidates(LevelRandom rng, CellRect a, int w, int h, int need, List<int> sides)
         {
-            var sides = new List<int> { North, East, South, West };
-            rng.Shuffle(sides);
             var result = new List<Placement>();
             foreach (int side in sides)
             {
@@ -250,36 +278,113 @@ namespace Roguelike.Rules
 
         // ---------------- Contents ----------------
 
-        static void PlaceContents(LevelLayout level, LevelRandom rng, LevelValues v)
+        static bool PlaceContents(LevelLayout level, LevelRandom rng, LevelValues v)
         {
-            double cs = v.CellSize;
-            int combatNumber = 0;
             foreach (LevelRoom room in level.Rooms)
             {
-                switch (room.Kind)
+                if (room.Kind == RoomKind.Entrance)
                 {
-                    case RoomKind.Start:
-                        room.PlayerStart = room.Middle(cs);
-                        break;
-                    case RoomKind.Boss:
-                        // One point, in the middle; with more than one group in the plan the rest have no place, and the validator says so.
-                        room.EnemyPoints.Add(room.Middle(cs));
-                        EnemyGroup[] boss = v.Plan.GroupsFor(RoomKind.Boss, 0);
-                        if (boss.Length > 0) room.EnemyGroups.Add(boss[0].Copy());
-                        break;
-                    case RoomKind.Combat:
-                        EnemyGroup[] groups = v.Plan.CombatGroups(combatNumber++);
-                        PlaceEnemies(level, room, groups.Length, rng, v);
-                        // Which point gets which group is drawn (work order 008).
-                        var dealt = groups.Select(g => g.Copy()).ToList();
-                        rng.Shuffle(dealt);
-                        room.EnemyGroups.AddRange(dealt.Take(room.EnemyPoints.Count));
-                        break;
+                    room.PlayerStart = room.Middle(v.CellSize);
+                    continue;
                 }
+                if (room.Kind != RoomKind.Combat && room.Kind != RoomKind.Exit) continue;
+                List<EnemyGroup> groups = DrawGroups(room.Kind, level.Floor, rng, v);
+                if (!PlaceGroups(level, room, groups, rng, v)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// What a room of this kind holds on this floor (work order 012), as groups: how many, drawn from the floor's
+        /// range; a mix drawn from the floor's table; guards (each alone) as the mix says, twice as many in an exit room,
+        /// no more than the floor allows; the rest shared out by the mix's shares, then into packs of swarmers of
+        /// <see cref="LevelValues.PackFewest"/> to <see cref="LevelValues.PackMost"/>, lines of shooters and brutes side by
+        /// side. On the act's last floor the exit room has the act boss besides.
+        /// </summary>
+        public static List<EnemyGroup> DrawGroups(RoomKind kind, int floor, LevelRandom rng, LevelValues v)
+        {
+            var groups = new List<EnemyGroup>();
+            v.EnemyRange(kind, floor, out int fewest, out int most);
+            if (most <= 0) return groups;
+            int total = rng.Range(fewest, most);
+            FloorEnemies f = v.EnemiesOf(floor);
+            EnemyMix mix = f.Mixes != null && f.Mixes.Length > 0 ? f.Mixes[rng.Below(f.Mixes.Length)] : new EnemyMix("brutes", 0f, 0f, 1f, 0);
+
+            int guardRoom = v.GuardsMost(kind, floor);
+            if (kind == RoomKind.Exit && floor >= v.FloorsPerAct)
+            {
+                groups.Add(new EnemyGroup(EnemyKind.Guard, 1, boss: true));
+                guardRoom--;
+            }
+            int guards = Math.Max(0, Math.Min(guardRoom, mix.Guards * (kind == RoomKind.Exit ? 2 : 1)));
+            guards = Math.Min(guards, Math.Max(0, total - 2)); // room for two other kinds
+            for (int i = 0; i < guards; i++) groups.Add(new EnemyGroup(EnemyKind.Guard));
+
+            int rest = total - guards;
+            int[] counts = Shares(rest, new[] { mix.Swarmers, mix.Shooters, mix.Brutes });
+            int swarmers = counts[0], shooters = counts[1], brutes = counts[2];
+            AddSplit(groups, EnemyKind.Shooter, shooters, Math.Max(1, v.ShooterLineMost));
+            AddSplit(groups, EnemyKind.Brute, brutes, Math.Max(1, v.BruteLineMost));
+            AddSplit(groups, EnemyKind.Swarmer, swarmers, Math.Max(1, v.PackMost));
+            return groups;
+        }
+
+        /// <summary>
+        /// <paramref name="total"/> shared by the shares: each kind with a share gets at least one (while there are
+        /// enough), the floor of its share otherwise; what is left over or short goes to the first kind with a share
+        /// (the swarmers), then the others.
+        /// </summary>
+        public static int[] Shares(int total, float[] shares)
+        {
+            var c = new int[shares.Length];
+            if (total <= 0) return c;
+            float sum = shares.Where(s => s > 0f).Sum();
+            if (sum <= 0f)
+            {
+                c[c.Length - 1] = total;
+                return c;
+            }
+            for (int k = 0; k < shares.Length; k++)
+                if (shares[k] > 0f) c[k] = Math.Max(1, (int)Math.Floor(shares[k] / sum * total + 1e-6));
+            int first = Array.FindIndex(shares, s => s > 0f);
+            int diff = total - c.Sum();
+            if (diff > 0) c[first] += diff;
+            // Too many: taken back down to one each, the first kind first; with fewer than one each, the last kinds go without.
+            for (int k = 0; diff < 0 && k < c.Length; k++)
+            {
+                int index = (first + k) % c.Length;
+                int take = Math.Min(-diff, Math.Max(0, c[index] - 1));
+                c[index] -= take;
+                diff += take;
+            }
+            for (int index = c.Length - 1; diff < 0 && index >= 0; index--)
+            {
+                int take = Math.Min(-diff, c[index]);
+                c[index] -= take;
+                diff += take;
+            }
+            return c;
+        }
+
+        /// <summary>Splits <paramref name="count"/> of a kind into as few groups as hold at most <paramref name="most"/> each, as even as they can be.</summary>
+        static void AddSplit(List<EnemyGroup> groups, EnemyKind kind, int count, int most)
+        {
+            if (count <= 0) return;
+            int n = (count + most - 1) / most;
+            for (int i = 0; i < n; i++)
+            {
+                int size = count / n + (i < count % n ? 1 : 0);
+                groups.Add(new EnemyGroup(kind, size));
             }
         }
 
-        static void PlaceEnemies(LevelLayout level, LevelRoom room, int count, LevelRandom rng, LevelValues v)
+        /// <summary>
+        /// A point for each group (work order 012), from the places on a grid in the room (<see cref="LevelValues.PointStep"/>
+        /// apart) in a drawn order: the act boss at the middle if it can stand there, then the shooters' lines at the far
+        /// side from the door in, then guards and brutes between, then the swarmers anywhere; a group takes the first place
+        /// where every one of its enemies keeps the rules, its band first and anywhere after. False when a group has none.
+        /// </summary>
+        static bool PlaceGroups(LevelLayout level, LevelRoom room, List<EnemyGroup> groups, LevelRandom rng, LevelValues v)
         {
             double cs = v.CellSize, clear = v.WallClearance, step = v.PointStep;
             LevelDoor entry = LevelGeometry.EntryDoor(level, room);
@@ -289,21 +394,64 @@ namespace Roguelike.Rules
             int nx = (int)Math.Floor((room.Rect.Width * cs - 2 * clear) / step + 1e-9) + 1;
             int ny = (int)Math.Floor((room.Rect.Height * cs - 2 * clear) / step + 1e-9) + 1;
             for (int i = 0; i < nx; i++)
-            {
                 for (int j = 0; j < ny; j++)
-                {
-                    var p = new LevelPoint(room.Rect.X * cs + clear + i * step, room.Rect.Y * cs + clear + j * step);
-                    if (entry != null && LevelGeometry.DistanceToDoor(p, entry, cs) < v.EnemyFromEntry) continue;
-                    if (doors.Any(d => LevelGeometry.DistanceToDoor(p, d, cs) < clear)) continue;
-                    places.Add(p);
-                }
-            }
+                    places.Add(new LevelPoint(room.Rect.X * cs + clear + i * step, room.Rect.Y * cs + clear + j * step));
             rng.Shuffle(places);
-            foreach (LevelPoint p in places)
+            double Far(LevelPoint p) => entry != null ? LevelGeometry.DistanceToDoor(p, entry, cs) : 0d;
+            double farthest = places.Count > 0 ? places.Max(Far) : 0d;
+
+            bool Fits(EnemyGroup g, LevelPoint p, out LevelPoint[] members)
             {
-                if (room.EnemyPoints.Count == count) break;
-                if (room.EnemyPoints.All(q => q.DistanceTo(p) >= v.EnemySpacing)) room.EnemyPoints.Add(p);
+                members = LevelGeometry.MemberPlaces(level, room, p, g, v);
+                foreach (LevelPoint m in members)
+                    if (LevelGeometry.EnemyPlaceFault(level, room, m, entry, doors, v) != null) return false;
+                for (int k = 0; k < room.EnemyPoints.Count; k++)
+                {
+                    if (room.EnemyPoints[k].DistanceTo(p) < v.EnemySpacing - 1e-9) return false;
+                    foreach (LevelPoint other in room.EnemyPlaces[k])
+                        foreach (LevelPoint m in members)
+                            if (other.DistanceTo(m) < v.MemberSpacing - 1e-9) return false;
+                }
+                return true;
             }
+
+            bool Put(EnemyGroup g, LevelPoint p, LevelPoint[] members)
+            {
+                room.EnemyPoints.Add(p);
+                room.EnemyGroups.Add(g);
+                room.EnemyPlaces.Add(members);
+                return true;
+            }
+
+            bool Place(EnemyGroup g, double lo, double hi)
+            {
+                foreach (bool banded in new[] { true, false })
+                    foreach (LevelPoint p in places)
+                    {
+                        if (banded && entry != null)
+                        {
+                            double d = Far(p) / Math.Max(1e-9, farthest);
+                            if (d < lo - 1e-9 || d > hi + 1e-9) continue;
+                        }
+                        if (Fits(g, p, out LevelPoint[] members)) return Put(g, p, members);
+                    }
+                return false;
+            }
+
+            int Rank(EnemyGroup g) => g.Boss ? 0 : g.Kind == EnemyKind.Shooter ? 1 : g.Kind == EnemyKind.Guard ? 2 : g.Kind == EnemyKind.Brute ? 3 : 4;
+            foreach (EnemyGroup g in groups.OrderBy(Rank).ToList())
+            {
+                if (g.Boss && Fits(g, room.Middle(cs), out LevelPoint[] at))
+                {
+                    Put(g, room.Middle(cs), at);
+                    continue;
+                }
+                bool done = g.Kind == EnemyKind.Shooter ? Place(g, v.FarBand, 1d)
+                          : g.Kind == EnemyKind.Swarmer ? Place(g, 0d, 1d)
+                          : Place(g, v.MiddleBandFrom, v.MiddleBandTo);
+                if (!done) return false;
+            }
+            return true;
         }
     }
 
@@ -336,22 +484,93 @@ namespace Roguelike.Rules
             return hi > lo;
         }
 
-        /// <summary>The rooms of the main path (all but the reward rooms), in the order of the run.</summary>
+        /// <summary>
+        /// The wall of the room a door is on (work order 012): <see cref="LevelGenerator.North"/>, East, South or West;
+        /// -1 when the door is on none of its walls.
+        /// </summary>
+        public static int WallOf(CellRect room, LevelDoor door)
+        {
+            if (door.Vertical) return door.Line == room.X ? LevelGenerator.West : door.Line == room.Right ? LevelGenerator.East : -1;
+            return door.Line == room.Y ? LevelGenerator.South : door.Line == room.Top ? LevelGenerator.North : -1;
+        }
+
+        /// <summary>The rooms of the main path (all but the treasure rooms), in the order of the run.</summary>
         public static List<LevelRoom> MainPath(LevelLayout level) =>
-            level.Rooms.Where(r => r.Kind != RoomKind.Reward).OrderBy(r => r.Order).ToList();
+            level.Rooms.Where(r => r.Kind != RoomKind.Treasure).OrderBy(r => r.Order).ToList();
 
         /// <summary>
         /// The door she comes into a room by: for a room of the main path, the door to the room before it on the path;
-        /// for a reward room, its one door. Null if there is none.
+        /// for a treasure room, its one door. Null if there is none.
         /// </summary>
         public static LevelDoor EntryDoor(LevelLayout level, LevelRoom room)
         {
-            if (room.Kind == RoomKind.Reward) return level.DoorsOf(room.Order).FirstOrDefault();
+            if (room.Kind == RoomKind.Treasure) return level.DoorsOf(room.Order).FirstOrDefault();
             List<LevelRoom> path = MainPath(level);
             int at = path.IndexOf(room);
             if (at <= 0) return null;
             int before = path[at - 1].Order;
             return level.Doors.FirstOrDefault(d => d.Joins(room.Order) && d.Other(room.Order) == before);
+        }
+
+        /// <summary>The door she leaves a room of the main path by, to the next room on the path; null for the exit room.</summary>
+        public static LevelDoor ExitDoor(LevelLayout level, LevelRoom room)
+        {
+            List<LevelRoom> path = MainPath(level);
+            int at = path.IndexOf(room);
+            if (at < 0 || at + 1 >= path.Count) return null;
+            int next = path[at + 1].Order;
+            return level.Doors.FirstOrDefault(d => d.Joins(room.Order) && d.Other(room.Order) == next);
+        }
+
+        /// <summary>
+        /// Where the enemies of a group at point <paramref name="p"/> stand (work order 012): one on the point; a pack of
+        /// swarmers evenly round a circle of <see cref="LevelValues.PackRadius"/>, the first to the north; a line side by
+        /// side, <see cref="LevelValues.LineSpacing"/> apart, along the wall of the door she comes in by (so it faces her
+        /// from the far side), centred on the point.
+        /// </summary>
+        public static LevelPoint[] MemberPlaces(LevelLayout level, LevelRoom room, LevelPoint p, EnemyGroup g, LevelValues v)
+        {
+            int n = Math.Max(1, g.Count);
+            var result = new LevelPoint[n];
+            if (n == 1)
+            {
+                result[0] = p;
+                return result;
+            }
+            if (g.IsPack)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    double a = i * Math.PI * 2.0 / n;
+                    result[i] = new LevelPoint(p.X + Math.Sin(a) * v.PackRadius, p.Y + Math.Cos(a) * v.PackRadius);
+                }
+                return result;
+            }
+            LevelDoor entry = EntryDoor(level, room);
+            bool alongY = entry != null && entry.Vertical;
+            for (int i = 0; i < n; i++)
+            {
+                double off = (i - (n - 1) * 0.5) * v.LineSpacing;
+                result[i] = alongY ? new LevelPoint(p.X, p.Y + off) : new LevelPoint(p.X + off, p.Y);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// The first rule a place for one enemy breaks, in words, or null: inside its room, at least
+        /// <see cref="LevelValues.WallClearance"/> from its walls and from every door of the room, and at least
+        /// <see cref="LevelValues.EnemyFromEntry"/> from the door she comes in by.
+        /// </summary>
+        public static string EnemyPlaceFault(LevelLayout level, LevelRoom room, LevelPoint p, LevelDoor entry, List<LevelDoor> doors, LevelValues v)
+        {
+            double cs = level.CellSize;
+            const double slack = 1e-9;
+            if (!(p.X >= room.Rect.X * cs && p.X <= room.Rect.Right * cs && p.Y >= room.Rect.Y * cs && p.Y <= room.Rect.Top * cs)) return "is outside the room";
+            if (DistanceToWalls(p, room.Rect, cs) < v.WallClearance - slack) return "is nearer a wall than " + v.WallClearance + " m";
+            foreach (LevelDoor d in doors)
+                if (DistanceToDoor(p, d, cs) < v.WallClearance - slack) return "is nearer a door than " + v.WallClearance + " m";
+            if (entry != null && DistanceToDoor(p, entry, cs) < v.EnemyFromEntry - slack) return "is nearer the door she enters by than " + v.EnemyFromEntry + " m";
+            return null;
         }
 
         /// <summary>Metres from a point to the nearest point of a door's opening.</summary>

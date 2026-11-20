@@ -25,14 +25,14 @@ namespace Roguelike.Rules
 
         /// <summary>The models a room of this kind may hold.</summary>
         public static PropModel[] ModelsFor(RoomKind kind, PropValues v) =>
-            kind == RoomKind.Start ? new[] { PropModel.Brazier }
-            : kind == RoomKind.Reward ? new[] { PropModel.Chest, PropModel.Brazier }
-            : kind == RoomKind.Boss ? new[] { PropModel.Altar, PropModel.Statue, PropModel.Pillar }
+            kind == RoomKind.Entrance ? new[] { PropModel.Brazier }
+            : kind == RoomKind.Treasure ? new[] { PropModel.Chest, PropModel.Brazier }
+            : kind == RoomKind.Exit ? new[] { PropModel.Altar, PropModel.Statue, PropModel.Pillar }
             : v.FloorModels.Concat(v.WallModels).Concat(new[] { PropModel.Brazier }).Distinct().ToArray();
 
         /// <summary>The most props a room of this kind may hold.</summary>
         public static int MostIn(RoomKind kind, PropValues v) =>
-            kind == RoomKind.Start ? 2 : kind == RoomKind.Reward ? 3 : kind == RoomKind.Boss ? 7 : v.CombatMost;
+            kind == RoomKind.Entrance ? 2 : kind == RoomKind.Treasure ? 3 : kind == RoomKind.Exit ? 7 : v.CombatMost;
 
         /// <summary>The way a prop faces when its own z points along (x, y) on the ground: 0 north, 90 east, 180 south, 270 west.</summary>
         public static int Facing(double x, double y)
@@ -79,10 +79,15 @@ namespace Roguelike.Rules
             }
             if (room.PlayerStart.HasValue && f.DistanceTo(room.PlayerStart.Value) < v.FromPoints - Slack
                 && Broken("is nearer the player's start than " + N(v.FromPoints) + " m")) return first;
+            // Every enemy, not only its group's point (work order 012: a pack or a line stands round its point).
             for (int i = 0; i < room.EnemyPoints.Count; i++)
-                if (f.DistanceTo(room.EnemyPoints[i]) < v.FromPoints - Slack && Broken($"is nearer enemy point {i} than {N(v.FromPoints)} m")) return first;
-            if (room.Kind == RoomKind.Boss && f.DistanceTo(room.Middle(cs)) < v.BossMiddleClear - Slack
-                && Broken("is nearer the boss room's middle than " + N(v.BossMiddleClear) + " m")) return first;
+            {
+                bool near = f.DistanceTo(room.EnemyPoints[i]) < v.FromPoints - Slack;
+                foreach (LevelPoint m in room.PlacesAt(i)) near |= f.DistanceTo(m) < v.FromPoints - Slack;
+                if (near && Broken($"is nearer enemy point {i} or one of its enemies than {N(v.FromPoints)} m")) return first;
+            }
+            if (room.Kind == RoomKind.Exit && f.DistanceTo(room.Middle(cs)) < v.BossMiddleClear - Slack
+                && Broken("is nearer the exit room's middle than " + N(v.BossMiddleClear) + " m")) return first;
 
             foreach (LevelProp o in others)
             {
@@ -161,7 +166,7 @@ namespace Roguelike.Rules
                     }
                     _targets.Add(cells);
                 }
-                if (room.Kind != RoomKind.Reward)
+                if (room.Kind != RoomKind.Treasure)
                 {
                     LevelPoint m = room.Middle(cs);
                     var cells = new List<int>();
@@ -305,10 +310,10 @@ namespace Roguelike.Rules
                 var placer = new Room(level, room, values.PropRules);
                 switch (room.Kind)
                 {
-                    case RoomKind.Start: placer.Start(); break;
+                    case RoomKind.Entrance: placer.Start(); break;
                     case RoomKind.Combat: placer.Combat(rng, values.Plan.CombatSize); break;
-                    case RoomKind.Reward: placer.Reward(); break;
-                    case RoomKind.Boss: placer.Boss(rng); break;
+                    case RoomKind.Treasure: placer.Reward(); break;
+                    case RoomKind.Exit: placer.Boss(rng); break;
                 }
             }
         }

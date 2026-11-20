@@ -96,9 +96,9 @@ namespace Roguelike
             if (Health != null)
             {
                 string text = Health.IsAlive
-                    ? string.Format(s_Inv, "HP {0} / {1}", Health.Current, Health.MaxHealth)
+                    ? string.Format(s_Inv, "HP {0} / {1}", Health.Current, Health.Max) // the run's upgrades included (work order 012)
                     : "DEAD";
-                Bar(new Rect(left, rowTop, half, BarHeight), Health.MaxHealth > 0 ? Health.Current / (float)Health.MaxHealth : 0f, s_Health, text);
+                Bar(new Rect(left, rowTop, half, BarHeight), Health.Max > 0 ? Health.Current / (float)Health.Max : 0f, s_Health, text);
             }
             IdentityValues identity = Player.Identity;
             string focusText = Player.IsEmpowered

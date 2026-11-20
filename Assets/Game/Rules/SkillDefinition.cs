@@ -104,6 +104,38 @@ namespace Roguelike.Rules
     /// </summary>
     public static class SkillDefaults
     {
+        /// <summary>
+        /// What each skill does, in one line of plain words, for the floor reward's choice (work order 012). By name, so a
+        /// skill tuned in the settings asset keeps its line; "" for a name not here.
+        /// </summary>
+        public static string Line(string name)
+        {
+            switch (name)
+            {
+                case "Quick Shot": return "A fast pistol shot down a line that marks what it hits. You keep moving.";
+                case "Powder Keg": return "Throw a keg that bursts where you aim and hits everything round it.";
+                case "Fan Fire": return "Hold to spray a cone of shots; marks what it hits, once a second.";
+                case "Long Shot": return "Hold to charge, let go for one long shot; the longer the charge, the harder it hits.";
+                case "Scatter Blast": return "A shotgun blast in a cone that takes every mark off what it hits for more damage.";
+                case "Heavy Volley": return "A long cast, then a wide, heavy line of fire that spends marks for more damage.";
+                case "Backstep": return "Hop back, then press again to shoot; late in the window the shot spends the marks.";
+                case "Triple Tap": return "Three quick shots, one a press; each marks, and a clean last press marks twice.";
+                default: return "";
+            }
+        }
+
+        /// <summary>Whether a skill builds marks, spends them, or both, in a few words (work order 012).</summary>
+        public static string MarkRole(SkillDefinition s)
+        {
+            if (s == null) return "";
+            bool builds = s.MarksAdded > 0 || s.CleanTapMarks > 0;
+            bool spends = s.MarkDamageBonus > 0f || s.CleanMarkDamageBonus > 0f;
+            return builds && spends ? "builds marks, spends them on a clean press"
+                 : builds ? "builds marks"
+                 : spends ? "spends marks"
+                 : "no marks";
+        }
+
         public static SkillDefinition[] Create() => new[]
         {
             new SkillDefinition

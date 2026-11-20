@@ -298,6 +298,24 @@ namespace Roguelike
         /// <summary>Back to the skills a run starts with. For tests and tools.</summary>
         public void EquipStartSkills() => _equipped.Clear();
 
+        /// <summary>
+        /// The run's upgrades (work order 012, <see cref="RunModifiers"/>), read where the values are used: damage dealt,
+        /// a skill's cooldown, run speed, Quick Shot's first mark (and maximum health, by <see cref="PlayerHealth"/>).
+        /// Null outside a run: the settings' values as they are. Nothing here writes to the settings.
+        /// </summary>
+        [System.NonSerialized] public RunModifiers Modifiers;
+
+        /// <summary>The slot's cooldown as it runs now: the skill's, less the run's cuts to it.</summary>
+        public float CooldownOf(int slot)
+        {
+            if (slot < 0 || slot >= Skills.Count || Skills[slot] == null) return 0f;
+            SkillDefinition skill = Skills[slot];
+            return Modifiers != null ? skill.Cooldown * Modifiers.CooldownShare(skill.Name) : skill.Cooldown;
+        }
+
+        /// <summary>The share of the feel's run speed she runs at: 1, more with the run's upgrades.</summary>
+        public float RunSpeedShare => Modifiers != null ? Modifiers.RunSpeedShare : 1f;
+
         /// <summary>Basic shot hits counted toward the next mark.</summary>
         public int BasicShotsTowardMark => _basicMarks.Counted;
         /// <summary>The slot whose recast chain waits for its next press, or -1.</summary>
@@ -723,7 +741,7 @@ namespace Roguelike
                         // zero. The limit ApplyMovementFeel set at the top of this frame was for a stand with no slow, so
                         // it is set again from the curve before she moves.
                         StartEasing(feel, Mathf.Min(CurrentSpeedShare(feel), ActualSpeedShare(feel)));
-                        _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
+                        _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
                         Walk();
                         UpdateFacing(feel);
                         return;
@@ -971,7 +989,7 @@ namespace Roguelike
             // run speed, eased in and out (decision 0003, a guess).
             _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time, feel.BackpedalSpeedShare,
                                  feel.MovingShotSlowdown, feel.MovingShotRecovery);
-            _agent.speed = feel.RunSpeed * CurrentSpeedShare(feel);
+            _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
                 _agent.velocity = _agent.velocity.normalized * _agent.speed;
@@ -1131,7 +1149,7 @@ namespace Roguelike
             {
                 EndChain(); // another skill starting ends a chain (decision 0005)
                 _chain.Start(slot, skill.RecastCount, skill.RecastWindow, skill.OpeningMove);
-                CooldownFor(slot).Start(Time.time, skill.Cooldown);
+                CooldownFor(slot).Start(Time.time, CooldownOf(slot));
             }
             _castOpening = !recast && _chain.IsOpeningMove;
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
@@ -1216,6 +1234,8 @@ namespace Roguelike
         {
             int marks = _castClean ? skill.CleanTapMarks : skill.MarksAdded;
             if (marks <= 0) return;
+            // A run's upgrade (work order 012): more marks from this skill's hit on a target that has none.
+            if (Modifiers != null && target.MarkCount == 0) marks += Modifiers.FirstMarkBonus(skill.Name);
             if (skill.MarkInterval > 0f)
             {
                 float now = Time.time;
@@ -1244,6 +1264,7 @@ namespace Roguelike
         int Deal(Damageable target, int damage, out float focus, float stagger = 0f)
         {
             IdentityValues identity = Identity;
+            if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
             focus = _focus.AddDamage(applied, identity, Time.time);
             return applied;

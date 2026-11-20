@@ -148,7 +148,7 @@ namespace Roguelike.Rules.Tests
                     var models = r.Props.Select(p => p.Model).ToList();
                     switch (r.Kind)
                     {
-                        case RoomKind.Start:
+                        case RoomKind.Entrance:
                             Assert.That(models, Is.All.EqualTo(PropModel.Brazier), "seed " + s);
                             if (models.Count != 2) break;
                             // Either side of the door she leaves by, near it.
@@ -160,12 +160,12 @@ namespace Roguelike.Rules.Tests
                             bool near = r.Props.All(p => LevelGeometry.DistanceToDoor(p.Position, exit, cs) < 6.0);
                             if (sides.SequenceEqual(new[] { -1, 1 }) && near) startsWhole++;
                             break;
-                        case RoomKind.Reward:
+                        case RoomKind.Treasure:
                             rewards++;
                             if (models.Count == 3 && models[0] == PropModel.Chest && models.Count(m => m == PropModel.Brazier) == 2
                                 && Math.Abs(r.Props[0].Position.DistanceTo(r.Middle(cs)) - v.ChestBack) < 0.5) rewardsWhole++;
                             break;
-                        case RoomKind.Boss:
+                        case RoomKind.Exit:
                             if (models.Count(m => m == PropModel.Altar) == 1 && models.Count(m => m == PropModel.Statue) == 2
                                 && models.Count(m => m == PropModel.Pillar) == 4 && r.Props.First(p => p.Model == PropModel.Altar).Place == PropPlace.Wall)
                                 bossesWhole++;
@@ -239,28 +239,28 @@ namespace Roguelike.Rules.Tests
         {
             LevelLayout level = Make(Sample);
             Assert.That(PropCount(level), Is.GreaterThan(10));
-            Assert.That(First(level, RoomKind.Start).Props.Count, Is.EqualTo(2), "the sample has its start braziers");
+            Assert.That(First(level, RoomKind.Entrance).Props.Count, Is.EqualTo(2), "the sample has its start braziers");
             Assert.That(level.Rooms.Any(r => r.Kind == RoomKind.Combat && r.Props.Any(p => p.Place == PropPlace.Floor)), "and an open-floor prop");
             Assert.That(LevelValidator.Validate(level), Is.Empty);
         }
 
         [Test]
         public void Validator_ReportsAPropTurnedOffItsSteps() =>
-            AssertFault(l => First(l, RoomKind.Start).Props[0].Rotation = 45, "is turned 45 degrees, not a multiple of 90");
+            AssertFault(l => First(l, RoomKind.Entrance).Props[0].Rotation = 45, "is turned 45 degrees, not a multiple of 90");
 
         [Test]
         public void Validator_ReportsAPillarTurnedOffItsSteps() =>
-            AssertFault(l => First(l, RoomKind.Boss).Props.First(p => p.Model == PropModel.Pillar).Rotation = 20, "not a multiple of 15");
+            AssertFault(l => First(l, RoomKind.Exit).Props.First(p => p.Model == PropModel.Pillar).Rotation = 20, "not a multiple of 15");
 
         [Test]
         public void Validator_ReportsAPropAtAWallThatMayNotStandAtOne() =>
-            AssertFault(l => First(l, RoomKind.Start).Props[0].Place = PropPlace.Wall, "stands at a wall, and may not");
+            AssertFault(l => First(l, RoomKind.Entrance).Props[0].Place = PropPlace.Wall, "stands at a wall, and may not");
 
         [Test]
         public void Validator_ReportsAPropOutsideItsRoom() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Reward);
+                LevelRoom r = First(l, RoomKind.Treasure);
                 r.Props[0].Position = new LevelPoint(r.Rect.Right * l.CellSize + 0.2, r.Middle(l.CellSize).Y);
             }, "reaches out of its room");
 
@@ -268,7 +268,7 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAPropTooNearAWall() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Start);
+                LevelRoom r = First(l, RoomKind.Entrance);
                 LevelProp p = r.Props[0];
                 p.Position = new LevelPoint(r.Rect.X * l.CellSize + p.Radius + 0.2, r.Middle(l.CellSize).Y + 3);
             }, "is nearer a wall than 0.5 m");
@@ -277,7 +277,7 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAWallPropAwayFromTheWalls() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Boss);
+                LevelRoom r = First(l, RoomKind.Exit);
                 r.Props.First(p => p.Model == PropModel.Altar).Position = Shift(r.Middle(l.CellSize), 9, 9);
             }, "is meant to stand at a wall");
 
@@ -285,7 +285,7 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAPropTooNearADoor() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Start);
+                LevelRoom r = First(l, RoomKind.Entrance);
                 LevelDoor d = l.DoorsOf(r.Order).First();
                 d.Opening(l.CellSize, out LevelPoint a, out LevelPoint b);
                 var mid = new LevelPoint((a.X + b.X) / 2, (a.Y + b.Y) / 2);
@@ -296,7 +296,7 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAPropTooNearThePlayersStart() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Start);
+                LevelRoom r = First(l, RoomKind.Entrance);
                 r.Props[0].Position = Shift(r.PlayerStart.Value, 1.5, 0);
             }, "is nearer the player's start than 2 m");
 
@@ -312,15 +312,15 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAPropInTheBossRoomsMiddle() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Boss);
+                LevelRoom r = First(l, RoomKind.Exit);
                 r.Props.First(p => p.Model == PropModel.Pillar).Position = Shift(r.Middle(l.CellSize), 5, 3);
-            }, "is nearer the boss room's middle than 8 m");
+            }, "is nearer the exit room's middle than 8 m");
 
         [Test]
         public void Validator_ReportsPropsThatOverlap() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Reward);
+                LevelRoom r = First(l, RoomKind.Treasure);
                 LevelProp p = r.Props[0];
                 r.Props.Add(LevelProp.Make(p.Model, Shift(p.Position, 0.3, 0), p.Rotation, p.Place));
             }, "overlaps the Chest");
@@ -339,22 +339,22 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsAPropThatDoesNotBelongInItsRoom() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Start);
+                LevelRoom r = First(l, RoomKind.Entrance);
                 LevelProp p = r.Props[0];
                 r.Props[0] = LevelProp.Make(PropModel.Statue, p.Position, 0, PropPlace.Set);
-            }, "does not belong in a Start room");
+            }, "does not belong in a Entrance room");
 
         [Test]
         public void Validator_ReportsAFootprintThatIsNotItsModels() =>
-            AssertFault(l => First(l, RoomKind.Reward).Props[0].Width = 0.2, "has a footprint that is not its model's");
+            AssertFault(l => First(l, RoomKind.Treasure).Props[0].Width = 0.2, "has a footprint that is not its model's");
 
         [Test]
         public void Validator_ReportsTooManyPropsInARoom() =>
             AssertFault(l =>
             {
-                LevelRoom r = First(l, RoomKind.Start);
+                LevelRoom r = First(l, RoomKind.Entrance);
                 r.Props.Add(LevelProp.Make(PropModel.Brazier, Shift(r.PlayerStart.Value, 4, 4), 0, PropPlace.Set));
-            }, "has 3 props, a Start room at most 2");
+            }, "has 3 props, a Entrance room at most 2");
 
         [Test]
         public void Validator_ReportsABlockedLane_ToTheMiddle() =>

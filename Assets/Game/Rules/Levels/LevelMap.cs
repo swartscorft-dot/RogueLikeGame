@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 
 namespace Roguelike.Rules
@@ -7,10 +8,11 @@ namespace Roguelike.Rules
     /// <summary>
     /// A level drawn as characters, for logs, test failures and reports. North is up, as on the screen. Each cell is
     /// two characters across and two lines down, so walls get characters of their own: walls are '|' and '-' with '+'
-    /// at their corners, a door is a gap in a wall, a room shows the letter of its kind (S start, C combat, R reward,
-    /// B boss) and its place in the run in its north-west corner, the player's start is '@' and an enemy point the
-    /// small letter of what stands there (work order 008, <see cref="EnemyKinds.Letter"/>): b brute, s swarmer, p a pack
-    /// of swarmers, h shooter, g guard. A prop (work order 009) is its model's character (<see cref="PropSize.Letter"/>):
+    /// at their corners, a door is a gap in a wall, a room shows the letter of its kind (E entrance, C combat, T
+    /// treasure, X exit; work order 012) and its place in the run in its north-west corner, the player's start is '@'
+    /// and an enemy point the letter of what stands there (work order 008, <see cref="EnemyGroup.Letter"/>): b brute,
+    /// s swarmer, p a pack of swarmers, h shooter, g guard; since work order 012 H a line of shooters, B a line of
+    /// brutes and G the act boss. A prop (work order 009) is its model's character (<see cref="PropSize.Letter"/>):
     /// # pillar, % broken pillar, = sarcophagus, : rubble, &amp; statue, ! grave marker, u urns, ~ bone pile, * brazier,
     /// $ chest, A altar; on a blank only, so a point or a wall hides one that falls on it, and one at a wall is drawn a
     /// character inside it. The map is two characters to a cell, 2 m each: it shows roughly where, not the shapes.
@@ -85,8 +87,9 @@ namespace Roguelike.Rules
             }
 
             var sb = new StringBuilder();
-            sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0}  version {1}  {2} rooms  {3:0} x {4:0} m\n",
-                            level.SeedText, level.Version, level.Rooms.Count, box.Width * cs, box.Height * cs);
+            sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0}  floor {5}  version {1}  {2} rooms  {6} enemies  {3:0} x {4:0} m\n",
+                            level.SeedText, level.Version, level.Rooms.Count, box.Width * cs, box.Height * cs, level.Floor,
+                            level.Rooms.Sum(r => r.EnemyCount));
             for (int r = 0; r < rows; r++)
             {
                 var line = new StringBuilder(cols);
