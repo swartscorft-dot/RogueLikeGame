@@ -49,12 +49,20 @@ namespace Roguelike
         /// <summary>Raised when an enemy is enabled for the first time: for the play session recorder, which listens to each.</summary>
         public static event Action<Enemy> Appeared;
 
+        /// <summary>
+        /// The picture of a strike in place of the flat stand-in (work order 024, 2026-11-20, <see cref="CombatEffects"/>):
+        /// asked at every strike from where an enemy stands, with the attack and how far it reaches; true when it drew the
+        /// strike, false to leave the stand-in. Null, as in a test run: the stand-in. A picture only: it changes nothing.
+        /// </summary>
+        public static Func<Enemy, EnemyAttackDefinition, float, bool> StrikeDrawer;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             s_All.Clear();
             s_NextId = 0;
             Appeared = null;
+            StrikeDrawer = null;
         }
 
         public PlayerCharacter Player;
@@ -518,6 +526,7 @@ namespace Roguelike
 
         void SpawnStrikeFx(EnemyAttackDefinition attack, float reach)
         {
+            if (StrikeDrawer != null && StrikeDrawer(this, attack, reach)) return; // work order 024: drawn in the shot effects' style
             Vector3 origin = Flat(transform.position);
             GameObject fx;
             switch (attack.Shape)

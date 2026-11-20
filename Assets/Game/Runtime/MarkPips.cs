@@ -109,6 +109,21 @@ namespace Roguelike
             Build(count, Mathf.Max(count, Max), lit);
         }
 
+        /// <summary>
+        /// Where the middle of the row of pips is drawn in the world now, over its target (work order 024: the effects of
+        /// marks start at the pips).
+        /// </summary>
+        public Vector3 RowCentre() => _target != null ? _target.transform.position + Vector3.up * _height : transform.position;
+
+        /// <summary>Where pip <paramref name="index"/> (0 the leftmost) of a row of <paramref name="slots"/> is drawn in the world now.</summary>
+        public Vector3 PipPoint(int index, int slots)
+        {
+            Camera cam = Camera.main;
+            Vector3 right = cam != null ? cam.transform.right : Vector3.right;
+            float x = -(Mathf.Max(1, slots) - 1) * Spacing * 0.5f + index * Spacing;
+            return RowCentre() + right * x;
+        }
+
         /// <summary>True while the tag's sign is drawn (work order 015). For tests.</summary>
         public bool TagShown => _renderer != null && _renderer.enabled && _shownTag;
 

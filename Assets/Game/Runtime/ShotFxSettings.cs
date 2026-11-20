@@ -173,8 +173,10 @@ namespace Roguelike
         public static ShotLook[] AllSkills() => Names.Select(For).ToArray();
 
         /// <summary>
-        /// The existing skill whose look and sound a pool skill of work order 015 (2026-11-20) borrows while the ShotFx
-        /// asset has none of its own: the nearest in weapon and shape. "" for any other name.
+        /// The existing skill whose look and sound a pool skill of work order 015 (2026-11-20) borrowed while the ShotFx
+        /// asset had none of its own: the nearest in weapon and shape. "" for any other name. Since work order 024 it has a
+        /// look of its own (<see cref="For"/>) and borrows only the sound, or all of it with the effects switched off
+        /// (<see cref="Borrowed"/>).
         /// </summary>
         public static string Nearest(string name)
         {
@@ -188,15 +190,29 @@ namespace Roguelike
             }
         }
 
-        public static ShotLook For(string name)
+        /// <summary>A pool skill's look as it was before work order 024: its nearest's, under its own name.</summary>
+        public static ShotLook Borrowed(string name)
         {
             string nearest = Nearest(name);
-            if (nearest.Length > 0)
-            {
-                ShotLook borrowed = For(nearest);
-                borrowed.Name = name;
-                return borrowed;
-            }
+            if (nearest.Length == 0) return For(name);
+            ShotLook borrowed = For(nearest);
+            borrowed.Name = name;
+            return borrowed;
+        }
+
+        /// <summary>Gives a look the sound of another, all its settings (work order 024: a pool skill's own look keeps its nearest's sound).</summary>
+        public static void TakeSound(ShotLook look, ShotLook from)
+        {
+            if (look == null || from == null) return;
+            look.Sound = from.Sound;
+            look.SoundVolume = from.SoundVolume;
+            look.SoundPitch = from.SoundPitch;
+            look.SoundPitchSpread = from.SoundPitchSpread;
+            look.SoundStart = from.SoundStart;
+        }
+
+        public static ShotLook For(string name)
+        {
             switch (name)
             {
                 case "Quick Shot":    return Look(name, new Color(1f, 0.5f, 0.1f), 1f, 0.1f, 0.4f, 0.16f, 1f, 0.16f, recoil: 1.5f);
@@ -207,6 +223,13 @@ namespace Roguelike
                 case "Heavy Volley":  return Look(name, new Color(1f, 0.25f, 0.15f), 2f, 0.14f, 0.4f, 0.22f, 1.3f, 0.2f, recoil: 2.2f);
                 case "Backstep":      return Look(name, new Color(0.2f, 0.95f, 0.95f), 1f, 0.1f, 0.36f, 0.16f, 1f, 0.16f, recoil: 1.4f);
                 case "Triple Tap":    return Look(name, new Color(0.65f, 0.4f, 1f), 0.85f, 0.08f, 0.32f, 0.1f, 0.9f, 0.12f);
+                // The pool skills of work order 015, with looks of their own since work order 024 (2026-11-20): Tag Round a
+                // thin sharp streak with a green-tinted core; Breaker Slug a short, very thick streak with a wide heavy
+                // flash; Stopping Shot a clean pale streak; Slide fires nothing (its dust and trail are CombatEffects').
+                case "Tag Round":     return Burst(Look(name, new Color(1f, 0.72f, 0.2f), 0.75f, 0.08f, 0.14f, 0.13f, 0.8f, 0.13f, recoil: 1.2f), new Color(0.82f, 1f, 0.62f));
+                case "Breaker Slug":  return Look(name, new Color(1f, 0.42f, 0.08f), 1.9f, 0.12f, 0.75f, 0.12f, 1.3f, 0.17f, recoil: 2.4f);
+                case "Stopping Shot": return Burst(Look(name, new Color(0.96f, 0.92f, 0.82f), 0.95f, 0.09f, 0.3f, 0.15f, 1f, 0.15f, recoil: 1.5f), Color.white);
+                case "Slide":         return Look(name, new Color(1f, 0.6f, 0.2f), 0f, 0f, 0f, 0f, 0f, 0f, recoil: 0f);
                 default:              return Look(name, new Color(1f, 0.6f, 0.15f), 0.6f, 0.1f, 0.2f, 0.14f, 0.8f, 0.14f);
             }
         }
