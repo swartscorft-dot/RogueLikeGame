@@ -102,6 +102,7 @@ namespace Roguelike
                 GUI.color = slot == active || slot == recovering || chain ? s_InUse : cooldown > 0f ? s_Waiting : s_Ready;
                 GUI.Box(box, key + "  " + skills[slot].Name + "\n" + state, _box);
                 if (chain && Player.IsRecastWindowOpen) RecastBar(new Rect(box.x + 4f, box.yMax - RecastBarHeight - 3f, box.width - 8f, RecastBarHeight));
+                PlayerSigns.DrawKeySign(box, slot); // work order 037: the clean window on its key, while it is up
                 // The run's upgrades of this skill (work order 017): a pip each.
                 int pips = Player.UpgradesOn(slot);
                 GUI.color = s_Pip;
@@ -135,11 +136,12 @@ namespace Roguelike
             {
                 string focusText = Player.IsEmpowered
                     ? string.Format(s_Inv, Player.IsSteadyHandWindow ? "STEADY HAND {0:0.0} s" : "EMPOWERED {0:0.0} s", Player.EmpoweredRemaining)
-                    : Player.IsFocusFull ? "FOCUS FULL: press Z"
+                    : Player.IsFocusFull ? PlayerSigns.FocusFullText // work order 037: the bound key ("press Z" with the sign off)
                     : string.Format(s_Inv, "Focus {0:0} / {1:0}", Player.Focus, identity.MaxFocus);
                 bool bright = Player.IsEmpowered || Player.IsFocusFull;
                 Bar(focusRect, Player.FocusBarFill, bright ? s_Empowered : s_Focus, focusText, bright ? s_DarkText : s_Ready);
             }
+            PlayerSigns.DrawFocusSign(focusRect); // work order 037: a full gauge pulses, its key beside it
 
             // The cast, hold or charge of the skill in use.
             SkillDefinition skill = Player.ActiveSkill;

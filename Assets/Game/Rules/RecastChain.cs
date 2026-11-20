@@ -127,5 +127,17 @@ namespace Roguelike.Rules
             if (!IsWindowOpen(now) || _window <= 0f) return 0f;
             return Math.Max(0f, Math.Min(1f, 1f - (now - _openedAt) / _window));
         }
+
+        /// <summary>
+        /// The window's length, in seconds, of the chain running (work order 037: the signs of the clean press read it).
+        /// 0 with no chain.
+        /// </summary>
+        public float Window => _slot >= 0 ? _window : 0f;
+
+        /// <summary>
+        /// Seconds since the window for the next press opened (work order 037), past its length once it has run out; -1
+        /// while the shot before has not gone off yet, and with no chain. It reads; it changes nothing.
+        /// </summary>
+        public float SinceOpened(float now) => _slot < 0 || float.IsPositiveInfinity(_openedAt) ? -1f : now - _openedAt;
     }
 }

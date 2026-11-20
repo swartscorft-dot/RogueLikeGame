@@ -630,6 +630,15 @@ namespace Roguelike
                 ? (_chainPrimed ? 1f : Mathf.Clamp01(Kit.CleanShare)) : 0f; // primed (work order 025): all of the window
         /// <summary>Presses of the recast chain running, or 0 (work order 025: five for Triple Tap in Steady Hand's window).</summary>
         public int RecastCount => _chain.Slot >= 0 ? _chain.Count : 0;
+        // Work order 037 (Kristian's session of 2026-11-20): what the signs of the clean press read (PlayerSigns). They
+        // read only; nothing here changes when a press is clean.
+        /// <summary>The recast window's length in seconds, of the chain running; 0 with none.</summary>
+        public float RecastWindowSeconds => _chain.Window;
+        /// <summary>Seconds since the window for the next press opened, past its length once it has run out; -1 before it opens or with no chain.</summary>
+        public float RecastSinceOpened => _chain.SinceOpened(Time.time);
+        /// <summary>True when a press of the chain's key now would be clean: judged exactly as that press itself would be.</summary>
+        public bool RecastPressWouldBeClean =>
+            _chain.Slot >= 0 && _chain.Slot < Skills.Count && !_chain.Expired(Time.time) && JudgeRecast(_chain.Slot, Time.time) == RecastPress.Clean;
 
         /// <summary>
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
