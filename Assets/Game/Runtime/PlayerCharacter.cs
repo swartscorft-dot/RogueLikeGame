@@ -75,6 +75,15 @@ namespace Roguelike
     ///   spender does; an earlier one is an ordinary shot that adds its mark. The shot itself does not move her.
     /// - Focus fills from spent marks, clean taps and a trickle of damage; spending it cuts every running cooldown and,
     ///   for its window, makes every basic shot hit mark.
+    /// - Skill upgrades (work order 017, 2026-11-20): in a run, <see cref="Skills"/> are the run's own copies of the
+    ///   skills, patched by the upgrades taken from elite rooms (<see cref="SkillUpgrades"/>); the settings' skills
+    ///   (<see cref="SettingsSkills"/>) are never written. What an upgrade changes beyond numbers is a field of the skill
+    ///   read in one hook each: a basic shot that hits (<see cref="SkillDefinition.BasicHitCooldownCut"/>,
+    ///   <see cref="SkillDefinition.SlideShotMarks"/>), a use that hits, kills, dazes or counters
+    ///   (<see cref="SkillDefinition.HitCooldownCut"/>, <see cref="SkillDefinition.KillCooldownCut"/>,
+    ///   <see cref="SkillDefinition.DazeCooldownCut"/>, <see cref="SkillDefinition.CounterReadies"/>), a tagged target that
+    ///   dies (<see cref="SkillDefinition.TagJump"/>), a spender's distance (<see cref="SkillDefinition.CloseRange"/>), a
+    ///   dazed target (<see cref="SkillDefinition.DazedDamageScale"/>) and a charge with none (<see cref="SkillDefinition.NoCharge"/>).
     ///
     /// Cover (Kristian, 2026-11-19: "Skudd skal stoppes av vegg og søyler", shots are to be stopped by walls and
     /// pillars): a generated level's walls and tall props (<see cref="Cover"/>) stop her shots and skills
@@ -151,6 +160,7 @@ namespace Roguelike
         readonly IdentityValues _fallbackIdentity = new IdentityValues();
         readonly ShotLook _fallbackBasicLook = ShotFxDefaults.Basic();
         readonly Dictionary<string, ShotLook> _fallbackLooks = new Dictionary<string, ShotLook>();
+        readonly Dictionary<string, ShotLook> _borrowedLooks = new Dictionary<string, ShotLook>(); // work order 024: switched off
         // The kit (decision 0005).
         readonly KitValues _fallbackKit = new KitValues();
         readonly BasicShotMarks _basicMarks = new BasicShotMarks();
@@ -332,11 +342,18 @@ namespace Roguelike
         // ---------------- Skills, for the skill bar, the aim indicator and tests ----------------
 
         /// <summary>
-        /// The skills, in their list order: the settings asset's, and after them, from the start values in memory, any
-        /// skill the code knows that the asset lacks by name (work order 015: an asset from before the pool still has all
-        /// twelve). Nothing is written to the asset.
+        /// The skills as the game reads them, in their list order: <see cref="SettingsSkills"/>, or in a run with skill
+        /// upgrades taken the run's own copies of them, patched by the upgrades (work order 017,
+        /// <see cref="RunSkillUpgrades.View"/>). Nothing is written to the settings or to the skills in memory.
         /// </summary>
-        public IReadOnlyList<SkillDefinition> Skills
+        public IReadOnlyList<SkillDefinition> Skills => SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills) : SettingsSkills;
+
+        /// <summary>
+        /// The skills of the settings, in their list order: the settings asset's, and after them, from the start values in
+        /// memory, any skill the code knows that the asset lacks by name (work order 015: an asset from before the pool
+        /// still has all twelve). Nothing is written to the asset. The practice room reads these as they are.
+        /// </summary>
+        public IReadOnlyList<SkillDefinition> SettingsSkills
         {
             get
             {
@@ -482,6 +499,29 @@ namespace Roguelike
         /// Null outside a run: the settings' values as they are. Nothing here writes to the settings.
         /// </summary>
         [System.NonSerialized] public RunModifiers Modifiers;
+
+        /// <summary>
+        /// The run's skill upgrades (work order 017, <see cref="RunSkillUpgrades"/>): <see cref="Skills"/> reads the skills
+        /// through them. Null outside a run: the settings' skills as they are.
+        /// </summary>
+        [System.NonSerialized] public RunSkillUpgrades SkillUpgrades;
+
+        /// <summary>How many skill upgrades the slot's skill has this run (work order 017): the pips on its box.</summary>
+        public int UpgradesOn(int slot) =>
+            SkillUpgrades != null && slot >= 0 && slot < Skills.Count && Skills[slot] != null ? SkillUpgrades.CountFor(Skills[slot].Name) : 0;
+
+        /// <summary>The slot of the skill of this name, or -1.</summary>
+        public int SlotOf(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return -1;
+            IReadOnlyList<SkillDefinition> skills = Skills;
+            for (int i = 0; i < skills.Count; i++)
+                if (skills[i] != null && skills[i].Name == name) return i;
+            return -1;
+        }
+
+        /// <summary>Tags that jumped from a tagged target that died to the nearest enemy (work order 017, Spreading Tag).</summary>
+        public int TagsSpread { get; private set; }
 
         /// <summary>The slot's cooldown as it runs now: the skill's, less the run's cuts to it.</summary>
         public float CooldownOf(int slot)
@@ -883,6 +923,30 @@ namespace Roguelike
             Halt();
         }
 
+        /// <summary>
+        /// A clean slate (the review of 2026-11-20, work order 026): an empty focus gauge and no focus window, every
+        /// skill's cooldown and charges and the dash's cooldown ready, and any skill in progress, recast chain, buffered
+        /// press, waiting click, Slide and lying keg ended. Where she stands and the keys held stay. Called when a run
+        /// starts and when a run ends back to the practice room; nothing else calls it.
+        /// </summary>
+        public void StartFresh()
+        {
+            if (_actionKind == ActionKind.Skill) ReportSkillEnded(SkillEnding.Cancelled, Time.time);
+            _action.Cancel();
+            _cast.Cancel();
+            EndAction();
+            _dashing = false;
+            _buffer.Clear();
+            _clicks.Clear();
+            _skillGateUntil = float.NegativeInfinity;
+            EndChain();
+            EndKeyMove();
+            ClearKegs();
+            _focus.Clear();
+            _dash.Clear();
+            _cooldowns.Clear(); // made again, ready, when next asked for
+        }
+
         // ---------------- Simulation ----------------
 
         void Update()
@@ -1156,8 +1220,9 @@ namespace Roguelike
             if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
             if (_snapping || StoodUpInCover || _moveInput == Vector3.zero) return;
             FeelValues feel = Feel;
+            // Her run speed with the run's upgrades, as everywhere else she moves (work order 026, the second review of 2026-11-20).
             GroundPoint next = TakeCoverRules.Slide(_coverShape, GroundPosition, new GroundPoint(_moveInput.x, _moveInput.z),
-                                                    feel.RunSpeed * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
+                                                    feel.RunSpeed * RunSpeedShare * feel.CoverMoveShare * Time.deltaTime, feel.CoverStandOff, feel.CoverSlideAngle);
             MoveInCover(new Vector3(next.X, transform.position.y, next.Z));
         }
 
@@ -1435,7 +1500,7 @@ namespace Roguelike
         bool StartDash(Vector3 point)
         {
             FeelValues feel = Feel;
-            if (!_dash.TryStart(Time.time, feel)) return false;
+            if (!_dash.TryStart(Time.time, feel, Modifiers != null ? Modifiers.DashCooldownShare : 1f)) return false; // work order 017: the chests' step
 
             Vector3 dir = Flat(point - transform.position);
             if (dir.sqrMagnitude < 1e-6f) dir = Flat(transform.forward);
@@ -1559,6 +1624,8 @@ namespace Roguelike
             ActionsStarted++;
             ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : skill.Startup;
             _cast.Start(skill, Time.time);
+            // Snap Shot (work order 017): a Charge skill with no charging is let go at its press, and fires as a perfect release.
+            if (skill.Input == SkillInput.Charge && skill.NoCharge) _cast.Release(Time.time);
             _markedAt.Clear();
             _castClean = false;
             _castMoves = moves;
@@ -1639,7 +1706,74 @@ namespace Roguelike
             // Every few hits, whatever the target, the hit that completes the count marks the target it hit; in the
             // focus window every hit does (decision 0005).
             if (_basicMarks.Hit(Kit.BasicShotsPerMark, empowered)) AddMarks(hit, 1, -1);
+            BasicShotHit(hit);
             return ShotFired(true);
+        }
+
+        /// <summary>
+        /// A basic shot hit (work order 017, the one hook for it): each skill she has with a cut for it takes that off its
+        /// cooldown (Quick Draw), and during Slide a skill that says so adds its marks (Slide Shot).
+        /// </summary>
+        void BasicShotHit(Damageable hit)
+        {
+            float now = Time.time;
+            IReadOnlyList<SkillDefinition> skills = Skills;
+            for (int slot = 0; slot < skills.Count; slot++)
+                if (skills[slot] != null && skills[slot].BasicHitCooldownCut > 0f && IsEquipped(slot))
+                    CooldownFor(slot).CutSeconds(now, skills[slot].BasicHitCooldownCut);
+            if (_keyMoving && _keyMoveSlot >= 0 && _keyMoveSlot < skills.Count && skills[_keyMoveSlot].SlideShotMarks > 0)
+                AddMarks(hit, skills[_keyMoveSlot].SlideShotMarks, _keyMoveSlot);
+        }
+
+        /// <summary>
+        /// A use of a skill hit something (work order 017, the one hook for a hit, a kill, a daze and a counter): a cut to
+        /// a cooldown for the hit (Tied Trigger), half its own cooldown off for a kill (Fresh Shells) or a daze (Follow
+        /// Through), and a skill made ready by a counter (Riposte).
+        /// </summary>
+        void UseLanded(SkillDefinition skill, int slot, bool killed, bool dazed, bool countered)
+        {
+            float now = Time.time;
+            if (skill.HitCooldownCut > 0f)
+            {
+                int cut = string.IsNullOrEmpty(skill.HitCutsSkill) ? slot : SlotOf(skill.HitCutsSkill);
+                if (cut >= 0) CooldownFor(cut).CutSeconds(now, skill.HitCooldownCut);
+            }
+            if (slot >= 0 && killed && skill.KillCooldownCut > 0f) CooldownFor(slot).CutSeconds(now, CooldownOf(slot) * Mathf.Clamp01(skill.KillCooldownCut));
+            if (slot >= 0 && dazed && skill.DazeCooldownCut > 0f) CooldownFor(slot).CutSeconds(now, CooldownOf(slot) * Mathf.Clamp01(skill.DazeCooldownCut));
+            if (countered && !string.IsNullOrEmpty(skill.CounterReadies))
+            {
+                int ready = SlotOf(skill.CounterReadies);
+                if (ready >= 0) CooldownFor(ready).MakeReady(now);
+            }
+        }
+
+        /// <summary>
+        /// A tagged target died (work order 017, Spreading Tag): the tag of the skill she has that spreads it jumps to the
+        /// nearest other living target within its reach, with its time renewed.
+        /// </summary>
+        void SpreadTag(Damageable dead)
+        {
+            IReadOnlyList<SkillDefinition> skills = Skills;
+            SkillDefinition spreads = null;
+            for (int slot = 0; slot < skills.Count && spreads == null; slot++)
+                if (skills[slot] != null && skills[slot].TagJump > 0f && skills[slot].TagSeconds > 0f && IsEquipped(slot)) spreads = skills[slot];
+            if (spreads == null) return;
+            Damageable nearest = null;
+            float best = spreads.TagJump;
+            IReadOnlyList<Damageable> all = Damageable.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                Damageable d = all[i];
+                if (d == dead || !d.IsAlive) continue;
+                float distance = d.GroundPosition.DistanceTo(dead.GroundPosition);
+                if (distance > best) continue;
+                best = distance;
+                nearest = d;
+            }
+            if (nearest == null) return;
+            nearest.ApplyTag(spreads.TagSeconds, spreads.TagDamageShare);
+            MarkPips.For(nearest, ShotFxMaterial);
+            TagsSpread++;
         }
 
         /// <summary>Puts marks on a target, shows them over it and reports it. <paramref name="slot"/> is -1 for the basic shot.</summary>
@@ -1697,8 +1831,10 @@ namespace Roguelike
             IdentityValues identity = Identity;
             if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
             damage = target.ScaleForTag(damage); // Tag Round's tag (work order 015)
+            bool tagged = target.IsTagged;
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
             focus = _focus.AddDamage(applied, identity, Time.time);
+            if (tagged && !target.IsAlive) SpreadTag(target); // work order 017
             return applied;
         }
 
@@ -1720,8 +1856,9 @@ namespace Roguelike
 
             // Long Shot's perfect band (work order 015): let go by the key inside it, the shot deals the perfect scale
             // times the full-charge damage and stagger, gains focus as a clean tap does, and is drawn that much wider.
-            bool perfect = skill.Input == SkillInput.Charge && _cast.ReleasedByKey
-                           && PoolRules.IsPerfect(skill, _cast.ChargedSeconds(Time.time));
+            // Snap Shot (work order 017): a skill with no charging is always a perfect release.
+            bool perfect = skill.Input == SkillInput.Charge
+                           && (skill.NoCharge || (_cast.ReleasedByKey && PoolRules.IsPerfect(skill, _cast.ChargedSeconds(Time.time))));
             Look look = LookFor(skill, perfect ? 1f : charge);
             if (perfect) look.Width *= Mathf.Max(1f, skill.PerfectScale);
             // A keg (work order 015) lands and lies on its fuse: nothing is hit yet.
@@ -1775,7 +1912,7 @@ namespace Roguelike
             float firstDistance = float.PositiveInfinity;
             bool spender = MarkRules.Spends(skill, clean);
             float bonusPerMark = MarkRules.BonusPerMark(skill, clean);
-            bool landed = false, countered = false;
+            bool landed = false, countered = false, killed = false, dazed = false;
             IReadOnlyList<Damageable> all = Damageable.All;
             for (int i = 0; i < all.Count; i++)
             {
@@ -1783,13 +1920,28 @@ namespace Roguelike
                 if (!d.IsAlive) continue;
                 if (!area.Hits(d.GroundPosition, d.Radius)) continue;
                 bool empowered = IsEmpowered;
+                // Point Blank (work order 017): a spender with a close range spends, at its scaled bonus, only on a target
+                // within it; one farther away takes the hit's own damage and keeps its marks.
+                bool spends = spender && (skill.CloseRange <= 0f || d.GroundPosition.DistanceTo(area.Origin) - d.Radius <= skill.CloseRange);
+                float bonus = skill.CloseRange > 0f ? bonusPerMark * skill.CloseMarkScale : bonusPerMark;
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005);
                 // Breaker Slug's bonus per mark is stagger, not damage (work order 015).
-                int taken = spender ? d.TakeMarks() : 0;
-                int dealt = spender ? MarkRules.SpenderDamage(damage, taken, bonusPerMark) : damage;
+                int taken = spends ? d.TakeMarks() : 0;
+                int dealt = spends ? MarkRules.SpenderDamage(damage, taken, bonus) : damage;
+                // Execution (work order 017): more to a dazed target.
+                if (skill.DazedDamageScale != 1f && d.IsDazed) dealt = Mathf.RoundToInt(dealt * Mathf.Max(0f, skill.DazedDamageScale));
                 float hitStagger = skill.MarkStaggerBonus > 0f ? PoolRules.SpenderStagger(stagger, taken, skill.MarkStaggerBonus) : stagger;
+                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front. Tried
+                // before the hit's stagger is dealt (the review of 2026-11-20, work order 026): a hit that empties a bar
+                // dazes, the daze drops the windup, and the counter would then find nothing to counter.
+                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
+                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
+                if (counteredThis) countered = true;
+                bool wasDazed = d.IsDazed;
                 int applied = Deal(d, dealt, out float focus, hitStagger);
-                if (spender)
+                if (!d.IsAlive) killed = true;
+                else if (!wasDazed && d.IsDazed) dazed = true;
+                if (spends)
                 {
                     float markFocus = _focus.Add(taken * Identity.FocusPerMarkSpent, Identity, Time.time);
                     Report(new PlayerReport
@@ -1797,10 +1949,6 @@ namespace Roguelike
                         Kind = PlayerReportKind.MarksSpent, Slot = slot, Target = d, Marks = taken, Damage = applied, Focus = markFocus,
                     });
                 }
-                // Stopping Shot (work order 015): a hit on an enemy winding up a counterable attack, from its front.
-                bool counteredThis = skill.CounterDaze > 0f && d.TryGetComponent(out Enemy enemy)
-                                     && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
-                if (counteredThis) countered = true;
                 if (applied <= 0) continue;
                 ReportHit(slot, d, applied, empowered, focus, counteredThis);
                 SpawnHit(look, d, shotPoint);
@@ -1819,6 +1967,7 @@ namespace Roguelike
                 Counters++;
                 _focus.Add(Identity.MaxFocus * Mathf.Clamp01(skill.CounterFocus), Identity, Time.time);
             }
+            if (landed || countered) UseLanded(skill, slot, killed, dazed, countered);
             return landed;
         }
 
@@ -1851,8 +2000,11 @@ namespace Roguelike
         {
             ShotLook values = skill == null
                 ? (ShotLooks != null && ShotLooks.Basic != null ? ShotLooks.Basic : _fallbackBasicLook)
-                : (ShotLooks != null ? ShotLooks.For(skill.Name) ?? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
-                  ?? FallbackLook(skill.Name); // a pool skill with no look of its own borrows its nearest's, sound and all (work order 015)
+                : (ShotLooks != null ? ShotLooks.For(skill.Name) : null)
+                  // Work order 024: a pool skill the asset has no look for takes its own from the defaults in memory; only
+                  // with the effects switched off does it borrow its nearest's, sound and all, as before (work order 015).
+                  ?? (CombatEffects.PoolLooksBorrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
+                  ?? FallbackLook(skill.Name);
             bool empowered = IsEmpowered;
             float empoweredScale = ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
             Color rim = empowered ? (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim) : values.Rim;
@@ -1869,8 +2021,13 @@ namespace Roguelike
 
         ShotLook FallbackLook(string skillName)
         {
-            if (!_fallbackLooks.TryGetValue(skillName, out ShotLook look))
-                _fallbackLooks[skillName] = look = ShotFxDefaults.For(skillName);
+            bool borrowed = CombatEffects.PoolLooksBorrowed;
+            Dictionary<string, ShotLook> looks = borrowed ? _borrowedLooks : _fallbackLooks;
+            if (!looks.TryGetValue(skillName, out ShotLook look))
+                looks[skillName] = look = borrowed ? ShotFxDefaults.Borrowed(skillName) : ShotFxDefaults.For(skillName);
+            // Its own look keeps the sound of its nearest in the asset until the asset has a look of its own for it (work order 024).
+            ShotLook nearest = !borrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skillName)) : null;
+            if (nearest != null) ShotFxDefaults.TakeSound(look, nearest);
             return look;
         }
 

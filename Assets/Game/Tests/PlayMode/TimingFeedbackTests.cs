@@ -412,6 +412,46 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
+        public IEnumerator APerfectLongShot_ThroughALyingKeg_IsStillPerfect_OverItsTarget_AndItsNumberIsPerfect()
+        {
+            // Work order 026 (the second review of 2026-11-20): the keg's burst, reported in the middle of the Long Shot's
+            // hit, must not take the Long Shot's hit with it.
+            int keg = Slot("Powder Keg"), longShot = Slot("Long Shot");
+            SkillDefinition kegSkill = _player.Skills[keg], skill = _player.Skills[longShot];
+            _player.Teleport(NearA);
+            yield return null;
+            float fuse = kegSkill.Fuse;
+            kegSkill.Fuse = 6f; // long enough to charge the Long Shot into its band (the skills live in an asset: put back below)
+            try
+            {
+                Assert.That(_player.PressSkill(keg, _a.transform.position), Is.EqualTo(IntentResult.Started));
+                yield return Until(() => _player.KegsLying > 0, 2f);
+            }
+            finally
+            {
+                kegSkill.Fuse = fuse;
+            }
+            Assume.That(_player.KegsLying, Is.EqualTo(1), "a keg lies at A");
+            yield return UntilFree();
+            Assert.That(_player.PressSkill(longShot, _a.transform.position), Is.EqualTo(IntentResult.Started));
+            yield return Until(() => _player.SkillChargedSeconds >= 0.5f * (skill.PerfectFrom + skill.PerfectTo), 5f);
+            _player.ReleaseSkill(longShot);
+            yield return Until(() => _damage.Count >= 2, 3f);
+            yield return null;
+            Assume.That(_player.PerfectReleases, Is.EqualTo(1), "the game judged it perfect");
+            Assume.That(_player.KegsSetOffByShots, Is.EqualTo(1), "the Long Shot set the keg off");
+            Assume.That(_damage.Count, Is.EqualTo(2), "the shot and the burst both hit A");
+
+            SaidOnce("PERFECT", _a);
+            Assert.That(Said("BOOM").Count, Is.EqualTo(1), "and the keg's BOOM");
+            Assert.That(_tones, Is.EqualTo(new[] { FeedbackTone.Perfect }));
+            List<FeedbackShown> numbers = NumbersOver(_a);
+            Assert.That(numbers.Count, Is.EqualTo(1), "one number for the shot and the burst");
+            Assert.That(numbers[0].Sum, Is.EqualTo(_damage.Sum()));
+            Assert.That(numbers[0].Kind, Is.EqualTo(NumberKind.Perfect), "the perfect shot's hit counted as perfect");
+        }
+
+        [UnityTest]
         public IEnumerator AKegLeftToItsFuse_SaysNoBoom()
         {
             _player.Teleport(NearA);

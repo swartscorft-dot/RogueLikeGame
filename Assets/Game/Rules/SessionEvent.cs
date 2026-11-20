@@ -67,7 +67,13 @@ namespace Roguelike.Rules
         public const string RewardTake = "reward_take";       // a floor reward was taken: floor, name the skill
         public const string ChestOpen = "chest_open";         // a chest was opened and an upgrade taken: floor, room, offered joined by " | ", name the one taken
         public const string FloorHeal = "floor_heal";         // work order 023: she was healed as a floor's reward was taken: floor, healed (what was given), health after
+        public const string RoomHeal = "room_heal";           // work order 030: every enemy of a combat room is dead and she was healed: floor, room, elite "true" for the elite room, healed (what was given), health after
         public const string RunEnd = "run_end";               // the run ended: result death, act cleared or left; floor, room and its kind, seconds since the run started
+        // The elite room and the skill upgrades (work order 017).
+        public const string EliteEnter = "elite_enter";       // she entered the floor's elite room for the first time: floor, room
+        public const string EliteClear = "elite_clear";       // every enemy of the elite room is dead: floor, seconds since she first entered it, health left
+        public const string SkillUpgradeOffer = "skill_upgrade_offer"; // floor, offered the upgrades ("Skill: Name (kind)") joined by " | "; heal "true" when none was left
+        public const string SkillUpgradeTake = "skill_upgrade_take";   // an upgrade was taken: floor, name "Skill: Name", kind
         // Taking cover (Kristian 2026-11-19, an experiment). A shot it stopped is an enemy_strike with result "stopped by cover".
         public const string CoverEnter = "cover_enter";       // she took cover: name is "tall" or "low", what she is behind
         public const string CoverLeave = "cover_leave";       // she left cover: result says how (released, dash, moving skill, other)

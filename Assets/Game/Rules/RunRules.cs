@@ -58,6 +58,11 @@ namespace Roguelike.Rules
         RunSpeed,
         /// <summary>A named skill's hit on a target with no marks adds Amount more marks.</summary>
         FirstMark,
+        /// <summary>
+        /// The dash's cooldown down by the share Amount, stacking (work order 017, from Kristian's ruling on the dash, 2026-11-20:
+        /// "it stays scarce, but can be upgraded during the run"). Never under <see cref="RunValues.CooldownFloor"/> of its own.
+        /// </summary>
+        DashCooldown,
     }
 
     /// <summary>One row of the chest table: a kind, how much, and for some a skill.</summary>
@@ -98,6 +103,7 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Damage ? "+" + Pct(Amount) + " damage dealt"
             : Kind == UpgradeKind.Cooldown ? "-" + Pct(Amount) + " cooldown on " + Skill
             : Kind == UpgradeKind.RunSpeed ? "+" + Pct(Amount) + " run speed"
+            : Kind == UpgradeKind.DashCooldown ? "-" + Pct(Amount) + " dash cooldown"
             : "+" + Int(Amount) + " mark from " + Skill + "'s hit on a target with none";
 
         /// <summary>The short form for the box on screen and the log.</summary>
@@ -106,6 +112,7 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Damage ? "+" + Pct(Amount) + " dmg"
             : Kind == UpgradeKind.Cooldown ? "-" + Pct(Amount) + " cd " + Skill
             : Kind == UpgradeKind.RunSpeed ? "+" + Pct(Amount) + " speed"
+            : Kind == UpgradeKind.DashCooldown ? "-" + Pct(Amount) + " cd dash"
             : "+" + Int(Amount) + " first mark " + Skill;
 
         public override string ToString() => Short;
@@ -129,9 +136,22 @@ namespace Roguelike.Rules
         /// test pilot's flights of 2026-11-20 saw her health only go down across an act.
         /// </summary>
         public float FloorHeal = 0.35f;
+        /// <summary>
+        /// Health back inside a floor (work order 030, lever A): when every enemy of a combat room is dead she is healed by
+        /// this share of her maximum, once per room (<see cref="RoomHeals"/>). None before: the test pilot's flights of
+        /// 2026-11-20 saw a floor-3 room cost the Kiter 60 to 77 of her 100 with nothing back until the floor's end.
+        /// Flown (work order 030, round 1): 38 to 66 health back a run, the Kiter's lowest health at a floor's end 80
+        /// instead of 15; alone it moved no pilot past floor 3.
+        /// </summary>
+        public float RoomHeal = 0.08f;
+        /// <summary>The elite room's heal instead of <see cref="RoomHeal"/> (work order 030, lever A), besides its upgrade; none before.</summary>
+        public float EliteRoomHeal = 0.20f;
         public UpgradeDefinition[] Upgrades = DefaultUpgrades();
 
-        /// <summary>The order's examples: +10 maximum health and heal 10; +5 % damage; -5 % cooldown on a skill she has; +5 % run speed; +1 mark from Quick Shot's first hit.</summary>
+        /// <summary>
+        /// The order's examples: +10 maximum health and heal 10; +5 % damage; -5 % cooldown on a skill she has; +5 % run
+        /// speed; +1 mark from Quick Shot's first hit. Work order 017: -8 % dash cooldown.
+        /// </summary>
         public static UpgradeDefinition[] DefaultUpgrades() => new[]
         {
             new UpgradeDefinition(UpgradeKind.MaxHealth, 10f, heal: 10),
@@ -139,7 +159,30 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.Cooldown, 0.05f),
             new UpgradeDefinition(UpgradeKind.RunSpeed, 0.05f),
             new UpgradeDefinition(UpgradeKind.FirstMark, 1f, skill: "Quick Shot"),
+            new UpgradeDefinition(UpgradeKind.DashCooldown, 0.08f),
         };
+    }
+
+    /// <summary>
+    /// The heal when a combat room is cleared (work order 030, lever A): <see cref="RunValues.RoomHeal"/> of her maximum,
+    /// <see cref="RunValues.EliteRoomHeal"/> for the elite room, once per room of a floor. A new floor starts a new one.
+    /// </summary>
+    public sealed class RoomHeals
+    {
+        readonly HashSet<int> _healed = new HashSet<int>();
+
+        /// <summary>What clearing this room heals now: the room's share of her maximum the first time, 0 after (and for a share of 0).</summary>
+        public int Heal(int room, bool elite, int maxHealth, RunValues values)
+        {
+            if (values == null || _healed.Contains(room)) return 0;
+            _healed.Add(room);
+            return FloorHeals.Amount(maxHealth, elite ? values.EliteRoomHeal : values.RoomHeal);
+        }
+
+        public bool Healed(int room) => _healed.Contains(room);
+
+        /// <summary>A new floor: no room healed yet.</summary>
+        public void Clear() => _healed.Clear();
     }
 
     /// <summary>The heal between floors (work order 023): a share of her maximum, rounded to the nearest point; none for a share of 0.</summary>
@@ -182,7 +225,7 @@ namespace Roguelike.Rules
 
     /// <summary>
     /// What a run has taken from its chests (work order 012): a plain list, read where the values are used (damage dealt,
-    /// maximum health, a skill's cooldown, run speed, a skill's first mark). It never writes to the settings. Cleared
+    /// maximum health, a skill's cooldown, run speed, a skill's first mark, and since work order 017 the dash's cooldown). It never writes to the settings. Cleared
     /// when a run starts or ends.
     /// </summary>
     public sealed class RunModifiers
@@ -217,6 +260,8 @@ namespace Roguelike.Rules
         public float CooldownShare(string skill) => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.Cooldown, skill ?? ""));
         public float RunSpeedShare => 1f + Sum(UpgradeKind.RunSpeed);
         public int FirstMarkBonus(string skill) => (int)Math.Round(Sum(UpgradeKind.FirstMark, skill ?? ""));
+        /// <summary>The share of the dash's own cooldown it runs (work order 017): 1 less each cut, never under <see cref="CooldownFloor"/>.</summary>
+        public float DashCooldownShare => Math.Max(CooldownFloor, 1f - Sum(UpgradeKind.DashCooldown));
 
         /// <summary>The upgrades taken, in short form, the same ones counted together: "+10 hp x2, +5% dmg".</summary>
         public string ShortText()

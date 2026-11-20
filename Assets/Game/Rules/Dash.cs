@@ -25,14 +25,27 @@ namespace Roguelike.Rules
             return cut;
         }
 
-        public bool TryStart(float now, FeelValues feel)
+        /// <summary>
+        /// Starts a dash if it may. <paramref name="cooldownShare"/> is the share of the feel's cooldown it runs (work order
+        /// 017: the run's chest steps cut it; 1 outside a run).
+        /// </summary>
+        public bool TryStart(float now, FeelValues feel, float cooldownShare = 1f)
         {
             if (!CanStart(now)) return false;
             _startedAt = now;
-            _readyAt = now + feel.DashCooldown;
+            _readyAt = now + feel.DashCooldown * (cooldownShare < 0f ? 0f : cooldownShare);
             _duration = feel.DashDuration;
             _invulnerability = feel.DashInvulnerability;
             return true;
+        }
+
+        /// <summary>Back to its start: no dash, and ready at once (work order 026: a run starts with a clean slate).</summary>
+        public void Clear()
+        {
+            _startedAt = float.NegativeInfinity;
+            _readyAt = float.NegativeInfinity;
+            _duration = 0f;
+            _invulnerability = 0f;
         }
 
         public bool IsDashing(float now) => now >= _startedAt && now < _startedAt + _duration;

@@ -26,6 +26,12 @@ namespace Roguelike.PlayModeTests
     /// numbers from the recorder's events and summary. Stuck: thirty seconds of game time with no damage dealt, no
     /// enemy killed, no room entered and the pilot's goal no nearer by a metre. Each flight adds its line to
     /// flights.tsv and its details to its own text file, and rewrites table.txt from every line there.
+    ///
+    /// Work order 030: an elite room's skill upgrade offer is a choice on screen that pauses the game, as the floor reward
+    /// is: the harness takes the first upgrade offered, as it takes the first skill and the first chest step. The elite
+    /// room is a combat room on the pilots' way and is fought like any. Each elite room is written down: its elite's kind,
+    /// its fight against the mean of that floor's other combat rooms, the damage she took there and the upgrade taken;
+    /// and the health given back when rooms were cleared.
     /// </summary>
     public sealed class PilotFlight
     {
@@ -61,6 +67,8 @@ namespace Roguelike.PlayModeTests
         public float Dps = float.NaN;
         public float FightSeconds;
         public int FloorsFinished;
+        /// <summary>Elite room upgrades the harness took (work order 030).</summary>
+        public int SkillUpgradesTaken;
         public string Details = "";
         public string Line = "";
 
@@ -88,6 +96,9 @@ namespace Roguelike.PlayModeTests
             public int Floor, Order;
             public RoomKind Kind;
             public string Enemies = "";
+            public bool Elite;
+            public string EliteKind = "";
+            public string Upgrade = "";
             public readonly HashSet<int> Ids = new HashSet<int>();
             public readonly List<KeyValuePair<double, double>> Spans = new List<KeyValuePair<double, double>>();
             public int HealthLeft = -1;
@@ -117,6 +128,17 @@ namespace Roguelike.PlayModeTests
             _health = health;
             _levels = levels;
             TimeScale = timeScale > 0f ? timeScale : Scale;
+        }
+
+        /// <summary>
+        /// The elite room's upgrade offer (work order 030): the first upgrade offered is taken and the game goes on; its
+        /// full name, or null when no upgrade choice is up.
+        /// </summary>
+        public static string TakeFirstSkillUpgrade(GeneratedLevels levels)
+        {
+            if (levels == null || levels.Choice != GeneratedLevels.ChoiceKind.SkillUpgrade) return null;
+            string upgrade = levels.OfferedSkillUpgrades.Count > 0 ? levels.OfferedSkillUpgrades[0].FullName : "";
+            return levels.PickSkillUpgrade(0) ? upgrade : null;
         }
 
         public static Pilot Make(PilotKind kind, PilotBody body) =>
@@ -231,6 +253,15 @@ namespace Roguelike.PlayModeTests
                     if (_floors.Count > 0) _floors[_floors.Count - 1].Skill = _levels.SkillsTaken.LastOrDefault() ?? "";
                     continue;
                 }
+                if (_levels.Choice == GeneratedLevels.ChoiceKind.SkillUpgrade)
+                {
+                    // Work order 030: the elite room's upgrade, the first one offered.
+                    string upgrade = TakeFirstSkillUpgrade(_levels) ?? "";
+                    RoomRec elite = _rooms.LastOrDefault(r => r.Elite && r.Floor == _levels.Floor);
+                    if (elite != null) elite.Upgrade = upgrade;
+                    SkillUpgradesTaken++;
+                    continue;
+                }
                 if (_levels.Choice == GeneratedLevels.ChoiceKind.Chest)
                 {
                     string taken = _levels.OfferedUpgrades.Count > 0 ? _levels.OfferedUpgrades[0].Short : "";
@@ -327,7 +358,8 @@ namespace Roguelike.PlayModeTests
             RoomRec rec = _rooms.FirstOrDefault(r => r.Floor == floor && r.Order == room.Order);
             if (rec == null)
             {
-                rec = new RoomRec { Floor = floor, Order = room.Order, Kind = room.Kind };
+                rec = new RoomRec { Floor = floor, Order = room.Order, Kind = room.Kind, Elite = room.Elite };
+                if (room.Elite && _levels.Level.Elite != null) rec.EliteKind = EnemyKinds.Word(_levels.Level.Elite.Kind);
                 if (_levels.Level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list))
                 {
                     foreach (Enemy e in list)
@@ -417,6 +449,16 @@ namespace Roguelike.PlayModeTests
 
         static bool In(double t, List<KeyValuePair<double, double>> spans) => spans.Any(s => t >= s.Key && (s.Value < 0 || t <= s.Value));
 
+        /// <summary>A room's fight (work order 030): from the first of its enemies awake to the last dead (to the end when not all died); NaN when none woke.</summary>
+        double FightOf(RoomRec r, List<SessionEvent> events, out bool all)
+        {
+            var wakes = events.Where(e => e.Type == SessionEventTypes.EnemyWake && e.EnemyId.HasValue && r.Ids.Contains(e.EnemyId.Value)).Select(e => e.T).ToList();
+            var deaths = events.Where(e => e.Type == SessionEventTypes.EnemyDeath && e.EnemyId.HasValue && r.Ids.Contains(e.EnemyId.Value)).Select(e => e.T).ToList();
+            all = r.Ids.Count > 0 && deaths.Count >= r.Ids.Count;
+            if (wakes.Count == 0) return double.NaN;
+            return (all ? deaths.Max() : Seconds) - wakes.Min();
+        }
+
         void Analyse()
         {
             List<SessionEvent> events = _rec.Events.ToList();
@@ -449,9 +491,31 @@ namespace Roguelike.PlayModeTests
                                                         .GroupBy(e => e.Name).Select(g => g.Key + " " + g.Count()));
                 int shots = events.Count(e => e.Type == SessionEventTypes.ShotStart && In(e.T, r.Spans));
                 sb.Append(string.Format(s_Inv, "{0,5}  {1,4}  {2,-8}  {3,7}  {4,5}  {5,4}  {6} | {7} | {8}{9}shots {10}\n", r.Floor, r.Order + 1,
-                                        r.Kind.ToString().ToLowerInvariant(), fight, taken, r.HealthLeft, r.Enemies.Length > 0 ? r.Enemies : "none",
+                                        r.Elite ? "elite" : r.Kind.ToString().ToLowerInvariant(), fight, taken, r.HealthLeft, r.Enemies.Length > 0 ? r.Enemies : "none",
                                         hits.Length > 0 ? hits : "none", skills, skills.Length > 0 ? ", " : "", shots));
             }
+
+            // The elite rooms (work order 030): kind, fight against the floor's other combat rooms, damage taken, upgrade.
+            sb.Append("\nelite rooms (fight against the mean of the floor's other combat rooms all cleared):\n");
+            foreach (RoomRec r in _rooms.Where(r => r.Elite))
+            {
+                double fight = FightOf(r, events, out bool all);
+                var others = new List<double>();
+                foreach (RoomRec o in _rooms.Where(o => o.Floor == r.Floor && o.Kind == RoomKind.Combat && !o.Elite))
+                {
+                    double f = FightOf(o, events, out bool oAll);
+                    if (oAll && !double.IsNaN(f)) others.Add(f);
+                }
+                double mean = others.Count > 0 ? others.Average() : double.NaN;
+                int taken = events.Where(e => e.Type == SessionEventTypes.PlayerDamaged && In(e.T, r.Spans)).Sum(e => e.Damage ?? 0);
+                sb.Append(string.Format(s_Inv, "ELITE floor {0} room {1}: elite {2}; fight {3}{4} s against {5} s ({6}x); taken {7}; upgrade {8}\n", r.Floor, r.Order + 1,
+                                        r.EliteKind.Length > 0 ? r.EliteKind : "?", F(fight), all ? "" : "+", F(mean),
+                                        double.IsNaN(mean) || double.IsNaN(fight) || mean <= 0 ? "-" : F(fight / mean, "0.00"), taken,
+                                        r.Upgrade.Length > 0 ? r.Upgrade : "-"));
+            }
+            List<SessionEvent> roomHeals = events.Where(e => e.Type == SessionEventTypes.RoomHeal).ToList();
+            sb.Append(string.Format(s_Inv, "health back from cleared rooms: {0} in {1} rooms\n",
+                                    roomHeals.Sum(e => int.TryParse(e.ExtraValue("healed"), NumberStyles.Integer, s_Inv, out int h) ? h : 0), roomHeals.Count));
 
             // Floors.
             sb.Append("\nfloors:\nfloor  seconds  health  skill taken  chests\n");

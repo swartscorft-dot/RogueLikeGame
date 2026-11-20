@@ -28,10 +28,27 @@ namespace Roguelike.Rules
         /// lost sight of her, it died) no longer holds a turn back after this. Not a balance number.
         /// </summary>
         public float WaitingFor = 0.25f;
+
+        /// <summary>
+        /// One crowd, one queue (work order 030, lever D): heavy and ranged share ONE limit of wind-ups at once instead of
+        /// a limit each, with its own gap between any two of them. The test pilot's flights of 2026-11-20 saw her die in
+        /// rooms where two brutes and two shooters wound up together under the first pass's rule. Off: the first pass's
+        /// rule exactly. Off by default: flown on (work order 030's fourth round) no pilot got further than with it off,
+        /// and one flight ended with the Ace stepping sideways for good between two shooters out of its range that took
+        /// turns winding up at it. Built and tested, so a later pass can turn it on.
+        /// </summary>
+        public bool Shared = false;
+        public int SharedAtOnce = 2;            // heavy and ranged together winding up at once on floors 1 to 3 (two of each before)
+        public int SharedAtOnceLate = 3;        // the same from SharedLateFromFloor on
+        public int SharedLateFromFloor = 4;
+        public float SharedGap = 0.7f;          // s from one heavy or ranged wind-up beginning to the next (0.5 within a sort before)
     }
 
     /// <summary>
-    /// The turns to attack (work order 023, 2026-11-20; pillar 4, readable combat): among the enemies that take turns
+    /// The turns to attack (work order 023, 2026-11-20; pillar 4, readable combat). Work order 030 (lever D): with
+    /// <see cref="TurnValues.Shared"/> on, heavy and ranged wait in one queue under one limit by the floor
+    /// (<see cref="SharedCap"/>) and one gap; what follows is the first pass's rule, which <see cref="TurnValues.Shared"/>
+    /// off gives exactly. Among the enemies that take turns
     /// (those of a generated floor, awake and fighting her), at most <see cref="TurnValues.HeavyAtOnce"/> heavies and at
     /// most <see cref="TurnValues.RangedAtOnce"/> ranged wind up at the same moment, and a wind-up of a sort begins no
     /// sooner than <see cref="TurnValues.Gap"/> after the last one of that sort began. Light enemies and those of no sort
@@ -67,6 +84,17 @@ namespace Roguelike.Rules
         float _lastHeavy = float.NegativeInfinity;
         float _lastRanged = float.NegativeInfinity;
 
+        /// <summary>The floor she fights on (work order 030): the shared limit is by floor. 1 until a floor says.</summary>
+        public int Floor = 1;
+
+        /// <summary>The shared limit of heavy and ranged wind-ups at once on this floor (work order 030, lever D).</summary>
+        public int SharedCap(int floor) => floor >= Values.SharedLateFromFloor ? Values.SharedAtOnceLate : Values.SharedAtOnce;
+
+        /// <summary>Do heavy and ranged share one queue now? With the rule and its shared form on.</summary>
+        bool SharedNow => Values.On && Values.Shared;
+
+        static bool Queued(TurnSort sort) => sort == TurnSort.Heavy || sort == TurnSort.Ranged;
+
         /// <summary>The sort of a kind: heavy for the brute and the guard, ranged for the shooter, light for the swarmer, none for the boss.</summary>
         public static TurnSort SortOf(EnemyKind kind) =>
             kind == EnemyKind.Brute || kind == EnemyKind.Guard ? TurnSort.Heavy
@@ -94,11 +122,21 @@ namespace Roguelike.Rules
                 me = new Waiter { Sort = sort, Since = now, LastAsk = now };
             _waiting[id] = me;
 
-            if (WindingUp(sort, now) >= Cap(sort)) return false;
-            if (now - LastBegun(sort) < Values.Gap) return false;
+            if (SharedNow)
+            {
+                // One queue for heavy and ranged (work order 030): one limit, one gap, the longest waiter of either first.
+                if (WindingUp(TurnSort.Heavy, now) + WindingUp(TurnSort.Ranged, now) >= SharedCap(Floor)) return false;
+                if (now - System.Math.Max(_lastHeavy, _lastRanged) < Values.SharedGap) return false;
+            }
+            else
+            {
+                if (WindingUp(sort, now) >= Cap(sort)) return false;
+                if (now - LastBegun(sort) < Values.Gap) return false;
+            }
             foreach (KeyValuePair<int, Waiter> w in _waiting)
             {
-                if (w.Key == id || w.Value.Sort != sort || now - w.Value.LastAsk > Values.WaitingFor) continue;
+                bool sameQueue = SharedNow ? Queued(w.Value.Sort) : w.Value.Sort == sort;
+                if (w.Key == id || !sameQueue || now - w.Value.LastAsk > Values.WaitingFor) continue;
                 if (w.Value.Since < me.Since || (w.Value.Since == me.Since && w.Key < id)) return false; // an older one goes first
             }
             return true;

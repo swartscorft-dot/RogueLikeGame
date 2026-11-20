@@ -22,7 +22,10 @@ namespace Roguelike
     /// <see cref="PlayerInputDriver.ReadRealDevices"/> is true: F5 starts a new run at floor 1 with the start skills and
     /// full health, F6 starts the same run seed again from floor 1, F7 goes back to the practice room and ends the run.
     /// Health carries from floor to floor; taking a floor's reward heals her by <see cref="RunValues.FloorHeal"/> of her
-    /// maximum (work order 023, a breath between floors), said in the lines of what was taken. A floor is finished when every enemy of its exit room is dead; on floors 1
+    /// maximum (work order 023, a breath between floors), said in the lines of what was taken; and when every enemy of a
+    /// combat room is dead she is healed by <see cref="RunValues.RoomHeal"/>, the elite room
+    /// <see cref="RunValues.EliteRoomHeal"/>, once per room (work order 030, <see cref="RoomHeals"/>), shown as a green
+    /// number over her and told to the recorder. A floor is finished when every enemy of its exit room is dead; on floors 1
     /// to 4 the floor reward is offered then (<see cref="FloorRewards"/>: three skills she lacks, picked with 1, 2 or 3
     /// or a click, the game paused), and taking it puts her at the next floor's entrance. After the last floor the act is
     /// cleared: the act-cleared screen shows (work order 018). Death ends the run: the game slows to a stop and the death
@@ -33,9 +36,18 @@ namespace Roguelike
     /// two upgrades (<see cref="ChestUpgrades"/>), picked the same way. What is taken goes into the run's
     /// <see cref="RunModifiers"/>, put on the character for the run and cleared when a run starts or ends.
     ///
+    /// The elite room (work order 017, decision 0008 as amended 2026-11-20, Kristian: "one hard room in the middle of every
+    /// floor; when it is cleared she picks one of three upgrades to skills she has"): the first time every enemy of the
+    /// floor's elite room is dead in a run, the skill upgrade choice comes up, once (<see cref="SkillUpgradeOffer"/>: three
+    /// upgrades to skills she has, picked like the floor reward, the game paused); none left to offer, she is healed in
+    /// full instead, and the screen says so. The doors are open as everywhere: an elite room she walks past gives nothing.
+    /// What is taken goes into the run's <see cref="SkillUpgrades"/>, through which the character reads its skills for the
+    /// run; cleared when a run starts or ends.
+    ///
     /// Tests use intents: <see cref="StartRun"/>, <see cref="RestartRun"/>, <see cref="BackToPracticeRoom"/>,
-    /// <see cref="PickReward"/>, <see cref="OpenChest(GeneratedLevel.PlacedProp)"/>, <see cref="PickUpgrade"/> and
-    /// <see cref="FinishFloorForTests"/>; and <see cref="Build"/> builds one floor alone, outside a run (work order 006).
+    /// <see cref="PickReward"/>, <see cref="OpenChest(GeneratedLevel.PlacedProp)"/>, <see cref="PickUpgrade"/>,
+    /// <see cref="PickSkillUpgrade"/>, <see cref="FinishFloorForTests"/> and <see cref="FinishEliteRoomForTests"/>; and
+    /// <see cref="Build"/> builds one floor alone, outside a run (work order 006).
     ///
     /// In the practice room (work order 008), under the same rule: F9 spawns a pack of swarmers, F10 a shooter, F11 a
     /// guard, F8 the act boss with a third of its health (work order 014), each about <see cref="SpawnDistance"/> from her on the practice floor, and F12 removes everything spawned
@@ -92,7 +104,7 @@ namespace Roguelike
 
         // ---------------- The run (work order 012) ----------------
 
-        public enum ChoiceKind { None, FloorReward, Chest }
+        public enum ChoiceKind { None, FloorReward, Chest, SkillUpgrade }
 
         /// <summary>True from the start of a run until it ends (death, the act cleared, or F7).</summary>
         public bool InRun { get; private set; }
@@ -116,6 +128,29 @@ namespace Roguelike
         public IReadOnlyList<Upgrade> OfferedUpgrades => _offeredUpgrades;
         /// <summary>The treasure rooms (by their place in the floor) whose chest has been opened this floor.</summary>
         public IReadOnlyCollection<int> ChestsOpened => _chestsOpened;
+
+        // ---------------- The elite room and the skill upgrades (work order 017) ----------------
+
+        /// <summary>The numbers of the skill upgrades: how many are offered, and the table.</summary>
+        public SkillUpgradeValues UpgradeValues = new SkillUpgradeValues();
+        /// <summary>The run's skill upgrades: on the character while the run goes on, empty otherwise.</summary>
+        public RunSkillUpgrades SkillUpgrades { get; } = new RunSkillUpgrades();
+        /// <summary>The skill upgrades the choice on screen offers.</summary>
+        public IReadOnlyList<SkillUpgradeDefinition> OfferedSkillUpgrades => _offeredSkillUpgrades;
+        /// <summary>True once she has been in this floor's elite room.</summary>
+        public bool EliteRoomEntered { get; private set; }
+        /// <summary>True once this floor's elite room has been cleared in the run, and its offer made.</summary>
+        public bool EliteRoomDone { get; private set; }
+        /// <summary>Elite rooms cleared this run, each one an offer (or a heal when none was left).</summary>
+        public int SkillUpgradeOffers { get; private set; }
+        /// <summary>A line on screen for a moment (work order 017: the heal when no upgrade is left); empty when none.</summary>
+        public string Notice => Time.unscaledTime < _noticeUntil ? _notice : "";
+
+        readonly List<SkillUpgradeDefinition> _offeredSkillUpgrades = new List<SkillUpgradeDefinition>();
+        float _eliteEnteredAt;
+        string _notice = "";
+        float _noticeUntil = float.NegativeInfinity;
+        const float NoticeSeconds = 4f;
 
         GeneratedLevel _level;
         PlayerCharacter _player;
@@ -169,6 +204,8 @@ namespace Roguelike
             CloseScreens();
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
+            if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null;
+            SkillUpgrades.Clear();
             if (_health != null)
             {
                 _health.Died -= OnDied;
@@ -282,6 +319,9 @@ namespace Roguelike
             _entered.Clear();
             _chestsOpened.Clear();
             CurrentRoom = null;
+            EliteRoomEntered = false;
+            EliteRoomDone = false;
+            _roomHeals.Clear();
 
             player.Teleport(_level.PlayerStart);
             Debug.Log(string.Format(s_Inv, "Generated floor {0} of {9} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies, {6} props{7}\n{8}",
@@ -310,12 +350,17 @@ namespace Roguelike
         /// </summary>
         public void BackToPracticeRoom()
         {
+            bool fromRun = InRun || Ending != EndKind.None; // work order 026
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
             if (_level == null) return;
             PlayerCharacter player = FindPlayer();
             if (player != null) player.Teleport(_practiceSpotKnown ? _practiceSpot : Vector3.zero);
+            // Work order 026 (the review of 2026-11-20): after a death she is alive at once, where the practice room puts
+            // her, not dead for a moment and then at the scene's start; and a run's focus and cooldowns stay in the run.
+            if (_health != null && !_health.IsAlive) _health.RestoreFull();
+            if (fromRun && player != null) player.StartFresh();
             Remove();
         }
 
@@ -346,6 +391,7 @@ namespace Roguelike
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
+            ClearSpawned(); // what the practice room spawned, of every kind, never follows her into a run (the review of 2026-11-20, work order 026)
             RunSeed = runSeed;
             InRun = true;
             ActCleared = false;
@@ -355,7 +401,12 @@ namespace Roguelike
             Modifiers.Clear();
             Modifiers.CooldownFloor = RunValues.CooldownFloor;
             player.Modifiers = Modifiers;
+            SkillUpgrades.Clear(); // a new run starts with no skill upgrade (work order 017)
+            player.SkillUpgrades = SkillUpgrades;
+            SkillUpgradeOffers = 0;
             player.EquipStartSkills();
+            player.StartFresh(); // work order 026: no focus or cooldown carries into a run
+            _diedWithTheAct.Clear();
             if (_health != null) _health.RestoreFull();
             _runStartedAt = Time.time;
             Record = new RunRecord(RunSeedText, Values.FloorsPerAct);
@@ -394,6 +445,8 @@ namespace Roguelike
                                                       CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt);
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
+            if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null; // work order 017
+            SkillUpgrades.Clear();
             if (_health != null) _health.RefreshMax();
             Debug.Log("Run ended (" + how + "): " + line);
         }
@@ -419,11 +472,28 @@ namespace Roguelike
                 ActCleared = true;
                 _actTime = Time.time - _runStartedAt;
                 EndRun("act cleared", "ACT CLEARED   run " + RunSeedText + "   time " + SessionSummary.Duration(_actTime));
+                EndTheCalled();
                 OpenEnding(EndKind.ActCleared);
                 return;
             }
             OfferFloorReward();
         }
+
+        /// <summary>
+        /// The act is cleared (work order 026, the review of 2026-11-20): every swarmer the boss called that is still
+        /// alive dies on the spot, so none of theirs lands after it, and those deaths are not her kills.
+        /// </summary>
+        void EndTheCalled()
+        {
+            foreach (Enemy e in _level.Called)
+            {
+                if (e == null || e.IsDead) continue;
+                _diedWithTheAct.Add(e);
+                e.Body.TakeHit(1000000);
+            }
+        }
+
+        readonly HashSet<Enemy> _diedWithTheAct = new HashSet<Enemy>();
 
         void OfferFloorReward()
         {
@@ -475,14 +545,34 @@ namespace Roguelike
         public GeneratedLevel.PlacedProp ChestInReach()
         {
             if (!InRun || _level == null || _player == null || Choice != ChoiceKind.None) return null;
-            foreach (GeneratedLevel.PlacedProp chest in Chests())
+            foreach (GeneratedLevel.PlacedProp chest in _level.Props) // no list made per call (work order 026)
             {
-                if (_chestsOpened.Contains(chest.Room.Order) || chest.Object == null) continue;
+                if (chest.Prop.Model != PropModel.Chest || _chestsOpened.Contains(chest.Room.Order) || chest.Object == null) continue;
                 Vector3 c = chest.Object.transform.position, p = _player.Position;
                 if (new Vector2(c.x - p.x, c.z - p.z).magnitude <= RunValues.ChestReach) return chest;
             }
             return null;
         }
+
+        /// <summary>
+        /// The chest the prompt shows over now: <see cref="ChestInReach"/>, found once a frame and not once per GUI event
+        /// (the review of 2026-11-20, work order 026).
+        /// </summary>
+        public GeneratedLevel.PlacedProp ChestPrompt
+        {
+            get
+            {
+                if (_promptFrame != Time.frameCount)
+                {
+                    _promptFrame = Time.frameCount;
+                    _promptChest = ChestInReach();
+                }
+                return _promptChest;
+            }
+        }
+
+        int _promptFrame = -1;
+        GeneratedLevel.PlacedProp _promptChest;
 
         /// <summary>Opens the chest in reach, if any (the interact key). True when one opened.</summary>
         public bool OpenChest() => OpenChest(ChestInReach());
@@ -493,7 +583,7 @@ namespace Roguelike
         /// </summary>
         public bool OpenChest(GeneratedLevel.PlacedProp chest)
         {
-            if (chest == null || !InRun || Choice != ChoiceKind.None || _chestsOpened.Contains(chest.Room.Order)) return false;
+            if (chest == null || !InRun || Choice != ChoiceKind.None || Paused || _chestsOpened.Contains(chest.Room.Order)) return false; // not under the pause menu (work order 026)
             PlayerCharacter player = FindPlayer();
             var equipped = new List<string>();
             for (int slot = 0; slot < player.Skills.Count; slot++)
@@ -526,6 +616,62 @@ namespace Roguelike
             return true;
         }
 
+        /// <summary>
+        /// The elite room was cleared, in a run (work order 017): the skill upgrade choice, once a floor; none left to
+        /// offer, a full heal instead, said on screen.
+        /// </summary>
+        void EliteRoomFinished()
+        {
+            EliteRoomDone = true;
+            PlayerCharacter player = FindPlayer();
+            PlaySessionRecorder.Current?.NoteEliteCleared(Floor, EliteRoomEntered ? Time.time - _eliteEnteredAt : 0f, _health != null ? _health.Current : 0);
+            var had = new HashSet<string>();
+            for (int slot = 0; slot < player.Skills.Count; slot++)
+                if (player.IsEquipped(slot) && player.Skills[slot] != null) had.Add(player.Skills[slot].Name);
+            _offeredSkillUpgrades.Clear();
+            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeValues.Table, had, SkillUpgrades.Taken, UpgradeValues.Offered));
+            SkillUpgradeOffers++;
+            PlaySessionRecorder.Current?.NoteSkillUpgradeOffered(Floor, _offeredSkillUpgrades.Select(u => u.FullName + " (" + u.KindWord + ")").ToList(),
+                                                                 _offeredSkillUpgrades.Count == 0);
+            if (_offeredSkillUpgrades.Count == 0)
+            {
+                if (_health != null) _health.RestoreFull();
+                Say("ELITE ROOM CLEARED   no upgrade left to take: fully healed");
+                return;
+            }
+            OpenChoice(ChoiceKind.SkillUpgrade);
+        }
+
+        /// <summary>
+        /// Takes offered skill upgrade <paramref name="index"/> (0, 1 or 2) into the run's upgrades (work order 017): the
+        /// skill is read through it from now on, and the game goes on. False with no skill upgrade offered.
+        /// </summary>
+        public bool PickSkillUpgrade(int index)
+        {
+            if (Choice != ChoiceKind.SkillUpgrade || index < 0 || index >= _offeredSkillUpgrades.Count) return false;
+            SkillUpgradeDefinition u = _offeredSkillUpgrades[index];
+            SkillUpgrades.Take(u);
+            Record?.TakeSkillUpgrade(u.FullName);
+            PlaySessionRecorder.Current?.NoteSkillUpgradeTaken(Floor, u.FullName, u.KindWord);
+            CloseChoice();
+            return true;
+        }
+
+        /// <summary>For tests (work order 017): kills every enemy of this floor's elite room, so it is cleared on the next frame.</summary>
+        public void FinishEliteRoomForTests()
+        {
+            if (_level == null) return;
+            foreach (Enemy e in _level.EliteRoomEnemies)
+                if (e != null && !e.IsDead) e.GetComponent<Damageable>().TakeHit(100000000);
+        }
+
+        void Say(string line)
+        {
+            _notice = line;
+            _noticeUntil = Time.unscaledTime + NoticeSeconds;
+            Debug.Log(line);
+        }
+
         /// <summary>For tests: kills every enemy of this floor's exit room, so the floor is finished on the next frame.</summary>
         public void FinishFloorForTests()
         {
@@ -548,6 +694,7 @@ namespace Roguelike
             Choice = ChoiceKind.None;
             _offeredSkills.Clear();
             _offeredUpgrades.Clear();
+            _offeredSkillUpgrades.Clear();
             _openChest = null;
             Time.timeScale = _timeScaleBefore;
             PlayerInputDriver.HeldByChoice = false;
@@ -580,6 +727,16 @@ namespace Roguelike
         void Update()
         {
             if (FindPlayer() == null) return;
+            // Death first (work order 026, the second review of 2026-11-20): before a choice (a chest opened on the frame
+            // of the lethal hit), whose screen the death screen closes, and before the interact key.
+            if (_diedPending)
+            {
+                _diedPending = false;
+                string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
+                EndRun("death", line);
+                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
+                if (_level != null) OpenEnding(EndKind.Died);
+            }
             if (Choice != ChoiceKind.None)
             {
                 Time.timeScale = 0f; // a hit stop that ends while the choice is up must not start the game again
@@ -590,6 +747,7 @@ namespace Roguelike
                     if (pick >= 0)
                     {
                         if (Choice == ChoiceKind.FloorReward) PickReward(pick);
+                        else if (Choice == ChoiceKind.SkillUpgrade) PickSkillUpgrade(pick);
                         else PickUpgrade(pick);
                     }
                     else if (choiceKeys[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
@@ -609,15 +767,7 @@ namespace Roguelike
                 else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
                 else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
                 else if (keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
-                else if (keyboard[InteractKey].wasPressedThisFrame) OpenChest();
-            }
-            if (_diedPending)
-            {
-                _diedPending = false;
-                string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
-                EndRun("death", line);
-                // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
-                if (_level != null) OpenEnding(EndKind.Died);
+                else if (keyboard[InteractKey].wasPressedThisFrame && !PlayerInputDriver.LetGoThisFrame) OpenChest(); // work order 026
             }
             if (_level == null)
             {
@@ -625,7 +775,15 @@ namespace Roguelike
                 return;
             }
             TrackRoom();
-            if (!Cleared && _level.ExitRoomCleared) FloorFinished();
+            if (InRun && !Paused) HealClearedRooms(); // work order 030: before the elite room's choice pauses the game
+            // The elite room first (work order 017): its choice comes up, and the floor's waits for the next frame.
+            // One screen at a time (work order 026): while paused, both wait until the game resumes.
+            if (InRun && !EliteRoomDone && !Paused && _level.EliteRoomCleared)
+            {
+                EliteRoomFinished();
+                if (Choice != ChoiceKind.None) return;
+            }
+            if (!Cleared && !Paused && _level.ExitRoomCleared) FloorFinished();
         }
 
         // A hit stop puts back the time scale it found when it ends, in its own Update: the choice holds the pause after it.
@@ -652,13 +810,48 @@ namespace Roguelike
             if (room == null || room == CurrentRoom) return;
             CurrentRoom = room;
             _entered.Add(room.Order);
-            if (InRun) Record?.EnterRoom(room.Order, room.Kind);
+            if (InRun) Record?.EnterRoom(room.Order, room.Kind, room.Elite);
             PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant());
+            if (room.Elite && !EliteRoomEntered)
+            {
+                EliteRoomEntered = true;
+                _eliteEnteredAt = Time.time;
+                if (InRun) PlaySessionRecorder.Current?.NoteEliteEntered(Floor, room.Order);
+            }
         }
 
-        /// <summary>The enemies of a room still alive.</summary>
+        /// <summary>The combat rooms healed for on this floor (work order 030, lever A).</summary>
+        readonly RoomHeals _roomHeals = new RoomHeals();
+
+        /// <summary>
+        /// Health back inside a floor (work order 030, lever A): each combat room whose enemies are all dead heals her once,
+        /// by <see cref="RunValues.RoomHeal"/> of her maximum, the elite room by <see cref="RunValues.EliteRoomHeal"/>; a
+        /// green number over her says how much, and the recorder is told.
+        /// </summary>
+        void HealClearedRooms()
+        {
+            if (_health == null || !_health.IsAlive) return;
+            List<LevelRoom> rooms = _level.Layout.Rooms;
+            for (int r = 0; r < rooms.Count; r++) // every frame: no LINQ, nothing made
+            {
+                LevelRoom room = rooms[r];
+                if (room.Kind != RoomKind.Combat || _roomHeals.Healed(room.Order)) continue;
+                if (!_level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list) || list.Count == 0) continue;
+                bool alive = false;
+                for (int i = 0; i < list.Count && !alive; i++) alive = list[i] != null && !list[i].IsDead;
+                if (alive) continue;
+                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues));
+                PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
+                if (healed > 0) TimingFeedback.Current?.ShowHeal(healed);
+            }
+        }
+
+        /// <summary>The enemies of a room still alive, and the swarmers the boss called into it (work order 026).</summary>
         int AliveIn(LevelRoom room) =>
-            _level != null && room != null && _level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list) ? list.Count(e => e != null && !e.IsDead) : 0;
+            _level != null && room != null ? Alive(_level.EnemiesByRoom, room) + Alive(_level.CalledByRoom, room) : 0;
+
+        static int Alive(IReadOnlyDictionary<int, List<Enemy>> byRoom, LevelRoom room) =>
+            byRoom.TryGetValue(room.Order, out List<Enemy> list) ? list.Count(e => e != null && !e.IsDead) : 0;
 
         /// <summary>What the box on screen says, line by line; empty when she is not in a floor.</summary>
         public string StatusText()
@@ -683,6 +876,7 @@ namespace Roguelike
                 if (heal.Length > 0) _text.Append("   (").Append(heal).Append(')'); // work order 023
                 _text.Append('\n');
                 _text.Append("upgrades: ").Append(Modifiers.ShortText()).Append('\n');
+                _text.Append("skill upgrades: ").Append(SkillUpgrades.Text()).Append('\n');
             }
             if (ActCleared) _text.Append(LastRunLine).Append('\n');
             else if (Cleared) _text.Append("FLOOR CLEARED   seed ").Append(layout.SeedText).Append('\n');
@@ -707,9 +901,12 @@ namespace Roguelike
             // The developer's box: shown or not, and how far down, as the HUD says (work order 018: F1); as before without one.
             if (inLevel)
             {
-                string text = StatusText();
-                int lines = text.Split('\n').Length;
-                if (ShowDevBox) GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
+                if (ShowDevBox) // the status text is built only when it is shown (work order 026)
+                {
+                    string text = StatusText();
+                    int lines = text.Split('\n').Length;
+                    GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
+                }
                 DrawChestPrompt(scale);
             }
             else if (ShowDevBox)
@@ -720,13 +917,18 @@ namespace Roguelike
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
             }
             if (Choice != ChoiceKind.None) DrawChoice(viewWidth);
+            else if (Notice.Length > 0)
+            {
+                if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
+                GUI.Box(new Rect((viewWidth - 460f) * 0.5f, SkillBar.LayoutHeight * 0.3f, 460f, 30f), Notice, _promptStyle);
+            }
             GUI.matrix = matrixBefore;
         }
 
         /// <summary>A small prompt over the chest she can open (work order 012).</summary>
         void DrawChestPrompt(float scale)
         {
-            GeneratedLevel.PlacedProp chest = ChestInReach();
+            GeneratedLevel.PlacedProp chest = ChestPrompt;
             Camera cam = Camera.main;
             if (chest == null || cam == null) return;
             Vector3 screen = cam.WorldToScreenPoint(chest.Object.transform.position + Vector3.up * 1.4f);
@@ -745,12 +947,15 @@ namespace Roguelike
             if (_choiceStyle == null) _choiceStyle = new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.UpperLeft, wordWrap = true, padding = new RectOffset(10, 10, 8, 8) };
             PlayerCharacter player = _player;
             bool reward = Choice == ChoiceKind.FloorReward;
-            int count = reward ? _offeredSkills.Count : _offeredUpgrades.Count;
-            float rowHeight = reward ? 74f : 44f, width = 520f;
+            bool skillUpgrade = Choice == ChoiceKind.SkillUpgrade; // work order 017
+            int count = reward ? _offeredSkills.Count : skillUpgrade ? _offeredSkillUpgrades.Count : _offeredUpgrades.Count;
+            float rowHeight = reward || skillUpgrade ? 74f : 44f, width = 520f;
             float height = 40f + count * (rowHeight + 6f) + 24f;
             float left = (viewWidth - width) * 0.5f, top = (SkillBar.LayoutHeight - height) * 0.5f;
             string title = reward
                 ? string.Format(s_Inv, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
+                : skillUpgrade
+                ? string.Format(s_Inv, "ELITE ROOM CLEARED   choose a skill upgrade (1-{0} or click)", count)
                 : string.Format(s_Inv, "CHEST   choose an upgrade (1-{0} or click)", count);
             GUI.Box(new Rect(left, top, width, height), title, _style);
             InputBindings bindings = player != null && player.GetComponent<PlayerInputDriver>() is PlayerInputDriver d ? d.ActiveBindings : null;
@@ -765,6 +970,14 @@ namespace Roguelike
                                          bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", // the key it will go on (work order 015)
                                          s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
                 }
+                else if (skillUpgrade)
+                {
+                    // The skill's name and key, the upgrade's name, its kind and its line (work order 017).
+                    SkillUpgradeDefinition u = _offeredSkillUpgrades[i];
+                    int key = player.KeyOfSkill(player.SlotOf(u.Skill));
+                    text = string.Format(s_Inv, "{0}   {1}   key {2}   {3}   [{4}]\n{5}", i + 1, u.Skill,
+                                         bindings != null && key >= 0 ? bindings.SkillLabel(key) : "-", u.Name.ToUpperInvariant(), u.KindWord, u.Line);
+                }
                 else
                 {
                     text = string.Format(s_Inv, "{0}   {1}", i + 1, _offeredUpgrades[i].Text);
@@ -772,6 +985,7 @@ namespace Roguelike
                 if (GUI.Button(new Rect(left + 10f, top + 32f + i * (rowHeight + 6f), width - 20f, rowHeight), text, _choiceStyle))
                 {
                     if (reward) PickReward(i);
+                    else if (skillUpgrade) PickSkillUpgrade(i);
                     else PickUpgrade(i);
                     return;
                 }

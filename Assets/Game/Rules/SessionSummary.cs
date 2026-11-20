@@ -187,6 +187,11 @@ namespace Roguelike.Rules
         public readonly SortedDictionary<int, float> FloorSeconds = new SortedDictionary<int, float>();
         public readonly List<string> Skills = new List<string>();
         public readonly List<string> Upgrades = new List<string>();
+        /// <summary>The skill upgrades taken from elite rooms, "Quick Shot: Double Tap", in order (work order 017).</summary>
+        public readonly List<string> SkillUpgrades = new List<string>();
+        /// <summary>Elite rooms entered and cleared (work order 017), and the seconds each clear took from the first step in.</summary>
+        public int ElitesEntered, ElitesCleared;
+        public readonly List<float> EliteSeconds = new List<float>();
         /// <summary>How it ended, in words; "still going" when the session ended first.</summary>
         public string Ended = "still going";
     }
@@ -411,6 +416,17 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.ChestOpen:
                         run.Upgrades.Add(e.Name ?? "?");
+                        break;
+                    // Work order 017.
+                    case SessionEventTypes.EliteEnter:
+                        run.ElitesEntered++;
+                        break;
+                    case SessionEventTypes.EliteClear:
+                        run.ElitesCleared++;
+                        if (float.TryParse(e.ExtraValue("seconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out float es)) run.EliteSeconds.Add(es);
+                        break;
+                    case SessionEventTypes.SkillUpgradeTake:
+                        run.SkillUpgrades.Add(e.Name ?? "?");
                         break;
                     case SessionEventTypes.RunEnd:
                     {
@@ -838,6 +854,10 @@ namespace Roguelike.Rules
                     : string.Join("   ", run.FloorSeconds.Select(p => p.Key + ": " + Duration(p.Value))));
                 sb.Append("  skills taken     ").AppendLine(run.Skills.Count == 0 ? "-" : string.Join(", ", run.Skills));
                 sb.Append("  upgrades taken   ").AppendLine(run.Upgrades.Count == 0 ? "-" : string.Join(", ", run.Upgrades));
+                // Work order 017: the elite rooms, and the skill upgrades in the order taken.
+                sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
+                  .AppendLine(run.EliteSeconds.Count == 0 ? "" : " (" + string.Join(", ", run.EliteSeconds.Select(Duration)) + ")");
+                sb.Append("  skill upgrades   ").AppendLine(run.SkillUpgrades.Count == 0 ? "-" : string.Join(", ", run.SkillUpgrades));
             }
             sb.AppendLine();
 

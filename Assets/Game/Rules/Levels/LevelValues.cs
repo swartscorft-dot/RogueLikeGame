@@ -25,6 +25,8 @@ namespace Roguelike.Rules
     /// not code, so other plans can be tried. The main path is the entrance, <see cref="CombatRooms"/> combat rooms and
     /// the exit room, one after another; the treasure rooms are short dead ends, each off a different combat room.
     /// Until work order 012: five combat rooms, four reward rooms and a boss room.
+    /// Work order 017 (decision 0008 as amended 2026-11-20, Kristian: "one hard room in the middle of every floor"): one of
+    /// the combat rooms is the elite room, <see cref="EliteRoomNumber"/>.
     /// </summary>
     [Serializable]
     public sealed class LevelPlan
@@ -36,6 +38,14 @@ namespace Roguelike.Rules
         public RoomSizeRange CombatSize = new RoomSizeRange(5, 7);
         public RoomSizeRange TreasureSize = new RoomSizeRange(3, 3);
         public RoomSizeRange ExitSize = new RoomSizeRange(8, 8);   // the old boss room's
+        public bool EliteRoom = true;           // work order 017: off, no floor has an elite room
+
+        /// <summary>
+        /// Which combat room of the chain is the elite room, counted from 1 (work order 017): the middle one, and of the two
+        /// middle ones the later, so number <paramref name="combatRooms"/> / 2 + 1 (rounded down): with 1 combat room the
+        /// first, 2 the second, 3 the second, 4 the third, 5 the third, 6 the fourth. 0: none (no combat room, or off).
+        /// </summary>
+        public int EliteRoomNumber(int combatRooms) => !EliteRoom || combatRooms <= 0 ? 0 : combatRooms / 2 + 1;
 
         public RoomSizeRange SizeOf(RoomKind kind) =>
             kind == RoomKind.Entrance ? EntranceSize
@@ -131,6 +141,23 @@ namespace Roguelike.Rules
         public int EnemyHealth = 1200;         // a brute's (3000 until work order 012)
         public int GuardHealth = 3500;
         public int BossHealth = 18000;         // the act boss (work order 014: the crypt knight; 9000 when it was a guard)
+
+        // The elite (work order 017, 2026-11-20): one in each elite room, besides what a combat room holds.
+        public float EliteHealthScale = 4f;    // times its kind's health for the floor, for a kind with no share of its own below
+        // The elite by its kind (work order 030, lever C): four times for every kind made an elite guard's room about four
+        // times a combat room and an elite shooter's barely different (the test pilot's flights of 2026-11-20); these aim
+        // at an elite room about twice a combat room whichever kind it holds. 4 each before. Flown (work order 030): at 4
+        // an elite guard's room was 1.8 to 4.7 times the floor's combat rooms and killed a pilot in it four times in three
+        // rounds, an elite shooter's mostly 1.1 to 1.5; after it 1.2 to 3.3 (no death there) and 1.0 to 2.5, the floor-1 elite
+        // brute's 1.4 to 2.7.
+        public float EliteBruteHealthScale = 3f;
+        public float EliteShooterHealthScale = 5f;
+        public float EliteGuardHealthScale = 2f;
+        public float EliteDamageScale = 1.25f; // its attacks' damage, times this
+        public float EliteSizeScale = 4f / 3f; // shown this many times as large, and its body as wide
+        public float EliteStaggerShare = 0.5f; // a kind with no stagger bar gets one this share of the guard's
+        public float EliteRoomToStand = 1f;    // m more than any enemy keeps from the walls, the doors and the other groups: its larger body
+        public int EliteKindsFromFloor = 2;    // from this floor a brute, a shooter or a guard; before it a brute
         public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers
         public float LineSpacing = 2f;         // m between two enemies of a line, side by side (work order 012)
         public float MemberSpacing = 1.5f;     // m between two enemies of different groups (work order 012)
@@ -250,6 +277,35 @@ namespace Roguelike.Rules
                 fewest = (int)Math.Ceiling(f.Fewest * ExitRoomShare - 1e-6);
                 most = (int)Math.Floor(f.Most * ExitRoomShare + 1e-6);
             }
+        }
+
+        /// <summary>The kinds an elite may be on this floor (work order 017): a brute on floor 1; a brute, a shooter or a guard after.</summary>
+        public EnemyKind[] EliteKinds(int floor) =>
+            floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute } : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard };
+
+        /// <summary>An elite's health on a generated floor (work order 017): its kind's, times <see cref="EliteHealthScale"/>.</summary>
+        public int EliteHealthOf(EnemyKind kind) => (int)Math.Round(HealthOf(kind) * (double)EliteHealthScaleOf(kind), MidpointRounding.AwayFromZero);
+
+        /// <summary>Times its kind's health an elite of this kind has (work order 030, lever C).</summary>
+        public float EliteHealthScaleOf(EnemyKind kind) =>
+            kind == EnemyKind.Brute ? EliteBruteHealthScale
+            : kind == EnemyKind.Shooter ? EliteShooterHealthScale
+            : kind == EnemyKind.Guard ? EliteGuardHealthScale
+            : EliteHealthScale;
+
+        /// <summary>
+        /// The danger rises with the floor (work order 030, lever B): what a floor's enemies deal to her, times this, by the
+        /// floor's number from 1 (past the end, its last). The act boss is not scaled, and an elite's own scale multiplies
+        /// with it. All 1 before: every floor dealt the same, and the pilots died on floors 2 and 3. Flown (work order 030,
+        /// round 2, with the room heal): every Ace reached floor 3 (one of three before), the Kiter two of three (one).
+        /// </summary>
+        public float[] FloorDamageScale = { 0.7f, 0.8f, 0.9f, 1f, 1f };
+
+        /// <summary>The scale of what a floor's enemies deal (work order 030, lever B); 1 without a table.</summary>
+        public float DamageScaleOf(int floor)
+        {
+            if (FloorDamageScale == null || FloorDamageScale.Length == 0) return 1f;
+            return FloorDamageScale[Math.Max(0, Math.Min(FloorDamageScale.Length - 1, floor - 1))];
         }
 
         /// <summary>A generated floor's health for an enemy of this kind; the act boss's for the boss.</summary>

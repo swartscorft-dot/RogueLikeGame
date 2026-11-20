@@ -38,12 +38,21 @@ namespace Roguelike.Rules
     /// Version 2 (work order 008) gave each enemy point a kind of enemy. Version 3 (work order 009) added the props on
     /// their own stream ("props") after the contents, unless <see cref="LevelValues.Props"/> is off; the props stage
     /// never makes an attempt fail (a prop with no place is left out). Version 4 (work order 012): the chain of rooms,
-    /// two treasure rooms, the floor's number, and the enemies in groups.
+    /// two treasure rooms, the floor's number, and the enemies in groups. Version 6 (work order 017, decision 0008 as
+    /// amended 2026-11-20): the middle combat room of the chain is the elite room (<see cref="LevelPlan.EliteRoomNumber"/>),
+    /// marked in the layout; in the contents it draws its combat room's groups and then its elite's kind from
+    /// <see cref="LevelValues.EliteKinds"/>, and the elite is placed first after the act boss, with
+    /// <see cref="LevelValues.EliteRoomToStand"/> more room round it than any other enemy keeps. Version 7 (work order
+    /// 030): work order 023's caps on brutes and shooters in a room's mix together with the elite room; the elite is
+    /// added after the capped mix is drawn, so it never counts against the room's range or its caps.
     /// </summary>
     public static class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
-        public const int Version = 6; // 5: work order 014, fuller rooms and the act boss its own kind; 6: work order 023, at most three brutes and three shooters a room
+        // 5: work order 014, fuller rooms and the act boss its own kind; 6: two versions at once, work order 017 (the elite
+        // room) on main and work order 023 (at most three brutes and three shooters a room) on its branch; 7: work
+        // order 030, the two merged (the room mixes capped, and the elite room with its elite counted apart from the caps).
+        public const int Version = 7;
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -193,10 +202,11 @@ namespace Roguelike.Rules
             // The rooms in the order of the run: each treasure room right after its combat room.
             var parentOrder = new List<int>(); // for each room, the order of the room it is entered from (-1 for the entrance)
             int previousOnPath = -1;
+            int elite = plan.EliteRoomNumber(plan.CombatRooms); // work order 017: path rooms 1 to CombatRooms are the combat rooms
             for (int i = 0; i < path.Count; i++)
             {
                 int order = level.Rooms.Count;
-                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = order });
+                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = order, Elite = kinds[i] == RoomKind.Combat && i == elite });
                 parentOrder.Add(previousOnPath);
                 previousOnPath = order;
                 if (treasureOf.TryGetValue(i, out CellRect treasure))
@@ -289,6 +299,12 @@ namespace Roguelike.Rules
                 }
                 if (room.Kind != RoomKind.Combat && room.Kind != RoomKind.Exit) continue;
                 List<EnemyGroup> groups = DrawGroups(room.Kind, level.Floor, rng, v);
+                // The elite room (work order 017): what a combat room holds, and one elite of a kind the floor can have.
+                if (room.Elite)
+                {
+                    EnemyKind[] kinds = v.EliteKinds(level.Floor);
+                    groups.Add(new EnemyGroup(kinds[rng.Below(kinds.Length)], 1, elite: true));
+                }
                 if (!PlaceGroups(level, room, groups, rng, v)) return false;
             }
             return true;
@@ -416,14 +432,16 @@ namespace Roguelike.Rules
             bool Fits(EnemyGroup g, LevelPoint p, out LevelPoint[] members)
             {
                 members = LevelGeometry.MemberPlaces(level, room, p, g, v);
+                double extra = LevelGeometry.ExtraRoom(g, v);
                 foreach (LevelPoint m in members)
-                    if (LevelGeometry.EnemyPlaceFault(level, room, m, entry, doors, v) != null) return false;
+                    if (LevelGeometry.EnemyPlaceFault(level, room, m, entry, doors, v, extra) != null) return false;
                 for (int k = 0; k < room.EnemyPoints.Count; k++)
                 {
+                    double apart = Math.Max(extra, LevelGeometry.ExtraRoom(room.EnemyGroups[k], v));
                     if (room.EnemyPoints[k].DistanceTo(p) < v.EnemySpacing - 1e-9) return false;
                     foreach (LevelPoint other in room.EnemyPlaces[k])
                         foreach (LevelPoint m in members)
-                            if (other.DistanceTo(m) < v.MemberSpacing - 1e-9) return false;
+                            if (other.DistanceTo(m) < v.MemberSpacing + apart - 1e-9) return false;
                 }
                 return true;
             }
@@ -451,7 +469,7 @@ namespace Roguelike.Rules
                 return false;
             }
 
-            int Rank(EnemyGroup g) => g.Boss ? 0 : g.Kind == EnemyKind.Shooter ? 1 : g.Kind == EnemyKind.Guard ? 2 : g.Kind == EnemyKind.Brute ? 3 : 4;
+            int Rank(EnemyGroup g) => g.Boss ? 0 : g.Elite ? 1 : g.Kind == EnemyKind.Shooter ? 2 : g.Kind == EnemyKind.Guard ? 3 : g.Kind == EnemyKind.Brute ? 4 : 5;
             foreach (EnemyGroup g in groups.OrderBy(Rank).ToList())
             {
                 if (g.Boss && Fits(g, room.Middle(cs), out LevelPoint[] at))
@@ -570,18 +588,27 @@ namespace Roguelike.Rules
         }
 
         /// <summary>
-        /// The first rule a place for one enemy breaks, in words, or null: inside its room, at least
-        /// <see cref="LevelValues.WallClearance"/> from its walls and from every door of the room, and at least
-        /// <see cref="LevelValues.EnemyFromEntry"/> from the door she comes in by.
+        /// The room a group needs beyond what every enemy keeps (work order 017): <see cref="LevelValues.EliteRoomToStand"/>
+        /// for an elite's larger body, else 0.
         /// </summary>
-        public static string EnemyPlaceFault(LevelLayout level, LevelRoom room, LevelPoint p, LevelDoor entry, List<LevelDoor> doors, LevelValues v)
+        public static double ExtraRoom(EnemyGroup g, LevelValues v) => g != null && g.Elite ? Math.Max(0f, v.EliteRoomToStand) : 0d;
+
+        /// <summary>
+        /// The first rule a place for one enemy breaks, in words, or null: inside its room, at least
+        /// <see cref="LevelValues.WallClearance"/> (and <paramref name="extra"/> more: an elite's, work order 017) from its
+        /// walls and from every door of the room, and at least <see cref="LevelValues.EnemyFromEntry"/> from the door she
+        /// comes in by.
+        /// </summary>
+        public static string EnemyPlaceFault(LevelLayout level, LevelRoom room, LevelPoint p, LevelDoor entry, List<LevelDoor> doors, LevelValues v,
+                                             double extra = 0d)
         {
             double cs = level.CellSize;
             const double slack = 1e-9;
+            double clear = v.WallClearance + extra;
             if (!(p.X >= room.Rect.X * cs && p.X <= room.Rect.Right * cs && p.Y >= room.Rect.Y * cs && p.Y <= room.Rect.Top * cs)) return "is outside the room";
-            if (DistanceToWalls(p, room.Rect, cs) < v.WallClearance - slack) return "is nearer a wall than " + v.WallClearance + " m";
+            if (DistanceToWalls(p, room.Rect, cs) < clear - slack) return "is nearer a wall than " + clear + " m";
             foreach (LevelDoor d in doors)
-                if (DistanceToDoor(p, d, cs) < v.WallClearance - slack) return "is nearer a door than " + v.WallClearance + " m";
+                if (DistanceToDoor(p, d, cs) < clear - slack) return "is nearer a door than " + clear + " m";
             if (entry != null && DistanceToDoor(p, entry, cs) < v.EnemyFromEntry - slack) return "is nearer the door she enters by than " + v.EnemyFromEntry + " m";
             return null;
         }

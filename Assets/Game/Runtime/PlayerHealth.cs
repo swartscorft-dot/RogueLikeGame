@@ -51,6 +51,13 @@ namespace Roguelike
         public int HitsAvoided { get; private set; }
         public int Deaths { get; private set; }
 
+        /// <summary>
+        /// True from the moment a run's result is in (the act cleared, or her death) until its end screen is answered
+        /// (work order 026, the second review of 2026-11-20, set by <see cref="GeneratedLevels"/>): no hit removes health,
+        /// so a strike already winding up plays out and lands on nothing.
+        /// </summary>
+        public bool Untouchable { get; set; }
+
         /// <summary>Raised after a hit that removed health, with the amount removed.</summary>
         public event Action<int> Damaged;
 
@@ -67,7 +74,7 @@ namespace Roguelike
         /// <summary>Applies damage and returns the amount actually removed.</summary>
         public int TakeHit(int damage)
         {
-            if (!IsAlive || damage <= 0) return 0;
+            if (!IsAlive || damage <= 0 || Untouchable) return 0;
             if (_player.IsInvulnerable)
             {
                 HitsAvoided++;

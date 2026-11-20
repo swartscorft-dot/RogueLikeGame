@@ -349,7 +349,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.transform.Find("CryptKit"), Is.Null);
             Assert.That(level.GetComponentsInChildren<Transform>(true).Count(t => t.name.StartsWith("Kit_")), Is.EqualTo(0));
             Assert.That(level.WallBoxes.All(b => b.GetComponent<Renderer>().enabled), "every box shows");
-            Color[] tints = { GeneratedLevel.StartTint, GeneratedLevel.CombatTint, GeneratedLevel.RewardTint, GeneratedLevel.BossTint };
+            Color[] tints = { GeneratedLevel.StartTint, GeneratedLevel.CombatTint, GeneratedLevel.RewardTint, GeneratedLevel.BossTint,
+                              GeneratedLevel.EliteTint }; // the elite room's since work order 017
             foreach (GameObject f in level.FloorBoxes)
             {
                 Color c = f.GetComponent<Renderer>().sharedMaterial.color;

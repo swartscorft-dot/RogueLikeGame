@@ -57,6 +57,13 @@ namespace Roguelike.Rules
         /// <summary>Fills the gauge. For tests and tools.</summary>
         public void Fill(IdentityValues values) => _focus = values.MaxFocus;
 
+        /// <summary>Back to its start: an empty gauge and no window (work order 026: a run starts with a clean slate).</summary>
+        public void Clear()
+        {
+            _focus = 0f;
+            _empoweredUntil = float.NegativeInfinity;
+        }
+
         public float DamageMultiplier(float now, IdentityValues values) => IsEmpowered(now) ? values.EmpoweredDamage : 1f;
 
         /// <summary>Damage after the empowered mode's multiplier, rounded to a whole number.</summary>

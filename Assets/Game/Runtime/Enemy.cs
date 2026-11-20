@@ -17,7 +17,9 @@ namespace Roguelike
     /// The telegraph is a red outline on the ground that thickens until the strike. Its place is locked when the
     /// windup begins, so stepping out of it avoids the hit, and so does the dash's i-frame.
     /// Dead, it is gone for a moment and then stands at home with full health; one with <see cref="ComesBack"/> off
-    /// stays gone.
+    /// stays gone. From the moment it dies its NavMesh agent is switched off, so it is no obstacle to anyone, and it is
+    /// switched on again when it comes back (work order 030: a dead guard's agent, left on in a doorway, made her
+    /// avoid an enemy that was no longer there, and the test pilot's flights of 2026-11-20 stood stuck in the door).
     ///
     /// An enemy whose <see cref="Damageable"/> has a stagger bar is dazed when the bar is emptied: it stops where it
     /// is, the attack it was winding up is dropped with no strike, and it takes no step of its brain until the daze
@@ -30,7 +32,11 @@ namespace Roguelike
     /// Turns to attack (work order 023, 2026-11-20; pillar 4): one that <see cref="TakesTurns"/> (a generated floor's)
     /// asks <see cref="Turns"/> before it begins a wind-up from the chase, and while it may not it stays in the chase,
     /// doing what it does between attacks (the brute walks up, the shooter keeps its distance and its aim) until its
-    /// turn. The practice room's enemies take no turns.
+    /// turn. The practice room's enemies take no turns, and neither does an elite (work order 030).
+    ///
+    /// An elite (work order 017, <see cref="EnemyFactory.MakeElite"/>) is one of its kind made tougher: more health, its
+    /// strikes' damage times <see cref="DamageScale"/>, larger, tinted gold, with a stagger bar; the log names it
+    /// <see cref="LogWord"/>.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public abstract class Enemy : MonoBehaviour
@@ -54,6 +60,13 @@ namespace Roguelike
         /// <summary>Raised when an enemy is enabled for the first time: for the play session recorder, which listens to each.</summary>
         public static event Action<Enemy> Appeared;
 
+        /// <summary>
+        /// The picture of a strike in place of the flat stand-in (work order 024, 2026-11-20, <see cref="CombatEffects"/>):
+        /// asked at every strike from where an enemy stands, with the attack and how far it reaches; true when it drew the
+        /// strike, false to leave the stand-in. Null, as in a test run: the stand-in. A picture only: it changes nothing.
+        /// </summary>
+        public static Func<Enemy, EnemyAttackDefinition, float, bool> StrikeDrawer;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -61,6 +74,7 @@ namespace Roguelike
             s_NextId = 0;
             Appeared = null;
             Turns.Clear();
+            StrikeDrawer = null;
         }
 
         /// <summary>
@@ -92,6 +106,13 @@ namespace Roguelike
         /// <summary>The renderer of the body, tinted while dazed; set for an enemy made from code (<see cref="EnemyFactory"/>).</summary>
         [NonSerialized] public Renderer BodyRenderer;
         [NonSerialized] public Color BodyColor = Color.white;
+        /// <summary>The elite of an elite room (work order 017).</summary>
+        [NonSerialized] public bool IsElite;
+        /// <summary>Its strikes deal this times their attack's damage (work order 017: an elite's 1.25); 1 for every other enemy.</summary>
+        [NonSerialized] public float DamageScale = 1f;
+
+        /// <summary>Its kind as the log writes it, "elite " before it for an elite (work order 017).</summary>
+        public string LogWord => (IsElite ? "elite " : "") + EnemyKinds.Word(Kind);
 
         protected readonly EnemyBrain _brain = new EnemyBrain();
         EnemyLook _look;
@@ -144,7 +165,7 @@ namespace Roguelike
             Reported?.Invoke(new EnemyReport
             {
                 Kind = kind, Attack = attack?.Name, Outcome = outcome, Damage = damage, Id = Id, EnemyKind = Kind,
-                Stagger = stagger, StaggerLeft = staggerLeft, Count = count,
+                Stagger = stagger, StaggerLeft = staggerLeft, Count = count, Elite = IsElite,
             });
 
         protected virtual void Awake()
@@ -270,18 +291,19 @@ namespace Roguelike
         protected virtual void Update()
         {
             Act();
-            // The model shows what it did this frame (work order 011).
-            if (_look != null) _look.Tick(this, LookVelocity, Time.time);
+            // The model shows what it did this frame (work order 011); a corpse already hidden is not posed any more
+            // (work order 026, the second review of 2026-11-20). No other culling: combat reads the poses.
+            if (_look != null && !(_hiddenDead && IsDead)) _look.Tick(this, LookVelocity, Time.time);
         }
 
         /// <summary>The speed over the ground its legs show: the agent's, unless a kind moves itself (the boss's charge).</summary>
-        protected virtual Vector3 LookVelocity => _agent.velocity;
+        protected virtual Vector3 LookVelocity => _agent.enabled ? _agent.velocity : Vector3.zero;
 
         void Act()
         {
             EnemyValues values = Values;
             float now = Time.time;
-            _agent.speed = values.MoveSpeed;
+            if (_agent.enabled) _agent.speed = values.MoveSpeed;
 
             if (!_self.IsAlive)
             {
@@ -302,7 +324,8 @@ namespace Roguelike
             EnemyState before = _brain.State;
             bool mayAttack = before != EnemyState.Chase || MayAttack(toPlayer, distance);
             // Its turn (work order 023): asked only when it would begin a wind-up now; held, it goes on with the chase.
-            TurnSort sort = TakesTurns ? AttackSort : TurnSort.None;
+            // An elite takes no turn (work order 023's rule, made so in work order 030 now that elites exist).
+            TurnSort sort = TakesTurns && !IsElite ? AttackSort : TurnSort.None;
             if (before == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && distance <= values.LeashRange
                 && _choose(distance, values) != null)
                 mayAttack = Turns.Ask(Id, sort, now);
@@ -411,6 +434,8 @@ namespace Roguelike
                 _deadSince = now;
                 _brain.Reset();
                 Halt();
+                // No obstacle to anyone from now on (work order 030): its agent takes no part in avoidance while dead.
+                _agent.enabled = false;
                 if (Telegraph != null) Telegraph.enabled = false;
                 _hiddenDead = false;
             }
@@ -424,6 +449,8 @@ namespace Roguelike
 
             _deadSince = -1f;
             _provoked = false;
+            transform.position = _home;
+            _agent.enabled = true; // an obstacle again, at home (work order 030)
             _agent.Warp(_home);
             _self.SetMaxHealth(StartHealth);
             SetVisible(true);
@@ -468,7 +495,8 @@ namespace Roguelike
                 return;
             }
             bool invulnerable = Player.IsInvulnerable; // read before the hit: the dash's i-frame is what TakeHit checks
-            int applied = PlayerHealth != null ? PlayerHealth.TakeHit(attack.Damage) : 0;
+            int damage = DamageScale == 1f ? attack.Damage : Mathf.RoundToInt(attack.Damage * Mathf.Max(0f, DamageScale)); // an elite's (work order 017)
+            int applied = PlayerHealth != null ? PlayerHealth.TakeHit(damage) : 0;
             if (applied > 0) StrikesLanded++;
             Report(EnemyReportKind.Struck, attack,
                    applied > 0 ? StrikeOutcome.Landed : invulnerable ? StrikeOutcome.AvoidedByDash : StrikeOutcome.NoEffect, applied);
@@ -554,6 +582,7 @@ namespace Roguelike
 
         void SpawnStrikeFx(EnemyAttackDefinition attack, float reach)
         {
+            if (StrikeDrawer != null && StrikeDrawer(this, attack, reach)) return; // work order 024: drawn in the shot effects' style
             Vector3 origin = Flat(transform.position);
             GameObject fx;
             switch (attack.Shape)

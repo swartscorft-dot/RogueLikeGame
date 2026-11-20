@@ -28,8 +28,8 @@ namespace Roguelike
     /// changes the one for where she is, and each is kept for the session.
     ///
     /// The pause menu: Esc pauses (not while a choice is up, when Esc does nothing) and Esc again resumes. Its lines,
-    /// picked with a click or the arrow keys and Enter: Resume; Restart the run (F5's new run; "Start a run" in the
-    /// practice room); Leave to the practice room (F7, only in a floor); Quit (only in a built player); and the
+    /// picked with a click or the arrow keys and Enter: Resume; New run (F5's new seed; "Start a run" in the practice
+    /// room); in a run, Same run again (F6's same seed from floor 1; work order 026); Leave to the practice room (F7, only in a floor); Quit (only in a built player); and the
     /// settings of <see cref="GameSettings"/>, changed with a click or the left and right arrows: the dash direction, the
     /// volume, and damage numbers on or off (work order 019, 2026-11-20). Under it, the keys as they are bound now
     /// (<see cref="InputBindings"/>).
@@ -49,7 +49,7 @@ namespace Roguelike
         public const Key DevTextKey = Key.F1;
 
         /// <summary>The lines of the pause menu, in the order shown.</summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -220,6 +220,7 @@ namespace Roguelike
             {
                 case MenuLine.Resume: _levels.Resume(); break;
                 case MenuLine.Restart: _levels.StartNewRun(); break;
+                case MenuLine.SameRun: _levels.RestartRun(); break;
                 case MenuLine.Leave: _levels.BackToPracticeRoom(); break;
                 case MenuLine.Quit:
                     _levels.Resume();
@@ -356,6 +357,7 @@ namespace Roguelike
                 _endLines.Add("Enemies killed  " + record.Kills.ToString(s_Inv));
                 _endLines.Add("Skills taken  " + record.SkillsText);
                 _endLines.Add("Upgrades  " + record.UpgradesText);
+                _endLines.Add("Skill upgrades  " + record.SkillUpgradesText); // work order 017
                 if (!died) _endLines.Add(string.Format(s_Inv, "Health left  {0} / {1}", record.HealthLeft, record.MaxHealth));
                 _endLines.Add("Run seed  " + record.Seed);
             }
@@ -367,6 +369,7 @@ namespace Roguelike
             _menu.Clear();
             _menu.Add(MenuLine.Resume);
             _menu.Add(MenuLine.Restart);
+            if (_levels != null && _levels.InRun) _menu.Add(MenuLine.SameRun);
             if (InFloor) _menu.Add(MenuLine.Leave);
             if (!Application.isEditor) _menu.Add(MenuLine.Quit);
             _menu.Add(MenuLine.DashDirection);
@@ -381,7 +384,8 @@ namespace Roguelike
             switch (line)
             {
                 case MenuLine.Resume: return "Resume   (Esc)";
-                case MenuLine.Restart: return (_levels != null && _levels.InRun ? "Restart the run" : "Start a run") + "   (" + GeneratedLevels.NewLevelKey + ")";
+                case MenuLine.Restart: return (_levels != null && _levels.InRun ? "New run" : "Start a run") + "   (" + GeneratedLevels.NewLevelKey + ")";
+                case MenuLine.SameRun: return "Same run again   (" + GeneratedLevels.SameLevelKey + ")";
                 case MenuLine.Leave: return "Leave to the practice room   (" + GeneratedLevels.PracticeRoomKey + ")";
                 case MenuLine.Quit: return "Quit";
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
@@ -409,7 +413,10 @@ namespace Roguelike
             for (int key = 0; key < count; key++)
             {
                 int slot = _player.SkillOnKey(key);
-                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)"));
+                // Work order 017: the run's upgrades of the skill beside it.
+                List<string> upgrades = slot >= 0 && slot < skills.Count && _player.SkillUpgrades != null ? _player.SkillUpgrades.NamesFor(skills[slot].Name) : null;
+                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)")
+                          + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : ""));
             }
             return lines;
         }

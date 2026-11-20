@@ -79,6 +79,9 @@ namespace Roguelike.PlayModeTests
             while (!done() && Time.time < until && _health.IsAlive)
             {
                 if (_levels.Choice == GeneratedLevels.ChoiceKind.Chest) _levels.PickUpgrade(0);
+                // Work order 030: the elite room's upgrade, as the flights' harness takes it (a floor whose enemies were
+                // removed has its elite room cleared, and its choice pauses the game).
+                PilotFlight.TakeFirstSkillUpgrade(_levels);
                 eyes.Look(view);
                 pilot.Tick(view);
                 if (pilot.WantsChest) _levels.OpenChest();
@@ -183,6 +186,36 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.CurrentRoom, Is.SameAs(exit), "she reached the exit room (the pilot was: " + kiter.Mode + ")");
             Assert.That(kiter.Route.First(), Is.EqualTo(0));
             Assert.That(kiter.Route.Last(), Is.EqualTo(exit.Order));
+        }
+
+        /// <summary>
+        /// Work order 030: the elite room's upgrade offer pauses the game; the harness takes the first upgrade offered and
+        /// the pilot flies on.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheHarness_TakesAnEliteRoomsUpgrade_AndFliesOn()
+        {
+            _player.EquipStartSkills();
+            _levels.StartRun(0x12345678UL);
+            yield return null;
+            Time.timeScale = 4f;
+            _levels.FinishEliteRoomForTests();
+            for (int i = 0; i < 600 && _levels.Choice != GeneratedLevels.ChoiceKind.SkillUpgrade; i++) yield return null;
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite room's offer is up");
+            Assert.That(Time.timeScale, Is.EqualTo(0f), "and the game is paused");
+            string first = _levels.OfferedSkillUpgrades[0].FullName;
+            string taken = PilotFlight.TakeFirstSkillUpgrade(_levels);
+            Assert.That(taken, Is.EqualTo(first), "the first upgrade offered");
+            Assert.That(_levels.SkillUpgrades.Taken.Count, Is.EqualTo(1));
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.None), "the choice is gone");
+            Assert.That(Time.timeScale, Is.EqualTo(4f), "and the game goes on at the flight's time scale");
+            Assert.That(PilotFlight.TakeFirstSkillUpgrade(_levels), Is.Null, "nothing more to take");
+            // The pilot flies on: it walks its way through the floor.
+            var kiter = new Kiter(new PilotBody(_player, _health));
+            Vector3 from = _player.Position;
+            yield return Fly(kiter, () => Vector3.Distance(_player.Position, from) > 3f, 10f);
+            Time.timeScale = 1f;
+            Assert.That(Vector3.Distance(_player.Position, from), Is.GreaterThan(3f), "she moved on (the pilot was: " + kiter.Mode + ")");
         }
 
         /// <summary>

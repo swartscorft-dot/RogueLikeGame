@@ -11,6 +11,7 @@ namespace Roguelike
         /// <summary>The move keys, relative to the screen: x to the right, y up the screen. Each -1, 0 or 1; not yet normalised.</summary>
         public Vector2 Move;
         public bool ShootPressed;       // the shoot button went down: one basic shot toward the cursor
+        public bool ShootHeld;          // the shoot button is down this frame (work order 026: after a choice it must go up before a shot)
         public bool DashPressed;        // Space
         public bool IdentityPressed;    // Z: spend a full focus gauge on the empowered mode
         /// <summary>
@@ -54,13 +55,43 @@ namespace Roguelike
         /// True while a choice is on screen (work order 012: the floor reward, a chest): the game is paused and the keys
         /// and clicks pick from the choice, so none reaches the character.
         /// </summary>
-        public static bool HeldByChoice;
+        public static bool HeldByChoice
+        {
+            get => s_heldByChoice;
+            set
+            {
+                if (s_heldByChoice && !value) s_letGoFrame = Time.frameCount;
+                if (!s_heldByChoice && value) s_holds++;
+                s_heldByChoice = value;
+            }
+        }
 
         /// <summary>
         /// True while the pause menu or a run's end screen is up (work order 018): the game is paused or slowing to a
         /// stop, and no key or click reaches the character.
         /// </summary>
-        public static bool HeldByScreen;
+        public static bool HeldByScreen
+        {
+            get => s_heldByScreen;
+            set
+            {
+                if (s_heldByScreen && !value) s_letGoFrame = Time.frameCount;
+                if (!s_heldByScreen && value) s_holds++;
+                s_heldByScreen = value;
+            }
+        }
+
+        /// <summary>
+        /// True on the frame a choice or a screen let go of the input (the review of 2026-11-20, work order 026): no
+        /// press of that frame reaches her, whichever component's Update runs first, for the key or click that answered
+        /// it is a press of that frame too. The interact key (<see cref="GeneratedLevels"/>) asks the same.
+        /// </summary>
+        public static bool LetGoThisFrame => s_letGoFrame == Time.frameCount;
+
+        static bool s_heldByChoice;
+        static bool s_heldByScreen;
+        static int s_letGoFrame = -1;
+        static int s_holds; // holds begun since the game started: a hold the driver never saw itself still counts
 
         /// <summary>Where frames come from. Null means the mouse and keyboard. Return null for "no input this frame".</summary>
         public Func<InputFrame?> InputSource;
@@ -69,6 +100,9 @@ namespace Roguelike
         PlayerHealth _health;
         Camera _camera;
         int _skillsHeldBefore;
+        int _waitForUp;          // skill keys that must be seen up before they count again (work order 026)
+        bool _shootWaitsForUp;   // and the shoot button
+        int _holdsSeen;
         InputBindings _fallback;
 
         /// <summary>The bindings in use: the asset, or the start values.</summary>
@@ -86,22 +120,58 @@ namespace Roguelike
         static void ResetStatics()
         {
             ReadRealDevices = true;
-            HeldByChoice = false;
-            HeldByScreen = false;
+            s_heldByChoice = false;
+            s_heldByScreen = false;
+            s_letGoFrame = -1;
+            s_holds = 0;
         }
 
         void Awake()
         {
             _player = GetComponent<PlayerCharacter>();
             _health = GetComponent<PlayerHealth>();
+            _holdsSeen = s_holds;
         }
 
         void Update()
         {
-            if (HeldByChoice || HeldByScreen) return;
+            if (HeldByChoice || HeldByScreen)
+            {
+                WaitForKeysUp();
+                return;
+            }
+            if (_holdsSeen != s_holds)
+            {
+                // A choice or a screen held the input since the last frame, perhaps opened and closed between two of them.
+                _holdsSeen = s_holds;
+                WaitForKeysUp();
+            }
             InputFrame? read = InputSource != null ? InputSource() : ReadDevices();
-            if (read == null) return;
+            if (read == null)
+            {
+                // No input this frame: no key is down, so none waits any more (work order 026).
+                _waitForUp = 0;
+                _shootWaitsForUp = false;
+                return;
+            }
             InputFrame input = read.Value;
+
+            // Work order 026 (the review of 2026-11-20): after a choice or a screen held the input, a skill key or the
+            // shoot button that was not down going into the hold counts again only once it has been seen up, so the key
+            // or the click that answered it fires nothing, also when its press reaches the input a frame late. On the
+            // frame of the letting go the dash and focus presses are dropped too. The move keys, the cover key and a
+            // skill key held into the hold come through as they are.
+            if (LetGoThisFrame)
+            {
+                WaitForKeysUp();
+                input.DashPressed = false;
+                input.IdentityPressed = false;
+            }
+            _waitForUp &= input.SkillsHeld | input.SkillsPressed;
+            input.SkillsPressed &= ~_waitForUp;
+            input.SkillsHeld &= ~_waitForUp;
+            if (_shootWaitsForUp) _shootWaitsForUp = input.ShootPressed || input.ShootHeld;
+            if (_shootWaitsForUp) input.ShootPressed = false;
 
             if (_camera == null) _camera = Camera.main;
             if (_camera == null) return;
@@ -135,6 +205,13 @@ namespace Roguelike
             _skillsHeldBefore = held;
 
             if (input.ShootPressed) _player.Shoot(cursor);
+        }
+
+        /// <summary>While the input is held, and on the frame it is let go: every key not held into the hold, and the shoot button, wait to be seen up.</summary>
+        void WaitForKeysUp()
+        {
+            _waitForUp = ~_skillsHeldBefore;
+            _shootWaitsForUp = true;
         }
 
         /// <summary>
@@ -179,6 +256,7 @@ namespace Roguelike
                 CursorScreen = mouse.position.ReadValue(),
                 Move = new Vector2(Axis(bindings.MoveRight, bindings.MoveLeft), Axis(bindings.MoveUp, bindings.MoveDown)),
                 ShootPressed = bindings.Shoot.Control(mouse, keyboard)?.wasPressedThisFrame ?? false,
+                ShootHeld = bindings.Shoot.Control(mouse, keyboard)?.isPressed ?? false,
                 DashPressed = bindings.Dash != Key.None && keyboard[bindings.Dash].wasPressedThisFrame,
                 IdentityPressed = bindings.Focus != Key.None && keyboard[bindings.Focus].wasPressedThisFrame,
                 CoverHeld = bindings.TakeCover != Key.None && keyboard[bindings.TakeCover].isPressed,
