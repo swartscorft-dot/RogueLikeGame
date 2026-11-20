@@ -167,8 +167,11 @@ namespace Roguelike.Rules
     /// that moves cannot be learnt. Only the hit stop is taken out:
     /// - a frame that ran counts its game seconds, as before (so a slow-down of the whole game slows the window, and a
     ///   test's or a flight's faster game runs it faster);
-    /// - a frame a hit stop froze counts its real seconds at the pace the game had when the hit stop began (the time
-    ///   scale it found), so the window runs on as if the hit stop had not been;
+    /// - a frame a hit stop froze counts its real seconds, slowed with a slow-down of the whole game (the time scale the
+    ///   hit stop found, below 1) and never sped up: a hit stop is its real length at any time scale, so counted at a
+    ///   faster game's pace it would cost the window four or eight times the share it costs a person at scale 1 (a third
+    ///   of Triple Tap's window at 4). Counted unscaled it costs the same share at every scale of 1 or more, and at
+    ///   scale 1 the window runs on exactly as if the hit stop had not been;
     /// - a frame anything else froze counts nothing: the pause menu, a choice, an end screen or the screen between runs
     ///   (a screen that holds the game, even over a hit stop), or a time scale of 0 that is no hit stop.
     /// </summary>
@@ -183,7 +186,7 @@ namespace Roguelike.Rules
         public static float HitStopSeconds(bool on, float gameSeconds, float realSeconds, bool hitStopHolds, bool screenHolds, float paceBefore)
         {
             if (!on || !hitStopHolds || screenHolds || gameSeconds > 0f || realSeconds <= 0f) return 0f;
-            return realSeconds * Math.Max(0f, paceBefore);
+            return realSeconds * Math.Max(0f, Math.Min(1f, paceBefore));
         }
     }
 }

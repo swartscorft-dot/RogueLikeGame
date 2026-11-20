@@ -24,7 +24,7 @@ namespace Roguelike
         /// </summary>
         public static bool HoldsThisFrame => s_Runner != null && (s_Runner._frozen || s_Runner._letGoFrame == Time.frameCount);
 
-        /// <summary>The time scale the hit stop found when it froze the game: the game's pace it stands in for (work order 038).</summary>
+        /// <summary>The time scale the hit stop found when it froze the game: its pace, which slows the recast window in a hit stop (work order 038).</summary>
         public static float ScaleFound => s_Runner != null ? s_Runner._scaleFound : 1f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

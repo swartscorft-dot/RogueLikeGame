@@ -914,7 +914,7 @@ namespace Roguelike
         // Work order 038 (Kristian's answer of 2026-11-20: the recast window runs on real time). A hit stop froze the
         // window's game-time clock, so the clean part moved from one use to the next. Once a frame, before anything in it
         // judges a press (every press, the buffer's and the frame's own update pass here first), the open window runs on
-        // by the seconds a hit stop froze, at the game's pace (RecastClock); a pause, a choice or a screen still stops it.
+        // by the real seconds a hit stop froze (RecastClock); a pause, a choice or a screen still stops it.
         // Off (KitValues.RecastOnRealTime), nothing runs on and the window is as it was.
         int _chainRanOnFrame = -1;
 
@@ -1171,6 +1171,10 @@ namespace Roguelike
             _action.Cancel();
             _cast.Cancel();
             EndAction();
+            // A recast chain whose shot (or opening move) is dropped before it went off would wait for a window that never
+            // opens, and its key and every new skill with it (found merging work orders 035 and 038: the Ace stood so for
+            // the rest of PilotTests' fight). It ends, as a teleport ends it; a window already open runs on, as before.
+            if (_chain.SinceOpened(Time.time) < 0f) EndChain();
             _dashing = false;
             _buffer.Clear();
             DropWaitingClick();

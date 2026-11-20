@@ -341,7 +341,7 @@ namespace Roguelike.Rules.Tests
 
     /// <summary>
     /// Work order 038 (Kristian's answer of 2026-11-20: the recast window runs on real time). Which seconds an open window
-    /// counts: a hit stop's real seconds do, at the game's pace; a pause does not; a frame that ran counts its game time.
+    /// counts: a hit stop's real seconds do, slowed with a slow-down and never sped up; a pause does not; a frame that ran counts its game time.
     /// </summary>
     public class RecastClockTests
     {
@@ -380,11 +380,18 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void AHitStop_RunsItAtTheGamesPace_SlowedOrFaster()
+        public void AHitStop_IsSlowedWithASlowDown_AndAtAFasterGameCostsTheWindowWhatItCostsAtScale1()
         {
             Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 0.5f), Is.EqualTo(Frame * 0.5f).Within(1e-7f), "a slow-down slows it");
-            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 8f), Is.EqualTo(Frame * 8f).Within(1e-6f), "a faster game runs it faster");
+            // Changed after the evening's merge (work order 038): it was Frame * 8, the faster game's pace. A hit stop is
+            // its real length at any scale; unscaled, it costs the window the same share of itself as at scale 1.
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 4f), Is.EqualTo(Frame).Within(1e-7f), "at 4: its real seconds, unscaled");
+            Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 8f), Is.EqualTo(Frame).Within(1e-7f), "at 8 too");
             Assert.That(RecastClock.HitStopSeconds(true, 0f, Frame, true, false, paceBefore: 0f), Is.EqualTo(0f), "a hit stop that began paused");
+            // The share of Triple Tap's window (0.6 s of game time) a hit stop of 0.05 s of real time costs, at 1 and at 4.
+            float atOne = RecastClock.HitStopSeconds(true, 0f, 0.05f, true, false, 1f) / Window;
+            float atFour = RecastClock.HitStopSeconds(true, 0f, 0.05f, true, false, 4f) / Window;
+            Assert.That(atFour, Is.EqualTo(atOne).Within(1e-6f), "the same share at a faster game");
         }
 
         [Test]
