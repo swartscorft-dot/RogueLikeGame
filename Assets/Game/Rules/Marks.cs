@@ -12,7 +12,7 @@ namespace Roguelike.Rules
         public int MaxMarks = 5;               // marks a target can carry at once
         public float MarkLifetime = 6f;        // s after the last mark was added that they all fall off
         public int BasicShotsPerMark = 5;      // every this many basic shot hits, the hit that completes the count marks its target (4 until 2026-11-19)
-        public bool StartWithAllSkills = false; // all eight skills equipped from the start, for trying the ones that wait
+        public bool StartWithAllSkills = false; // every skill had from the start, for trying the ones that wait (the first eight on the keys: work order 015)
         public float CleanShare = 1f / 3f;     // the last share of the final recast window in which a press is clean
         public float CleanDamage = 1.5f;       // a clean tap deals this times the damage (not a clean spend: that has its bonus per mark)
     }
@@ -96,7 +96,8 @@ namespace Roguelike.Rules
         /// True when a hit of this skill takes the marks: every hit of a spender, and the hit of a clean press of a
         /// skill with a clean spend. <paramref name="clean"/>: the shot came from a clean press.
         /// </summary>
-        public static bool Spends(SkillDefinition skill, bool clean) => IsSpender(skill) || (clean && HasCleanSpend(skill));
+        public static bool Spends(SkillDefinition skill, bool clean) =>
+            IsSpender(skill) || (clean && HasCleanSpend(skill)) || (skill != null && skill.MarkStaggerBonus > 0f); // Breaker Slug (work order 015)
 
         /// <summary>
         /// The bonus per mark taken that a hit of this skill deals: the clean spend's for a clean press of a skill that

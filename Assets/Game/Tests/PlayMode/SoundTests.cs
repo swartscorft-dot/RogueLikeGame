@@ -143,8 +143,10 @@ namespace Roguelike.PlayModeTests
             _played.Clear();
             Assert.That(_player.PressSkill(Keg, _a.transform.position), Is.Not.EqualTo(IntentResult.Rejected));
             _player.ReleaseSkill(Keg);
+            // Work order 015: the keg lies on its fuse and sounds when it bursts.
+            yield return Until(() => _player.KegsBurst > 0, 4f);
             yield return Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 3f); // and its free recovery (0004)
-            Assert.That(_played.Count, Is.EqualTo(1), "Powder Keg: one sound when it lands");
+            Assert.That(_played.Count, Is.EqualTo(1), "Powder Keg: one sound when it bursts");
             Assert.That(_played[0].Clip, Is.SameAs(keg.Sound));
             Assert.That(_played[0].Pitch, Is.EqualTo(keg.SoundPitch * (_player.IsEmpowered ? _player.ShotLooks.EmpoweredPitch : 1f)).Within(keg.SoundPitchSpread + 1e-3f));
         }

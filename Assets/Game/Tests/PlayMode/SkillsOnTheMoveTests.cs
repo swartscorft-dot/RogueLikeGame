@@ -744,10 +744,10 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Pose_SlidingInASkill_ShowsTheShootingGait_ThenTheShootStanceWhenStanding()
         {
             Assume.That(_view != null, Is.True, "a rigged model");
-            // Aimed ahead (Scatter Blast): the gait forward. Aimed behind (Powder Keg, which then stands for the rest of
-            // its cast): the gait backward, then the Shoot stance.
+            // Aimed ahead (Scatter Blast): the gait forward. Aimed behind (Heavy Volley, which then stands for the rest of
+            // its cast; Powder Keg until work order 015 made it light, with no slide): the gait backward, then the Shoot stance.
             var poses = new List<(float t, float speed, CharacterPose pose, float weight)>();
-            foreach (var (slot, aim, gait) in new[] { (Scatter, Vector3.right * 4f, CharacterPose.ShootMove), (Keg, Vector3.left * 5f, CharacterPose.ShootBack) })
+            foreach (var (slot, aim, gait) in new[] { (Scatter, Vector3.right * 4f, CharacterPose.ShootMove), (Volley, Vector3.left * 5f, CharacterPose.ShootBack) })
             {
                 poses.Clear();
                 _player.Teleport(RunFrom);

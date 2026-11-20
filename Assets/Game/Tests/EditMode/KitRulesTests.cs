@@ -6,12 +6,12 @@ namespace Roguelike.Rules.Tests
     public class KitDefaultsTests
     {
         [Test]
-        public void EightSkills_CoveringFiveInputTypes()
+        public void TwelveSkills_CoveringFiveInputTypes()
         {
             SkillDefinition[] skills = SkillDefaults.Create();
-            Assert.That(skills.Length, Is.EqualTo(8), "the loadout of docs/vision/first-class.md");
+            Assert.That(skills.Length, Is.EqualTo(12), "the loadout of docs/vision/first-class.md and the pool of work order 015");
             Assert.That(skills.Select(s => s.Input).Distinct().Count(), Is.GreaterThanOrEqualTo(5));
-            Assert.That(skills.Select(s => s.Name).Distinct().Count(), Is.EqualTo(8), "names are unique");
+            Assert.That(skills.Select(s => s.Name).Distinct().Count(), Is.EqualTo(12), "names are unique");
         }
     }
 

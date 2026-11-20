@@ -37,6 +37,8 @@ namespace Roguelike
         const float HomeSlack = 0.3f;
         const float RepathDistance = 0.25f;
         static readonly Color s_DazedTint = new Color(0.55f, 0.75f, 1f);
+        static readonly Color s_CounterBlue = new Color(0.15f, 0.45f, 1f);
+        MaterialPropertyBlock _telegraphBlock;
 
         static readonly List<Enemy> s_All = new List<Enemy>();
         static int s_NextId;
@@ -205,6 +207,27 @@ namespace Roguelike
 
         /// <summary>Wakes it as a hurt would, from wherever she is within its leash: a pack wakes this way.</summary>
         public void Provoke() => _provoked = true;
+
+        /// <summary>Times a counter dropped its attack (work order 015).</summary>
+        public int Countered { get; private set; }
+
+        /// <summary>
+        /// A counter (work order 015, Stopping Shot): while it winds up a counterable attack and the shooter at
+        /// <paramref name="from"/> is within <paramref name="halfAngle"/> degrees of where it faces, the attack is dropped
+        /// with no strike and it is dazed for <paramref name="seconds"/>. True if it was.
+        /// </summary>
+        public bool TryCounter(Vector3 from, float halfAngle, float seconds)
+        {
+            if (!_self.IsAlive || _brain.State != EnemyState.Windup || !PoolRules.IsCounterable(_brain.Attack)) return false;
+            Vector3 f = transform.forward;
+            if (!PoolRules.InFront(Ground(transform.position), new GroundPoint(f.x, f.z), Ground(from), halfAngle)) return false;
+            Countered++;
+            _self.DazeFor(seconds); // OnDazed drops the windup with no strike
+            return true;
+        }
+
+        /// <summary>True while the telegraph shows a counterable attack: drawn blue, not red (work order 015).</summary>
+        public bool TelegraphIsCounterable => IsTelegraphing && PoolRules.IsCounterable(_brain.Attack);
 
         void OnStaggerTaken(float taken, float left) => Report(EnemyReportKind.StaggerTaken, stagger: taken, staggerLeft: left);
 
@@ -419,6 +442,15 @@ namespace Roguelike
             if (!show) return;
 
             Telegraph.widthMultiplier = Mathf.Lerp(TelegraphThin, TelegraphThick, _brain.WindupProgress(now));
+            // A counterable attack is drawn blue instead of red (work order 015); an empty block gives the material's red.
+            if (_telegraphBlock == null) _telegraphBlock = new MaterialPropertyBlock();
+            _telegraphBlock.Clear();
+            if (PoolRules.IsCounterable(attack))
+            {
+                _telegraphBlock.SetColor("_BaseColor", s_CounterBlue);
+                _telegraphBlock.SetColor("_Color", s_CounterBlue);
+            }
+            Telegraph.SetPropertyBlock(_telegraphBlock);
             Vector3 origin = Flat(transform.position);
             switch (attack.Shape)
             {

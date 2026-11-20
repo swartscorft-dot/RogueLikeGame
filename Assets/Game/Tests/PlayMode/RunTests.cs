@@ -19,7 +19,7 @@ namespace Roguelike.PlayModeTests
     /// offers three skills she lacks with the game paused, and picking one equips it and puts her at the next floor's
     /// entrance with her health; a chest opens once and its upgrade changes the value it names; after four floors she
     /// has eight skills, floor 5's exit room holds the act boss and finishing it clears the act; death ends the run and
-    /// clears the upgrades; the practice room's values are untouched after a run; she can walk from the entrance to
+    /// clears the upgrades, and since work order 018 leaves her on the floor until the death screen is answered; the practice room's values are untouched after a run; she can walk from the entrance to
     /// every room of a floor 1 and a floor 5; and the recorder writes the run.
     ///
     /// A paused game has a time scale of 0: the waits here count frames, never game time.
@@ -60,6 +60,7 @@ namespace Roguelike.PlayModeTests
             _levels = null;
             Time.timeScale = 1f;
             PlayerInputDriver.HeldByChoice = false;
+            PlayerInputDriver.HeldByScreen = false; // work order 018: a death or a cleared act leaves an end screen up
             PlayerInputDriver.ReadRealDevices = true;
         }
 
@@ -121,7 +122,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(PlayerInputDriver.HeldByChoice, Is.True);
             Assert.That(_levels.OfferedSkills.Count, Is.EqualTo(3));
             foreach (int slot in _levels.OfferedSkills) Assert.That(_player.IsEquipped(slot), Is.False, "never one she has");
-            Assert.That(_levels.OfferedSkills, Is.EqualTo(FloorRewards.Offer(RunSeed, 1, Enumerable.Range(0, 8).Select(_player.IsEquipped).ToList(), 3)),
+            Assert.That(_levels.OfferedSkills, Is.EqualTo(FloorRewards.Offer(RunSeed, 1, Enumerable.Range(0, _player.Skills.Count).Select(_player.IsEquipped).ToList(), 3)),
                         "drawn from the run's seed");
 
             // Paused: frames go by and game time does not.
@@ -135,7 +136,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.PickReward(1), Is.True);
             Assert.That(Time.timeScale, Is.EqualTo(1f), "the game goes on");
             Assert.That(PlayerInputDriver.HeldByChoice, Is.False);
-            Assert.That(_player.IsEquipped(picked), Is.True, "the picked skill is equipped in its own slot");
+            Assert.That(_player.IsEquipped(picked), Is.True, "the picked skill is equipped");
+            Assert.That(_player.KeyOfSkill(picked), Is.EqualTo(1), "on the first free key (work order 015)");
             Assert.That(EquippedCount(), Is.EqualTo(5));
             Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_levels.Level.Layout.Floor, Is.EqualTo(2));
@@ -237,6 +239,13 @@ namespace Roguelike.PlayModeTests
             }
             Assert.That(_levels.Floor, Is.EqualTo(5));
             Assert.That(EquippedCount(), Is.EqualTo(8), "eight skills after four floors");
+            // Work order 015: on eight keys, one each, the four taken on the four keys that were free, in key order.
+            var onKeys = Enumerable.Range(0, _player.KeyCount).Select(_player.SkillOnKey).ToList();
+            Assert.That(onKeys.All(s => s >= 0), Is.True, "no key is empty");
+            Assert.That(onKeys.Distinct().Count(), Is.EqualTo(8), "eight skills on eight keys");
+            Assert.That(new[] { 1, 2, 3, 5 }.Select(k => _player.Skills[onKeys[k]].Name), Is.EqualTo(_levels.SkillsTaken),
+                        "taken in order onto the first free key each time");
+            Assert.That(_player.FirstFreeKey, Is.EqualTo(-1));
             Assert.That(_levels.SkillsTaken.Count, Is.EqualTo(4));
             GeneratedLevel level = _levels.Level;
             Assert.That(level.Boss, Is.Not.Null, "the act boss");
@@ -274,11 +283,19 @@ namespace Roguelike.PlayModeTests
             _health.TakeHit(100000);
             yield return Frames(() => !_levels.InRun);
             Assert.That(_levels.InRun, Is.False, "death ends the run");
-            Assert.That(_levels.IsInLevel, Is.False, "back in the practice room");
             Assert.That(_levels.Modifiers.Count, Is.EqualTo(0), "the upgrades are cleared");
             Assert.That(_player.Modifiers, Is.Null);
             StringAssert.Contains("DIED on floor 1, room " + (room.Order + 1), _levels.LastRunLine);
             StringAssert.Contains(LevelSeed.ToText(RunSeed), _levels.LastRunLine);
+
+            // Work order 018: she stays on the floor, the game stopped, until the death screen is answered.
+            Assert.That(_levels.Ending, Is.EqualTo(GeneratedLevels.EndKind.Died));
+            yield return new WaitForSecondsRealtime(HudRules.EndSlowSeconds + 0.3f);
+            Assert.That(_levels.IsInLevel, Is.True, "still on the floor");
+            Assert.That(Time.timeScale, Is.EqualTo(0f), "the game has stopped");
+            Assert.That(_levels.AnswerEndScreen(GeneratedLevels.EndAnswer.PracticeRoom), Is.True);
+            Assert.That(_levels.IsInLevel, Is.False, "back in the practice room");
+            Assert.That(Time.timeScale, Is.EqualTo(1f));
 
             yield return new WaitForSeconds(Placeholders.PlayerRespawnDelay + 0.5f);
             Assert.That(_health.IsAlive, Is.True);

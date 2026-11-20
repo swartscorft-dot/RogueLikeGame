@@ -27,6 +27,7 @@ namespace Roguelike.Rules
         public float Length = 12f;       // m, Line
         public float HalfWidth = 1.2f;   // m, Line
         public float Angle = 90f;        // degrees in all, Cone
+        public bool Counterable = false; // work order 015: Stopping Shot from its front drops it; its telegraph is blue (PoolRules.IsCounterable)
     }
 
     /// <summary>
@@ -58,7 +59,7 @@ namespace Roguelike.Rules
             new EnemyAttackDefinition
             {
                 Name = "Shockwave", Shape = EnemyAttackShape.Line, MinDistance = 3f, MaxDistance = 11f,
-                Windup = 1.1f, Recovery = 1.2f, Damage = 30, Length = 12f, HalfWidth = 1.2f,
+                Windup = 1.1f, Recovery = 1.2f, Damage = 30, Length = 12f, HalfWidth = 1.2f, Counterable = true,
             },
         };
     }

@@ -202,7 +202,8 @@ namespace Roguelike.PlayModeTests
         public IEnumerator EachOfTheEightBindings_StartsItsOwnSkill_ReadFromTheSettings()
         {
             InputBindings bindings = _driver.ActiveBindings;
-            Assume.That(bindings.Skills.Length, Is.EqualTo(_player.Skills.Count));
+            // Work order 015: eight keys for twelve skills; each key starts the skill on it.
+            Assume.That(bindings.Skills.Length, Is.EqualTo(_player.KeyCount));
             var keyboard = InputSystem.AddDevice<Keyboard>();
             var mouse = InputSystem.AddDevice<Mouse>();
             try
@@ -231,7 +232,9 @@ namespace Roguelike.PlayModeTests
                     _frames.Enqueue(new InputFrame { CursorScreen = screen, SkillsPressed = 1 << slot, SkillsHeld = 1 << slot });
                     yield return null;
                     yield return null;
-                    Assert.That(_player.ActiveSkillSlot, Is.EqualTo(slot), b.Label + " starts " + _player.Skills[slot].Name);
+                    int onKey = _player.SkillOnKey(slot);
+                    Assert.That(onKey, Is.EqualTo(slot), "with every skill had, the first eight sit on the keys of their places");
+                    Assert.That(_player.ActiveSkillSlot, Is.EqualTo(onKey), b.Label + " starts " + _player.Skills[onKey].Name);
                     _idle = new InputFrame { CursorScreen = screen }; // let go
                     yield return Until(() => _player.Action == ActionKind.None, 4f);
                     InputSystem.QueueStateEvent(keyboard, new KeyboardState());
