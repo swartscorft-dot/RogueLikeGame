@@ -19,7 +19,8 @@ namespace Roguelike
     /// is in is filled in the cyan and a white dot is where she is; a room she has been in is filled grey, faintly once it
     /// is done; a room she has not been in shows only as an outline, once the room before it has been entered. A treasure
     /// room, the elite room and the exit room show their door's colour and sign (<see cref="DoorSignRules"/>) until they are
-    /// done; done, a treasure room loses its gold and the others' go dim.
+    /// done; done, a treasure room loses its gold and the others' go dim. Work order 051: a carved room shows its real
+    /// outline (<see cref="RoomShapes.Outline"/>) and only its open cells filled (<see cref="RoomShapes.OpenRects"/>).
     ///
     /// It is not drawn under a choice, an end screen (from the moment the run ends), the pause menu or the screen between
     /// runs, nor outside a floor, nor with <see cref="LevelValues.FloorMap"/> off. What it shows is worked out in
@@ -82,6 +83,11 @@ namespace Roguelike
         public bool RoomDim(int room) => FloorMapRules.Dim(RoomShown(room), RoomDone(room));
         /// <summary>Its sign's strength now: 1 lit, a share dim, 0 none.</summary>
         public float SignStrength(int room) => _strength != null && room >= 0 && room < _strength.Length ? _strength[room] : 0f;
+        /// <summary>What it fills for a room (work order 051): the rectangles of its open cells.</summary>
+        public IReadOnlyList<CellRect> FillsOf(int room) => _fills != null && room >= 0 && room < _fills.Length ? _fills[room] : System.Array.Empty<CellRect>();
+        /// <summary>The outline it draws for a carved room (work order 051); empty for a room drawn as its rectangle.</summary>
+        public IReadOnlyList<RoomShapes.Edge> OutlineOf(int room) =>
+            _edges != null && room >= 0 && room < _edges.Length && _edges[room] != null ? _edges[room] : System.Array.Empty<RoomShapes.Edge>();
         /// <summary>Its sign.</summary>
         public DoorSign SignOf(int room) => _sign != null && room >= 0 && room < _sign.Length ? _sign[room] : DoorSign.None;
         /// <summary>The door of the layout's list shows now.</summary>
@@ -97,6 +103,8 @@ namespace Roguelike
         DoorSign[] _sign;
         Color[] _colour;
         int[] _before;
+        CellRect[][] _fills;          // work order 051: each room's open cells as rectangles
+        RoomShapes.Edge[][] _edges;   // and a carved room's outline (null for a room that is its rectangle)
         double _smallScale, _largeScale;
         PlayerCharacter _player;
         float _lookedForPlayer = float.NegativeInfinity;
@@ -203,9 +211,14 @@ namespace Roguelike
             _sign = new DoorSign[n];
             _colour = new Color[n];
             _before = new int[n];
+            _fills = new CellRect[n][];
+            _edges = new RoomShapes.Edge[n][];
             for (int i = 0; i < n; i++)
             {
                 LevelRoom r = _layout.Rooms[i];
+                // Work order 051: a carved room shows its outline as it is, its open cells filled.
+                _fills[i] = RoomShapes.OpenRects(r).ToArray();
+                _edges[i] = r.SolidCount > 0 ? RoomShapes.Outline(r).ToArray() : null;
                 _sign[i] = DoorSignRules.SignOf(r, _layout.Floor, level.Values.FloorsPerAct);
                 _colour[i] = CryptKit.Picked(DoorSignRules.ColourOf(_sign[i], _v));
                 _before[i] = FloorMapRules.Before(_layout, r);
@@ -268,14 +281,18 @@ namespace Roguelike
                 MapShown shown = _shown[i];
                 if (shown == MapShown.Hidden) continue;
                 Rect r = Of(rooms[i].Rect);
+                Color fill = Color.clear;
                 if (kinetic)
                 {
                     // Work order 045: the room she is in filled teal, a room she has been in faintly white, dimmer once done.
-                    if (shown == MapShown.Here) Fill(r, InterfaceStyle.C(v.Teal, v.MapHereFill));
-                    else if (shown == MapShown.Entered) Fill(r, InterfaceStyle.C(v.White, _done[i] ? v.MapEnteredFill * 0.4f : v.MapEnteredFill));
+                    if (shown == MapShown.Here) fill = InterfaceStyle.C(v.Teal, v.MapHereFill);
+                    else if (shown == MapShown.Entered) fill = InterfaceStyle.C(v.White, _done[i] ? v.MapEnteredFill * 0.4f : v.MapEnteredFill);
                 }
-                else if (shown == MapShown.Here) Fill(r, new Color(s_Accent.r, s_Accent.g, s_Accent.b, 0.5f));
-                else if (shown == MapShown.Entered) Fill(r, _done[i] ? s_Done : s_Entered);
+                else if (shown == MapShown.Here) fill = new Color(s_Accent.r, s_Accent.g, s_Accent.b, 0.5f);
+                else if (shown == MapShown.Entered) fill = _done[i] ? s_Done : s_Entered;
+                // Work order 051: a carved room filled cell rectangle by cell rectangle, as its outline is.
+                if (fill.a > 0f)
+                    foreach (CellRect c in _fills[i]) Fill(Of(c), fill);
                 float k = _strength[i];
                 Color edge = shown == MapShown.Ahead ? s_AheadOutline : s_Outline;
                 if (k > 0f)
@@ -283,7 +300,16 @@ namespace Roguelike
                     Color c = _colour[i];
                     edge = new Color(c.r * k + (1f - k) * 0.4f, c.g * k + (1f - k) * 0.4f, c.b * k + (1f - k) * 0.4f, k >= 1f ? 1f : 0.7f);
                 }
-                Frame(r, edge, line);
+                if (_edges[i] == null) Frame(r, edge, line);
+                else
+                    foreach (RoomShapes.Edge e in _edges[i])
+                    {
+                        // Work order 051: the carved outline, a line along each stretch of it, inside the room as the frame is.
+                        float ex = x0 + (float)((e.Line - box.X) * cs * scale), ey = y0 + (float)((box.Top - e.Line) * cs * scale);
+                        Fill(e.Vertical
+                                 ? new Rect(ex - line * 0.5f, y0 + (float)((box.Top - e.To) * cs * scale), line, (float)((e.To - e.From) * cs * scale))
+                                 : new Rect(x0 + (float)((e.From - box.X) * cs * scale), ey - line * 0.5f, (float)((e.To - e.From) * cs * scale), line), edge);
+                    }
                 if (k > 0f)
                 {
                     Texture2D icon = Icon(_sign[i]);

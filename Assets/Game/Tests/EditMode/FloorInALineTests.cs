@@ -76,7 +76,9 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandSeeds_InALine_EachFloorIsOneRow_ValidAndAsFullAsVersion9s_AndAboutAsQuick(int floor)
         {
-            var on = new LevelValues();
+            // Work order 051: the rooms' carved outlines off, so this measures the line against the side rooms as it did; what the
+            // shapes cost is measured on its own (RoomShapesTests.Generation_CostsAtMostHalfAsMuchAgain_ByTheMedian).
+            var on = new LevelValues { Shapes = false };
             var off = new LevelValues { InALine = false };
             Assert.That(on.InALine, Is.True, "on by default");
             LevelGenerator.Generate(424242UL, floor, on); // the first calls pay for compiling the code

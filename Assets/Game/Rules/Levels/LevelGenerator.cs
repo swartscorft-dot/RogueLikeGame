@@ -70,8 +70,17 @@ namespace Roguelike.Rules
     /// given their points on the row's contents stream. So a floor holds as many rooms and as many enemies, of the same
     /// kinds, as version 9's of that seed. The themes and props follow on their own streams. With it off the floor of
     /// every seed is version 9's, field for field, but for the version.
+    /// Version 12 (work order 051, Kristian's words of 2026-11-20: "Now we have very clear squares per room ... not walking
+    /// into large office landscapes with monsters in them"; the research report d's proposal A): with
+    /// <see cref="LevelValues.Shapes"/> on (the default), right after the layout each room's rectangle is carved on its own
+    /// stream ("shapes", <see cref="RoomShapes"/>): some of its cells become solid, and a gate stands inside its door in. The
+    /// rooms' places, sizes, order and doors are the layout's, so they are what they were. The contents keep off the solid
+    /// cells (<see cref="LevelGeometry.EnemyPlaceFault"/>); when a room's enemies find no place, its shape gives way to its
+    /// gate alone, then to its plain rectangle, and the contents are drawn again from the start of their stream
+    /// (<see cref="PlaceAgainPlainer"/>), so an attempt fails only where it failed without the shapes. With it off every
+    /// floor is version 11's, field for field, but for the version.
     /// </summary>
-    public static class LevelGenerator
+    public static partial class LevelGenerator
     {
         /// <summary>Raise this whenever a change makes old seeds give other levels, and update the golden maps in the tests.</summary>
         // 5: work order 014, fuller rooms and the act boss its own kind; 6: two versions at once, work order 017 (the elite
@@ -83,8 +92,11 @@ namespace Roguelike.Rules
         // 10: work order 041, the floor in one row (LevelValues.InALine, on; off, every seed's floor is version 9's).
         // 11: work order 044, the rooms' mood (LevelValues.RoomMood, on): an ossuary's skull and bone piles banked at its far
         // wall, from the props' own draws; every other room of every seed is version 10's, and with it off every floor is.
-        public const int Version = 11;
+        // 12: work order 051, rooms that are not boxes (LevelValues.Shapes, on: carved outlines and a gate inside every door,
+        // on the stream "shapes"; off, every floor is version 11's).
+        public const int Version = 12;
 
+        public const string ShapesStage = RoomShapes.Stage; // work order 051
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
         public const string PropsStage = "props";
@@ -121,9 +133,11 @@ namespace Roguelike.Rules
                 LevelRandom layout = LevelRandom.Stream(seed, LayoutStage, attempt);
                 if (!(values.InALine ? TryLine(level, layout, values) : TryLayout(level, layout, values))) continue;
 
+                if (values.Shapes && level.InALine) RoomShapes.Carve(level, LevelRandom.Stream(seed, ShapesStage, attempt), values); // work order 051
                 LevelRandom contents = LevelRandom.Stream(seed, ContentsStage, attempt);
                 for (int i = 0; i < contentsWarmUp; i++) contents.NextBits();
-                if (!(fights != null ? PlaceFights(level, fights, contents, values) : PlaceContents(level, contents, values))) continue;
+                if (!(fights != null ? PlaceFights(level, fights, contents, values) : PlaceContents(level, contents, values))
+                    && !PlaceAgainPlainer(level, fights, seed, attempt, contentsWarmUp, values)) continue; // work order 051
 
                 faults = LevelValidator.Validate(level, values);
                 if (faults.Count > 0) continue;
@@ -772,6 +786,8 @@ namespace Roguelike.Rules
             double clear = v.WallClearance + extra;
             if (!(p.X >= room.Rect.X * cs && p.X <= room.Rect.Right * cs && p.Y >= room.Rect.Y * cs && p.Y <= room.Rect.Top * cs)) return "is outside the room";
             if (DistanceToWalls(p, room.Rect, cs) < clear - slack) return "is nearer a wall than " + clear + " m";
+            string carved = RoomShapes.PlaceFault(room, p, cs, clear); // work order 051: off the solid cells, measured to the outline
+            if (carved != null) return carved;
             foreach (LevelDoor d in doors)
                 if (DistanceToDoor(p, d, cs) < clear - slack) return "is nearer a door than " + clear + " m";
             if (entry != null && DistanceToDoor(p, entry, cs) < v.EnemyFromEntry - slack) return "is nearer the door she enters by than " + v.EnemyFromEntry + " m";

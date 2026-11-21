@@ -172,10 +172,13 @@ namespace Roguelike.Rules
                 _niches = niches;
                 _recipe = _tv.Of(_room.Theme, _room.Kind);
                 _bank = values.RoomMood && values.Mood != null && values.Mood.Compose; // work order 044
+                _daisRoom = _bank ? Math.Max(0, values.Mood.DaisMargin) + 0.1 : 0; // work order 051
                 if (_recipe == null || _recipe.Props == null) return;
                 if (_room.Kind == RoomKind.Combat)
                 {
                     double r = _v.WalkRadius, floor = Math.Max(0, (X1 - X0 - 2 * r) * (Y1 - Y0 - 2 * r));
+                    // Work order 051: a carved room's floor is its outline's, counted on the validator's own grid.
+                    if (_room.SolidCount > 0) floor = PropRules.FloorSquares(_level, _room, _v) * _v.LaneGrid * _v.LaneGrid;
                     _mostGrownArea = (1 - _v.MinWalkable) * floor;
                 }
                 double t = RoomThemes.SizeShare(_room, values.Plan.SizeOf(_room.Kind));
@@ -232,6 +235,8 @@ namespace Roguelike.Rules
                 foreach ((LevelPoint at, int rotation, PropPlace place) in places)
                 {
                     if (laneTries >= _v.LaneTriesPerProp) break;
+                    // Work order 051: a place on a carved cell keeps no rule; passed at once (the rules would refuse it the same).
+                    if (_room.SolidCount > 0 && _room.IsSolid((int)Math.Floor(at.X / _cs), (int)Math.Floor(at.Y / _cs))) continue;
                     LevelProp p = LevelProp.Make(model, at, ((rotation % 360) + 360) % 360, place);
                     if (_grownArea + GrownArea(p) > _mostGrownArea) continue;
                     PropFootprint f = p.Footprint;
@@ -347,6 +352,16 @@ namespace Roguelike.Rules
                     int turn = Facing(model, PropRules.Inward(side));
                     for (double a = lo + step; a < hi - 1e-9; a += step) places.Add((OnWall(side, a, depth), turn, PropPlace.Wall));
                 }
+                // Work order 051: the carved cells' faces are walls too (an alcove's back, a pier's side); a low one as the south wall.
+                foreach (WallFace face in RoomShapes.CarvedFaces(_room))
+                {
+                    if (face.Low && !south) continue;
+                    int turn = Facing(model, PropRules.Inward(face.Side));
+                    LevelPoint into = PropRules.Inward(face.Side);
+                    double line = face.Line * _cs;
+                    for (double a = face.From * _cs + step; a < face.To * _cs - 1e-9; a += step)
+                        places.Add((face.Vertical ? new LevelPoint(line + into.X * depth, a) : new LevelPoint(a, line + into.Y * depth), turn, PropPlace.Wall));
+                }
                 rng.Shuffle(places);
                 return places;
             }
@@ -380,7 +395,7 @@ namespace Roguelike.Rules
             {
                 List<LevelPoint> grid = Grid();
                 if (grid.Count == 0) return;
-                var inner = grid.Where(p => LevelGeometry.DistanceToWalls(p, _room.Rect, _cs) >= _tv.ClusterFromWalls).ToList();
+                var inner = grid.Where(p => RoomShapes.DistanceToWalls(_room, p, _cs) >= _tv.ClusterFromWalls).ToList(); // work order 051: to the outline
                 if (inner.Count == 0) inner = grid;
                 LevelPoint first = inner[rng.Below(inner.Count)];
                 var apart = inner.Where(p => p.DistanceTo(first) >= 2 * _v.FloorSpacing).ToList();
@@ -404,6 +419,7 @@ namespace Roguelike.Rules
             }
 
             bool _bank;
+            double _daisRoom; // work order 051: how far the throne keeps from a carved cell, for its dais
 
             /// <summary>
             /// The ossuary's bank (work order 044): set pieces along the wall opposite the door in, a clearance and their reach
@@ -455,8 +471,8 @@ namespace Roguelike.Rules
                 int turn = Turn(model, rng);
                 List<LevelPoint> grid = Grid();
                 grid = fromWallsMost < double.MaxValue
-                    ? grid.Where(p => LevelGeometry.DistanceToWalls(p, _room.Rect, _cs) <= fromWallsMost).ToList()
-                    : grid.Where(p => LevelGeometry.DistanceToWalls(p, _room.Rect, _cs) >= _tv.OpenFromWalls).ToList();
+                    ? grid.Where(p => RoomShapes.DistanceToWalls(_room, p, _cs) <= fromWallsMost).ToList() // work order 051: to the outline
+                    : grid.Where(p => RoomShapes.DistanceToWalls(_room, p, _cs) >= _tv.OpenFromWalls).ToList();
                 rng.Shuffle(grid);
                 Put(model, grid.Select(p => (p, turn, PropPlace.Floor)));
             }
@@ -581,6 +597,21 @@ namespace Roguelike.Rules
                     places.AddRange(Sweep(side, depth, (lo + hi) * 0.5).Select(p => (p, turn, PropPlace.Wall)));
                 }
                 Wall(LevelGenerator.North);
+                // Work order 051: else the northmost carved faces that face south into the room (a gate's back, an apse's
+                // side), nearest the room's middle first.
+                {
+                    int turn = Facing(model, PropRules.Inward(LevelGenerator.North));
+                    double mid = (X0 + X1) * 0.5;
+                    foreach (WallFace face in RoomShapes.CarvedFaces(_room).Where(f => f.Side == LevelGenerator.North)
+                                                   .OrderByDescending(f => f.Line).ThenBy(f => Math.Abs((f.From + f.To) * 0.5 * _cs - mid)))
+                        for (double a = face.From * _cs + _v.PlaceStep; a < face.To * _cs - 1e-9; a += _v.PlaceStep)
+                        {
+                            var at = new LevelPoint(a, face.Line * _cs - depth);
+                            // Only where the north wall is still its nearest side: the throne room's north end.
+                            if (LevelProp.Make(model, at, turn, PropPlace.Wall).Footprint.NearestSide(_room.Rect, _cs, out _) == LevelGenerator.North)
+                                places.Add((at, turn, PropPlace.Wall));
+                        }
+                }
                 // Else the side walls, the one farther from the door in first; never the south wall.
                 LevelDoor entry = LevelGeometry.EntryDoor(_level, _room);
                 LevelPoint door = _room.Middle(_cs);
@@ -592,6 +623,9 @@ namespace Roguelike.Rules
                 bool eastFirst = Math.Abs(X1 - door.X) >= Math.Abs(door.X - X0);
                 Wall(eastFirst ? LevelGenerator.East : LevelGenerator.West);
                 Wall(eastFirst ? LevelGenerator.West : LevelGenerator.East);
+                // Work order 051: in a carved room, room for its dais (work order 044) between it and any carved cell.
+                if (_room.SolidCount > 0 && _daisRoom > 0)
+                    places = places.Where(p => RoomShapes.DistanceToSolid(_room, LevelProp.Make(model, p.Item1, p.Item2, p.Item3).Footprint, _cs) >= _daisRoom).ToList();
                 _throne = Put(model, places);
             }
 

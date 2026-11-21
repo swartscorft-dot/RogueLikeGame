@@ -38,6 +38,10 @@ namespace Roguelike.Rules
     /// the exit, the treasure rooms on it; each room has a door in and a door out (the entrance one out, the exit one in),
     /// so none has three and none is a dead end; every door joins two neighbours of the row; and the chain's way on holds
     /// for every room of it, the treasure rooms too. The side rooms' rules are not asked of it.
+    /// Since work order 051 the rooms' carved outlines: every room with solid cells or a shape keeps the rules of
+    /// <see cref="RoomShapes.Faults"/> (one open area, the open square round its middle, open floor straight in behind every
+    /// door, no dead-end slot, no thin corner, no more than its share solid, and on a carved floor its gate), and the
+    /// enemies, her start and the props keep off the solid cells, measured to the outline.
     /// </summary>
     public static class LevelValidator
     {
@@ -254,6 +258,14 @@ namespace Roguelike.Rules
                 CheckEnemies(level, r, values, faults, Name(r));
             }
 
+            // Work order 051: every room's carved outline keeps the rules of RoomShapes.Faults (its gate among them).
+            foreach (LevelRoom r in rooms)
+            {
+                var broken = new List<string>();
+                RoomShapes.Faults(level, r, values, broken);
+                foreach (string fault in broken) faults.Add(Name(r) + " " + fault);
+            }
+
             // The props (work order 009).
             PropValues pv = values.PropRules;
             // Work order 028: the rooms' themes, each one its kind may have, and no combat theme twice in a row on the chain.
@@ -277,7 +289,10 @@ namespace Roguelike.Rules
                     faults.Add($"{Name(r)} has {r.Props.Count} props, {what} at most {mostIn}");
                 List<PropRules.WallSpan> niches = null;
                 if (r.Props.Any(p => PropSize.Of(p.Model).WallPiece))
+                {
                     niches = PropRules.NichesOf(level, r, kit = kit ?? PropRules.KitPlanForProps(level));
+                    niches.AddRange(PropRules.CarvedNichesOf(level, r, kit)); // work order 051
+                }
                 for (int i = 0; i < r.Props.Count; i++)
                 {
                     LevelProp p = r.Props[i];

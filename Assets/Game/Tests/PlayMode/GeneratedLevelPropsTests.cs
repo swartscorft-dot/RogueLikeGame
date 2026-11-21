@@ -265,7 +265,9 @@ namespace Roguelike.PlayModeTests
                 {
                     double a = k * System.Math.PI / 8;
                     start = new LevelPoint(p.Position.X + System.Math.Sin(a) * (reach + 1.0), p.Position.Y + System.Math.Cos(a) * (reach + 1.0));
-                    found = LevelGeometry.DistanceToWalls(start, placed.Room.Rect, layout.CellSize) > 0.3
+                    // Changed deliberately (work order 051): clear of the walls of the room's outline, its carved cells too.
+                    found = RoomShapes.DistanceToWalls(placed.Room, start, layout.CellSize) > 0.3
+                            && ClearOfCarved(placed.Room, start, p, layout.CellSize)
                             && placed.Room.Props.All(o => o == p || ColliderOf(o, level.LowestPropCollider).DistanceTo(start, p.Position) > 0.05);
                 }
                 Assert.That(found, "a clear place beside " + p);
@@ -279,6 +281,19 @@ namespace Roguelike.PlayModeTests
                 Assert.That(hit.collider.GetComponentInParent<Damageable>(), Is.Null);
                 Assert.That(hit.collider.GetComponentInParent<Enemy>(), Is.Null);
             }
+        }
+
+        /// <summary>Work order 051: the line from a place to a prop passes no carved cell's walls on its way (looked at every 10 cm).</summary>
+        static bool ClearOfCarved(LevelRoom room, LevelPoint start, LevelProp p, double cs)
+        {
+            PropFootprint f = p.Footprint;
+            for (int i = 0; i <= 50; i++)
+            {
+                var q = new LevelPoint(start.X + (p.Position.X - start.X) * i / 50.0, start.Y + (p.Position.Y - start.Y) * i / 50.0);
+                if (f.DistanceTo(q) <= 0) break;
+                if (RoomShapes.DistanceToSolid(room, q, cs) < 0.4) return false;
+            }
+            return true;
         }
 
         [UnityTest]

@@ -19,6 +19,9 @@ namespace Roguelike.Rules
     /// character inside it. The map is two characters to a cell, 2 m each: it shows roughly where, not the shapes.
     /// The first line says the seed, the version and the size, and since work order 028 its legend: each themed room's
     /// label and theme (<see cref="RoomThemes.Word"/>), none when no room has one.
+    /// Work order 051: the walls are drawn by <see cref="LevelLayout.RoomAtCell"/>, so a room's carved outline shows by
+    /// itself: a cell walled round with nothing inside is solid. The room's label stands in its first open cell from the
+    /// north-west.
     /// </summary>
     public static class LevelMap
     {
@@ -66,8 +69,19 @@ namespace Roguelike.Rules
             foreach (LevelRoom room in level.Rooms)
             {
                 string label = room.Letter + room.Order.ToString(CultureInfo.InvariantCulture);
+                // In its north-west corner; work order 051: the first open cell of its northernmost row with one, west first.
+                int lx = room.Rect.X, ly = room.Rect.Top - 1;
+                for (int y = room.Rect.Top - 1, found = 0; y >= room.Rect.Y && found == 0; y--)
+                    for (int x = room.Rect.X; x < room.Rect.Right; x++)
+                        if (room.IsOpen(x, y))
+                        {
+                            lx = x;
+                            ly = y;
+                            found = 1;
+                            break;
+                        }
                 for (int i = 0; i < label.Length; i++)
-                    Put(2 * (room.Rect.X - box.X) + 1 + i, 2 * (room.Rect.Top - 1 - box.Y) + 1, label[i]);
+                    Put(2 * (lx - box.X) + 1 + i, 2 * (ly - box.Y) + 1, label[i]);
             }
             void Point(LevelPoint p, char ch) =>
                 Put((int)Math.Round(2 * (p.X / cs - box.X), MidpointRounding.AwayFromZero),

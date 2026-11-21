@@ -120,7 +120,8 @@ namespace Roguelike.Rules
     /// the niche toward a room; a low one the low wall, its front to the south, toward the camera. A door cell on a full
     /// line gets an arch; one on a low line none (the arch would stand between the camera and the room). Every grid
     /// point a section ends at, and the two ends of every door, gets one pier when a full-height section or arch touches
-    /// it, else one post; never a point inside a door wider than a cell.
+    /// it, else one post; never a point inside a door wider than a cell. Work order 051: a cell carved out of a room has no
+    /// room (<see cref="LevelLayout.RoomAtCell"/>), so its open sides are walls by this same rule, with piers at their ends.
     ///
     /// From the seed: the stream "crypt kit" of the floor's seed and number (<see cref="LevelRandom"/>), which no other
     /// stage reads, so the layout, props and enemies of every seed are what they were. Every full-height section draws
