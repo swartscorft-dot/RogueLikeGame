@@ -1,10 +1,14 @@
 # 0014 Weapon attachments: what lasts between runs, fitted to her pistols
 
-Status: **the producer's proposal, 2026-11-21. The idea is Kristian's (2026-11-20). On 2026-11-21 he ticked "Våpen-attachments" when asked what to build next. It was offered to him as built switched off by default, together with what lasts between runs (decision 0009, a trial that is also off by default). The slots, the parts, the numbers and how they are earned are the producer's proposal. He has not seen them.**
+Status: **the producer's proposal, 2026-11-21. The idea is Kristian's (2026-11-20). On 2026-11-21 he ticked "Våpen-attachments" when asked what to build next. It was offered to him as built switched off by default, together with what lasts between runs (decision 0009, a trial that is also off by default). The slots, the parts, the numbers and how they are earned are the producer's proposal. He has not seen them; what he said about the direction on 2026-11-21 is under "What he said".**
 
 ## What he said
 
 After playing, 2026-11-20: "en ide til metaprogresjon, kan være attachments til våpen. laser sikte = bedre range, osv. noe å ta med til senere." (an idea for meta progression could be attachments for weapons. laser sight = better range, and so on. something to take along for later). Decision 0012 records the same words under "For the between-runs design".
+
+On 2026-11-21 he was asked whether fixed, named, bought parts that are each a trade are inside the pillars' rule "no gear or loot with stats". His answer: "Ja, ikke nødvendigvis et bytte, men ser for meg at man setter sammen et slags loadout før run ettersom man unlocker flere attachments. Samme til shotgunnet osv. og nye våpen om vi skulle lage det etter hvert." (Yes; not necessarily a trade, but I picture putting together a kind of loadout before a run as one unlocks more attachments. The same for the shotgun and so on, and new weapons if we make them later.)
+
+So, by his word: attachments are inside the rule; a part may be a plain gain, and the cost on each of the first four is the producer's first guess, not a rule of the system; what he pictures is a **loadout put together before a run**, growing as parts are unlocked; and it is **per weapon**: the shotgun gets parts too, and so does any weapon made later. This answers open questions 1, 2 and 3 below. The first order (060) keeps its four parts on the pistols and makes the data per weapon so that the rest is rows of data.
 
 ## What follows
 
