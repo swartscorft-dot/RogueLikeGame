@@ -416,14 +416,14 @@ namespace Roguelike.PlayModeTests
             try
             {
                 EnemyShooter shooter = Shooter();
-                shooter.Floor = 3;
+                shooter.Floor = 4; // work order 046: fans from floor 4
                 shooter.Tuning.FanEvery = 2; // the second shot a fan, so the test need not wait for the third
                 StandSouthOf(shooter, 10f);
                 shooter.Provoke();
                 yield return Until(() => shooter.Strikes >= 1, 5f);
                 Assert.That(Flying(shooter).Count, Is.EqualTo(1), "the first: one arrow");
                 yield return Until(() => shooter.State == EnemyState.Windup && shooter.Attack.Name == ShooterValues.ArrowFan, 4f);
-                Assert.That(shooter.Attack.Name, Is.EqualTo(ShooterValues.ArrowFan), "the second is a fan on floor 3");
+                Assert.That(shooter.Attack.Name, Is.EqualTo(ShooterValues.ArrowFan), "the second is a fan on floor 4");
                 Assert.That(shooter.Attack.Windup, Is.GreaterThan(CasterTactics.Find(shooter.Tuning.Arrows, ShooterValues.Arrow).Windup), "drawn a little longer");
                 int fired = _fly.Fired;
                 yield return Until(() => shooter.Strikes >= 2, 3f);
@@ -792,7 +792,10 @@ namespace Roguelike.PlayModeTests
             {
                 var off = rows.Single(r => r.kind == kind && r.run == Run.Stands && !r.on);
                 var on = rows.Single(r => r.kind == kind && r.run == Run.Stands && r.on);
-                Assert.That(on.damage, Is.GreaterThanOrEqualTo(off.damage), kind + ": standing still she takes at least what she took");
+                // Work order 046: the arrow rests 1.8 s (the test pilot's flights of the night of 2026-11-20), about 2.7 s from
+                // shot to shot against the old shot's 2.4 s, so standing still she takes about nine tenths of what she took.
+                float least = kind == EnemyKind.Shooter ? 0.8f : 1f;
+                Assert.That(on.damage, Is.GreaterThanOrEqualTo(Mathf.FloorToInt(least * off.damage)), kind + ": standing still she takes at least what she took (" + least + " of it)");
             }
             var straight = rows.Single(r => r.kind == EnemyKind.Shooter && r.run == Run.Straight && r.on);
             Assert.That(straight.hits, Is.LessThanOrEqualTo(2), "running straight across she is hit by two arrows at most (work order 039)");
@@ -837,7 +840,7 @@ namespace Roguelike.PlayModeTests
         {
             int hits = 0, shots = 0;
             yield return ArrowCase(Run.Stands, 12f, (h, n) => { hits = h; shots = n; });
-            Assert.That(shots, Is.GreaterThanOrEqualTo(13), "a shot every two seconds or so");
+            Assert.That(shots, Is.GreaterThanOrEqualTo(10), "a shot every 2.7 s or so (work order 046: it rests 1.8 s; 13 at 1.2 s)");
             Assert.That(hits, Is.EqualTo(shots), "standing still every arrow hits");
         }
 
@@ -846,7 +849,7 @@ namespace Roguelike.PlayModeTests
         {
             int hits = 0, shots = 0;
             yield return ArrowCase(Run.Straight, 12f, (h, n) => { hits = h; shots = n; });
-            Assert.That(shots, Is.GreaterThanOrEqualTo(13));
+            Assert.That(shots, Is.GreaterThanOrEqualTo(10)); // work order 046: it rests 1.8 s (13 at 1.2 s)
             Assert.That(hits, Is.LessThanOrEqualTo(2), "running straight across, back and forth over 12 m");
         }
 
@@ -862,7 +865,7 @@ namespace Roguelike.PlayModeTests
         {
             int hits = 0, shots = 0;
             yield return ArrowCase(Run.Turns, 12f, (h, n) => { hits = h; shots = n; });
-            Assert.That(shots, Is.GreaterThanOrEqualTo(13));
+            Assert.That(shots, Is.GreaterThanOrEqualTo(10)); // work order 046: it rests 1.8 s (13 at 1.2 s)
             Assert.That(hits, Is.LessThanOrEqualTo(3), "running and turning back every second");
         }
 
@@ -871,7 +874,7 @@ namespace Roguelike.PlayModeTests
         {
             int hits = 0, shots = 0;
             yield return ArrowCase(Run.AtAndAway, 12f, (h, n) => { hits = h; shots = n; });
-            Assert.That(shots, Is.GreaterThanOrEqualTo(13));
+            Assert.That(shots, Is.GreaterThanOrEqualTo(10)); // work order 046: it rests 1.8 s (13 at 1.2 s)
             Assert.That(hits, Is.GreaterThan(shots / 2), "running straight at it and away, most arrows hit");
         }
 
@@ -886,7 +889,7 @@ namespace Roguelike.PlayModeTests
             int hits = 0, shots = 0;
             yield return ArrowCase(Run.Sidestep, 12f, (h, n) => { hits = h; shots = n; });
             yield return ArrowCase(Run.Sidestep, 6.5f, (h, n) => { });
-            Assert.That(shots, Is.GreaterThanOrEqualTo(13));
+            Assert.That(shots, Is.GreaterThanOrEqualTo(10)); // work order 046: it rests 1.8 s (13 at 1.2 s)
             Assert.That(hits, Is.EqualTo(0), "a sidestep 0.25 s after the release at 12 m: every arrow misses");
         }
 
@@ -944,7 +947,7 @@ namespace Roguelike.PlayModeTests
             _levels.ClearSpawned();
             yield return null;
             EnemyShooter fanner = Shooter();
-            fanner.Floor = 3;
+            fanner.Floor = 4; // work order 046: fans from floor 4
             fanner.Tuning.FanEvery = 1; // every shot a fan
             StandSouthOf(fanner, 10f);
             fanner.Provoke();

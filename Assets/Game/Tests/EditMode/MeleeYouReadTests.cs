@@ -99,7 +99,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(bash.Length, Is.EqualTo(5f), "a lunge of up to 5 m");
             Assert.That(bash.Windup - bash.MoveSeconds, Is.EqualTo(0.6f).Within(1e-4f), "the shield raised for 0.6 s");
             Assert.That(bash.MoveSeconds, Is.EqualTo(0.3f).Within(1e-4f));
-            Assert.That(bash.Cooldown, Is.EqualTo(6f));
+            Assert.That(bash.Cooldown, Is.EqualTo(9f)); // work order 046's flights (6 s before)
 
             Assert.That(drag.Move, Is.EqualTo(MeleeMove.Drag));
             Assert.That(drag.Counterable, Is.True, "blue");
@@ -250,7 +250,7 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void TheBrute_StrokesInReach_BashesFrom3To6Metres_EverySixSeconds()
+        public void TheBrute_StrokesInReach_BashesFrom3To6Metres_EveryNineSeconds()
         {
             EnemyAttackDefinition[] set = MeleeAttacks.Brute();
             var t = new MeleeTactics();
@@ -258,8 +258,8 @@ namespace Roguelike.Rules.Tests
             EnemyAttackDefinition bash = t.Choose(0f, 4.5f, set);
             Assert.That(bash.Name, Is.EqualTo(MeleeAttacks.ShieldBash));
             t.Began(bash, 0f);
-            Assert.That(t.Choose(5.9f, 4.5f, set), Is.Null);
-            Assert.That(t.Choose(6f, 4.5f, set).Name, Is.EqualTo(MeleeAttacks.ShieldBash));
+            Assert.That(t.Choose(8.9f, 4.5f, set), Is.Null); // work order 046: every 9 s (6 before)
+            Assert.That(t.Choose(9f, 4.5f, set).Name, Is.EqualTo(MeleeAttacks.ShieldBash));
             Assert.That(t.Choose(0f, 2.6f, set), Is.Null, "between them it walks");
             Assert.That(t.Choose(0f, 8f, set), Is.Null, "nothing from afar");
         }

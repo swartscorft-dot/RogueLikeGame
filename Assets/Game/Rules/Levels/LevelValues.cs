@@ -35,6 +35,17 @@ namespace Roguelike.Rules
     {
         public int CombatRooms = 4;
         public int TreasureRooms = 2;
+        /// <summary>
+        /// Ordinary combat rooms a floor in a line has besides <see cref="CombatRooms"/> (work order 046, Kristian's third
+        /// session of 2026-11-20: "Etasjene er litt korte", the floors are a little short): 1, so five combat rooms, the
+        /// elite room among them (<see cref="LineBetween"/>: C C T L C T C). Each one's enemies are drawn on a stream of their
+        /// own, so the four of version 10 keep theirs (<see cref="LevelGenerator"/>, version 11). 0: version 10's four. With
+        /// <see cref="LevelValues.InALine"/> off it is not read.
+        /// </summary>
+        public int MoreCombatRooms = 1;
+
+        /// <summary>The combat rooms of a floor in a line: <see cref="CombatRooms"/> and <see cref="MoreCombatRooms"/> (work order 046).</summary>
+        public int LineCombatRooms => Math.Max(0, CombatRooms) + Math.Max(0, MoreCombatRooms);
 
         public RoomSizeRange EntranceSize = new RoomSizeRange(4, 4);
         public RoomSizeRange CombatSize = new RoomSizeRange(5, 7);
@@ -62,9 +73,12 @@ namespace Roguelike.Rules
         /// treasure rooms (fewer combat rooms than treasure rooms and one, no plan of this game) the rest stand after the
         /// last combat room.
         /// </summary>
-        public List<RoomKind> LineBetween()
+        public List<RoomKind> LineBetween() => LineBetween(LineCombatRooms);
+
+        /// <summary>The row as <see cref="LineBetween()"/> says, for <paramref name="combatRooms"/> combat rooms.</summary>
+        public List<RoomKind> LineBetween(int combatRooms)
         {
-            int n = Math.Max(0, CombatRooms), treasures = Math.Max(0, TreasureRooms);
+            int n = Math.Max(0, combatRooms), treasures = Math.Max(0, TreasureRooms);
             int middle = n / 2 + 1;
             var gaps = new List<int>();
             void Take(int gap)
@@ -408,8 +422,12 @@ namespace Roguelike.Rules
         /// floor's number from 1 (past the end, its last). The act boss is not scaled, and an elite's own scale multiplies
         /// with it. All 1 before: every floor dealt the same, and the pilots died on floors 2 and 3. Flown (work order 030,
         /// round 2, with the room heal): every Ace reached floor 3 (one of three before), the Kiter two of three (one).
+        /// Work order 046 (the test pilot's flights of the night of 2026-11-20, with the enemies of work orders 035 and 036
+        /// and five combat rooms a floor): 0.6, 0.6, 0.7, 0.8, 0.85 (0.7, 0.8, 0.9, 1, 1 before). With the brute's, the
+        /// guard's and the shooter's own numbers eased in three rounds every pilot still died on floor 2 or 3, losing on
+        /// floors 2 and 3 about twice what the rooms gave back; Kristian's third session, on floor 2 three times.
         /// </summary>
-        public float[] FloorDamageScale = { 0.7f, 0.8f, 0.9f, 1f, 1f };
+        public float[] FloorDamageScale = { 0.6f, 0.6f, 0.7f, 0.8f, 0.85f };
 
         /// <summary>The scale of what a floor's enemies deal (work order 030, lever B); 1 without a table.</summary>
         public float DamageScaleOf(int floor)

@@ -239,7 +239,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(plain.Body.MaxHealth, Is.EqualTo(v.EnemyHealth));
             // Work order 030, lever B: floor 1's enemies deal 0.7 of their attacks, and an elite's quarter more multiplies with it.
             float floorScale = v.DamageScaleOf(1);
-            Assert.That(floorScale, Is.EqualTo(0.7f));
+            Assert.That(floorScale, Is.EqualTo(0.6f)); // work order 046: floor 1 deals 0.6 (0.7 before)
             Assert.That(elite.DamageScale, Is.EqualTo(1.25f * floorScale).Within(1e-5f), "a quarter more damage, times floor 1's");
             Assert.That(plain.DamageScale, Is.EqualTo(floorScale).Within(1e-6f));
             Assert.That(elite.transform.localScale.x / plain.transform.localScale.x, Is.EqualTo(4f / 3f).Within(1e-4f), "a third larger");
@@ -259,7 +259,7 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => took >= 0 || !_health.IsAlive, 8f);
             Assume.That(took, Is.GreaterThan(0), "it struck her");
             int[] scaled = elite.Values.Attacks.Select(a => Mathf.RoundToInt(a.Damage * elite.DamageScale)).ToArray();
-            Assert.That(scaled, Does.Contain(took), "a quarter more than one of its attacks, times floor 1's 0.7");
+            Assert.That(scaled, Does.Contain(took), "a quarter more than one of its attacks, times floor 1's 0.6 (work order 046)");
         }
 
         [UnityTest]

@@ -551,6 +551,13 @@ namespace Roguelike.PlayModeTests
             if (fights != null)
                 sb.Append(string.Format(s_Inv, "enemy strikes in fights: {0} attacks, {1} landed, {2} out of the area, {3} avoided by the dash; {4} dashes\n",
                                         fights.EnemyAttacks, fights.StrikesLanded, fights.StrikesOutOfArea, fights.StrikesAvoidedByDash, fights.Dashes));
+            // Work order 046: what held her, and what flew at her and how it ended.
+            List<SessionEvent> flown = events.Where(e => e.Type == SessionEventTypes.EnemyStrike && e.Enemy != null
+                                                         && (e.Enemy.EndsWith("shooter", StringComparison.Ordinal) || e.Enemy.EndsWith("caster", StringComparison.Ordinal)
+                                                             || e.Name == BossValues.Wave)).ToList();
+            sb.Append(string.Format(s_Inv, "held: stunned {0} times, pulled {1} times; things that flew at her: {2}, {3} met her, {4} stopped by a wall or prop, {5} flew past\n",
+                                    _player.TimesStunned, _player.TimesPulled, flown.Count, flown.Count(e => e.Result == SessionWords.Landed),
+                                    flown.Count(e => e.Result == SessionWords.StoppedByWall), flown.Count(e => e.Result == SessionWords.OutOfArea)));
             sb.Append(string.Format(s_Inv, "kit: {0} marks added, {1} spender hits ({2} marks each), {3} clean presses of {4} last presses, focus spent {5} times, {6} perfect Long Shots, {7} counters\n",
                                     stats.Kit.MarksAdded, stats.Kit.SpenderHits, F(stats.Kit.MarksPerSpenderHit, "0.0"), stats.Kit.CleanPresses, stats.Kit.LastPresses,
                                     fights != null ? fights.FocusSpent : 0, _player.PerfectReleases, _player.Counters));

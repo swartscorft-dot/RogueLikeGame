@@ -98,7 +98,8 @@ namespace Roguelike.Rules
                 if (n != wanted) faults.Add($"{n} {kind} rooms, the plan has {wanted}");
             }
             Count(RoomKind.Entrance, 1);
-            Count(RoomKind.Combat, plan.CombatRooms);
+            int combatRooms = level.InALine ? plan.LineCombatRooms : plan.CombatRooms; // work order 046: a row has one more
+            Count(RoomKind.Combat, combatRooms);
             Count(RoomKind.Treasure, plan.TreasureRooms);
             Count(RoomKind.Exit, 1);
 
@@ -171,7 +172,7 @@ namespace Roguelike.Rules
             for (int i = 1; i < path.Count; i++)
                 if (!Joined(path[i - 1].Order, path[i].Order)) faults.Add($"no door from {Name(path[i - 1])} to {Name(path[i])} on the main path");
             // The elite room (work order 017): the plan's combat room of the chain, and no other.
-            int eliteNumber = plan.EliteRoomNumber(plan.CombatRooms);
+            int eliteNumber = plan.EliteRoomNumber(combatRooms);
             List<LevelRoom> combatsInOrder = path.Where(r => r.Kind == RoomKind.Combat).ToList();
             for (int i = 0; i < combatsInOrder.Count; i++)
             {

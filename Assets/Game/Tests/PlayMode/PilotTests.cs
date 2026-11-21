@@ -71,7 +71,7 @@ namespace Roguelike.PlayModeTests
         }
 
         /// <summary>Ticks the pilot once a frame until the condition holds or that much game time has gone.</summary>
-        IEnumerator Fly(Pilot pilot, Func<bool> done, float seconds)
+        IEnumerator Fly(Pilot pilot, Func<bool> done, float seconds, Action<PilotView> watch = null)
         {
             var eyes = new PilotEyes(_player, _levels);
             var view = new PilotView();
@@ -83,6 +83,7 @@ namespace Roguelike.PlayModeTests
                 // removed has its elite room cleared, and its choice pauses the game).
                 PilotFlight.TakeFirstSkillUpgrade(_levels);
                 eyes.Look(view);
+                watch?.Invoke(view); // work order 046: what the pilot saw this frame, for the tests of its senses
                 pilot.Tick(view);
                 if (pilot.WantsChest) _levels.OpenChest();
                 yield return null;
@@ -113,6 +114,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheKiter_LeavesATelegraphItStandsIn_BeforeTheStrike_AndIsNotHit()
         {
+            _player.MeleeYouRead = false; // work order 046: a floor shape, so the guard's attacks from before work order 035
             _player.EquipStartSkills();
             EnemyGuard guard = _levels.SpawnPractice(EnemyKind.Guard).OfType<EnemyGuard>().Single();
             yield return null;
@@ -134,6 +136,185 @@ namespace Roguelike.PlayModeTests
             Assert.That(guard.Strikes, Is.GreaterThanOrEqualTo(1), "the strike came");
             Assert.That(guard.StrikesLanded, Is.EqualTo(0), "and missed her");
             Assert.That(_health.Current, Is.EqualTo(health), "she took nothing");
+        }
+
+        // ---------------- Work order 046: what a person sees ----------------
+
+        /// <summary>
+        /// Work order 046: a guard's Crush is read on its body (no floor shape). The pilot knows of it from the start of its
+        /// wind-up plus the reaction time, not before, with its area as the rules have it; the Kiter steps out of it before
+        /// the strike and is not hit.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheKiter_SeesABodyReadWindup_AndStepsOutOfASkillsArea()
+        {
+            Assert.That(_player.MeleeYouRead, Is.True, "melee you read is on");
+            _player.EquipStartSkills();
+            EnemyGuard guard = _levels.SpawnPractice(EnemyKind.Guard).OfType<EnemyGuard>().Single();
+            guard.HealthOverride = 1000000;
+            yield return null;
+            Vector3 g = guard.transform.position;
+            Vector3 away = new Vector3(Stand.x - g.x, 0f, Stand.z - g.z).normalized;
+            _player.Teleport(g + away * 2f);
+            yield return null;
+            // A fresh guard 2 m from her starts with its Crush (a skill: 1.1 s, 40, an arc 3.2 m long), she inside it.
+            float until = Time.time + 3f;
+            while (guard.State != EnemyState.Windup && Time.time < until) yield return null;
+            Assert.That(guard.State, Is.EqualTo(EnemyState.Windup), "the guard winds up");
+            Assert.That(guard.Attack.Name, Is.EqualTo(MeleeAttacks.Crush), "its Crush");
+            Assert.That(guard.IsTelegraphing, Is.False, "with no shape on the floor");
+            float began = Time.time - (guard.Attack.Windup - guard.WindupRemaining);
+            int health = _health.Current;
+            float firstSeen = -1f;
+            bool seenAsRules = false, wasOutOfAnArea = false;
+            var kiter = new Kiter(new PilotBody(_player, _health));
+            yield return Fly(kiter, () => guard.Strikes >= 1, 5f, view =>
+            {
+                if (kiter.Mode.Contains("out of an attack's area")) wasOutOfAnArea = true;
+                foreach (EnemySeen e in view.Enemies)
+                {
+                    if (e.Id != guard.Id || !e.Winding) continue;
+                    if (firstSeen < 0f) firstSeen = Time.time;
+                    seenAsRules = e.ReadOnBody && e.Attack == MeleeAttacks.Crush && e.Shape == EnemyAttackShape.Cone
+                                  && Mathf.Approximately(e.Reach, guard.Attack.Length) && !e.Counterable;
+                }
+            });
+            Assert.That(firstSeen, Is.GreaterThanOrEqualTo(began + PilotEyes.ReactionTime - 1e-3f), "not seen before the reaction time");
+            Assert.That(seenAsRules, Is.True, "seen as the Crush, read on the body, its arc as the rules strike it");
+            Assert.That(wasOutOfAnArea, Is.True, "the Kiter stepped out of its area (it was: " + kiter.Mode + ")");
+            Assert.That(guard.Strikes, Is.GreaterThanOrEqualTo(1), "the strike came");
+            Assert.That(guard.StrikesLanded, Is.EqualTo(0), "and missed her");
+            Assert.That(_health.Current, Is.EqualTo(health), "she took nothing");
+        }
+
+        /// <summary>
+        /// Work order 046: the brute's stroke comes too quickly to step out of once seen, so the Kiter keeps out of its reach.
+        /// The brute's Shield bash is held off, so that the stroke is what it has.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheKiter_KeepsOutOfAMeleeEnemysReach()
+        {
+            _player.EquipStartSkills();
+            EnemyBrute brute = _levels.SpawnPractice(EnemyKind.Brute).OfType<EnemyBrute>().Single();
+            brute.enabled = true; // a copy of the practice brute, switched off in the set-up
+            brute.HealthOverride = 1000000;
+            yield return null;
+            Vector3 b = brute.transform.position;
+            Vector3 away = new Vector3(Stand.x - b.x, 0f, Stand.z - b.z).normalized;
+            _player.Teleport(b + away * 5f);
+            yield return null;
+            EnemyAttackDefinition stroke = MeleeAttacks.Find(brute.AttacksNow, MeleeAttacks.Stroke);
+            EnemyAttackDefinition bash = MeleeAttacks.Find(brute.AttacksNow, MeleeAttacks.ShieldBash);
+            bool heldOff = false;
+            float inReach = 0f, fought = 0f;
+            int health = _health.Current;
+            var kiter = new Kiter(new PilotBody(_player, _health));
+            yield return Fly(kiter, () => false, 6f, view =>
+            {
+                // Awake, the bash is made to wait (its cooldown from far in the future): a wake clears the brute's cooldowns.
+                if (brute.IsAwake && !heldOff)
+                {
+                    brute.Tactics.Began(bash, 1e6f);
+                    heldOff = true;
+                }
+                if (!brute.IsAwake) return;
+                fought += Time.deltaTime;
+                Vector3 p = _player.Position, q = brute.transform.position;
+                if (new Vector2(p.x - q.x, p.z - q.z).magnitude <= stroke.Length + Placeholders.PlayerRadius) inReach += Time.deltaTime;
+            });
+            Assert.That(heldOff, Is.True, "the brute woke");
+            Assert.That(fought, Is.GreaterThan(4f), "it fought for a while");
+            Assert.That(inReach / fought, Is.LessThan(0.15f), "she stood within the stroke's reach for little of the fight");
+            Assert.That(brute.StrikesLanded, Is.LessThanOrEqualTo(1), "a stroke landed once at most");
+            Assert.That(_health.Current, Is.GreaterThanOrEqualTo(health - stroke.Damage), "she took one stroke at most");
+        }
+
+        /// <summary>An arrow of a shooter's, loosed from <paramref name="distance"/> straight at her; the shooter kept out of the game.</summary>
+        IEnumerator LooseAnArrowAt(float distance, Action<EnemyShooter> loosed)
+        {
+            EnemyShooter shooter = _levels.SpawnPractice(EnemyKind.Shooter).OfType<EnemyShooter>().Single();
+            yield return null;
+            // Out of the game but there: an arrow tells its owner how it ended, and the owner hurts her.
+            shooter.gameObject.SetActive(false);
+            Vector3 her = _player.Position;
+            Vector3 from = her;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 dir = Quaternion.Euler(0f, i * 45f, 0f) * Vector3.forward;
+                Vector3 p = her + dir * distance;
+                if (Cover.ClearDistance(new GroundPoint(her.x, her.z), new GroundPoint(p.x, p.z)) < distance - 0.01f) continue;
+                if (UnityEngine.AI.NavMesh.Raycast(her, p, out UnityEngine.AI.NavMeshHit _, UnityEngine.AI.NavMesh.AllAreas)) continue;
+                from = p;
+                break;
+            }
+            Assert.That(Vector3.Distance(from, her), Is.GreaterThan(distance - 0.1f), "a clear line " + distance + " m long");
+            EnemyAttackDefinition arrow = CasterTactics.Find(shooter.Tuning.Arrows, ShooterValues.Arrow);
+            var dirToHer = new GroundPoint(her.x - from.x, her.z - from.z);
+            ThingsThatFly.Ensure().Fire(shooter, arrow, ProjectileRules.Arrow(shooter.Tuning, new GroundPoint(from.x, from.z), dirToHer));
+            loosed(shooter);
+        }
+
+        /// <summary>Work order 046: an arrow loosed at her from 13 m is seen in time, and the Kiter steps out of its path.</summary>
+        [UnityTest]
+        public IEnumerator TheKiter_StepsOutOfAnArrowsPath_At13m()
+        {
+            _player.EquipStartSkills();
+            EnemyShooter shooter = null;
+            yield return LooseAnArrowAt(13f, s => shooter = s);
+            int health = _health.Current;
+            bool seen = false, stepped = false;
+            var kiter = new Kiter(new PilotBody(_player, _health));
+            yield return Fly(kiter, () => ThingsThatFly.Current.Live == 0, 3f, view =>
+            {
+                if (view.Flying.Count > 0)
+                {
+                    seen = true;
+                    Assert.That(view.Flying[0].Age, Is.GreaterThanOrEqualTo(PilotEyes.ReactionTime - 1e-3f), "not seen before the reaction time");
+                    Assert.That(view.Flying[0].Speed, Is.EqualTo(shooter.Tuning.ArrowSpeed).Within(1e-3f));
+                }
+                if (kiter.Mode.Contains("arrow's path")) stepped = true;
+            });
+            Assert.That(seen, Is.True, "the arrow was seen");
+            Assert.That(stepped, Is.True, "the Kiter stepped out of its path (it was: " + kiter.Mode + ")");
+            Assert.That(shooter.StrikesLanded, Is.EqualTo(0), "it missed her");
+            Assert.That(_health.Current, Is.EqualTo(health), "she took nothing");
+        }
+
+        /// <summary>Work order 046: an arrow loosed from 3 m meets her before the reaction time is up: never seen, and it hits.</summary>
+        [UnityTest]
+        public IEnumerator TheKiter_IsHitByAnArrow_ItCouldNotHaveSeenInTime()
+        {
+            _player.EquipStartSkills();
+            EnemyShooter shooter = null;
+            yield return LooseAnArrowAt(3f, s => shooter = s);
+            int health = _health.Current;
+            bool seen = false;
+            var kiter = new Kiter(new PilotBody(_player, _health));
+            yield return Fly(kiter, () => ThingsThatFly.Current.Live == 0, 3f, view => seen |= view.Flying.Count > 0);
+            Assert.That(seen, Is.False, "it was never seen: it met her within the reaction time");
+            Assert.That(shooter.StrikesLanded, Is.EqualTo(1), "it hit her");
+            Assert.That(_health.Current, Is.LessThan(health), "she was hurt");
+        }
+
+        /// <summary>Work order 046: stunned, the pilot does nothing; when the stun ends it acts again.</summary>
+        [UnityTest]
+        public IEnumerator APilot_DoesNothingWhileStunned_AndActsAfter()
+        {
+            _player.EquipStartSkills();
+            EnemyGuard guard = _levels.SpawnPractice(EnemyKind.Guard).OfType<EnemyGuard>().Single();
+            guard.HealthOverride = 1000000;
+            yield return null;
+            var body = new PilotBody(_player, _health);
+            var kiter = new Kiter(body);
+            Assert.That(_player.Stun(1f, "test"), Is.True, "she is stunned");
+            body.ResetCounts();
+            bool stunnedMode = false;
+            yield return Fly(kiter, () => !_player.IsStunned, 2f, view => stunnedMode |= kiter.Mode == "stunned");
+            Assert.That(stunnedMode, Is.True, "the pilot knew she was stunned");
+            Assert.That(body.MovingSteers + body.DashPresses + body.SkillPresses + body.Clicks, Is.EqualTo(0), "it did nothing while she was stunned");
+            Assert.That(_player.IsStunned, Is.False, "the stun ended");
+            yield return Fly(kiter, () => body.MovingSteers + body.Clicks + body.SkillPresses > 0, 2f);
+            Assert.That(body.MovingSteers + body.Clicks + body.SkillPresses, Is.GreaterThan(0), "and then it acted (it was: " + kiter.Mode + ")");
         }
 
         [UnityTest]
@@ -239,7 +420,7 @@ namespace Roguelike.PlayModeTests
                 foreach (ParameterInfo a in m.GetParameters())
                     Assert.That(Allowed(a.ParameterType.IsByRef ? a.ParameterType.GetElementType() : a.ParameterType), Is.True, "PilotBody." + m.Name);
             }
-            foreach (Type t in new[] { typeof(PilotView), typeof(EnemySeen), typeof(RoomSeen), typeof(DoorSeen), typeof(ChestSeen), typeof(PilotSkill) })
+            foreach (Type t in new[] { typeof(PilotView), typeof(EnemySeen), typeof(RoomSeen), typeof(DoorSeen), typeof(ChestSeen), typeof(PilotSkill), typeof(FlyingSeen) })
                 foreach (FieldInfo f in t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
                     Assert.That(Allowed(f.FieldType), Is.True, t.Name + "." + f.Name);
         }

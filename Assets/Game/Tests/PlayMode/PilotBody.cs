@@ -72,6 +72,10 @@ namespace Roguelike.PlayModeTests
         public float DashDistance => _p.Feel.DashDistance;
         public float BasicShotRange => _p.Feel.BasicShotRange;
         public bool IsLocked => _p.IsLocked;
+        /// <summary>Stunned or pulled (work order 035): she cannot act; the word over her says which (work order 046).</summary>
+        public bool IsHeld => _p.IsHeld;
+        public bool IsStunned => _p.IsStunned;
+        public bool IsPulled => _p.IsPulled;
         public bool IsDashing => _p.IsDashing;
         public bool InLightSkill => _p.IsInLightSkill;
         public bool HasPendingShot => _p.HasPendingShot;

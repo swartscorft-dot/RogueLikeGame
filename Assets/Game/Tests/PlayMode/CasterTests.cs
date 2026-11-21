@@ -748,7 +748,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             EnemyCaster caster = level.Enemies.OfType<EnemyCaster>().First(e => !e.IsElite);
             float scale = values.DamageScaleOf(2);
-            Assert.That(scale, Is.EqualTo(0.8f));
+            Assert.That(scale, Is.EqualTo(0.6f)); // work order 046: floor 2 deals 0.6 (0.8 before)
             Assert.That(caster.DamageScale, Is.EqualTo(scale).Within(1e-5f), "the floor's scale");
             Assert.That(caster.TakesTurns, Is.True, "a floor's caster takes turns");
             Assert.That(caster.Body.MaxHealth, Is.EqualTo(values.CasterHealth));
@@ -759,7 +759,7 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(Flat(caster.transform.position) + dir * 8f);
             yield return Until(() => got >= 0, 15f);
             Debug.Log(string.Format(s_Inv, "CASTERFLOOR2 seed {0}: a circle of a floor-2 caster hurt her by {1} ({2} times {3})", seed, got, scale, spikes.Damage));
-            Assert.That(got, Is.EqualTo(Mathf.RoundToInt(spikes.Damage * scale)), "a floor-2 caster's Bone Spikes: 0.8 of 25");
+            Assert.That(got, Is.EqualTo(Mathf.RoundToInt(spikes.Damage * scale)), "a floor-2 caster's Bone Spikes: 0.6 of 25 (work order 046)");
             _levels.BackToPracticeRoom();
         }
 

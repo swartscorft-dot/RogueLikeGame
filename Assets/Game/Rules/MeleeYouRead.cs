@@ -69,13 +69,18 @@ namespace Roguelike.Rules
             new EnemyAttackDefinition
             {
                 Name = Stroke, Shape = EnemyAttackShape.Cone, MinDistance = 0f, MaxDistance = 2.2f,
-                Windup = 0.35f, Recovery = 0.75f, Damage = 13, Length = 2.2f, Angle = 100f, Ordinary = true,
+                // Damage 10 (13 before): the test pilot's flights of the night of 2026-11-20 (work order 046) had the
+                // brute the first source of her damage (a third of it), its Stroke a sixth, the pilots dying on floor 2.
+                Windup = 0.35f, Recovery = 0.75f, Damage = 10, Length = 2.2f, Angle = 100f, Ordinary = true,
             },
             new EnemyAttackDefinition
             {
                 Name = ShieldBash, Shape = EnemyAttackShape.Circle, MinDistance = 3f, MaxDistance = 6f,
+                // Cooldown 9 s (6 before): the same flights (work order 046) had the bash a fifth of her damage, and its
+                // stun the start of most strokes that landed (two to seven stuns a run); Kristian's third session, ten
+                // stuns in ten minutes.
                 Windup = 0.9f, Recovery = 0.8f, Damage = 15, Radius = 1.3f, Length = 5f, HalfWidth = 0.6f,
-                Counterable = true, Cooldown = 6f, Move = MeleeMove.Lunge, MoveSeconds = 0.3f, Stun = 0.5f,
+                Counterable = true, Cooldown = 9f, Move = MeleeMove.Lunge, MoveSeconds = 0.3f, Stun = 0.5f,
             },
         };
 
@@ -90,7 +95,9 @@ namespace Roguelike.Rules
             new EnemyAttackDefinition
             {
                 Name = Fist, Shape = EnemyAttackShape.Cone, MinDistance = 0f, MaxDistance = 2.6f,
-                Windup = 0.5f, Recovery = 1.3f, Damage = 24, Length = 2.6f, Angle = 90f, Ordinary = true,
+                // Damage 18 (24 before; 18 is what work order 035 first asked): the test pilot's flights of the night of
+                // 2026-11-20 (work order 046) had the guard's Fist land at every floor-2 death in a guard's room.
+                Windup = 0.5f, Recovery = 1.3f, Damage = 18, Length = 2.6f, Angle = 90f, Ordinary = true,
             },
             new EnemyAttackDefinition
             {

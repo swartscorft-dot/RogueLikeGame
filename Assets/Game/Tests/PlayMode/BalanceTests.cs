@@ -411,37 +411,37 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator AFloorOneEnemy_HurtsHerBy07OfItsAttack_AFloorFourOne_ByAllOfIt_TheBossAndThePracticeEnemies_ByAllOfIt()
+        public IEnumerator AFloorOneEnemy_HurtsHerBy06OfItsAttack_AFloorFourOne_By08_TheBossAndThePracticeEnemies_ByAllOfIt()
         {
             LotsOfHealth();
             var values = new LevelValues();
             Time.timeScale = 2f;
             var took = new int[1];
 
-            // Floor 1: 0.7.
+            // Floor 1: 0.6 (work order 046's flights; 0.7 before).
             GeneratedLevel level = _levels.StartRun(0x12345678UL);
             yield return null;
             Enemy one = level.Enemies.First(e => e.Kind == EnemyKind.Brute && !e.IsElite);
-            Assert.That(one.DamageScale, Is.EqualTo(0.7f).Within(1e-6f), "a floor-1 enemy deals 0.7");
-            Assert.That(level.Elite.DamageScale, Is.EqualTo(values.EliteDamageScale * 0.7f).Within(1e-5f), "its elite 1.25 x 0.7");
-            Assert.That(level.Enemies.Where(e => !e.IsElite).All(e => Mathf.Abs(e.DamageScale - 0.7f) < 1e-6f), Is.True, "every one of floor 1");
+            Assert.That(one.DamageScale, Is.EqualTo(0.6f).Within(1e-6f), "a floor-1 enemy deals 0.6");
+            Assert.That(level.Elite.DamageScale, Is.EqualTo(values.EliteDamageScale * 0.6f).Within(1e-5f), "its elite 1.25 x 0.6");
+            Assert.That(level.Enemies.Where(e => !e.IsElite).All(e => Mathf.Abs(e.DamageScale - 0.6f) < 1e-6f), Is.True, "every one of floor 1");
             yield return LandOne(one, took);
             Assume.That(took[0], Is.GreaterThan(0), "it struck her");
-            Assert.That(OneOfItsAttacks(one, took[0], 0.7f), Is.True, "0.7 of one of its attacks: " + took[0]);
+            Assert.That(OneOfItsAttacks(one, took[0], 0.6f), Is.True, "0.6 of one of its attacks: " + took[0]);
             Assert.That(OneOfItsAttacks(one, took[0], 1f), Is.False, "not all of it: " + took[0]);
 
-            // Floor 4: all of it.
+            // Floor 4: 0.8 (work order 046's flights; all of it before).
             Time.timeScale = 1f;
             yield return ToFloor(4);
             level = _levels.Level;
             Assert.That(_levels.Floor, Is.EqualTo(4));
             Enemy four = level.Enemies.First(e => e.Kind == EnemyKind.Brute && !e.IsElite);
-            Assert.That(four.DamageScale, Is.EqualTo(1f), "a floor-4 enemy deals all of it");
+            Assert.That(four.DamageScale, Is.EqualTo(0.8f).Within(1e-6f), "a floor-4 enemy deals 0.8");
             LotsOfHealth();
             Time.timeScale = 2f;
             yield return LandOne(four, took);
             Assume.That(took[0], Is.GreaterThan(0), "it struck her");
-            Assert.That(OneOfItsAttacks(four, took[0], 1f), Is.True, "all of one of its attacks: " + took[0]);
+            Assert.That(OneOfItsAttacks(four, took[0], 0.8f), Is.True, "0.8 of one of its attacks: " + took[0]);
 
             // Floor 5's boss: not scaled.
             Time.timeScale = 1f;
