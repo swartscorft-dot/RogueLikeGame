@@ -102,6 +102,30 @@ namespace Roguelike
         void DrawRunBoxKinetic(float viewWidth)
         {
             InterfaceValues v = InterfaceStyle.V;
+            // Work order 063: grown with the master scale of a fight times its own factor (1 in all by default: the small map
+            // stands beside it), about the view's top right corner.
+            Matrix4x4 before = GUI.matrix;
+            float k = RunBoxFactor(v);
+            if (Mathf.Abs(k - 1f) > 1e-4f)
+                GUI.matrix = before * Matrix4x4.Translate(new Vector3(viewWidth, 0f, 0f)) * Matrix4x4.Scale(new Vector3(k, k, 1f)) * Matrix4x4.Translate(new Vector3(-viewWidth, 0f, 0f));
+            DrawRunBoxLines(viewWidth, v);
+            GUI.matrix = before;
+        }
+
+        /// <summary>The run box's place in the HUD's 720 layout with <paramref name="lines"/> lines, grown about the top right corner (work order 063): for the overlap checks.</summary>
+        public static Rect RunBoxKinetic(float viewWidth, int lines)
+        {
+            float k = RunBoxFactor(InterfaceStyle.V);
+            float h = 8f + 26f + 5f + Mathf.Max(0, lines - 2) * 17f + 15f;
+            float w = RunBoxWidth + 12f;
+            return new Rect(viewWidth - w * k, 0f, w * k, h * k);
+        }
+
+        /// <summary>The run box's scale: the master scale times its own (<see cref="InterfaceValues.RunBoxScale"/>).</summary>
+        static float RunBoxFactor(InterfaceValues v) => InterfaceRules.Fight(v) * Mathf.Max(0.1f, v.RunBoxScale);
+
+        void DrawRunBoxLines(float viewWidth, InterfaceValues v)
+        {
             float right = viewWidth - 12f, w = RunBoxWidth;
             var head = new Rect(right - w, 8f, w, 26f);
             GUI.Label(head, _runBox[0], RightAligned(_big));
@@ -138,8 +162,12 @@ namespace Roguelike
             }
             Matrix4x4 before = GUI.matrix;
             float layoutWidth = InterfaceStyle.BeginLayout(out Matrix4x4 _);
-            float k = InterfaceStyle.V.LayoutHeight / SkillBar.LayoutHeight;
-            InterfaceStyle.Prompt(layoutWidth * 0.5f, (HealthTop + 13f) * k, _promptKey, _promptWords);
+            InterfaceValues v = InterfaceStyle.V;
+            float k = v.LayoutHeight / SkillBar.LayoutHeight;
+            // Work order 063: never down on the strip, which is larger and higher now: its middle a clear gap over the strip's top.
+            float stripTop = InterfaceRules.Slot(0, SkillLoadout.KeyCount, layoutWidth, v).Y;
+            float y = Mathf.Min((HealthTop + 13f) * k, stripTop - v.PromptSize * 1.45f * 0.5f - 24f * InterfaceRules.Fight(v));
+            InterfaceStyle.Prompt(layoutWidth * 0.5f, y, _promptKey, _promptWords);
             GUI.matrix = before;
         }
     }

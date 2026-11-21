@@ -60,6 +60,8 @@ namespace Roguelike
             ForgetIcons(immediately: true);
             s_Styles.Clear();
             Gone(s_Pips);
+            Gone(s_Halftone); // work order 063
+            s_Halftone = null;
             Gone(s_ButtonNormal);
             Gone(s_ButtonHover);
             Gone(s_ButtonActive);
@@ -379,6 +381,20 @@ namespace Roguelike
             GUI.matrix = before;
         }
 
+        /// <summary>
+        /// The dark plate behind a slanted box (work order 063, item 4: "for flat"): under the same slant about
+        /// <paramref name="pivotY"/>, moved down and right by <paramref name="depth"/> and larger by <paramref name="outline"/>
+        /// on every side, in <see cref="InterfaceValues.DepthInk"/>; drawn before the box. Nothing when both are 0 (this
+        /// morning's flat box). A new helper: none of the others changed.
+        /// </summary>
+        public static void Plate(Rect r, float pivotY, float depth, float outline)
+        {
+            if (depth <= 0f && outline <= 0f) return;
+            depth = Mathf.Max(0f, depth);
+            outline = Mathf.Max(0f, outline);
+            Slanted(new Rect(r.x - outline + depth, r.y - outline + depth, r.width + 2f * outline, r.height + 2f * outline), pivotY, C(V.DepthInk));
+        }
+
         /// <summary>The shear: x moves right by <paramref name="slant"/> per unit above <paramref name="pivotY"/>.</summary>
         public static Matrix4x4 Shear(float pivotY, float slant)
         {
@@ -483,6 +499,41 @@ namespace Roguelike
                 s_Pips.SetPixels32(px);
                 s_Pips.Apply();
                 return s_Pips;
+            }
+        }
+
+        static Texture2D s_Halftone;
+        /// <summary>The halftone patch's texture: this many cells of this many texels a side.</summary>
+        public const int HalftoneCells = 8, HalftoneCell = 8;
+
+        /// <summary>
+        /// A patch of halftone dots (work order 063, item 4: the pictures' small accent), large at its top left and shrinking
+        /// along the diagonal to nothing at its bottom right: white, to tint. Made once in code.
+        /// </summary>
+        public static Texture2D Halftone
+        {
+            get
+            {
+                if (s_Halftone != null) return s_Halftone;
+                int n = HalftoneCells * HalftoneCell;
+                s_Halftone = new Texture2D(n, n, TextureFormat.RGBA32, false)
+                {
+                    name = "KineticHalftone", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear,
+                };
+                var px = new Color32[n * n];
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        int cx = x / HalftoneCell, cy = (n - 1 - y) / HalftoneCell; // rows come from the bottom: cy 0 is the top row
+                        float t = (cx + cy) / (2f * (HalftoneCells - 1));      // 0 at the top left, 1 at the bottom right
+                        float radius = (1f - t) * HalftoneCell * 0.55f;
+                        float dx = x % HalftoneCell + 0.5f - HalftoneCell * 0.5f, dy = y % HalftoneCell + 0.5f - HalftoneCell * 0.5f;
+                        float a = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f);
+                        px[y * n + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                    }
+                s_Halftone.SetPixels32(px);
+                s_Halftone.Apply();
+                return s_Halftone;
             }
         }
 

@@ -39,7 +39,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(2f * v.StrokeWidth + v.StrokeGap, Is.LessThan(200f), "about the width of her shadow");
             Assert.That(v.BladeWidth, Is.LessThan(200f), "a short blade");
             float strip = InterfaceRules.Slot(7, 8, 1920f, v).Right - InterfaceRules.Slot(0, 8, 1920f, v).X;
-            Assert.That(strip, Is.LessThan(1920f * 0.3f), "the eight skills under a third of a 1080p view's width");
+            // Work order 063 ("en del større"): 1.6 times the boxes, so under 45 % now (it was under a third).
+            Assert.That(strip, Is.LessThan(1920f * 0.45f), "the eight skills under 45 % of a 1080p view's width");
         }
 
         // ---------------- 1. At the figure ----------------
@@ -51,11 +52,12 @@ namespace Roguelike.Rules.Tests
             InterfaceValues v = V;
             UiBox health = InterfaceRules.HealthStroke(feetX, feetY, v);
             UiBox focus = InterfaceRules.FocusStroke(feetX, feetY, v);
-            Assert.That(health.Y, Is.EqualTo(feetY + v.UnderFeet).Within(1e-4f), "just under her feet");
+            float s = InterfaceRules.Fight(v); // work order 063: grown with the master scale
+            Assert.That(health.Y, Is.EqualTo(feetY + v.UnderFeet * s).Within(1e-4f), "just under her feet");
             Assert.That(focus.Y, Is.EqualTo(health.Y), "side by side");
-            Assert.That(health.W, Is.EqualTo(v.StrokeWidth));
-            Assert.That(health.H, Is.EqualTo(v.StrokeHeight));
-            Assert.That(focus.X, Is.EqualTo(health.Right + v.StrokeGap).Within(1e-4f), "health left, focus right, a gap between");
+            Assert.That(health.W, Is.EqualTo(v.StrokeWidth * s).Within(1e-4f));
+            Assert.That(health.H, Is.EqualTo(v.StrokeHeight * s).Within(1e-4f));
+            Assert.That(focus.X, Is.EqualTo(health.Right + v.StrokeGap * s).Within(1e-4f), "health left, focus right, a gap between");
             Assert.That((health.X + focus.Right) * 0.5f, Is.EqualTo(feetX).Within(1e-3f), "centred on her");
             UiBox number = InterfaceRules.HealthNumber(feetX, feetY, v);
             Assert.That(number.X, Is.GreaterThan(focus.Right), "the one number beside them");
@@ -68,8 +70,8 @@ namespace Roguelike.Rules.Tests
             InterfaceValues v = V;
             UiBox b = InterfaceRules.Blade(800f, 400f, v);
             Assert.That(b.CenterX, Is.EqualTo(800f).Within(1e-3f));
-            Assert.That(b.Bottom, Is.EqualTo(400f - v.OverHead).Within(1e-3f), "its bottom over the top of her head");
-            Assert.That(b.W, Is.EqualTo(v.BladeWidth));
+            Assert.That(b.Bottom, Is.EqualTo(400f - v.OverHead * InterfaceRules.Fight(v)).Within(1e-3f), "its bottom over the top of her head");
+            Assert.That(b.W, Is.EqualTo(v.BladeWidth * InterfaceRules.BladeFactor(v)).Within(1e-3f), "work order 063: grown with the master scale and its own factor");
         }
 
         [Test]
@@ -95,8 +97,8 @@ namespace Roguelike.Rules.Tests
             InterfaceValues v = V;
             UiBox first = InterfaceRules.Slot(0, 8, 1920f, v), last = InterfaceRules.Slot(7, 8, 1920f, v);
             Assert.That((first.X + last.Right) * 0.5f, Is.EqualTo(960f).Within(1e-3f), "bottom centre");
-            Assert.That(first.Bottom, Is.EqualTo(v.LayoutHeight - v.StripBottom).Within(1e-3f));
-            Assert.That(InterfaceRules.Slot(1, 8, 1920f, v).X, Is.EqualTo(first.Right + v.SlotGap).Within(1e-3f));
+            Assert.That(first.Bottom, Is.EqualTo(v.LayoutHeight - InterfaceRules.StripBottomEdge(v)).Within(1e-3f), "work order 063: lifted");
+            Assert.That(InterfaceRules.Slot(1, 8, 1920f, v).X, Is.EqualTo(first.Right + v.SlotGap * InterfaceRules.Strip(v)).Within(1e-3f));
             Assert.That(InterfaceRules.LeftEnd(8, 1920f, v).Right, Is.LessThan(first.X), "the dash left of the slots");
             Assert.That(InterfaceRules.RightEnd(8, 1920f, v).X, Is.GreaterThan(last.Right), "focus right of them");
         }

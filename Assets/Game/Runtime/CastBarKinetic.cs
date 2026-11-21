@@ -65,28 +65,41 @@ namespace Roguelike
             bool lit = Up ? Lit : _flashLit;
             string label = Up ? _label : _flashLabel;
 
+            // Work order 063: grown with the master scale and the blade's own factor; the clean part's band framed white
+            // always, so it is clearly marked before it lights (item 2b).
+            float b = InterfaceRules.BladeFactor(v), f = InterfaceRules.Fight(v);
+            // Work order 063, item 4 (the first picture's blade): on its dark plate, two red slashes at its start.
+            InterfaceStyle.Plate(bar, pivot, v.Depth * b, v.Outline * b);
+            if (v.Slash > 0f)
+            {
+                float w = v.Slash * b, gap = w * 0.8f;
+                for (int i = 1; i <= 2; i++)
+                    InterfaceStyle.Slanted(new Rect(bar.x - i * (w + gap), bar.y, w, bar.height), pivot, InterfaceStyle.C(v.Red));
+            }
             InterfaceStyle.Slanted(bar, pivot, InterfaceStyle.C(v.Back));
             float dim = Mathf.Clamp01(view.DimTo);
             if (dim > 0f) InterfaceStyle.Slanted(new Rect(bar.x, bar.y, bar.width * dim, bar.height), pivot, InterfaceStyle.C(v.Grey, 0.35f));
             float marker = Mathf.Clamp01(view.Marker);
-            InterfaceStyle.Slanted(new Rect(bar.x, bar.y + 2f, bar.width * marker, bar.height - 4f), pivot, InterfaceStyle.C(v.White, 0.35f));
+            InterfaceStyle.Slanted(new Rect(bar.x, bar.y + 2f * b, bar.width * marker, bar.height - 4f * b), pivot, InterfaceStyle.C(v.White, 0.35f));
             if (view.HasZone)
             {
-                var zone = new Rect(bar.x + bar.width * Mathf.Clamp01(view.ZoneFrom), bar.y - 1f, bar.width * Mathf.Clamp01(view.ZoneTo - view.ZoneFrom), bar.height + 2f);
+                var zone = new Rect(bar.x + bar.width * Mathf.Clamp01(view.ZoneFrom), bar.y - 1f * b, bar.width * Mathf.Clamp01(view.ZoneTo - view.ZoneFrom), bar.height + 2f * b);
                 InterfaceStyle.Slanted(zone, pivot, lit ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.Teal, 0.55f));
-                if (lit) InterfaceStyle.SlantedFrame(zone, InterfaceStyle.C(v.White), 1.5f);
+                InterfaceStyle.SlantedFrame(zone, pivot, InterfaceStyle.C(v.White, lit ? 1f : 0.7f), (lit ? 1.5f : 1f) * b);
             }
-            InterfaceStyle.Slanted(new Rect(bar.x + bar.width * marker - v.MarkerWidth * 0.5f, bar.y - 3f, v.MarkerWidth, bar.height + 6f), pivot, InterfaceStyle.C(v.White));
+            float mw = v.MarkerWidth * b;
+            InterfaceStyle.Slanted(new Rect(bar.x + bar.width * marker - mw * 0.5f, bar.y - 3f * b, mw, bar.height + 6f * b), pivot, InterfaceStyle.C(v.White));
             if (Flash != CastBarFlash.None)
             {
                 Color c = Flash == CastBarFlash.Clean ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White);
-                InterfaceStyle.Slanted(new Rect(bar.x - 2f, bar.y - 2f, bar.width + 4f, bar.height + 4f), pivot, new Color(c.r, c.g, c.b, 0.6f * FlashAlpha));
+                InterfaceStyle.Slanted(new Rect(bar.x - 2f * b, bar.y - 2f * b, bar.width + 4f * b, bar.height + 4f * b), pivot, new Color(c.r, c.g, c.b, 0.6f * FlashAlpha));
             }
             if (!string.IsNullOrEmpty(label))
             {
-                float h = v.BladeNameSize * 1.3f;
-                InterfaceStyle.Label(new Rect(bar.x + v.Slant * bar.height, bar.y - h - 1f, bar.width, h), label,
-                                     InterfaceStyle.Text(true, v.BladeNameSize, TextAnchor.LowerCenter), InterfaceStyle.C(v.White), true);
+                int size = InterfaceRules.Size(v.BladeNameSize, f);
+                float h = size * 1.3f;
+                InterfaceStyle.Label(new Rect(bar.x + v.Slant * bar.height, bar.y - h - 1f * b, bar.width, h), label,
+                                     InterfaceStyle.Text(true, size, TextAnchor.LowerCenter), InterfaceStyle.C(v.White), true);
             }
             GUI.color = before;
             GUI.matrix = matrixBefore;

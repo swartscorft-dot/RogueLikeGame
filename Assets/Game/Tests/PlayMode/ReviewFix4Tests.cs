@@ -319,7 +319,7 @@ namespace Roguelike.PlayModeTests
             // What they are and where the camera shows her are read at the frame's very end, as the frame is drawn.
             FieldInfo herTop = typeof(CastBar).GetField("_herTop", BindingFlags.NonPublic | BindingFlags.Instance);
             Vector2 feet = default;
-            float headX = 0f;
+            float headX = 0f, under = 0f;
             Rect h = default, f = default, blade = default;
             bool shown = false, bladeDrawn = false;
             int looked = 0;
@@ -329,6 +329,9 @@ namespace Roguelike.PlayModeTests
             {
                 looked++;
                 feet = Feet();
+                // Work order 063: the strokes' gap, 0.35 m down the camera's picture at her feet, as this frame's camera shows it.
+                Vector3 down = Camera.main.WorldToScreenPoint(_player.Position - Camera.main.transform.up * InterfaceStyle.V.UnderFeetMetres);
+                under = (Screen.height - down.y) / InterfaceStyle.Scale - feet.y;
                 headX = Camera.main.WorldToScreenPoint(_player.Position + Vector3.up * (float)herTop.GetValue(cast)).x / InterfaceStyle.Scale;
                 shown = bar.StrokesShown;
                 h = bar.HealthStroke;
@@ -343,7 +346,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(looked, Is.EqualTo(1), "looked at the frame's end");
             InterfaceValues v = InterfaceStyle.V;
             Assert.That(shown, Is.True);
-            Assert.That(h.y - feet.y, Is.EqualTo(v.UnderFeet).Within(0.5f), "under her feet as this frame's camera shows them");
+            Assert.That(h.y - feet.y, Is.EqualTo(under).Within(0.5f), "under her feet as this frame's camera shows them (work order 063: by the gap in metres)");
             Assert.That((h.xMin + f.xMax) * 0.5f, Is.EqualTo(feet.x).Within(0.5f), "centred on her as this frame's camera shows her");
             Assert.That(bladeDrawn, Is.True, "the blade over her head");
             Assert.That(blade.center.x, Is.EqualTo(headX).Within(0.5f), "over her head as this frame's camera shows it");
