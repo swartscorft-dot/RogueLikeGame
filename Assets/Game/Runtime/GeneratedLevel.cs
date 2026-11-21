@@ -125,6 +125,8 @@ namespace Roguelike
         public CryptKitLights KitLights { get; private set; }
         /// <summary>The rooms' mood (work order 044), with <see cref="LevelValues.RoomMood"/> on; else null.</summary>
         public RoomMood Mood { get; private set; }
+        /// <summary>The room as a cave (work order 076), with <see cref="LevelValues.Cave"/> on; else null.</summary>
+        public CaveView Cave { get; private set; }
         /// <summary>
         /// Work order 052: the mood's plan made before the props, for its large props, with <see cref="LevelValues.LargeProps"/>
         /// (and the mood and its compositions) on; else null.
@@ -172,6 +174,8 @@ namespace Roguelike
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
             // Work order 044: the rooms' mood, last, beside the level (RoomMood); off, the floor is as before.
             if (values.RoomMood) level.Mood = RoomMood.Add(level, level.LargePropsPlan);
+            // Work order 076: the room as a cave, after everything it shows and hides is there; off, the floor looks as before.
+            if (values.Cave) level.Cave = CaveView.Add(level);
             return level;
         }
 

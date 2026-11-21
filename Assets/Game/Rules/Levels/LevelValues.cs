@@ -332,6 +332,14 @@ namespace Roguelike.Rules
         // DoorWidth 1. Off: every floor is version 15's, field for field, but for the version.
         public bool Passages = true;
         public PassageValues PassageRules = new PassageValues();
+        // The room is a cave (work order 076; Kristian, 2026-11-21 in the evening: "jeg liker heller ikke at vi ser andre soner
+        // når vi er i et rom. veggene må gå helt opp og føles at vi er i en hule", and of the treasure room's gold, "litt
+        // unødvendig"): on, only the room or passage she is in and those a door from it are drawn, against the earth's black;
+        // rock rises over the full walls as far as it hides nothing today's walls leave seen; the vault's large coin heaps are
+        // gone (CaveValues, CaveSight, CaveRise; CaveView in the game). Off: every floor looks as before, object for object.
+        // The generator never reads it.
+        public bool Cave = true;
+        public CaveValues CaveRules = new CaveValues();
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
