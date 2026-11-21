@@ -486,7 +486,8 @@ namespace Roguelike
             // Work order 048: a choice that came up with a rare or an epic card rings, heard with it up as a chest's is.
             if (_looked && choice != GeneratedLevels.ChoiceKind.None && choice != _choiceSeen)
             {
-                int bells = PlaceholderSoundRules.OfferBells(BestTier(levels.OfferedUpgrades));
+                int bells = PlaceholderSoundRules.OfferBells(choice == GeneratedLevels.ChoiceKind.FloorReward
+                                                                 ? BestTier(levels.OfferedSkillTiers) : BestTier(levels.OfferedUpgrades)); // work order 057: the floor reward's tiers
                 if (bells > 0)
                 {
                     _bells = Math.Max(_bells, bells);
@@ -533,6 +534,20 @@ namespace Roguelike
                 Upgrade u = offer[i];
                 if (u == null || !u.Tiered) continue;
                 if (!best.HasValue || u.Tier > best.Value) best = u.Tier;
+            }
+            return best;
+        }
+
+        /// <summary>The best tier of the floor reward's cards that have one (work order 057), or none. Indexed: nothing made.</summary>
+        static UpgradeTier? BestTier(IReadOnlyList<SkillTierOffer> offer)
+        {
+            UpgradeTier? best = null;
+            if (offer == null) return null;
+            for (int i = 0; i < offer.Count; i++)
+            {
+                SkillTierOffer t = offer[i];
+                if (t == null) continue;
+                if (!best.HasValue || t.Tier > best.Value) best = t.Tier;
             }
             return best;
         }

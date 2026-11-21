@@ -441,10 +441,17 @@ namespace Roguelike
                 int slot = _player.SkillOnKey(key);
                 // Work order 017: the run's upgrades of the skill beside it.
                 List<string> upgrades = slot >= 0 && slot < skills.Count && _player.SkillUpgrades != null ? _player.SkillUpgrades.NamesFor(skills[slot].Name) : null;
-                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)")
+                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name + TierAfter(skills[slot].Name) : "(empty)")
                           + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : ""));
             }
             return lines;
+        }
+
+        /// <summary>A rare or epic skill's tier after its name in the list of keys (work order 057), "  epic"; "" for a common.</summary>
+        string TierAfter(string skill)
+        {
+            UpgradeTier tier = _player != null && _player.SkillUpgrades != null ? _player.SkillUpgrades.TierOf(skill) : UpgradeTier.Common;
+            return tier == UpgradeTier.Common ? "" : "  " + UpgradeTiers.Word(tier);
         }
 
         static readonly string s_StartPrompt = GeneratedLevels.NewLevelKey + "  start a run";

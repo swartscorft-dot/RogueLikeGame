@@ -413,7 +413,8 @@ namespace Roguelike
             Modifiers.Meta.RedrawsLeft--;
             _offeredSkills.Clear();
             _offeredSkills.AddRange(again);
-            PlaySessionRecorder.Current?.NoteRewardOffered(Floor, _offeredSkills.Select(s => player.Skills[s].Name).ToList());
+            DrawSkillTiers(player, 1); // work order 057: new tiers with the new slots
+            NoteRewardOffer(player);
             Debug.Log("Between runs: Second Look drew the floor reward again");
             return true;
         }

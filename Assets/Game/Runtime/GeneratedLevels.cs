@@ -565,7 +565,8 @@ namespace Roguelike
                 else if (!EliteRewardFirst()) EnterFloor(Floor + 1); // nothing left to offer; an elite's drop lying first (work order 047)
                 return;
             }
-            PlaySessionRecorder.Current?.NoteRewardOffered(Floor, _offeredSkills.Select(s => player.Skills[s].Name).ToList());
+            DrawSkillTiers(player, 0); // work order 057: each card's tier, with the switch on (GeneratedLevelsSkillTiers.cs)
+            NoteRewardOffer(player);
             OpenChoice(ChoiceKind.FloorReward);
         }
 
@@ -583,8 +584,7 @@ namespace Roguelike
             player.EquipSkill(slot);
             string name = player.Skills[slot].Name;
             _skillsTaken.Add(name);
-            Record?.TakeSkill(name);
-            PlaySessionRecorder.Current?.NoteRewardTaken(Floor, name);
+            TookRewardTier(index, name); // work order 057: a rare or epic card's step and change taken with it; the record and the recorder told
             // A breath between floors (work order 023): a share of her maximum back as the reward is taken.
             if (_health != null)
             {
@@ -775,6 +775,7 @@ namespace Roguelike
             if (Choice == ChoiceKind.Chest && _openChest != null) _chestsOpened.Remove(_openChest.Room.Order);
             Choice = ChoiceKind.None;
             _offeredSkills.Clear();
+            _offeredSkillTiers.Clear(); // work order 057
             _offeredUpgrades.Clear();
             _offeredSkillUpgrades.Clear();
             _openChest = null;
@@ -979,7 +980,7 @@ namespace Roguelike
                                        AliveIn(layout.ExitRoom), layout.Version)).Append('\n');
             if (InRun)
             {
-                _text.Append("skills taken: ").Append(_skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken));
+                _text.Append("skills taken: ").Append(Record != null ? Record.SkillsText : _skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken)); // work order 057: with their tiers
                 string heal = Record != null ? Record.FloorHealText : "";
                 if (heal.Length > 0) _text.Append("   (").Append(heal).Append(')'); // work order 023
                 _text.Append('\n');
@@ -1084,7 +1085,7 @@ namespace Roguelike
             bool reward = Choice == ChoiceKind.FloorReward;
             bool skillUpgrade = Choice == ChoiceKind.SkillUpgrade; // work order 017
             int count = reward ? _offeredSkills.Count : skillUpgrade ? _offeredSkillUpgrades.Count : _offeredUpgrades.Count;
-            float rowHeight = reward || skillUpgrade ? 74f : 44f, width = 520f;
+            float width = 520f, rowHeight = reward ? RewardRowHeight(width - 20f, _choiceStyle) : skillUpgrade ? 74f : 44f; // work order 057: a tiered card's longer text
             float height = 40f + count * (rowHeight + 6f) + 24f;
             float left = (viewWidth - width) * 0.5f, top = (SkillBar.LayoutHeight - height) * 0.5f;
             string title = reward
@@ -1097,14 +1098,7 @@ namespace Roguelike
             for (int i = 0; i < count; i++)
             {
                 string text;
-                if (reward)
-                {
-                    int slot = _offeredSkills[i];
-                    SkillDefinition s = player.Skills[slot];
-                    text = string.Format(s_Inv, "{0}   {1}   key {2}   cooldown {3:0.#} s   {4}\n{5}", i + 1, s.Name,
-                                         bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", // the key it will go on (work order 015)
-                                         s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
-                }
+                if (reward) text = RewardChoiceText(i); // today's text; work order 057: a rare or epic card's tier in it (GeneratedLevelsSkillTiers.cs)
                 else if (skillUpgrade)
                 {
                     // The skill's name and key, the upgrade's name, its kind and its line (work order 017).
@@ -1121,6 +1115,7 @@ namespace Roguelike
                 var card = new Rect(left + 10f, top + 32f + i * (rowHeight + 6f), width - 20f, rowHeight);
                 bool picked = GUI.Button(card, text, _choiceStyle);
                 if (!reward && !skillUpgrade && _offeredUpgrades[i].Tiered) TierEdge(card, _offeredUpgrades[i].Tier); // work order 050
+                else if (reward && OfferedTierAt(i) is SkillTierOffer tier && tier.Tiered) TierEdge(card, tier.Tier); // work order 057
                 if (picked)
                 {
                     if (reward) PickReward(i);

@@ -89,10 +89,18 @@ namespace Roguelike.Rules
             RoomElite = elite;
         }
 
-        public void TakeSkill(string name)
+        /// <summary>
+        /// A skill taken as a floor reward; work order 057: with the tier it was taken at and an epic's change, which
+        /// <see cref="SkillsText"/> shows beside it (<see cref="Skills"/> stays the names).
+        /// </summary>
+        public void TakeSkill(string name, UpgradeTier tier = UpgradeTier.Common, string change = null)
         {
-            if (!IsOver) _skills.Add(name ?? "?");
+            if (IsOver) return;
+            _skills.Add(name ?? "?");
+            _skillsWith.Add(SkillTiers.WithText(tier, change));
         }
+
+        readonly List<string> _skillsWith = new List<string>();
 
         public void TakeUpgrade(string shortForm)
         {
@@ -158,8 +166,11 @@ namespace Roguelike.Rules
         /// <summary>The upgrades taken in short form, the same ones counted together: "+10 hp x2, +5% dmg"; "none" without.</summary>
         public string UpgradesText => RunWords.Grouped(_upgrades);
 
-        /// <summary>The skills taken in order, "Fan Fire, Long Shot"; "none" without.</summary>
-        public string SkillsText => _skills.Count == 0 ? "none" : string.Join(", ", _skills);
+        /// <summary>
+        /// The skills taken in order, "Fan Fire, Long Shot"; "none" without. Work order 057: a rare or epic one with its tier
+        /// and an epic's change, "Long Shot (epic, Overcharge), Fan Fire (rare), Slide".
+        /// </summary>
+        public string SkillsText => _skills.Count == 0 ? "none" : string.Join(", ", _skills.Select((s, i) => SkillTiers.Named(s, _skillsWith[i])));
 
         /// <summary>The skill upgrades taken in order (work order 017), "Quick Shot: Double Tap, Backstep: Long Step"; "none" without.</summary>
         public string SkillUpgradesText => _skillUpgrades.Count == 0 ? "none" : string.Join(", ", _skillUpgrades);

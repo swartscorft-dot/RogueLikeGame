@@ -50,6 +50,7 @@ namespace Roguelike
         {
             FocusChoice.Offer();
             _offeredSkills.Clear();
+            _offeredSkillTiers.Clear(); // work order 057
             PlaySessionRecorder.Current?.NoteFocusChoiceOffered(Floor, FocusModeRules.Options.Select(FocusModeRules.Name).ToList());
             OpenChoice(ChoiceKind.FocusChoice); // from the reward's screen it stays paused and held: no frame of play between
         }

@@ -712,6 +712,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy, to copy");
             _practiceEnemy.enabled = false;
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.SkillTiers = false; // work order 057: one test counts the skill upgrades taken, which a tiered floor reward adds to
             _reports.Clear();
             _player.Reported += r => _reports.Add((r, Time.frameCount, Time.time));
             _player.Teleport(Practice);

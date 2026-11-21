@@ -197,6 +197,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator AnEliteRoomLeftUncleared_OffersNothing_AndNothingLeft_HealsHerInstead()
         {
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.SkillTiers = false; // work order 057: it counts the skill upgrades taken, which a tiered floor reward adds to
             _levels.StartRun(RunSeed);
             yield return null;
             _levels.FinishFloorForTests();

@@ -208,6 +208,11 @@ namespace Roguelike.Rules
         /// <summary>Seconds per finished floor, by the floor's number.</summary>
         public readonly SortedDictionary<int, float> FloorSeconds = new SortedDictionary<int, float>();
         public readonly List<string> Skills = new List<string>();
+        /// <summary>
+        /// Work order 057: what each of <see cref="Skills"/> came with, in the same order: "epic, Overcharge", "rare", or "" for a
+        /// common (and for a log written before the skills had tiers).
+        /// </summary>
+        public readonly List<string> SkillsWith = new List<string>();
         public readonly List<string> Upgrades = new List<string>();
         /// <summary>The skill upgrades taken from elite rooms, "Quick Shot: Double Tap", in order (work order 017).</summary>
         public readonly List<string> SkillUpgrades = new List<string>();
@@ -453,6 +458,17 @@ namespace Roguelike.Rules
             if (spans.Count > 0) stats.FirstHitToDazeMean = (float)spans.Average();
         }
 
+        /// <summary>
+        /// What a floor reward's skill came with (work order 057): its tier and an epic's change from the reward_take's extras
+        /// ("epic, Overcharge", "rare"); "" for a common and for a log without them.
+        /// </summary>
+        static string TakenWith(SessionEvent e)
+        {
+            string tier = e.ExtraValue("tier"), with = e.ExtraValue("with");
+            if (string.IsNullOrEmpty(tier) || tier == UpgradeTiers.Word(UpgradeTier.Common)) return "";
+            return tier + (string.IsNullOrEmpty(with) ? "" : ", " + with);
+        }
+
         /// <summary>The runs (work order 012): a row per run started, filled from its floors, rewards, chests and end.</summary>
         static void ComputeRuns(List<SessionEvent> events, SessionStats stats)
         {
@@ -479,6 +495,7 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.RewardTake:
                         run.Skills.Add(e.Name ?? "?");
+                        run.SkillsWith.Add(TakenWith(e)); // work order 057
                         break;
                     case SessionEventTypes.ChestOpen:
                         run.Upgrades.Add(e.Name ?? "?");
@@ -1013,7 +1030,8 @@ namespace Roguelike.Rules
                   .Append("   ended: ").Append(run.Ended).AppendLine();
                 sb.Append("  time per floor   ").AppendLine(run.FloorSeconds.Count == 0 ? "-"
                     : string.Join("   ", run.FloorSeconds.Select(p => p.Key + ": " + Duration(p.Value))));
-                sb.Append("  skills taken     ").AppendLine(run.Skills.Count == 0 ? "-" : string.Join(", ", run.Skills));
+                sb.Append("  skills taken     ").AppendLine(run.Skills.Count == 0 ? "-"
+                    : string.Join(", ", run.Skills.Select((s, i) => SkillTiers.Named(s, i < run.SkillsWith.Count ? run.SkillsWith[i] : "")))); // work order 057: with their tiers
                 sb.Append("  upgrades taken   ").AppendLine(run.Upgrades.Count == 0 ? "-" : string.Join(", ", run.Upgrades));
                 // Work order 017: the elite rooms, and the skill upgrades in the order taken.
                 sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
