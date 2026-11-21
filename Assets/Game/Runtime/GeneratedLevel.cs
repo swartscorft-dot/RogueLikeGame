@@ -29,6 +29,11 @@ namespace Roguelike
     /// the point's kind (work order 008, <see cref="EnemyFactory"/>), and stay dead when killed; the elite of the elite
     /// room is made one (work order 017, <see cref="EnemyFactory.MakeElite"/>).
     ///
+    /// Work order 052 (<see cref="LevelValues.LargeProps"/>, with the rooms' mood and its compositions): the large props of the
+    /// mood's plan (<see cref="RoomMoodPlan"/>) are built as the description's props are, before the NavMesh, listed apart
+    /// (<see cref="LargeProps"/>); a prop of the description one stands in place of is not built (<see cref="Replaced"/>),
+    /// and one standing on the dais model is drawn on its top, its collider where it was.
+    ///
     /// The crypt kit (work order 016, 2026-11-20; <see cref="LevelValues.CryptKit"/>, on by default): once the NavMesh
     /// is built, the wall boxes stop showing and the kit's walls, low walls, piers, posts, door arches and lanterns are
     /// drawn in their place, and the floor boxes show stone floors (<see cref="DressInCryptKit"/>). Only what is drawn
@@ -71,6 +76,9 @@ namespace Roguelike
         public const float LowPropMargin = 0.25f;
 
         readonly List<PlacedProp> _props = new List<PlacedProp>();
+        readonly List<PlacedProp> _largeProps = new List<PlacedProp>();
+        readonly HashSet<LevelProp> _replaced = new HashSet<LevelProp>();
+        readonly HashSet<LevelProp> _raised = new HashSet<LevelProp>();
         readonly Dictionary<int, List<Enemy>> _enemiesByRoom = new Dictionary<int, List<Enemy>>();
         readonly List<Enemy> _enemies = new List<Enemy>();
         readonly List<PlacedGroup> _groups = new List<PlacedGroup>();
@@ -94,6 +102,17 @@ namespace Roguelike
         public CryptKitLights KitLights { get; private set; }
         /// <summary>The rooms' mood (work order 044), with <see cref="LevelValues.RoomMood"/> on; else null.</summary>
         public RoomMood Mood { get; private set; }
+        /// <summary>
+        /// Work order 052: the mood's plan made before the props, for its large props, with <see cref="LevelValues.LargeProps"/>
+        /// (and the mood and its compositions) on; else null.
+        /// </summary>
+        public RoomMoodPlan LargePropsPlan { get; private set; }
+        /// <summary>The large props built (work order 052), in the order of the rooms and of each room's.</summary>
+        public IReadOnlyList<PlacedProp> LargeProps => _largeProps;
+        /// <summary>Props of the description a large prop stands in place of, and so not built (work order 052).</summary>
+        public IReadOnlyCollection<LevelProp> Replaced => _replaced;
+        /// <summary>Props of the description standing on the dais model, drawn on its top (work order 052).</summary>
+        public IReadOnlyCollection<LevelProp> Raised => _raised;
 
         /// <summary>
         /// Builds the level under a new root object in the active scene. <paramref name="enemyTemplate"/> is copied
@@ -111,7 +130,12 @@ namespace Roguelike
 
             level.BuildFloors(baseMaterial);
             level.BuildWalls(baseMaterial);
+            // Work order 052: the large props of the rooms' compositions are props of the floor, built with the others before
+            // the NavMesh, from the mood's plan (made once here, and given to the mood below).
+            if (values.RoomMood && values.LargeProps && values.Props && (values.Mood == null || values.Mood.Compose))
+                level.LargePropsPlan = RoomMoodPlan.Make(layout, values);
             level.BuildProps();
+            level.BuildLargeProps();
 
             level.Surface = root.AddComponent<NavMeshSurface>();
             level.Surface.collectObjects = CollectObjects.Children;
@@ -124,7 +148,7 @@ namespace Roguelike
 
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
             // Work order 044: the rooms' mood, last, beside the level (RoomMood); off, the floor is as before.
-            if (values.RoomMood) level.Mood = RoomMood.Add(level);
+            if (values.RoomMood) level.Mood = RoomMood.Add(level, level.LargePropsPlan);
             return level;
         }
 
@@ -426,32 +450,65 @@ namespace Roguelike
         /// </summary>
         void BuildProps()
         {
-            var materials = new Dictionary<PropModel, Material>();
             // Low props block movement like the rest: their colliders stand over the height the agent steps up.
             LowestPropCollider = NavMesh.GetSettingsByID(0).agentClimb + LowPropMargin;
+            // Work order 052: what a large prop stands in place of is not built; what stands on the dais model is drawn on it.
+            if (LargePropsPlan != null)
+                foreach (MoodRoom mr in LargePropsPlan.Rooms)
+                {
+                    _replaced.UnionWith(mr.Replaced);
+                    _raised.UnionWith(mr.Raised);
+                }
             foreach (LevelRoom room in Layout.Rooms)
             {
                 for (int i = 0; i < room.Props.Count; i++)
                 {
                     LevelProp prop = room.Props[i];
-                    if (!materials.TryGetValue(prop.Model, out Material m))
-                    {
-                        CryptKitValues kit = Values.Crypt ?? new CryptKitValues();
-                        materials[prop.Model] = m = PropFactory.MakeMaterial(prop.Model, kit.Cyan, Values.PropRules.Glow);
-                        _materials.Add(m);
-                    }
-                    string name = "Prop_" + room.Letter + room.Order + "_" + i + "_" + prop.Model;
-                    GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
-                    bool cover = prop.IsCover(Values.PropRules);
-                    if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
-                    // Work order 043: the altar, the grave marker and the broken pillar are low under the quick duck's sort.
-                    if (cover) go.GetComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, Values.PropRules);
-                    // She can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment), but a slender
-                    // one (work order 028, the candelabra): it hides nothing.
-                    if (!prop.Slender) go.AddComponent<Shelter>();
-                    _props.Add(new PlacedProp { Room = room, Prop = prop, Object = go, IsCover = cover });
+                    if (_replaced.Contains(prop)) continue;
+                    GameObject go = MakeProp(room, prop, "Prop_" + room.Letter + room.Order + "_" + i + "_" + prop.Model, _props);
+                    Transform model = _raised.Contains(prop) ? go.transform.Find("Model") : null;
+                    if (model != null) model.localPosition += Vector3.up * (float)PropSize.DaisShows;
                 }
             }
+        }
+
+        readonly Dictionary<PropModel, Material> _propMaterials = new Dictionary<PropModel, Material>();
+
+        /// <summary>One prop at its place with its collider, cover and shelter (<see cref="PropFactory"/>), listed in <paramref name="into"/>.</summary>
+        GameObject MakeProp(LevelRoom room, LevelProp prop, string name, List<PlacedProp> into)
+        {
+            if (!_propMaterials.TryGetValue(prop.Model, out Material m))
+            {
+                CryptKitValues kit = Values.Crypt ?? new CryptKitValues();
+                _propMaterials[prop.Model] = m = PropFactory.MakeMaterial(prop.Model, kit.Cyan, Values.PropRules.Glow);
+                _materials.Add(m);
+            }
+            GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
+            bool cover = prop.IsCover(Values.PropRules);
+            if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
+            // Work order 043: the altar, the grave marker and the broken pillar are low under the quick duck's sort.
+            if (cover) go.GetComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, Values.PropRules);
+            // She can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment), but a slender
+            // one (work order 028, the candelabra; work order 052, the dais and the banner): it hides nothing.
+            if (!prop.Slender) go.AddComponent<Shelter>();
+            into.Add(new PlacedProp { Room = room, Prop = prop, Object = go, IsCover = cover });
+            return go;
+        }
+
+        /// <summary>
+        /// Work order 052: the large props of the mood's plan, each as a prop of the description is (its collider, cover and
+        /// shelter, on the walls' layer, under the root, so the NavMesh is built round the ones that block walking), named
+        /// "Prop_" with an "L" before its number in its room.
+        /// </summary>
+        void BuildLargeProps()
+        {
+            if (LargePropsPlan == null) return;
+            foreach (MoodRoom mr in LargePropsPlan.Rooms)
+                for (int i = 0; i < mr.LargeProps.Count; i++)
+                {
+                    LevelProp prop = mr.LargeProps[i];
+                    MakeProp(mr.Room, prop, "Prop_" + mr.Room.Letter + mr.Room.Order + "_L" + i + "_" + prop.Model, _largeProps);
+                }
         }
 
         /// <summary>A prop as built: its room, its description, and the object standing there.</summary>

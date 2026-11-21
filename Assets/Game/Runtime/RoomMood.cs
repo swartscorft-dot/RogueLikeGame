@@ -39,7 +39,9 @@ namespace Roguelike
     /// flat on the floor.
     ///
     /// 4. The eye-catchers (<see cref="MoodValues.Compose"/>): the dais, the carpet, the coin heaps and the candles of the
-    /// plan, and an empty object, "LargePropPlace", where a large prop is to stand later.
+    /// plan, and an empty object, "LargePropPlace", where a large prop is to stand later. Work order 052: with
+    /// <see cref="LevelValues.LargeProps"/> on, the plan's large props are props of the floor, built by the level with the
+    /// others before its NavMesh; what of the code-made pieces they stand in place of is gone from the plan, and is not drawn.
     ///
     /// 5. A room tone (<see cref="MoodValues.Tone"/>): one quiet loop (<see cref="RoomMoodPlan.RoomTone"/>), following the
     /// placeholder sounds' switch and master volume (<see cref="PlaceholderSounds"/>) and the game's volume.
@@ -77,7 +79,7 @@ namespace Roguelike
         GeneratedLevel _level;
         LevelValues _values;
         GameObject _root;
-        RoomMoodPlan _plan;
+        RoomMoodPlan _plan, _given;
         readonly List<RoomParts> _rooms = new List<RoomParts>();
         readonly List<Object> _owned = new List<Object>();
         readonly List<Floored> _floored = new List<Floored>();
@@ -121,12 +123,16 @@ namespace Roguelike
             s_key = null;
         }
 
-        /// <summary>The mood of a generated floor, on its root, built at once.</summary>
-        public static RoomMood Add(GeneratedLevel level)
+        /// <summary>
+        /// The mood of a generated floor, on its root, built at once; from <paramref name="plan"/> when the floor made it already
+        /// (work order 052: for its large props, made of the same layout and values).
+        /// </summary>
+        public static RoomMood Add(GeneratedLevel level, RoomMoodPlan plan = null)
         {
             var mood = level.gameObject.AddComponent<RoomMood>();
             mood._level = level;
             mood._values = level.Values;
+            mood._given = plan;
             mood.BuildAll();
             level.EnemyCalled += mood.OnEnemyCalled;
             return mood;
@@ -282,7 +288,8 @@ namespace Roguelike
             _root = new GameObject(RootName + "_" + _level.Layout.SeedText) { layer = CryptKit.Layer };
             SceneManager.MoveGameObjectToScene(_root, _level.gameObject.scene);
             _root.SetActive(_level.gameObject.activeInHierarchy);
-            _plan = RoomMoodPlan.Make(_level.Layout, _values);
+            _plan = _given ?? RoomMoodPlan.Make(_level.Layout, _values);
+            _given = null;
 
             Texture2D palette = Own(MoodShapes.MakePalette());
             Material lit = Own(MoodShapes.MakeLit(palette));

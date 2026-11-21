@@ -285,6 +285,12 @@ namespace Roguelike.Rules
         // from the props' own draws, so which props a room holds stays the same), where they stood in two clusters before.
         public bool RoomMood = true;
         public MoodValues Mood = new MoodValues();
+        // The eight large props in the rooms' compositions (work order 052; the concept pictures, Kristian's choice of
+        // 2026-11-20, "build toward them"): the knight in the tomb hall, the great altar in the shrine, the throne and the
+        // vault's chest on the dais model, great braziers by the throne, coin heaps, a bone wall in the ossuary, banners on
+        // free walls, candle clusters where the compositions had code-made candles (RoomMoodPlan). With RoomMood and
+        // Mood.Compose; read when a floor is built. Off: every floor is as work order 044 left it. The generator never reads it.
+        public bool LargeProps = true;
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
@@ -490,6 +496,9 @@ namespace Roguelike.Rules
         public float BesideGap = 0.6f;         // between the reward room's chest and each brazier beside it
         public float StatueGap = 0.8f;         // between the boss room's altar and each statue beside it
         public float BossPillarInset = 3.5f;   // from both walls of a corner to the middle of the boss room's pillar there
+
+        /// <summary>A copy, its numbers its own (work order 052: the large props ask the same rules with one number changed).</summary>
+        public PropValues Copy() => (PropValues)MemberwiseClone();
     }
 
     /// <summary>

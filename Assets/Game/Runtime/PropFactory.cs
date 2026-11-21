@@ -20,6 +20,12 @@ namespace Roguelike
     /// texture "_base_color" as its base map, white base colour, no smoothness and no highlights: it takes the scene's
     /// light like the grey boxes do, and shows the painted colour as painted under it. A model with an "_emission" map
     /// beside its texture (work order 028: the seven new ones) glows with it in the game's cyan, as the crypt kit does.
+    ///
+    /// Work order 052, the eight large props: one walked over or under (<see cref="PropSize.Walkable"/>: the dais, the banner)
+    /// has no collider; a model whose pivot is at its back (<see cref="PropSize.PivotAtBack"/>) is drawn half its depth back
+    /// from the footprint's middle, and one that hangs or is sunk (<see cref="PropSize.ModelUp"/>) that high over the ground;
+    /// an emission map glows only on a model the table says has one, and in its own colours where the table says so
+    /// (<see cref="PropSize.OwnGlow"/>: the candles' flames, the coins' gold).
     /// </summary>
     public static class PropFactory
     {
@@ -78,12 +84,14 @@ namespace Roguelike
             if (m.HasProperty("_SpecularHighlights")) m.SetFloat("_SpecularHighlights", 0f);
             m.DisableKeyword("_SPECULAR_COLOR");
             m.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
-            Texture2D emission = EmissionTexture(model);
+            PropSize size = PropSize.Of(model);
+            // Work order 052: only a model the table says glows (the banner's map is black).
+            Texture2D emission = size.Emission || !size.Large ? EmissionTexture(model) : null;
             if (emission != null && m.HasProperty("_EmissionColor"))
             {
                 m.SetTexture("_EmissionMap", emission);
                 // SetColor takes a colour as picked and turns it into linear light itself, so it is given the one that turns into the glow.
-                Color lit = CryptKit.Glowing(cyan, glow);
+                Color lit = CryptKit.Glowing(size.OwnGlow ? new Rgb(1f, 1f, 1f) : cyan, glow);
                 m.SetColor("_EmissionColor", QualitySettings.activeColorSpace == ColorSpace.Linear ? lit.gamma : lit);
                 m.EnableKeyword("_EMISSION");
                 m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
@@ -94,7 +102,7 @@ namespace Roguelike
         /// <summary>
         /// The prop at a world point on the ground, under <paramref name="parent"/>, on <paramref name="layer"/>, with
         /// <paramref name="material"/> on its model (the import's own when null). The model is left out when it cannot
-        /// be loaded; the collider is always there.
+        /// be loaded; the collider is always there, but on a prop walked over or under (work order 052).
         /// </summary>
         public static GameObject Make(LevelProp prop, Vector3 ground, Transform parent, int layer, Material material, string name,
                                       float lowestCollider = 0f)
@@ -108,12 +116,18 @@ namespace Roguelike
             {
                 GameObject model = Object.Instantiate(source, root.transform, false);
                 model.name = "Model";
+                PropSize size = PropSize.Of(prop.Model);
+                // Work order 052: a model with its pivot at its back, and one that hangs or is sunk.
+                if (size.PivotAtBack || size.ModelUp != 0)
+                    model.transform.localPosition += new Vector3(0f, (float)size.ModelUp, size.PivotAtBack ? -0.5f * (float)size.Depth : 0f);
                 foreach (Transform t in model.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
                 foreach (Collider c in model.GetComponentsInChildren<Collider>(true)) Object.Destroy(c); // only the footprint's
                 if (material != null)
                     foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = material;
             }
 
+            // Work order 052: walked over or under, no collider.
+            if (PropSize.Of(prop.Model).Walkable) return root;
             float h = Mathf.Max((float)prop.Height, lowestCollider);
             if (prop.Shape == PropShape.Rectangle)
             {

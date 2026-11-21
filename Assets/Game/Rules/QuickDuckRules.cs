@@ -21,7 +21,14 @@ namespace Roguelike.Rules
     ///   the broken pillar is a stump (a 1.13 m round plinth to 0.24 m, then a shaft only 0.38 m across to 1.2 m): from
     ///   above a wide low plinth with a thin stub, nothing like the 3 m pillar.
     /// - Slender (work order 028, the candelabra): stops no shot whatever its height, and gives no duck (it carries no
-    ///   <c>Shelter</c>), as before.
+    ///   <c>Shelter</c>), as before. So too the two of work order 052 that are walked over or under (the dais, sunk to a
+    ///   low platform, and the banner on its wall: <see cref="PropSize.Walkable"/>): neither low nor tall, they stop nothing.
+    ///
+    /// Work order 052's other six by the same lines: the coin heap (0.63 m) and the candle cluster (1.0) are low; the bone
+    /// wall (2.5) and the knight (3.0) tall; the great altar (1.82) is past the tall line by its height, and from above its
+    /// 3 x 1.5 m slab with the basin is the whole of it, a block of stone: tall. The great brazier (1.5 m) lies between the
+    /// lines and is not named low: from above its widest part is the 1.24 m bowl of coals at its top, a mass as wide as its
+    /// footprint, nothing like a plinth with a thin stub; so it keeps the old rule and is tall from the cover height.
     ///
     /// A model added later between the two lines that is not named here keeps the old rule: tall from
     /// <see cref="PropValues.CoverHeight"/>, as it would have been.

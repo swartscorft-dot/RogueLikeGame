@@ -189,7 +189,9 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void EachTheme_HasItsEyeCatcher_AndAnEmptyPlaceWhereAStatueKeepsEveryRule()
         {
-            var values = new LevelValues();
+            // Changed deliberately (work order 052): work order 044's code-made pieces, as they are with the large props off;
+            // LargePropsPlanTests has the large props in their place.
+            var values = new LevelValues { LargeProps = false };
             PropValues pv = values.PropRules;
             var rooms = new Dictionary<RoomTheme, int>();
             var places = new Dictionary<RoomTheme, int>();
@@ -355,7 +357,9 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSources_AreTheGlowingProps_AndTheCandles_BraziersFirst()
         {
-            var values = new LevelValues();
+            // Changed deliberately (work order 052): the sources of work order 044's props and candles, with the large props off;
+            // LargePropsPlanTests has the large props' sources.
+            var values = new LevelValues { LargeProps = false };
             for (ulong s = 0; s < 50; s++)
             {
                 LevelLayout l = LevelGenerator.Generate(s, 1, values);
