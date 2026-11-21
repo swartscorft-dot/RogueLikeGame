@@ -218,8 +218,11 @@ namespace Roguelike.PlayModeTests
             List<PlayerReport> taps = Hits(tap);
             int damage = _player.Skills[tap].Damage;
             Assert.That(taps.Select(h => h.Crit), Is.EqualTo(new[] { false, false, true }), "the clean press is a crit");
-            Assert.That(taps.Select(h => h.Damage), Is.EqualTo(new[] { damage, damage, Mathf.RoundToInt(damage * _player.Kit.CleanDamage) }),
-                        "105 as before: the clean tap's 1.5 is the crit's, not paid twice");
+            // Work order 064: the clean tap's scale (1.75 in the code, the asset's until it is set) folded, then the sure crit:
+            // 105 at 1.5 as before, 123 at 1.75; never the scale paid on top of the crit.
+            int clean = CritRules.Apply(Mathf.RoundToInt(damage * CritRules.Folded(_player.Kit.CleanDamage, m.StatValues)), m.StatValues.StartCritDamage);
+            Assert.That(taps.Select(h => h.Damage), Is.EqualTo(new[] { damage, damage, clean }),
+                        "the clean tap's scale is folded into the crit, not paid twice");
 
             // Long Shot let go in its band: a crit, 600 as before; with +10 % crit damage, 640.
             SkillDefinition s = _player.Skills[shot];

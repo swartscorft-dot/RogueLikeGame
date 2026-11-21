@@ -33,13 +33,21 @@ namespace Roguelike.Rules
         float _release;
         bool _running;
         int _hitsTaken;
+        float _startupSeconds; // the skill's Startup, or the shorter one a use was started with (work order 064)
 
         /// <summary>The skill in use, or null when none has been started or it was cancelled.</summary>
         public SkillDefinition Skill => _running ? _skill : null;
 
-        public void Start(SkillDefinition skill, float now)
+        public void Start(SkillDefinition skill, float now) => Start(skill, now, -1f);
+
+        /// <summary>
+        /// Starts a use with its own startup in seconds (work order 064: Backstep's shot after its hop, the press felt at the
+        /// shot); below 0, the skill's <see cref="SkillDefinition.Startup"/>, as <see cref="Start(SkillDefinition, float)"/>.
+        /// </summary>
+        public void Start(SkillDefinition skill, float now, float startup)
         {
             _skill = skill ?? throw new ArgumentNullException(nameof(skill));
+            _startupSeconds = startup >= 0f ? startup : skill.Startup;
             _start = now;
             _release = float.PositiveInfinity;
             _hitsTaken = 0;
@@ -57,7 +65,7 @@ namespace Roguelike.Rules
 
         bool IsHolding => _skill.Input == SkillInput.Holding;
 
-        float ChannelStart => IsHolding ? _start + _skill.Startup : _start;
+        float ChannelStart => IsHolding ? _start + _startupSeconds : _start;
 
         float ChannelEnd
         {
@@ -72,7 +80,7 @@ namespace Roguelike.Rules
         /// <summary>When the startup begins: at the press, or for a Charge skill at the release.</summary>
         float StartupBegin => _skill.Input == SkillInput.Charge ? ChannelEnd : _start;
 
-        float FirstHit => IsHolding ? ChannelStart : StartupBegin + _skill.Startup;
+        float FirstHit => IsHolding ? ChannelStart : StartupBegin + _startupSeconds;
 
         int BurstHits => IsHolding ? 1 : Math.Max(1, _skill.HitCount);
 
@@ -96,6 +104,9 @@ namespace Roguelike.Rules
             }
             return now < End ? SkillPhase.Recovery : SkillPhase.None;
         }
+
+        /// <summary>The startup of the use running, in seconds: the skill's, or the one it was started with (work order 064).</summary>
+        public float StartupSeconds => _startupSeconds;
 
         public bool IsRunning(float now) => Phase(now) != SkillPhase.None;
 
@@ -183,8 +194,8 @@ namespace Roguelike.Rules
         public float StartupProgress(float now)
         {
             if (!_running) return 0f;
-            if (_skill.Startup <= 0f) return now >= StartupBegin ? 1f : 0f;
-            return Clamp01((now - StartupBegin) / _skill.Startup);
+            if (_startupSeconds <= 0f) return now >= StartupBegin ? 1f : 0f;
+            return Clamp01((now - StartupBegin) / _startupSeconds);
         }
 
         /// <summary>

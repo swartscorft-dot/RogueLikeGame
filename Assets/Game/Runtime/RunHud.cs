@@ -50,7 +50,7 @@ namespace Roguelike
         public const Key DevTextKey = Key.F1;
 
         /// <summary>The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch, last.</summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -235,6 +235,7 @@ namespace Roguelike
                     GameSettings.SetVolumeStep(GameSettings.VolumeStep >= SettingsRules.VolumeSteps ? 0 : GameSettings.VolumeStep + 1);
                     break;
                 case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
+                case MenuLine.CameraKick: ChangeSetting(line, 1); break; // work order 064
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
             }
             return true;
@@ -260,6 +261,11 @@ namespace Roguelike
             if (line == MenuLine.DamageNumbers)
             {
                 GameSettings.SetDamageNumbers(!TimingFeedback.NumbersOn); // either way it flips (work order 019)
+                return true;
+            }
+            if (line == MenuLine.CameraKick)
+            {
+                GameSettings.SetCameraKick(!GameSettings.CameraKick); // either way it flips (work order 064)
                 return true;
             }
             if (line == MenuLine.BetweenRuns)
@@ -396,6 +402,7 @@ namespace Roguelike
             _menu.Add(MenuLine.DashDirection);
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
+            _menu.Add(MenuLine.CameraKick); // work order 064: the camera's kick when a shot goes off
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
@@ -412,6 +419,7 @@ namespace Roguelike
                 case MenuLine.Quit: return "Quit";
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
+                case MenuLine.CameraKick: return GameSettings.CameraKick ? "Camera kick:  on" : "Camera kick:  off"; // work order 064
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
@@ -663,7 +671,7 @@ namespace Roguelike
                 MenuLine line = _menu[i];
                 var row = new Rect(r.x + 30f, y, w - 60f, rowH);
                 if (i == Selected) Frame(new Rect(row.x - 3f, row.y - 3f, row.width + 6f, row.height + 6f), s_Accent);
-                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns;
+                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns || line == MenuLine.CameraKick;
                 if (setting)
                 {
                     const float arrow = 36f;

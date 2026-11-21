@@ -195,7 +195,9 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ACleanPress_AndAPerfectRelease_AreCrits_PaidOnce()
         {
-            var kit = new KitValues();
+            // The clean tap's 1.5 of work order 050 (work order 064 raised the code's default to 1.75; its numbers are in
+            // FiringFeelRulesTests): the folding rule itself is what this pins.
+            var kit = new KitValues { CleanDamage = 1.5f };
             var v = new StatValues();
             SkillDefinition tap = SkillDefaults.Create().Single(s => s.Name == "Triple Tap");
             SkillDefinition shot = SkillDefaults.Create().Single(s => s.Name == "Long Shot");

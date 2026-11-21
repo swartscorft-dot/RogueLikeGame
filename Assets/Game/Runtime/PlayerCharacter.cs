@@ -163,6 +163,7 @@ namespace Roguelike
             public Vector3 Point;
             public int Slot; // which skill, for a skill press
             public float At; // when it was pressed
+            public bool ForCooldown; // work order 064: a first press of Backstep just before its cooldown ends, waiting for it
         }
 
         readonly FeelValues _fallbackFeel = new FeelValues();
@@ -739,14 +740,30 @@ namespace Roguelike
         /// </summary>
         public CleanPart RecastCleanPart =>
             _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : CleanPart.Of(Kit, _chain.Window)) : default;
+                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove)) : default; // work order 064: after a hop, its own
         /// <summary>Seconds after the window opened that its clean part begins, and ends; both 0 when the next press cannot be clean.</summary>
         public float RecastCleanFrom => RecastCleanPart.From;
         public float RecastCleanTo => RecastCleanPart.To;
         /// <summary>Seconds since the press of the chain's current shot (or its opening move), on game time; -1 with no chain.</summary>
         public float RecastSincePress => _chain.Slot >= 0 ? Time.time - _chainPressAt : -1f;
         /// <summary>Seconds from that press to the window opening: the startup of the shot, or of Backstep's hop; 0 with no chain.</summary>
-        public float RecastLead => _chain.Slot >= 0 && _chain.Slot < Skills.Count && Skills[_chain.Slot] != null ? Mathf.Max(0f, Skills[_chain.Slot].Startup) : 0f;
+        public float RecastLead => _chain.Slot >= 0 && _chain.Slot < Skills.Count && Skills[_chain.Slot] != null ? Mathf.Max(0f, StartupOf(Skills[_chain.Slot], _chain.Shots > 1)) : 0f;
+
+        // Work order 064: what order 063's skill strip reads to show an open recast window on the skill's own box. They read only.
+        /// <summary>True while the recast window of this slot's chain is open: the next press of its key fires its next shot.</summary>
+        public bool RecastWindowOpenFor(int slot) => slot >= 0 && _chain.Slot == slot && _chain.IsWindowOpen(Time.time);
+        /// <summary>0 to 1: how much of the open recast window has gone by (1 less <see cref="RecastWindowLeft"/>); 0 when none is open.</summary>
+        public float RecastWindowProgress => IsRecastWindowOpen ? Mathf.Clamp01(1f - _chain.WindowLeft(Time.time)) : 0f;
+        /// <summary>Where the open window's clean part begins and ends, as shares of the window (0 to 1); both 0 when the next press cannot be clean.</summary>
+        public float RecastCleanFromShare => _chain.Window > 0f ? Mathf.Clamp01(RecastCleanFrom / _chain.Window) : 0f;
+        public float RecastCleanToShare => _chain.Window > 0f ? Mathf.Clamp01(RecastCleanTo / _chain.Window) : 0f;
+
+        /// <summary>
+        /// A use's startup (work order 064): the skill's, but the shot after an opening move (Backstep's second press) takes the
+        /// kit's <see cref="KitValues.OpeningMoveShotStartup"/> when that is 0 or more, so the shot is felt at the press.
+        /// </summary>
+        float StartupOf(SkillDefinition skill, bool shotAfterOpeningMove) =>
+            skill != null && shotAfterOpeningMove && skill.OpeningMove && Kit.OpeningMoveShotStartup >= 0f ? Kit.OpeningMoveShotStartup : skill != null ? skill.Startup : 0f;
         float _chainPressAt;
         /// <summary>Presses of the recast chain running, or 0 (work order 025: five for Triple Tap in Steady Hand's window).</summary>
         public int RecastCount => _chain.Slot >= 0 ? _chain.Count : 0;
@@ -1010,7 +1027,7 @@ namespace Roguelike
             {
                 _shotCursor = point;
                 SkillPressed(slot, IntentResult.Started, 0f);
-                Recast(slot, point, recast == RecastPress.Clean);
+                Recast(slot, point, recast == RecastPress.Clean, buffered: false);
                 return IntentResult.Started;
             }
             if (recast == RecastPress.Early)
@@ -1020,13 +1037,25 @@ namespace Roguelike
                 return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
             }
             if (!CooldownFor(slot).IsReady(Time.time))
-                return SkillPressed(slot, IntentResult.Rejected, CooldownFor(slot).Remaining(Time.time));
+            {
+                // Work order 064: Backstep's first press just before its cooldown ends waits for it and goes (he had 12 refused
+                // on cooldown on 2026-11-21, 6 of them within 1.4 s of ready); earlier, refused as before.
+                float left = CooldownFor(slot).Remaining(Time.time);
+                if (Skills[slot].OpeningMove && left <= Kit.OpeningMoveCooldownBuffer)
+                {
+                    _shotCursor = point;
+                    _bufferedSkillReleased = false;
+                    _buffer.Store(new Press { Kind = PressKind.Skill, Point = point, Slot = slot, At = Time.time, ForCooldown = true }, Time.time);
+                    return SkillPressed(slot, IntentResult.Buffered, left);
+                }
+                return SkillPressed(slot, IntentResult.Rejected, left);
+            }
             _shotCursor = point; // a press comes with the cursor: the arms held up after the skill follow it from here
             // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer. Slide (work
             // order 015) is its own move: it waits only for a dash, a committed skill or a Slide still moving her.
             bool waits = Skills[slot].Input == SkillInput.KeyMove
                 ? _dashing || _keyMoving || _held.IsHeld || (_actionKind == ActionKind.Skill && !IsInLightSkill)
-                : IsLocked || Time.time < _skillGateUntil;
+                : IsLocked || (Time.time < _skillGateUntil && !CutsRecovery(slot));
             waits |= _duck.IsDown; // down in a quick duck no skill starts (work order 043): it waits, as in a lock
             if (waits)
             {
@@ -1047,7 +1076,7 @@ namespace Roguelike
         RecastPress JudgeRecast(int slot, float now, bool buffered = false)
         {
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
-            RecastPress judged = _chain.Judge(slot, now, CleanPart.Of(Kit, _chain.Window), hasClean, buffered);
+            RecastPress judged = _chain.Judge(slot, now, CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove), hasClean, buffered); // work order 064: after a hop, its own
             return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
         }
 
@@ -1062,12 +1091,15 @@ namespace Roguelike
         /// The next shot of a recast chain: the shot before it is over (it went off; its recovery, if it is still in
         /// it, is cut), and this one starts at once with the skill's startup. A clean tap gains its focus here.
         /// </summary>
-        void Recast(int slot, Vector3 point, bool clean)
+        void Recast(int slot, Vector3 point, bool clean, bool buffered)
         {
             float now = Time.time;
             // Work order 040: a press of the last shot after the clean part, in the window, was late (the word says so).
             bool late = !clean && _chain.Slot == slot && RecastCleanPart.IsAfter(_chain.SinceOpened(now));
-            _chain.Recast();
+            // Work order 064: whether this press fell in its window's clean part, the last press or not (a full clean chain).
+            bool inRhythm = clean || _chain.InCleanPart(slot, now, CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove), buffered);
+            _chain.Recast(inRhythm);
+            bool fullClean = MarkRules.IsFullCleanChain(Skills[slot], clean, _chain.Shots, _chain.AllInRhythm);
             float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
             Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus, Late = late });
             if (_actionKind == ActionKind.Skill)
@@ -1078,7 +1110,18 @@ namespace Roguelike
             }
             StartSkill(slot, point, recast: true);
             _castClean = clean;
+            _castFullClean = fullClean;
+            if (fullClean) FullCleanChains++;
         }
+
+        bool _castFullClean; // work order 064: the shot in use is the clean last tap of a full clean chain
+        /// <summary>Full clean chains she finished (work order 064): every recast press in its clean part, the last clean.</summary>
+        public int FullCleanChains { get; private set; }
+        /// <summary>The weight of her latest shot (work order 064): for its hit stop, and for tests.</summary>
+        public ShotWeight LastShotWeight { get; private set; }
+
+        /// <summary>True when a press of this slot's skill is not held back by another skill's free recovery (work order 064: Backstep's hop is the escape).</summary>
+        bool CutsRecovery(int slot) => Kit.OpeningMoveCutsRecovery && slot >= 0 && slot < Skills.Count && Skills[slot] != null && Skills[slot].OpeningMove;
 
         /// <summary>Ends a recast chain whose window has run out.</summary>
         void ExpireChain(float now)
@@ -1121,7 +1164,7 @@ namespace Roguelike
             RecastPress recast = JudgeRecast(press.Slot, now, buffered: true); // work order 040: a press that waited is never clean
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
-                Recast(press.Slot, press.Point, recast == RecastPress.Clean);
+                Recast(press.Slot, press.Point, recast == RecastPress.Clean, buffered: true);
                 return true;
             }
             if (recast == RecastPress.None && CooldownFor(press.Slot).IsReady(now))
@@ -1511,7 +1554,7 @@ namespace Roguelike
                     bool landed = false;
                     int fired = _cast.TakeHits(now);
                     for (int hits = fired; hits > 0; hits--) landed |= ResolveSkillHit(skill, charge);
-                    if (landed) HitStop.Trigger(feel.HitStop);
+                    if (landed) HitStop.Trigger(FiringWeightRules.HitStop(LastShotWeight, feel.HitStop, FiringWeight.ValuesNow)); // work order 064: the heavy ones longer
                     // A shot of a recast chain went off: the window for the next press opens, or the chain is complete.
                     if (fired > 0 && _chain.Slot == _castSlot)
                     {
@@ -1917,8 +1960,12 @@ namespace Roguelike
         {
             if (!_buffer.TryPeek(out Press waiting)) return false;
             if (_duck.IsDown) return false; // waits out a quick duck, and is judged when she rises as at the end of a lock (work order 043)
-            if (waiting.Kind == PressKind.Skill && now < _skillGateUntil) return false; // waits out a free recovery
+            if (waiting.Kind == PressKind.Skill && now < _skillGateUntil && !CutsRecovery(waiting.Slot)) return false; // waits out a free recovery (not Backstep's hop: work order 064)
             FeelValues feel = Feel;
+            // Work order 064: a press that waits for its cooldown waits while it is no older than the cooldown buffer, and once
+            // the cooldown has ended it goes, judged good for the ordinary buffer from there.
+            if (waiting.Kind == PressKind.Skill && waiting.ForCooldown && now - waiting.At <= Kit.OpeningMoveCooldownBuffer + feel.InputBuffer)
+                return CooldownFor(waiting.Slot).IsReady(now);
             // A gate is set only by a free recovery, and a new skill, a dash or a teleport clears it.
             bool afterFreeRecovery = waiting.Kind == PressKind.Skill && feel.SkillRecoveryFree
                                      && _skillGateUntil != float.NegativeInfinity;
@@ -2253,13 +2300,15 @@ namespace Roguelike
 
             _actionKind = ActionKind.Skill;
             ActionsStarted++;
-            ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : skill.Startup;
-            _cast.Start(skill, Time.time);
+            float startup = StartupOf(skill, recast); // work order 064: Backstep's shot after its hop goes off quicker
+            ActionLeadTime = skill.Input == SkillInput.Charge ? 0f : startup;
+            _cast.Start(skill, Time.time, startup);
             _chainPressAt = Time.time; // work order 040: the cast bar's chain runs from this press (read only while a chain runs)
             // Snap Shot (work order 017): a Charge skill with no charging is let go at its press, and fires as a perfect release.
             if (skill.Input == SkillInput.Charge && skill.NoCharge) _cast.Release(Time.time);
             _markedAt.Clear();
             _castClean = false;
+            _castFullClean = false;
             _castMoves = moves;
             if (!recast)
             {
@@ -2322,7 +2371,8 @@ namespace Roguelike
             Look look = LookFor(null, 0f);
             Vector3 muzzle = NextMuzzle(out bool leftHand);
             Kick(leftHand, look);
-            PlaySound(look); // on a hit or a miss alike
+            _shotWeight = LastShotWeight = ShotWeight.Basic; // work order 064
+            PlayBasicShotSound(look); // on a hit or a miss alike; work order 064: never the same twice running
 
             GroundPoint origin = GroundPosition;
             var aim = new GroundPoint(_aimPoint.x, _aimPoint.z);
@@ -2459,7 +2509,7 @@ namespace Roguelike
         void MarkFromSkill(SkillDefinition skill, Damageable target, int primedExtra = 0)
         {
             // Primed (work order 025): a mark more than it would add, on each target it hits; a skill that adds none adds one.
-            int marks = (_castClean ? skill.CleanTapMarks : skill.MarksAdded) + Mathf.Max(0, primedExtra);
+            int marks = (_castClean ? MarkRules.CleanTapMarks(skill, Kit, _castFullClean) : skill.MarksAdded) + Mathf.Max(0, primedExtra); // work order 064: a full clean chain's mark more
             if (marks <= 0) return;
             // A run's upgrade (work order 012): more marks from this skill's hit on a target that has none.
             if (Modifiers != null && target.MarkCount == 0) marks += Modifiers.FirstMarkBonus(skill.Name);
@@ -2542,6 +2592,8 @@ namespace Roguelike
             bool tagged = target.IsTagged;
             if (Modifiers != null) stagger *= Modifiers.StaggerShare; // the run's Heavy hits (work order 025)
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
+            // Work order 064: a crit's flash on the enemy is a hard white frame, with the shots' weight running.
+            if (_dealtCrit && applied > 0 && FiringWeight.Running != null && target.TryGetComponent(out HitFlash flash)) flash.Crit();
             focus = applied > 0 ? GainFocus(applied * identity.FocusPerDamage) : 0f; // through the run's Keen focus (work order 025)
             if (tagged && !target.IsAlive) SpreadTag(target); // work order 017
             return applied;
@@ -2572,6 +2624,7 @@ namespace Roguelike
                                                                           || (_castPrime == PrimeUse.PerfectRelease && FocusModeRules.PrimedPerfect(charge, FocusModeValues)))));
             Look look = LookFor(skill, perfect ? 1f : charge);
             if (perfect) look.Width *= Mathf.Max(1f, skill.PerfectScale);
+            _shotWeight = LastShotWeight = FiringWeightRules.Of(skill, perfect, _castFullClean); // work order 064: its weight on the screen
             // A keg (work order 015) lands and lies on its fuse: nothing is hit yet.
             if (skill.Fuse > 0f && skill.Shape == SkillShape.Circle)
             {
@@ -2596,7 +2649,13 @@ namespace Roguelike
             float stagger = perfect ? skill.Stagger * Mathf.Max(0f, skill.PerfectScale) : skill.Stagger;
             // A clean tap (decision 0005) hits harder by itself; a clean spend (Backstep, amended 2026-11-19) instead
             // takes the marks, as a spender does, for its own bonus per mark.
-            if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * (StatsOn ? CritRules.Folded(Kit.CleanDamage, Modifiers.StatValues) : Kit.CleanDamage));
+            // Work order 064: the clean tap's scale from its one place (MarkRules.CleanTapScale: 1.75, twice that for the last tap
+            // of a full clean chain), folded with the stats on as work order 050 and 055 have it.
+            if (MarkRules.IsCleanTap(skill, _castClean))
+            {
+                float scale = MarkRules.CleanTapScale(Kit, _castFullClean);
+                damage = Mathf.RoundToInt(damage * (StatsOn ? CritRules.Folded(scale, Modifiers.StatValues) : scale));
+            }
             if (perfect)
             {
                 PerfectReleases++;
@@ -2721,6 +2780,34 @@ namespace Roguelike
             if (IsEmpowered && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch;
             Sounds.Play(values.Sound, values.SoundVolume * master, pitch, values.SoundStart);
         }
+
+        /// <summary>
+        /// The basic shot's sound (work order 064: "blir veldig slitsomt for ørene å høre samme lyd gjenta seg"): one of its
+        /// variations, never the same twice running (<see cref="ShotVariationPicker"/>), with its jitter and 3 dB quieter;
+        /// with the variations off (<see cref="ShotVariationValues.On"/>), exactly as before.
+        /// </summary>
+        void PlayBasicShotSound(Look look)
+        {
+            ShotLook values = look.Values;
+            if (ShotVariations == null || !ShotVariations.On || Sounds == null || values == null || values.Sound == null)
+            {
+                PlaySound(look);
+                return;
+            }
+            float master = ShotLooks != null ? ShotLooks.SoundVolume : 1f;
+            ShotVariation v = _shotVariations.Next(ShotVariations);
+            AudioClip own = ShotVariationClips.For(ShotVariations, v.Index);
+            AudioClip clip = own != null ? own : values.Sound;
+            float pitch = values.SoundPitch * v.Pitch;
+            if (IsEmpowered && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch;
+            Sounds.Play(clip, values.SoundVolume * master * v.Volume, pitch, own != null ? 0f : values.SoundStart, v);
+        }
+
+        /// <summary>The basic shot's variations (work order 064): defaults in code, reachable in the Inspector while playing.</summary>
+        public ShotVariationValues ShotVariations = new ShotVariationValues();
+        readonly ShotVariationPicker _shotVariations = new ShotVariationPicker();
+        /// <summary>The variations' stream starts again from this seed (tests).</summary>
+        public void SeedShotVariations(ulong seed) => _shotVariations.Seed(seed);
 
         Look LookFor(SkillDefinition skill, float charge)
         {
@@ -2899,9 +2986,16 @@ namespace Roguelike
 
         void SpawnFlash(Look look, Vector3 muzzle, Vector3 direction)
         {
-            ShotFx.Flash(muzzle, Flat(direction).sqrMagnitude > 1e-8f ? Flat(direction).normalized : Flat(transform.forward).normalized,
-                         look.Values.FlashSize * look.Scale * look.Width, look.Values.FlashSeconds, look.Paint, ShotFxMaterial);
+            Vector3 dir = Flat(direction).sqrMagnitude > 1e-8f ? Flat(direction).normalized : Flat(transform.forward).normalized;
+            // Work order 064: with the shot's weight running (never in a test or a flight unless made), a larger, shorter
+            // flash, a warm light at the muzzle and a kick of the camera back along the line.
+            FiringWeight weight = FiringWeight.Running;
+            float size = weight != null ? weight.Values.FlashSizeScale : 1f, seconds = weight != null ? weight.Values.FlashSecondsScale : 1f;
+            ShotFx.Flash(muzzle, dir, look.Values.FlashSize * look.Scale * look.Width * size, look.Values.FlashSeconds * seconds, look.Paint, ShotFxMaterial);
+            if (weight != null) weight.Fired(muzzle, dir, _shotWeight);
         }
+
+        ShotWeight _shotWeight; // the weight of the shot whose effects are being made (work order 064)
 
         void SpawnStreak(Look look, Vector3 from, Vector3 to, float widthScale)
         {
