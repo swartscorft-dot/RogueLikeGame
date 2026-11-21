@@ -242,18 +242,19 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void DamageScale_RisesWithTheFloor_AndMultipliesWithAnElites()
         {
+            // Work order 046's flights: 0.6, 0.6, 0.7, 0.8, 0.85 (0.7, 0.8, 0.9, 1, 1 before).
             var v = new LevelValues();
-            Assert.That(v.DamageScaleOf(1), Is.EqualTo(0.7f));
-            Assert.That(v.DamageScaleOf(2), Is.EqualTo(0.8f));
-            Assert.That(v.DamageScaleOf(3), Is.EqualTo(0.9f));
-            Assert.That(v.DamageScaleOf(4), Is.EqualTo(1f));
-            Assert.That(v.DamageScaleOf(5), Is.EqualTo(1f));
-            Assert.That(v.DamageScaleOf(9), Is.EqualTo(1f), "past the table, its last");
-            Assert.That(v.DamageScaleOf(0), Is.EqualTo(0.7f), "before it, its first");
+            Assert.That(v.DamageScaleOf(1), Is.EqualTo(0.6f));
+            Assert.That(v.DamageScaleOf(2), Is.EqualTo(0.6f));
+            Assert.That(v.DamageScaleOf(3), Is.EqualTo(0.7f));
+            Assert.That(v.DamageScaleOf(4), Is.EqualTo(0.8f));
+            Assert.That(v.DamageScaleOf(5), Is.EqualTo(0.85f));
+            Assert.That(v.DamageScaleOf(9), Is.EqualTo(0.85f), "past the table, its last");
+            Assert.That(v.DamageScaleOf(0), Is.EqualTo(0.6f), "before it, its first");
             Assert.That(new LevelValues { FloorDamageScale = null }.DamageScaleOf(2), Is.EqualTo(1f), "no table: 1");
-            // An elite's own scale multiplies with the floor's: a floor-1 elite deals 1.25 x 0.7 of an attack.
-            Assert.That(v.EliteDamageScale * v.DamageScaleOf(1), Is.EqualTo(0.875f).Within(1e-6f));
-            Assert.That(v.EliteDamageScale * v.DamageScaleOf(4), Is.EqualTo(1.25f).Within(1e-6f));
+            // An elite's own scale multiplies with the floor's: a floor-1 elite deals 1.25 x 0.6 of an attack.
+            Assert.That(v.EliteDamageScale * v.DamageScaleOf(1), Is.EqualTo(0.75f).Within(1e-6f));
+            Assert.That(v.EliteDamageScale * v.DamageScaleOf(4), Is.EqualTo(1f).Within(1e-6f));
         }
 
         // ---------------- The elite by its kind (work order 030, lever C) ----------------

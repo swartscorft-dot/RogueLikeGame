@@ -786,7 +786,10 @@ namespace Roguelike.PlayModeTests
                     Assert.That(before, Is.GreaterThan(0), kind + " dealt something before");
                     if (kind != EnemyKind.Swarmer)
                     {
-                        Assert.That(ratio, Is.InRange(0.9f, 1.4f), line);
+                        // Work order 046 eased the brute's Stroke (13 to 10) and the guard's Fist (24 to 18) by the test pilot's
+                        // flights of the night of 2026-11-20: left to attack her freely they deal about three quarters of what
+                        // 035 had them deal, so down to about 0.7 of before (0.9 to 1.4 before).
+                        Assert.That(ratio, Is.InRange(0.65f, 1.4f), line);
                         continue;
                     }
                     EnemyAttackDefinition bite = MeleeAttacks.Find(MeleeAttacks.Swarmer(), MeleeAttacks.Bite);

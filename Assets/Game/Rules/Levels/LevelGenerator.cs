@@ -70,6 +70,14 @@ namespace Roguelike.Rules
     /// given their points on the row's contents stream. So a floor holds as many rooms and as many enemies, of the same
     /// kinds, as version 9's of that seed. The themes and props follow on their own streams. With it off the floor of
     /// every seed is version 9's, field for field, but for the version.
+    /// Version 11 (work order 046, Kristian's third session of 2026-11-20: "Etasjene er litt korte", the floors are a little
+    /// short): a floor in a line has <see cref="LevelPlan.MoreCombatRooms"/> more ordinary combat rooms (one: five, the
+    /// elite room the third, C C T L C T C). The four of version 9's floor keep their groups, in their order; the further
+    /// ones come right after the elite room (as many before it as moving the middle needs), each with groups drawn as a
+    /// combat room's (<see cref="DrawGroups"/>) on a stream of their own (<see cref="MoreRoomsStage"/>) for the attempt
+    /// version 9's floor was made on, so no other room's enemies change. The row is laid out longer, so the rooms after
+    /// the first ones of the row stand elsewhere than in version 10, with other doors, points, themes and props. With
+    /// <see cref="LevelPlan.MoreCombatRooms"/> 0 every seed's floor is version 10's, field for field, but for the version.
     /// </summary>
     public static class LevelGenerator
     {
@@ -81,9 +89,14 @@ namespace Roguelike.Rules
         // themes and seven new props, on that branch; 9: work order 034, the two lines merged (the capped mixes, the
         // casters behind LevelValues.Casters, off by default, and the themes on).
         // 10: work order 041, the floor in one row (LevelValues.InALine, on; off, every seed's floor is version 9's).
-        // 11: work order 044, the rooms' mood (LevelValues.RoomMood, on): an ossuary's skull and bone piles banked at its far
-        // wall, from the props' own draws; every other room of every seed is version 10's, and with it off every floor is.
-        public const int Version = 11;
+        // 11: two versions at once: work order 044, the rooms' mood (LevelValues.RoomMood, on): an ossuary's skull and bone
+        // piles banked at its far wall, from the props' own draws; every other room of every seed is version 10's, and with
+        // it off every floor is; and on another branch work order 046, a fifth combat room in the row
+        // (LevelPlan.MoreCombatRooms, 1; 0, every seed's floor is version 10's).
+        // 12: the two merged (the night of 2026-11-20 to 21): the fifth combat room and the mood. With MoreCombatRooms 0
+        // every floor is 044's version 11's; with RoomMood off too, version 10's.
+        public const int Version = 12;
+        public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string LayoutStage = "layout";
         public const string ContentsStage = "contents";
@@ -231,7 +244,7 @@ namespace Roguelike.Rules
             var steps = new List<int>();
             if (!PlaceChain(kinds, rng, v, path, steps)) return false;
 
-            int elite = plan.EliteRoomNumber(plan.CombatRooms), combat = 0;
+            int elite = plan.EliteRoomNumber(plan.LineCombatRooms), combat = 0; // work order 046: the row's
             for (int i = 0; i < path.Count; i++)
             {
                 if (kinds[i] == RoomKind.Combat) combat++;
@@ -413,9 +426,31 @@ namespace Roguelike.Rules
                 var fights = new List<List<EnemyGroup>>();
                 foreach (LevelRoom room in LevelGeometry.MainPath(level))
                     if (room.Kind == RoomKind.Combat || room.Kind == RoomKind.Exit) fights.Add(room.EnemyGroups.Select(g => g.Copy()).ToList());
+                AddMoreFights(fights, seed, floor, attempt, v);
                 return fights;
             }
             throw new InvalidOperationException("No floor of version 9 for seed " + LevelSeed.ToText(seed) + " floor " + floor + " in " + v.Attempts + " attempts");
+        }
+
+        /// <summary>
+        /// The row's further combat rooms (work order 046, <see cref="LevelPlan.MoreCombatRooms"/>): each one's groups drawn as
+        /// a combat room's on the floor's stream for them, put among version 9's combat rooms' (<paramref name="fights"/>,
+        /// the exit room's last) so that the middle one, the elite room's, stays the row's middle: right after it, or as
+        /// many before it as the middle moves on.
+        /// </summary>
+        static void AddMoreFights(List<List<EnemyGroup>> fights, ulong seed, int floor, int attempt, LevelValues v)
+        {
+            LevelPlan plan = v.Plan;
+            int more = Math.Max(0, plan.MoreCombatRooms), n = Math.Max(0, plan.CombatRooms);
+            if (more == 0 || n == 0 || fights.Count < n) return;
+            LevelRandom rng = LevelRandom.Stream(seed, MoreRoomsStage, attempt);
+            var made = new List<List<EnemyGroup>>();
+            for (int i = 0; i < more; i++) made.Add(DrawGroups(RoomKind.Combat, floor, rng, v));
+            int oldMiddle = n / 2 + 1, newMiddle = (n + more) / 2 + 1;
+            int before = Math.Max(0, Math.Min(more, newMiddle - oldMiddle));
+            // Combat room oldMiddle is at index oldMiddle - 1; those before it go in front of it, the rest right after it.
+            fights.InsertRange(oldMiddle, made.Skip(before));
+            fights.InsertRange(oldMiddle - 1, made.Take(before));
         }
 
         /// <summary>

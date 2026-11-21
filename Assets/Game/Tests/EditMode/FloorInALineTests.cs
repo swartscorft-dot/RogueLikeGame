@@ -32,7 +32,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(7, "CCCTCCTCC")]
         public void TheRow_PutsTheTreasureRoomsBeforeTheEliteRoom_AndOneCombatRoomPastIt_WhereThereIsRoom(int combats, string wanted)
         {
-            Assert.That(Letters(new LevelPlan { CombatRooms = combats, TreasureRooms = 2 }), Is.EqualTo(wanted));
+            Assert.That(Letters(new LevelPlan { CombatRooms = combats, TreasureRooms = 2, MoreCombatRooms = 0 }), Is.EqualTo(wanted)); // the row of that many (work order 046)
         }
 
         [Test]
@@ -41,7 +41,7 @@ namespace Roguelike.Rules.Tests
             for (int combats = 1; combats <= 9; combats++)
                 for (int treasures = 0; treasures <= 4; treasures++)
                 {
-                    var plan = new LevelPlan { CombatRooms = combats, TreasureRooms = treasures };
+                    var plan = new LevelPlan { CombatRooms = combats, TreasureRooms = treasures, MoreCombatRooms = 0 }; // work order 046: the row of that many
                     List<RoomKind> line = plan.LineBetween();
                     string what = combats + " combat rooms, " + treasures + " treasure rooms: " + Letters(plan);
                     Assert.That(line.Count(k => k == RoomKind.Combat), Is.EqualTo(combats), what);
@@ -84,7 +84,7 @@ namespace Roguelike.Rules.Tests
             List<RoomKind> wanted = new List<RoomKind> { RoomKind.Entrance };
             wanted.AddRange(on.Plan.LineBetween());
             wanted.Add(RoomKind.Exit);
-            int eliteNumber = on.Plan.EliteRoomNumber(on.Plan.CombatRooms);
+            int eliteNumber = on.Plan.EliteRoomNumber(on.Plan.LineCombatRooms); // work order 046: of the row's five
             var timesOn = new List<double>();
             var timesOff = new List<double>();
             var layouts = new HashSet<string>();
@@ -122,10 +122,15 @@ namespace Roguelike.Rules.Tests
                 foreach (LevelRoom t in level.Rooms.Where(r => r.Kind == RoomKind.Treasure))
                     Assert.That(t.Props.Count(p => p.Model == PropModel.Chest), Is.EqualTo(1), "a chest in every treasure room: " + where);
 
-                // As full as version 9's floor of the seed: as many rooms and enemies, and the same groups room for room.
-                Assert.That(level.Rooms.Count, Is.EqualTo(nine.Rooms.Count), where);
-                Assert.That(level.Rooms.Sum(r => r.EnemyCount), Is.EqualTo(nine.Rooms.Sum(r => r.EnemyCount)), "enemies: " + where);
-                List<string> mine = level.Rooms.Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).Select(Groups).ToList();
+                // As full as version 9's floor of the seed: as many rooms and enemies, and the same groups room for room; work
+                // order 046: and one combat room more, the one after the elite room, as full as a combat room of its floor.
+                Assert.That(level.Rooms.Count, Is.EqualTo(nine.Rooms.Count + on.Plan.MoreCombatRooms), where);
+                LevelRoom more = combats[eliteNumber];
+                FloorEnemies range = on.EnemiesOf(floor);
+                Assert.That(more.EnemyCount, Is.InRange(range.Fewest, range.Most), "the further combat room: " + where);
+                Assert.That(more.Elite, Is.False, where);
+                Assert.That(level.Rooms.Sum(r => r.EnemyCount) - more.EnemyCount, Is.EqualTo(nine.Rooms.Sum(r => r.EnemyCount)), "enemies: " + where);
+                List<string> mine = level.Rooms.Where(r => (r.Kind == RoomKind.Combat && r != more) || r.Kind == RoomKind.Exit).Select(Groups).ToList();
                 List<string> theirs = LevelGeometry.MainPath(nine).Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).Select(Groups).ToList();
                 Assert.That(mine, Is.EqualTo(theirs), "the same groups, room for room: " + where);
                 layouts.Add(level.DescribeLayout());

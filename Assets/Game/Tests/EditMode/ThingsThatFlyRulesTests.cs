@@ -295,7 +295,7 @@ namespace Roguelike.Rules.Tests
                                 "an elite on floor " + floor + " shot " + n);
                 }
             }
-            Assert.That(v.FanFromFloor, Is.EqualTo(3), "floors 3 to 5");
+            Assert.That(v.FanFromFloor, Is.EqualTo(4), "floors 4 and 5 (work order 046; 3 to 5 before)");
             Assert.That(ShooterTactics.AtOnce(ShooterValues.ArrowFan, v), Is.EqualTo(3));
             Assert.That(ShooterTactics.AtOnce(ShooterValues.Volley, v), Is.EqualTo(1), "a volley's arrows leave one after the other");
             Assert.That(ShooterTactics.InAll(ShooterValues.Volley, v), Is.EqualTo(2));
@@ -307,14 +307,14 @@ namespace Roguelike.Rules.Tests
         {
             var v = new ShooterValues();
             var t = new ShooterTactics();
-            Assert.That(t.Peek(10f, 3, false, v).Name, Is.EqualTo(ShooterValues.Arrow));
-            Assert.That(t.Peek(10f, 3, false, v).Name, Is.EqualTo(ShooterValues.Arrow), "asking twice moves nothing");
+            Assert.That(t.Peek(10f, 4, false, v).Name, Is.EqualTo(ShooterValues.Arrow));
+            Assert.That(t.Peek(10f, 4, false, v).Name, Is.EqualTo(ShooterValues.Arrow), "asking twice moves nothing");
             Assert.That(t.Shots, Is.EqualTo(0));
-            Assert.That(t.Choose(30f, 3, false, v), Is.Null, "out of its band: nothing, and nothing counted");
+            Assert.That(t.Choose(30f, 4, false, v), Is.Null, "out of its band: nothing, and nothing counted");
             Assert.That(t.Shots, Is.EqualTo(0));
-            Assert.That(t.Choose(10f, 3, false, v).Name, Is.EqualTo(ShooterValues.Arrow));
-            Assert.That(t.Choose(10f, 3, false, v).Name, Is.EqualTo(ShooterValues.Arrow));
-            Assert.That(t.Choose(10f, 3, false, v).Name, Is.EqualTo(ShooterValues.ArrowFan), "the third on floor 3");
+            Assert.That(t.Choose(10f, 4, false, v).Name, Is.EqualTo(ShooterValues.Arrow));
+            Assert.That(t.Choose(10f, 4, false, v).Name, Is.EqualTo(ShooterValues.Arrow));
+            Assert.That(t.Choose(10f, 4, false, v).Name, Is.EqualTo(ShooterValues.ArrowFan), "the third on floor 4 (work order 046: fans from floor 4)");
             Assert.That(t.Shots, Is.EqualTo(3));
             EnemyAttackDefinition arrow = CasterTactics.Find(v.Arrows, ShooterValues.Arrow), fan = CasterTactics.Find(v.Arrows, ShooterValues.ArrowFan);
             EnemyAttackDefinition shot = v.Enemy.Attacks[0];
@@ -323,7 +323,7 @@ namespace Roguelike.Rules.Tests
             // band is the shot's 14 m again (036 had 17 m).
             foreach (EnemyAttackDefinition a in v.Arrows)
             {
-                Assert.That(a.Recovery, Is.EqualTo(1.2f).Within(1e-4f), a.Name);
+                Assert.That(a.Recovery, Is.EqualTo(1.8f).Within(1e-4f), a.Name); // work order 046's flights: 1.8 s (1.2 before)
                 Assert.That(a.MaxDistance, Is.EqualTo(shot.MaxDistance), a.Name + ": the shot's band");
             }
             Assert.That(shot.Recovery, Is.EqualTo(1.5f).Within(1e-4f), "the switch's off position as before");

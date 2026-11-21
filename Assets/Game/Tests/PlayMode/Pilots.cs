@@ -64,6 +64,15 @@ namespace Roguelike.PlayModeTests
                 Me.Stop();
                 return;
             }
+            // Work order 046: stunned or pulled she cannot act, and the pilot does nothing until she can; then it decides
+            // afresh from what it sees. Its walk is let go of, so no steer from before the stun moves her as it ends.
+            if (Me.IsHeld)
+            {
+                Mode = Me.IsStunned ? "stunned" : "pulled";
+                HasGoal = false;
+                Me.Stop();
+                return;
+            }
             if (view.MapVersion != _mapVersion) NewMap(view);
             List<EnemySeen> foes = Foes(view);
             if (foes.Count > 0)
@@ -73,8 +82,15 @@ namespace Roguelike.PlayModeTests
                 Move(view, foes, target);
                 return;
             }
+            if (Evade(view)) return;
             Travel(view);
         }
+
+        /// <summary>
+        /// With no foe in view, what it does before walking on (work order 046: the Kiter steps out of the path of a thing
+        /// that flies from a shooter it does not see); false when nothing.
+        /// </summary>
+        protected virtual bool Evade(PilotView view) => false;
 
         // ---------------- Foes and the target ----------------
 
@@ -126,6 +142,12 @@ namespace Roguelike.PlayModeTests
 
         /// <summary>May this skill be started now on this target? Every skill, unless a kind keeps one back.</summary>
         protected virtual bool MayStart(PilotSkill skill, List<EnemySeen> foes, EnemySeen target) => true;
+
+        /// <summary>
+        /// Is the basic shot held this frame (work order 046: the Kiter runs out of an ordinary attack's reach at full speed,
+        /// a shot on the move halving it)? Never, unless a kind says otherwise.
+        /// </summary>
+        protected virtual bool HoldsShot(List<EnemySeen> foes) => false;
 
         /// <summary>A shot or skill it must fire now, before the rest (the Ace's counter and keg); false when none.</summary>
         protected virtual bool Special(PilotView view, List<EnemySeen> foes, EnemySeen target) => false;
@@ -182,7 +204,8 @@ namespace Roguelike.PlayModeTests
             }
 
             // The basic shot.
-            if (target.Visible && target.Distance <= Me.BasicShotRange + target.BodyRadius && !Me.HasPendingShot && Me.ActiveSkillSlot < 0)
+            if (target.Visible && target.Distance <= Me.BasicShotRange + target.BodyRadius && !Me.HasPendingShot && Me.ActiveSkillSlot < 0
+                && !HoldsShot(foes))
                 Me.Shoot(aim);
         }
 
@@ -382,45 +405,69 @@ namespace Roguelike.PlayModeTests
     /// <summary>
     /// The Kiter (work order 022), a competent player: the Turret's use of the kit, and it moves. In this order, once a
     /// frame:
-    /// - In a telegraph (or the boss's charge line): to the nearest point outside every one, walking when it gets there
-    ///   before the strike, else the dash when it is ready, else Slide when it has it, else walking anyway.
+    /// - A guard's Drag at her, she within its length and seen by it (work order 046): the dash in its last moment, so
+    ///   the dash's protected part breaks it (<see cref="DragDashAt"/>), when the dash is ready.
+    /// - In an attack's area (a telegraph, the area of an attack read on the body, the boss's charge line): to the
+    ///   nearest point outside every one, walking when it gets there before the strike, else the dash when it is ready,
+    ///   else Slide when it has it, else walking anyway. The dash and Slide are kept for skills: out of an ordinary
+    ///   attack's area it only walks (work order 046).
+    /// - In the path of a thing that flies that would meet her (work order 046): sideways out of it, to the nearer side
+    ///   unless that side is in another one's path, an attack's area or a wall; walking when that is quick enough, else
+    ///   the dash, else Slide, else walking anyway.
+    /// - An awake melee enemy she sees nearer than its ordinary attack's reach and <see cref="ReachMargin"/> (work order
+    ///   046): it backs away first, before walking in for a spender, holding its basic shot so she runs at full speed
+    ///   (<see cref="HoldsShot"/>), but from a swarmer, which it shoots down as it comes.
     /// - A spender ready and the target at three marks or more but out of its reach: it walks in.
     /// - The nearest melee enemy nearer than <see cref="KeepFrom"/> less a metre: it backs away, along the best of
-    ///   sixteen ways a few metres ahead on the NavMesh (away from the melee enemies, away from walls, inside the room).
-    /// - A shooter winding up at her: it steps sideways to its line.
+    ///   sixteen ways a few metres ahead on the NavMesh (away from the melee enemies, away from walls, inside the room,
+    ///   out of attacks' areas and the paths of what flies).
+    /// - A shooter seen drawing at her: it steps sideways to its line.
     /// - The target out of the basic shot's range or not seen: it walks toward it.
     /// - Else it stands and shoots.
+    /// What a person does better (work order 046): reads a lunge's or a leap's line a moment early from the enemy's
+    /// stance and steps across it in time; keeps the dash for what hurts most; sees a leading arrow's aim from the bow
+    /// and does not run into it; steps behind a pillar to break a Drag; ducks (the pilots never duck).
     /// </summary>
     public class Kiter : Pilot
     {
         public const float KeepFrom = 7f;
+        /// <summary>m past an awake melee enemy's ordinary reach that it keeps (work order 046).</summary>
+        public const float ReachMargin = 1f;
+        /// <summary>s before a Drag goes off that the dash is pressed: inside the dash's protected part (0.1 s), work order 046.</summary>
+        public const float DragDashAt = 0.08f;
         const float HazardMargin = 0.35f;
+        const float FlyMargin = 0.3f;
         const float Probe = 3f;
 
         public Kiter(PilotBody me) : base(me) { }
         public override PilotKind Kind => PilotKind.Kiter;
 
-        /// <summary>Is a point inside a telegraph or the charge's line? The soonest strike among those it is in.</summary>
-        protected static bool InHazard(List<EnemySeen> foes, Vector3 p, out float soonest)
+        /// <summary>
+        /// Is a point inside an attack's area or the charge's line? The soonest strike among those it is in, and whether
+        /// every one of them is an ordinary attack. A Drag and a draw that throws have no area here.
+        /// </summary>
+        protected static bool InHazard(List<EnemySeen> foes, Vector3 p, out float soonest, out bool onlyOrdinary)
         {
             soonest = float.MaxValue;
+            onlyOrdinary = true;
             bool any = false;
             float r = Placeholders.PlayerRadius + HazardMargin;
             foreach (EnemySeen e in foes)
             {
-                if (e.Winding)
+                if (e.Winding && !e.Pulls && !e.Throws)
                 {
                     bool hit;
                     switch (e.Shape)
                     {
-                        case EnemyAttackShape.Circle: hit = SkillRules.InCircle(G(e.Position), e.Radius, G(p), r); break;
-                        case EnemyAttackShape.Cone: hit = SkillRules.InCone(G(e.Position), G(e.AimPoint), e.Reach, e.Angle, G(p), r); break;
-                        default: hit = LineShot.Hits(G(e.Position), G(e.AimPoint), e.Reach, e.HalfWidth, G(p), r); break;
+                        case EnemyAttackShape.Circle: hit = SkillRules.InCircle(G(e.StrikeFrom), e.Radius, G(p), r); break;
+                        case EnemyAttackShape.Cone: hit = SkillRules.InCone(G(e.StrikeFrom), G(e.AimPoint), e.Reach, e.Angle, G(p), r); break;
+                        default: hit = LineShot.Hits(G(e.StrikeFrom), G(e.AimPoint), e.Reach, e.HalfWidth, G(p), r); break;
                     }
                     if (hit)
                     {
                         any = true;
                         soonest = Mathf.Min(soonest, e.WindupLeft);
+                        if (!e.Ordinary) onlyOrdinary = false;
                     }
                 }
                 if (e.Charging)
@@ -430,16 +477,48 @@ namespace Roguelike.PlayModeTests
                     {
                         any = true;
                         soonest = Mathf.Min(soonest, Flat(e.Position, p) / 12f);
+                        onlyOrdinary = false;
                     }
                 }
             }
             return any;
         }
 
+        protected static bool InHazard(List<EnemySeen> foes, Vector3 p, out float soonest) => InHazard(foes, p, out soonest, out bool _);
+
+        /// <summary>
+        /// Would a thing that flies meet her footprint at <paramref name="p"/> if she stood there (work order 046)? Its path
+        /// ahead, as far as its flight goes, as wide as it and her together and a margin; when, in seconds, and how far
+        /// across its line she stands (signed, along its left).
+        /// </summary>
+        protected static bool InPath(FlyingSeen f, Vector3 p, out float when, out float across)
+        {
+            Vector3 rel = new Vector3(p.x - f.Position.x, 0f, p.z - f.Position.z);
+            Vector3 dir = new Vector3(f.Direction.x, 0f, f.Direction.z);
+            Vector3 left = new Vector3(-dir.z, 0f, dir.x);
+            float along = Vector3.Dot(rel, dir);
+            across = Vector3.Dot(rel, left);
+            float touch = f.Radius + Placeholders.PlayerRadius;
+            when = Mathf.Max(0f, along - touch) / Mathf.Max(0.1f, f.Speed);
+            return along >= -touch && along <= f.FlightLeft + touch && Mathf.Abs(across) <= f.HalfWidth + touch + FlyMargin;
+        }
+
+        /// <summary>Is the point in the path of any thing that flies but <paramref name="except"/> (an index, or -1)?</summary>
+        protected static bool InAnyPath(PilotView view, Vector3 p, int except = -1)
+        {
+            if (view == null) return false;
+            for (int i = 0; i < view.Flying.Count; i++)
+                if (i != except && InPath(view.Flying[i], p, out float _, out float _)) return true;
+            return false;
+        }
+
         static bool Clear(Vector3 from, Vector3 to) => !NavMesh.Raycast(from, to, out NavMeshHit _, NavMesh.AllAreas);
 
-        /// <summary>The nearest point outside every telegraph that can be walked to in a straight line; false if none.</summary>
-        protected static bool SafePoint(List<EnemySeen> foes, Vector3 here, out Vector3 safe)
+        /// <summary>
+        /// The nearest point outside every attack's area that can be walked to in a straight line, not into another
+        /// melee enemy's arms nor the path of a thing that flies; false if none.
+        /// </summary>
+        protected static bool SafePoint(PilotView view, List<EnemySeen> foes, Vector3 here, out Vector3 safe)
         {
             safe = here;
             float best = float.MaxValue;
@@ -454,6 +533,7 @@ namespace Roguelike.PlayModeTests
                     float cost = radius;
                     foreach (EnemySeen e in foes)
                         if (e.Melee && Flat(e.Position, p) < 2.5f) cost += 2f; // not into the arms of another
+                    if (InAnyPath(view, p)) cost += 3f; // nor into an arrow's way (work order 046)
                     if (cost < best)
                     {
                         best = cost;
@@ -467,34 +547,87 @@ namespace Roguelike.PlayModeTests
 
         protected virtual bool UsesSlide => true;
 
+        static readonly List<EnemySeen> s_NoFoes = new List<EnemySeen>();
+
+        /// <summary>An awake melee enemy she sees, nearer than its ordinary attack's reach and <see cref="ReachMargin"/> (work order 046).</summary>
+        static bool TooNear(EnemySeen e) =>
+            e.Melee && e.Awake && e.Visible && e.OrdinaryReach > 0f && e.Distance < e.OrdinaryReach + ReachMargin;
+
+        /// <summary>
+        /// Work order 046: while it gets out of the reach of a brute's or a guard's ordinary attack it holds the basic shot,
+        /// so she runs at full speed (a shot on the move halves it, and a brute walks faster than that); its skills it still
+        /// uses. A swarmer it backs from shooting: those are shot down as they come (Kristian, decision 0010).
+        /// </summary>
+        protected override bool HoldsShot(List<EnemySeen> foes)
+        {
+            if (!_runningOut) return false;
+            foreach (EnemySeen e in foes)
+                if (TooNear(e) && e.Kind != EnemyKind.Swarmer) return true;
+            return false;
+        }
+
+        /// <summary>It was getting out of an ordinary attack's reach at its last move (cornered, it shoots).</summary>
+        bool _runningOut;
+
+        protected override bool Evade(PilotView view) =>
+            Dodge(view, s_NoFoes, Me.Position, !Me.IsDashing && (!Me.IsLocked || Me.InLightSkill));
+
+        /// <summary>Out of the way, by walking when it gets there in time, else the dash, else Slide; true when it acted.</summary>
+        bool GetOut(Vector3 here, Vector3 to, float soonest, bool free, bool mayDash, string what)
+        {
+            HasGoal = false;
+            Vector3 dir = FlatDir(here, to);
+            float need = Flat(here, to) / Mathf.Max(0.1f, Me.RunSpeed) + 0.05f;
+            if (mayDash && (!free || need > soonest) && Me.DashCooldownRemaining <= 0f && !Me.IsDashing)
+            {
+                Mode = "dashing out of " + what;
+                Me.DashToward(here + dir * Me.DashDistance);
+                return true;
+            }
+            if (!free)
+            {
+                Mode = "in " + what + ", locked";
+                return true;
+            }
+            Mode = "stepping out of " + what;
+            LastDir = dir;
+            Me.Steer(dir);
+            if (mayDash && need > soonest && UsesSlide && TryKeySkill(s => s.Input == SkillInput.KeyMove && Ready(s), out PilotSkill slide))
+            {
+                Me.PressSkill(slide.Slot, here + dir * 6f);
+                Me.ReleaseSkill(slide.Slot);
+            }
+            return true;
+        }
+
         protected override void Move(PilotView view, List<EnemySeen> foes, EnemySeen target)
         {
             Vector3 here = Me.Position;
             bool free = !Me.IsDashing && (!Me.IsLocked || Me.InLightSkill);
+            _runningOut = false;
 
-            // 1. Out of any telegraph before the strike.
-            if (InHazard(foes, here, out float soonest) && SafePoint(foes, here, out Vector3 safe))
+            // 0. A Drag at her: the dash in its last moment (work order 046).
+            foreach (EnemySeen e in foes)
             {
+                if (!e.Winding || !e.Pulls || !e.Visible || e.WindupLeft > DragDashAt) continue;
+                if (Flat(e.Position, here) > e.Radius + 0.5f || Me.DashCooldownRemaining > 0f || Me.IsDashing) continue;
+                Vector3 away = BestWay(view, foes, here, FlatDir(e.Position, here));
+                if (away == Vector3.zero) away = FlatDir(e.Position, here);
+                Mode = "dashing through a Drag";
                 HasGoal = false;
-                Vector3 dir = FlatDir(here, safe);
-                float need = Flat(here, safe) / Mathf.Max(0.1f, Me.RunSpeed) + 0.05f;
-                if ((!free || need > soonest) && Me.DashCooldownRemaining <= 0f && !Me.IsDashing)
-                {
-                    Mode = "dashing out of a telegraph";
-                    Me.DashToward(here + dir * Me.DashDistance);
-                    return;
-                }
-                if (!free) { Mode = "in a telegraph, locked"; return; }
-                Mode = "stepping out of a telegraph";
-                LastDir = dir;
-                Me.Steer(dir);
-                if (need > soonest && UsesSlide && TryKeySkill(s => s.Input == SkillInput.KeyMove && Ready(s), out PilotSkill slide))
-                {
-                    Me.PressSkill(slide.Slot, here + dir * 6f);
-                    Me.ReleaseSkill(slide.Slot);
-                }
+                Me.DashToward(here + away * Me.DashDistance);
                 return;
             }
+
+            // 1. Out of any attack's area before the strike.
+            if (InHazard(foes, here, out float soonest, out bool onlyOrdinary) && SafePoint(view, foes, here, out Vector3 safe))
+            {
+                GetOut(here, safe, soonest, free, !onlyOrdinary, onlyOrdinary ? "an ordinary attack's reach" : "an attack's area");
+                return;
+            }
+
+            // 1b. Out of the path of a thing that flies that would meet her (work order 046).
+            if (Dodge(view, foes, here, free)) return;
             if (!free) return;
 
             // The nearest melee enemy she can see: one behind a wall is walked round to, not backed away from (a Kiter
@@ -502,6 +635,20 @@ namespace Roguelike.PlayModeTests
             EnemySeen? melee = null;
             foreach (EnemySeen e in foes)
                 if (e.Melee && e.Visible && (melee == null || e.Distance < melee.Value.Distance)) melee = e;
+
+            // 2a. Out of an ordinary attack's reach (work order 046): its wind-up is too short to step out of once seen.
+            foreach (EnemySeen e in foes)
+            {
+                if (!TooNear(e)) continue;
+                Vector3 dir = BestWay(view, foes, here, FlatDir(e.Position, here));
+                if (dir == Vector3.zero) break;
+                Mode = "out of a " + EnemyKinds.Word(e.Kind) + "'s reach";
+                HasGoal = false;
+                _runningOut = e.Kind != EnemyKind.Swarmer; // a swarmer is shot down as it comes (decision 0010)
+                LastDir = dir;
+                Me.Steer(dir);
+                return;
+            }
 
             // 2. In for a spender.
             if (target.Visible && target.Marks >= SpendAt
@@ -559,9 +706,39 @@ namespace Roguelike.PlayModeTests
         }
 
         /// <summary>
+        /// Out of the path of the soonest thing that flies that would meet her where she stands (work order 046): sideways
+        /// to its line, to the nearer side, or the other when the nearer is in another's path, an attack's area or past a
+        /// wall. Only what she sees of it now: where it is and the way it flies, never where an arrow was aimed. True when
+        /// it acted.
+        /// </summary>
+        bool Dodge(PilotView view, List<EnemySeen> foes, Vector3 here, bool free)
+        {
+            int pick = -1;
+            float when = float.MaxValue, across = 0f;
+            for (int i = 0; i < view.Flying.Count; i++)
+                if (InPath(view.Flying[i], here, out float w, out float a) && w < when)
+                {
+                    pick = i;
+                    when = w;
+                    across = a;
+                }
+            if (pick < 0) return false;
+            FlyingSeen f = view.Flying[pick];
+            Vector3 left = new Vector3(-f.Direction.z, 0f, f.Direction.x).normalized;
+            float edge = f.HalfWidth + f.Radius + Placeholders.PlayerRadius + FlyMargin + 0.1f;
+            float near = across >= 0f ? 1f : -1f;
+            Vector3 to = here + left * near * (edge - Mathf.Abs(across));
+            Vector3 other = here - left * near * (edge + Mathf.Abs(across));
+            if (!Clear(here, to) || InAnyPath(view, to, pick) || InHazard(foes, to, out float _))
+                if (Clear(here, other) && !InAnyPath(view, other, pick) && !InHazard(foes, other, out float _)) to = other;
+            string what = f.Kind == ProjectileKind.Arrow ? "an arrow's path" : f.Kind == ProjectileKind.Orb ? "an orb's path" : "the wave's path";
+            return GetOut(here, to, when, free, true, what);
+        }
+
+        /// <summary>
         /// The best of sixteen ways a few metres ahead on the NavMesh: away from the melee enemies, away from the walls,
-        /// inside the room she is in, a little along <paramref name="lean"/> and the way she went last. Zero when none is
-        /// open.
+        /// inside the room she is in, a little along <paramref name="lean"/> and the way she went last, out of attacks'
+        /// areas and the paths of what flies. Zero when none is open.
         /// </summary>
         protected Vector3 BestWay(PilotView view, List<EnemySeen> foes, Vector3 here, Vector3 lean)
         {
@@ -589,6 +766,7 @@ namespace Roguelike.PlayModeTests
                 if (inRoom && !r.Contains(p, 0.5f)) score -= 3f;
                 score += 0.5f * Vector3.Dot(dir, lean) + 0.3f * Vector3.Dot(dir, LastDir);
                 if (InHazard(foes, p, out float _)) score -= 5f;
+                if (InAnyPath(view, p)) score -= 3f; // work order 046
                 if (score > bestScore)
                 {
                     bestScore = score;

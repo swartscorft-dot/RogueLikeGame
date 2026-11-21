@@ -40,6 +40,7 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             v.Plan.CombatRooms = combatRooms;
+            v.Plan.MoreCombatRooms = 0; // work order 046: that many in the row too
             v.Plan.TreasureRooms = treasureRooms;
             int made = 0;
             for (ulong s = 0; s < 40; s++)

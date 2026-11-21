@@ -142,24 +142,28 @@ namespace Roguelike.Rules
         /// more often to keep the air busy, about 2.1 s from shot to shot. 1.1 s measured the same on average but kept time
         /// with a run back and forth over 12 m (2 s a leg), so that a run of releases in a row fell where she turned back
         /// into the spot it was aimed at.
+        /// Work order 046 (the test pilot's flights of the night of 2026-11-20): 1.8 s, about 2.7 s from shot to shot. At
+        /// 1.2 s the arrow was the first or second source of her damage in every round (a quarter to a third of it, the
+        /// elite's volley and fans besides), and the pilots died on floor 2; Kristian's third session had the shooter first
+        /// too (266, 25 arrows landed). Its speed, its lead and its damage are as they were.
         /// </summary>
         public EnemyAttackDefinition[] Arrows =
         {
             new EnemyAttackDefinition
             {
                 Name = Arrow, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
-                Windup = 0.9f, Recovery = 1.2f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+                Windup = 0.9f, Recovery = 1.8f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
             new EnemyAttackDefinition
             {
                 Name = ArrowFan, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
-                Windup = 1.2f, Recovery = 1.2f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+                Windup = 1.2f, Recovery = 1.8f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
             new EnemyAttackDefinition
             {
                 // Recovery: from the first arrow; the second leaves VolleyGap into it.
                 Name = Volley, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
-                Windup = 0.9f, Recovery = 1.2f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
+                Windup = 0.9f, Recovery = 1.8f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
         };
         // Work order 039 (Kristian's second session of 2026-11-20: 38 of 40 arrows in the open landed; "the shot comes a
@@ -174,7 +178,9 @@ namespace Roguelike.Rules
         public float LeadShare = 0.35f;     // its aim leads her by her velocity times the arrow's flight time, times this
         public float LeadMost = 2.5f;       // m, the lead at most
         public int FanEvery = 3;            // every third shot is a fan...
-        public int FanFromFloor = 3;        // ...from this floor on, and for an elite on any floor
+        // Work order 046 (the test pilot's flights of the night of 2026-11-20): from floor 4 (3 before). With the danger by
+        // floor eased, the fan was the end of three of the five pilots that died on floor 3, and an eighth of her damage.
+        public int FanFromFloor = 4;        // ...from this floor on, and for an elite on any floor
         public int FanArrows = 3;
         // Degrees between two arrows of a fan: 16 (12 before work order 039). With slow arrows a fan is a pattern to step
         // through: 10 m from the bow two arrows 12 degrees apart leave her middle a band of 0.4 m to pass between them
