@@ -757,6 +757,7 @@ namespace Roguelike.Rules
                 Misses = events.Count(e => e.Type == SessionEventTypes.ShotFired && e.Hit != true),
             };
             FillDamageAndUse(shot, events, spans, s.TotalDamage);
+            ShotUseByInterval(shot, all, spans, kit.ShotTime); // work order 055: against her real interval, when the log has it
             s.Rows.Add(shot);
             var dash = new ActionRow
             {
@@ -901,6 +902,51 @@ namespace Roguelike.Rules
             // Each span allows a start at its beginning and one more every cooldown after.
             int allowed = spans.Sum(p => 1 + (int)Math.Floor(Math.Max(0d, p.Value - p.Key) / row.Cooldown + 1e-4));
             row.CooldownUse = allowed > 0 ? row.Started / (float)allowed : float.NaN;
+        }
+
+        /// <summary>
+        /// The basic shot's cooldown use against her real interval (the fourth review of 2026-11-21, work order 055): the
+        /// feel's 0.225 s is not hers with the stats on (a run starts 15 % slower, attack speed shortens it), so with
+        /// <see cref="SessionEventTypes.ShotInterval"/> in the log each span allows a start at its beginning and one more
+        /// each interval after, the interval as it was at each moment. An old log without it is read as before.
+        /// </summary>
+        static void ShotUseByInterval(ActionRow shot, List<SessionEvent> all, List<KeyValuePair<double, double>> spans, float feelTime)
+        {
+            List<SessionEvent> changes = all.Where(e => e.Type == SessionEventTypes.ShotInterval && IntervalOf(e) > 0f).ToList();
+            if (changes.Count == 0 || spans.Count == 0) return;
+            float At(double t)
+            {
+                float now = feelTime > 0f ? feelTime : IntervalOf(changes[0]);
+                foreach (SessionEvent c in changes)
+                {
+                    if (c.T > t) break;
+                    now = IntervalOf(c);
+                }
+                return now;
+            }
+            double allowed = 0d;
+            foreach (KeyValuePair<double, double> span in spans)
+            {
+                double from = span.Key, starts = 0d;
+                float interval = At(from);
+                foreach (SessionEvent c in changes)
+                {
+                    if (c.T <= span.Key || c.T >= span.Value) continue;
+                    starts += (c.T - from) / interval;
+                    from = c.T;
+                    interval = IntervalOf(c);
+                }
+                starts += Math.Max(0d, span.Value - from) / interval;
+                allowed += 1 + Math.Floor(starts + 1e-4);
+            }
+            shot.Cooldown = At(spans[0].Key);
+            shot.CooldownUse = allowed > 0d ? shot.Started / (float)allowed : float.NaN;
+        }
+
+        static float IntervalOf(SessionEvent e)
+        {
+            string s = e?.ExtraValue("seconds");
+            return s != null && float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) ? v : 0f;
         }
 
         static bool IsStart(SessionEvent e) =>

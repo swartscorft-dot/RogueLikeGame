@@ -1733,7 +1733,11 @@ namespace Roguelike
                 if (!feel.TakeCover || !feel.QuickDuck || !DuckMayGoOn || _duckShelter == null || !_duckShelter.isActiveAndEnabled)
                     EndDuck(DuckEnd.Other);
                 else if (_duck.RisesBy(now)) EndDuck(DuckEnd.Rose);
-                else if (QuickDuckRules.MoveEnds(new GroundPoint(_duckHeldAtTap.x, _duckHeldAtTap.z), new GroundPoint(_moveInput.x, _moveInput.z)))
+                // Steered by the keys, a key going down ends it, whatever the direction comes to (the fourth review of
+                // 2026-11-21, work order 055: the opposite key, pressed with one held, gives no direction); steered by a
+                // direction alone, a direction not held at the tap, as before.
+                else if (_steeredByKeys ? _moveKeyWentDown
+                         : QuickDuckRules.MoveEnds(new GroundPoint(_duckHeldAtTap.x, _duckHeldAtTap.z), new GroundPoint(_moveInput.x, _moveInput.z)))
                     EndDuck(DuckEnd.Moved);
             }
             _steeredByKeys = false; // looked at once a frame (work order 047)
@@ -2521,7 +2525,7 @@ namespace Roguelike
         /// Work order 050: in a run with the stats on, the hit may crit (her crit chance, on the crits' stream), and one
         /// that is <paramref name="sureCrit"/> (a clean press, a perfect release) always does without a roll.
         /// </summary>
-        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false)
+        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false, bool foldedCrit = false)
         {
             IdentityValues identity = Identity;
             _dealtCrit = false;
@@ -2529,7 +2533,9 @@ namespace Roguelike
             {
                 _dealtCrit = true;
                 Crits++;
-                damage = CritRules.Apply(damage, Modifiers.Stats.CritDamage);
+                // A clean spend's crit is folded (work order 055): at her start it deals what it dealt before the stats.
+                damage = foldedCrit && sureCrit ? CritRules.ApplyFolded(damage, Modifiers.Stats.CritDamage, Modifiers.StatValues)
+                                                : CritRules.Apply(damage, Modifiers.Stats.CritDamage);
             }
             if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
             damage = target.ScaleForTag(damage); // Tag Round's tag (work order 015)
@@ -2579,8 +2585,11 @@ namespace Roguelike
             int damage = perfect ? PoolRules.PerfectDamage(skill) : SkillRules.Damage(skill, charge);
             // Work order 050 (decision 0012): in a run with the stats on, her flat damage by the skill's weight is added, and
             // a perfect release and a clean press are crits (sureCrit): what their own scale gave beyond a crit at her start
-            // stays (CritRules.Folded), the crit itself is dealt in Deal. Off, exactly as before.
+            // stays (CritRules.Folded), the crit itself is dealt in Deal. A clean spend (Backstep) has no scale of its own:
+            // its crit is folded instead (CritRules.ApplyFolded; the fourth review of 2026-11-21, work order 055: it was
+            // paid 1.5 on top). Off, exactly as before.
             bool sureCrit = StatsOn && (perfect || _castClean);
+            bool foldedCrit = sureCrit && !perfect && _castClean && MarkRules.HasCleanSpend(skill);
             if (StatsOn)
                 damage = perfect ? Mathf.RoundToInt((SkillRules.Damage(skill, 1f) + FlatFor(skill)) * Mathf.Max(0f, skill.PerfectScale) * CritRules.Folded(1f, Modifiers.StatValues))
                                  : damage + FlatFor(skill);
@@ -2593,7 +2602,7 @@ namespace Roguelike
                 PerfectReleases++;
                 GainFocus(Identity.FocusPerCleanTap);
             }
-            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first, _castPrime, sureCrit);
+            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first, _castPrime, sureCrit, foldedCrit);
 
             // Tag Round (work order 015): the first target it hit is tagged; a tag on a tagged target starts it again.
             if (skill.TagSeconds > 0f && first != null && first.IsAlive)
@@ -2618,7 +2627,7 @@ namespace Roguelike
         /// True if any took damage. <paramref name="first"/> is the target nearest the area's origin that took damage.
         /// </summary>
         bool HitArea(SkillDefinition skill, int slot, SkillArea area, Look look, Vector3 shotPoint, int damage, float stagger,
-                     bool clean, out Damageable first, PrimeUse prime = PrimeUse.None, bool sureCrit = false)
+                     bool clean, out Damageable first, PrimeUse prime = PrimeUse.None, bool sureCrit = false, bool foldedCrit = false)
         {
             first = null;
             float firstDistance = float.PositiveInfinity;
@@ -2653,7 +2662,7 @@ namespace Roguelike
                                      && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
                 if (counteredThis) countered = true;
                 bool wasDazed = d.IsDazed;
-                int applied = Deal(d, dealt, out float focus, hitStagger, sureCrit); // work order 050: a clean press's or a perfect release's hit is a crit
+                int applied = Deal(d, dealt, out float focus, hitStagger, sureCrit, foldedCrit); // work order 050: a clean press's or a perfect release's hit is a crit
                 if (!d.IsAlive) killed = true;
                 else if (!wasDazed && d.IsDazed) dazed = true;
                 if (spends)

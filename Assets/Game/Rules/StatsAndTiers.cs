@@ -131,7 +131,10 @@ namespace Roguelike.Rules
     /// steps taken more. A clean press of a recast chain and a perfect charged shot are always a crit: playing well is
     /// the sure way to one. What a clean tap and a perfect release gave before as their own multiplier (1.5 and 2) is
     /// folded into that: their own scale is divided by a crit at her start, so at the start they deal what they dealt,
-    /// and a crit damage step raises them as it raises any crit. They are never paid twice, and never roll.
+    /// and a crit damage step raises them as it raises any crit. They are never paid twice, and never roll. A clean press
+    /// that spends marks instead (Backstep's clean spend) had no scale of its own to fold: its crit is folded instead
+    /// (<see cref="ApplyFolded"/>), so at the start it too deals what it dealt, and a crit damage step raises it (the
+    /// fourth review of 2026-11-21, work order 055: it was paid 1.5 on top, 120 for 80).
     /// </summary>
     public static class CritRules
     {
@@ -152,6 +155,14 @@ namespace Roguelike.Rules
         /// over 1.5 is 1: a clean tap is a crit and nothing more; 2 over 1.5 leaves a perfect release a third more).
         /// </summary>
         public static float Folded(float scale, StatValues v) => scale / (1f + Math.Max(0f, v.StartCritDamage));
+
+        /// <summary>
+        /// A sure crit with nothing of its own folded in (a clean spend, work order 055): what a crit gives beyond one at
+        /// her start, so the same damage at the start and more with each crit damage step. Rounded, half away from zero.
+        /// </summary>
+        public static int ApplyFolded(int damage, float critDamage, StatValues v) =>
+            damage <= 0 ? damage
+            : (int)Math.Round(damage * (1.0 + Math.Max(0f, critDamage)) / (1.0 + Math.Max(0f, v.StartCritDamage)), MidpointRounding.AwayFromZero);
     }
 
     /// <summary>
@@ -282,7 +293,7 @@ namespace Roguelike.Rules
     /// same stat twice (flat and share damage are one stat, a skill's and the dash's cooldown another), and never a step
     /// that would do nothing: no Mend at full health, no attack speed at its cap, no crit chance at 100 %, no reach at its
     /// most, no luck once every common is moved, no cooldown cut on a cooldown at its floor, no first mark for a skill she
-    /// lacks. A tier with nothing left to offer falls back to common. Drawn from the run's seed, the floor and the chest's
+    /// lacks. A tier with nothing left to offer falls back to common, and then to the tiers above (work order 055). Drawn from the run's seed, the floor and the chest's
     /// place on a stream of its own, so the same run with the same picks offers the same.
     /// </summary>
     public static class TieredOffers
@@ -326,6 +337,10 @@ namespace Roguelike.Rules
                 UpgradeTier tier = UpgradeTiers.Draw(rng, shares);
                 Upgrade u = DrawAt(tier, rng, table, shown, equippedSkills, values, v, taken, atFullHealth);
                 if (u == null && tier != UpgradeTier.Common) u = DrawAt(UpgradeTier.Common, rng, table, shown, equippedSkills, values, v, taken, atFullHealth);
+                // The fourth review of 2026-11-21 (work order 055): then the tiers not yet tried, up, before giving up, so a
+                // row that may come only higher is not hidden (a chest could open with no choice).
+                for (UpgradeTier t = UpgradeTier.Rare; u == null && t <= UpgradeTier.Epic; t++)
+                    if (t != tier) u = DrawAt(t, rng, table, shown, equippedSkills, values, v, taken, atFullHealth);
                 if (u == null) break;
                 shown.Add(StatOf(u.Kind));
                 offer.Add(u);

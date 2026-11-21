@@ -209,6 +209,7 @@ namespace Roguelike
                 bool empowered = _player.IsEmpowered;
                 if (!empowered && _wasEmpowered) Add(new SessionEvent(Now(), SessionEventTypes.EmpoweredEnd));
                 _wasEmpowered = empowered;
+                NoteShotInterval();
 
                 if (now >= _nextSample)
                 {
@@ -243,6 +244,7 @@ namespace Roguelike
         {
             _player = player;
             _health = player.GetComponent<PlayerHealth>();
+            _shotInterval = -1f; // work order 055: written again for her
             _wasFull = player.IsFocusFull;
             _wasEmpowered = player.IsEmpowered;
             _nextSample = Time.time;
@@ -935,8 +937,28 @@ namespace Roguelike
 
         static string Int(int v) => v.ToString(CultureInfo.InvariantCulture);
 
-        /// <summary>A run started, with this seed.</summary>
-        public void NoteRunStarted(string runSeed) => Note(SessionEventTypes.RunStart, runSeed);
+        /// <summary>A run started, with this seed; and her basic shot's interval in it (work order 055).</summary>
+        public void NoteRunStarted(string runSeed)
+        {
+            Note(SessionEventTypes.RunStart, runSeed);
+            NoteShotInterval();
+        }
+
+        float _shotInterval = -1f;
+
+        /// <summary>
+        /// Her basic shot's interval (<see cref="PlayerCharacter.BasicShotInterval"/>), written when it is not the one last
+        /// written: when she is found, at a run's start, and when her attack speed changes it (the fourth review of
+        /// 2026-11-21, work order 055: the summary measured the shot against the feel's 0.225 s).
+        /// </summary>
+        void NoteShotInterval()
+        {
+            if (!_recording || _player == null) return;
+            float interval = _player.BasicShotInterval;
+            if (Mathf.Abs(interval - _shotInterval) < 1e-5f) return;
+            _shotInterval = interval;
+            Note(SessionEventTypes.ShotInterval, null, "seconds", interval.ToString("0.#####", CultureInfo.InvariantCulture));
+        }
 
         /// <summary>She entered floor <paramref name="floor"/> of the run, of this seed.</summary>
         public void NoteFloorEntered(int floor, string seed) => Note(SessionEventTypes.FloorEnter, seed, "floor", Int(floor));
