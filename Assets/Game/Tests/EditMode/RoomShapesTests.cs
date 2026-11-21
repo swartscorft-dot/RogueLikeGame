@@ -71,7 +71,7 @@ namespace Roguelike.Rules.Tests
             var values = new LevelValues();
             var off = new LevelValues { Shapes = false };
             var shapes = new Dictionary<string, int>();
-            int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0;
+            int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0, earlier = 0;
             const int seeds = 2000;
             for (ulong s = 0; s < seeds; s++)
             {
@@ -82,9 +82,14 @@ namespace Roguelike.Rules.Tests
                 List<string> faults = LevelValidator.Validate(level, values);
                 Assert.That(faults, Is.Empty, where + "\n" + LevelMap.Draw(level));
 
-                // A seed keeps its rooms' places, sizes, order and doors.
+                // A seed keeps its rooms' places, sizes, order and doors. Work order 054: with the casters on, the plain rooms'
+                // contents may find no place on an attempt the carved ones fit (seed 1513 of floor 5), and the floor with the
+                // shapes off is the next attempt's; never the other way round (an attempt fails only where it failed without them).
                 LevelLayout plain = LevelGenerator.Generate(s, floor, off);
-                Assert.That(level.DescribeLayout(), Is.EqualTo(plain.DescribeLayout()), "the same layout with the shapes on and off, " + where);
+                Assert.That(level.Attempt, Is.LessThanOrEqualTo(plain.Attempt), "no later attempt with the shapes on, " + where);
+                if (level.Attempt == plain.Attempt)
+                    Assert.That(level.DescribeLayout(), Is.EqualTo(plain.DescribeLayout()), "the same layout with the shapes on and off, " + where);
+                else earlier++;
 
                 RoomMoodPlan mood = RoomMoodPlan.Make(level, values);
                 bool allDiffer = true;
@@ -199,7 +204,7 @@ namespace Roguelike.Rules.Tests
                                          floor, seeds - 1, rooms, fellBack, fellBack / (double)rooms, bare, redraws, pairsDiffer, pairs, pairsDiffer / (double)pairs,
                                          floorsAllDiffer, floorsAllDiffer / (double)seeds, drops, pieces,
                                          string.Join(", ", shapes.OrderBy(k => k.Key).Select(k => k.Key + " " + k.Value)), largeProps, wallLarge);
-            TestContext.WriteLine(stats);
+            TestContext.WriteLine(stats + "; floors on an earlier attempt than with the shapes off " + earlier); // work order 054
             Assert.That(bare, Is.EqualTo(0), "no room kept its plain rectangle");
             Assert.That(fellBack / (double)rooms, Is.LessThan(0.01), "fewer than one room in a hundred fell back to its gate alone");
             Assert.That(floorsAllDiffer / (double)seeds, Is.GreaterThanOrEqualTo(0.95), "on 95 % of floors no two rooms in a row have the same shape");
@@ -250,7 +255,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_FiveThousandFloors_AreVersion12s_FieldForField()
         {
-            var off = new LevelValues { Shapes = false };
+            var off = new LevelValues { Shapes = false, Casters = false }; // work order 054: version 12 had the casters off
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 5000; s++)
             {
@@ -263,7 +268,7 @@ namespace Roguelike.Rules.Tests
             // Work order 051 merged with 046 (version 13): with five combat rooms the floors are version 12's, and their number is
             // one only Unity's runtime gives (the .NET one differs: it folds its doubles otherwise). Until it is pinned from the
             // first Unity run on this code, the test fails and says the number it found.
-            const ulong pinned = 0UL; // to be taken from the first Unity run of this test (its message)
+            const ulong pinned = 0x70DF85B31E0B9FF2UL;
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("SHAPESOFFPRINT " + found);
             if (pinned == 0UL) Assert.Fail("the pin is to be taken from the first Unity run: this run found " + found + " for the five thousand floors of version 12 (the shapes off)");

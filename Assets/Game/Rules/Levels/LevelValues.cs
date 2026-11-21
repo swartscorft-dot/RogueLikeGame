@@ -253,11 +253,13 @@ namespace Roguelike.Rules
         public int BrutesMostInRoom = 3;       // brutes in a combat room at most (no cap before)
         public int ShootersMostInRoom = 3;     // shooters in a combat room at most (no cap before)
         public int ExitRoomKindMore = 1;       // an exit room may hold one more of each
-        // The casters in the floors (work order 034, 2026-11-20): the balance passes (work orders 023 and 030) were flown
-        // without casters, and casters make floors 2 to 5 more dangerous, so they come in switched off. Off: no room holds
-        // a caster and no elite is one, and every seed's rooms, enemies and elites are those of version 7 (work order
-        // 030). On: as work order 027 built them, below. The practice room's caster does not depend on it.
-        public bool Casters = false;
+        // The casters in the floors (Kristian, 2026-11-21, asked whether they should be on or off in the floors: "Castere på
+        // ja"; work order 054): on, as work order 027 built them, below: from floor 2 a caster may take the place of a
+        // shooter or a brute in a combat or exit room, and from EliteCasterFromFloor an elite may be one; floor 1 holds none.
+        // They came in switched off (work order 034, 2026-11-20), as the balance passes (work orders 023 and 030) had been
+        // flown without them. Off: no room holds a caster and no elite is one, and every seed's floor is version 13's, field
+        // for field, but for the version. The practice room's caster does not depend on it.
+        public bool Casters = true;
         // The casters (work order 027): from floor 2, one a combat room at most on floors 2 and 3, two on floors 4 and 5,
         // and an exit room one more; they stand at the far side as the shooters do, never near each other.
         public int[] CastersMostInRoom = { 0, 1, 1, 2, 2 }; // by floor number, from 1; past the end its last

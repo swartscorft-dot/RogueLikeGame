@@ -210,7 +210,7 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The floors ----------------
 
-        /// <summary>The casters switched on (work order 034: they are off by default), the rest as the defaults.</summary>
+        /// <summary>The casters switched on (work order 034: they were off by default; work order 054: on by default), the rest as the defaults.</summary>
         static LevelValues On() => new LevelValues { Casters = true };
 
         [Test]
@@ -388,7 +388,8 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Work order 034: the switch, the turns, the sounds and effects ----------------
 
-        // Off (the default), no floor holds a caster and no elite is one, and every seed's rooms, enemies and elites are
+        // Off (the default until work order 054, which set them on: Kristian, 2026-11-21, "Castere på ja"), no floor holds a
+        // caster and no elite is one, and every seed's rooms, enemies and elites are
         // exactly what the merged rules give with the caster code bypassed: a thousand seeds a floor number, every field
         // but the props compared with the props on (their themes are drawn from their own stream), and with the themes off
         // the whole floor. (The golden maps of LevelGeneratorTests compare four of them with main's version 7 maps.)
@@ -399,8 +400,8 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void TheSwitchOff_GivesNoCaster_AndTheFloorsOfTheRulesWithTheCasterCodeBypassed(int floor)
         {
-            var off = new LevelValues();
-            Assert.That(off.Casters, Is.False, "off by default");
+            Assert.That(new LevelValues().Casters, Is.True, "on by default (work order 054)");
+            var off = new LevelValues { Casters = false };
             LevelValues bypassed = NoCasters();
             for (int f = 1; f <= 5; f++)
             {
@@ -414,7 +415,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(level.Describe(props: false), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassed).Describe(props: false)), "seed " + s);
                 if (s % 10 == 0)
                 {
-                    var themesOff = new LevelValues { Themes = false };
+                    var themesOff = new LevelValues { Themes = false, Casters = false };
                     var bypassedThemesOff = NoCasters();
                     bypassedThemesOff.Themes = false;
                     Assert.That(LevelGenerator.Generate(s, floor, themesOff).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassedThemesOff).Describe()),

@@ -54,7 +54,7 @@ namespace Roguelike.Rules
     /// recipe from the seven new props and the eleven; the layout and the enemies of every seed are what they were. With
     /// it off the themes stage is not run and every seed's props are those the generator gives without themes.
     /// Version 9 (work order 034, 2026-11-20): the two merged. The casters are behind <see cref="LevelValues.Casters"/>,
-    /// off by default: off, no room and no elite is a caster and every seed's rooms, enemies and elites are those of
+    /// off by default (on from version 14): off, no room and no elite is a caster and every seed's rooms, enemies and elites are those of
     /// version 7 (work order 030); on, they come in after the caps on the mix, each in place of a shooter or a brute the
     /// capped room holds. The themes are on by default.
     /// Version 10 (work order 041, Kristian's second session of 2026-11-20: "It is not quite intuitive where the chest
@@ -87,6 +87,13 @@ namespace Roguelike.Rules
     /// gate alone, then to its plain rectangle, and the contents are drawn again from the start of their stream
     /// (<see cref="PlaceAgainPlainer"/>), so an attempt fails only where it failed without the shapes. With it off every
     /// floor is version 12's (046 and 044 merged), field for field, but for the version.
+    /// Version 14 (work order 054; Kristian, 2026-11-21, asked whether the casters should be on or off in the floors:
+    /// "Castere på ja"): <see cref="LevelValues.Casters"/> is on by default, so the casters come into the floors as work
+    /// order 027 built them: from floor 2 each combat room and the exit room hold the casters their mix and their floor
+    /// allow, each in place of a shooter or a brute of the capped mix, and from <see cref="LevelValues.EliteCasterFromFloor"/>
+    /// an elite may be one. Nothing about how they are drawn, capped or placed changed. Floor 1 holds none and is what it
+    /// was; from floor 2 old seeds give other enemies, and with them other floors. With it off every floor is
+    /// version 13's, field for field, but for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -96,7 +103,7 @@ namespace Roguelike.Rules
         // order 030, the two merged (the room mixes capped, and the elite room with its elite counted apart from the caps),
         // and on another branch at the same time work order 027 (the casters from floor 2); 8: work order 028, the room
         // themes and seven new props, on that branch; 9: work order 034, the two lines merged (the capped mixes, the
-        // casters behind LevelValues.Casters, off by default, and the themes on).
+        // casters behind LevelValues.Casters, off by default until 14, and the themes on).
         // 10: work order 041, the floor in one row (LevelValues.InALine, on; off, every seed's floor is version 9's).
         // 11: two versions at once: work order 044, the rooms' mood (LevelValues.RoomMood, on): an ossuary's skull and bone
         // piles banked at its far wall, from the props' own draws; every other room of every seed is version 10's, and with
@@ -106,7 +113,9 @@ namespace Roguelike.Rules
         // every floor is 044's version 11's; with RoomMood off too, version 10's.
         // 13: work order 051 merged in (the night of 2026-11-20 to 21): rooms that are not boxes (LevelValues.Shapes, on:
         // carved outlines and a gate inside every door, on the stream "shapes"; off, every floor is version 12's).
-        public const int Version = 13;
+        // 14: work order 054, the casters on in the floors (LevelValues.Casters, on by default; off, every floor is version
+        // 13's).
+        public const int Version = 14;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051

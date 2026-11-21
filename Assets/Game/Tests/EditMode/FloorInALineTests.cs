@@ -229,7 +229,7 @@ namespace Roguelike.Rules.Tests
         {
             // Work order 044: the rooms' mood off too, as version 9 had none: with it on, an ossuary's piles are banked at its
             // far wall (pinned in RoomMoodPlanTests), and every other field of every floor is the same either way.
-            var off = new LevelValues { InALine = false, RoomMood = false };
+            var off = new LevelValues { InALine = false, RoomMood = false, Casters = false }; // work order 054: version 9 had the casters off
             var print = new Print();
             ulong described = 14695981039346656037UL;
             for (ulong s = 0; s < 1000; s++)

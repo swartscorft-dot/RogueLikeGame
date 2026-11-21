@@ -251,7 +251,10 @@ namespace Roguelike.Rules.Tests
             Assert.That(Placed("vault"), Is.GreaterThan(0.9), "the vault's chest on the dais model");
             Assert.That(Placed("archive (treasure)"), Is.GreaterThan(0.9), "the treasure room's archive's chest on the dais model");
             Assert.That(Placed("shrine"), Is.GreaterThan(0.55), "the great altar");
-            Assert.That(Placed("ossuary"), Is.GreaterThan(0.8), "the bone wall");
+            // Changed deliberately (work order 054): with the casters on in the floors, standing at the far side as the shooters
+            // do, the bone wall finds its free section in 79.2 % of floor 4's ossuaries and 79.0 % of floor 5's (80.4 and 80.5 %
+            // with them off); 0.8 before.
+            Assert.That(Placed("ossuary"), Is.GreaterThan(0.75), "the bone wall");
             Assert.That(banners, Is.GreaterThan(combat), "banners in the combat rooms");
             Assert.That(greatBraziers, Is.GreaterThan(daisThrones), "great braziers by the dais");
             Assert.That(heaps, Is.GreaterThanOrEqualTo(vaults * 9 / 10), "coin heaps in the vaults");

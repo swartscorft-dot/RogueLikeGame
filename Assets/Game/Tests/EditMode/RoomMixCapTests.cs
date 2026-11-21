@@ -17,8 +17,10 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheCapsHold_AndTheCountsAreUnchanged_OverAThousandDrawsAFloor()
         {
-            var capped = new LevelValues();
-            var before = new LevelValues { BrutesMostInRoom = 0, ShootersMostInRoom = 0 };
+            // Work order 054: the casters off on both sides. They come in after the caps (work order 034), each in place of a
+            // shooter or a brute, so they would move the count this test compares the capped room's swarmers by.
+            var capped = new LevelValues { Casters = false };
+            var before = new LevelValues { BrutesMostInRoom = 0, ShootersMostInRoom = 0, Casters = false };
             Assert.That(capped.BrutesMostInRoom, Is.EqualTo(3));
             Assert.That(capped.ShootersMostInRoom, Is.EqualTo(3));
             Assert.That(capped.ExitRoomKindMore, Is.EqualTo(1));

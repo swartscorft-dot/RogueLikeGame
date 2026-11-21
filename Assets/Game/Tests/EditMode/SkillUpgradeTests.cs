@@ -90,7 +90,7 @@ namespace Roguelike.Rules.Tests
             }
             if (floor == 1) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute }));
             // Work order 027 changed this on purpose: from floor 3 the elite may be a caster too; work order 034: only with
-            // the casters on, which they are not by default, so the kinds are main's again.
+            // the casters on, which they were not by default (so the kinds were main's again) until work order 054 set them on.
             else if (floor < v.EliteCasterFromFloor || !v.Casters) Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }));
             else Assert.That(kinds, Is.EquivalentTo(new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster }));
         }

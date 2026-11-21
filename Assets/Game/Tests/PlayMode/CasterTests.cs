@@ -860,7 +860,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator AFloor3_HoldsCasters_WithinTheCaps()
         {
             _practiceEnemy.enabled = true;
-            var values = new LevelValues { Casters = true }; // work order 034: the casters are off in the floors by default
+            var values = new LevelValues { Casters = true }; // work order 034: they were off in the floors by default (on since work order 054)
             _levels.Values = values;
             ulong seed = 0;
             while (!LevelGenerator.Generate(seed, 3, values).Rooms.Any(r => r.EnemyGroups.Count(g => g.Kind == EnemyKind.Caster && !g.Elite) >= 1)) seed++;

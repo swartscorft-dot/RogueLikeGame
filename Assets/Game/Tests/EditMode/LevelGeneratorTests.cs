@@ -241,12 +241,205 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 13 makes with its defaults (the night of 2026-11-20 to 21: work order
-        // 051's carved rooms, LevelValues.Shapes on, merged with 044 and 046: a walled cell with nothing in it is carved out of
-        // its room, and every room but the entrance has its gate inside its door in; otherwise version 12's floor of the
-        // seed, room for room, whose maps are kept below as GoldenShapesOff). A change that changes them must raise
-        // LevelGenerator.Version and paste the new maps here, on purpose.
+        // These maps are what the generator of version 14 makes with its defaults (work order 054, Kristian's word of
+        // 2026-11-21: the casters on in the floors, LevelValues.Casters; otherwise version 13's floor of the seed, whose maps
+        // are kept below as GoldenCastersOff). Floor 1 holds no caster, so its maps are version 13's but for the version; on
+        // floor 5 casters c stand in place of shooters and brutes, and the points and props move round them. A change that
+        // changes them must raise LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
+        {
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 14  9 rooms  57 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
+                              +-+-+-+-+-+-+ +-+-+
+                              |C5     %   | |T6 |
+                    +-+-+-+-+ +         p +-+ i +
+                    |L4~~^  | |   B           $ |
+                  +-+h  e  :+-+-+   :     +-+ i +
+                  |           | |         | |  k|
+                  +      p    +-+         + + +-+-+-+
+                  |    p                 k| |C7 |   |
+                  +        B  +-+       h +-+ +-+   +
+                  |           | |    p    |   #     |
+                  +   +-+ +-+-+ +-+-+   +-+       # +
+                  |   | | |         |   | | p       |
+                  +-+-+-+ +-+       +-+-+ +    B    +
+                      |T3  k|             | #    o  |
+                      +  $  +             +-+  # *+-+
+                      |     |               |   hA|
+                      +-+ +-+     +-+-+-+-+ + +-+-+
+                        | |       |X8 oYo | | |
+    +-+-+ +-+-+-+-+-+ +-+ +-+-+-+ + +-+   +-+ +
+    |E0*| |C1   kk  | |C2       | | | |       |
++-+-+   +-+         + +  p   h  +-+ +-+       +-+-+
+|              B    | |#       #  |        p      |
++   @   +-+         +-+          i+ +-+       +-+ +
+|       | |        h           o A| | |       | | |
++-+    *+-+         +-+          i+ +-+       +-+ +
+  |     |   p    :  | | #b     #  |               |
+  +-+-+-+u     %    + +      p    + +-+       +-+ +
+        |           | |           | | |       | | |
+        +   +-+   +-+ +-+-+-+-+-+-+ +-+       +-+ +
+        |   | |   |               |              #|
+        +-+-+ +-+-+               + # H     p   B +
+                                  |               |
+                                  +-+-+-+-+-+-+-+-+
+",
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 14  9 rooms  94 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
+                              +-+-+-+-+-+-+ +-+-+
+                              |b5         | |T6 |
+                    +-+-+-+-+ +         p +-+ ik+
+                    |L4~~^  | |   g           $ |
+                  +-+c  e   +-+-+         +-+ i +
+                  |           | |         | |   |
+                  +H     B    +-+   p     + + +-+-+-+
+                  |    b :             : c| |C7 |   |
+                  +  p     g  +-+       H +-+ +-+  B+
+                  |           | |    B    |   #   # |
+                  + p +-+ +-+-+ +-+-+  %+-+     p   +
+                  |   | | |         |i  | | b     p |
+                  +-+-+-+ +-+       +-+-+ + #  g    +
+                      |T3  k|             |    o c  |
+                      +  $  +             +-+ * * +-+
+                      |     |               |   H |
+                      +-+ +-+     +-+-+-+-+ + +-+-+
+                        | |       |X8     | | |
+    +-+-+ +-+-+-+-+-+ +-+ +-+-+-+ + +-+ p +-+ +
+    |E0*| |C1      c| |C2       | | | |       |
++-+-+   +-+      %  + +  p   H  +-+ +-+ p     +-+-+
+|           B  g    | |#       #c |        B      |
++   @   +-+   :     +-+          i+ +-+       +-+ +
+|       | |        H           o A| | |       | | |
++-+    *+-+         +-+          i+ +-+   G   +-+ +
+  |     |k  b       | | #B     #  |     p       b |
+  +-+-+-+u      p p + +      c  p + +-+       +-+ +
+        |           | |           | | |       | | |
+        +i  +-+   +-+ +-+-+-+-+-+-+ +-+ c     +-+ +
+        |k  | |   |               |               |
+        +-+-+ +-+-+               + # H     c   c +
+                                  |              #|
+                                  +-+-+-+-+-+-+-+-+
+",
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 14  9 rooms  58 enemies  68 x 108 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, C5 shrine, T6 vault, C7 archive, X8 throne room
+                    +-+-+-+-+
+                    |X8*Y*  |
+                  +-+  h    +-+
+                  |#       p #|
+                +-+           +-+
+                |               |
+                +               +
+                |  b            |
+                +           B   +
+                |               |
+                +             p +
+                |               |
+                +-+           +-+
+                  |#         #|
+                  +-+-+ +-+-+-+
+                      | |
+              +-+-+-+-+ +
+              |C7  ki   |
+              +        H+-+
+              |       :   |
+              +          %+ +-+-+
+              |           | |E0 |
+      +-+-+-+ +           +-+   +
+      |T6   | |   p      k|     |
+      + i$i +-+          u+   @ +-+
+      |                   |       |
+      +-+ +-+-+         p +       +
+        | |   |  b     u  |*    * |
+    +-+-+ +-+ +-+-+-+-+-+-+-+ +-+-+
+    |C5     |               |C1
+  +-+  *    +-+       +-+-+-+ +-+
+  |   o   #   |       |u       %|
+  +B    h     +       + p       +
+  |  p        |       |         |
+  +           +       +i    :   +
+  |   #       |       |k       k|
+  +           +       +  b      +
+  |         p |       |       p |
+  +       #   +       +         +
+  |   #       |       |     h   |
+  +-+-+ +-+-+-+       +-+     +-+
+      | |               |     |
+  +-+-+ +-+-+     +-+-+ + +-+-+
+  |L4       |     |C2!| | |
++-+   p   e +     +   +-+ +-+-+
+|h          |     |          !|
++^  p  :  +-+-+-+ +     [  =  +
+|^        | |T3u| |           |
++~        +-+   +-+  p        +
+|^            $               |
++         +-+   +-+   =b =    +
+|         | |   | | h      p  |
++-+       + +-+-+ +-+       +-+
+  |   b   |         |   #  #|
+  +-+-+-+-+         +-+-+-+-+
+",
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 14  9 rooms  96 enemies  68 x 108 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, C5 shrine, T6 vault, C7 archive, X8 throne room
+                    +-+-+-+-+
+                    |c8 *Y* |
+                  +-+  H    +-+
+                  |#       p #|
+                +-+           +-+
+                |    p          |
+                +c              +
+                |  B            |
+                +       G   g   +
+                |               |
+                +          p  b +
+                |               |
+                +-+           +-+
+                  |#         #|
+                  +-+-+ +-+-+-+
+                      | |
+              +-+-+-+-+ +
+              |C7  c    |
+              +        H+-+
+              |       :   |
+              +  p       %+ +-+-+
+              |           | |E0 |
+      +-+-+-+ +           +-+   +
+      |T6   | |   p      i|     |
+      + i$i +-+          k+   @ +-+
+      |                   |       |
+      +-+ +-+-+         c +       +
+        | |   |  B     u u|*    * |
+    +-+-+ +-+ +-+-+-+-+-+-+-+ +-+-+
+    |C5    c|               |C1
+  +-+  *    +-+       +-+-+-+ +-+
+  |   o   #   |       |u       i|
+  +B    H     +       + B       +
+  |  b        |       |%        |
+  +           +       +  p p    +
+  |   #  p    |       |        k|
+  +        p  +       +         +
+  |           |       |   c     |
+  +       #   +       + :      c+
+  |   #      g|       |     H   |
+  +-+-+ +-+-+-+       +-+     +-+
+      | |               |     |
+  +-+-+ +-+-+     +-+-+ + +-+-+
+  |L4c     g|     |C2!| | |
++-+         +     +   +-+ +-+-+
+|^          |     |          !|
++   B  :  +-+-+-+ +     [g =  +
+|e        | |T3k| |         p |
++~    b   +-+   +-+  B    p   +
+|^            $             # |
++^  p     +-+   +-+   =c =    +
+|         | |  u| | H      b  |
++-+ H p   + +-+-+ +-+       +-+
+  |       |         |   #   |
+  +-+-+-+-+         +-+-+-+-+
+",
+        };
+
+        // Work order 054 (version 14): with the casters off (LevelValues.Casters false) the floor is version 13's, so the maps
+        // are, but for the version number. These are what the generator of version 13 made with its defaults (the night of
+        // 2026-11-20 to 21: work order 051's carved rooms, LevelValues.Shapes on, merged with 044 and 046: a walled cell with
+        // nothing in it is carved out of its room, and every room but the entrance has its gate inside its door in; otherwise
+        // version 12's floor of the seed, room for room, whose maps are kept below as GoldenShapesOff).
+        static readonly Dictionary<string, string> GoldenCastersOff = new Dictionary<string, string>
         {
             ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 13  9 rooms  57 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
                               +-+-+-+-+-+-+ +-+-+
@@ -1223,7 +1416,8 @@ namespace Roguelike.Rules.Tests
         };
 
         // Work order 034: the casters on (LevelValues.Casters), the themes on, so that where the casters stand stays
-        // pinned while they are switched off in the game: floor 5 of each golden seed (floor 1 holds none either way). The
+        // pinned while they were switched off in the game (on since work order 054, whose floor 5 maps of the defaults, in a
+        // line, are Golden above): floor 5 of each golden seed (floor 1 holds none either way). The
         // rooms are those of the maps above with casters c in place of a shooter or a brute after the caps, and the
         // props move round them.
         static readonly Dictionary<string, string> GoldenCasters = new Dictionary<string, string>
@@ -1329,7 +1523,8 @@ namespace Roguelike.Rules.Tests
         // and the act boss its own kind, still G; work order 017: the elite room L with its elite e; work order 023: at
         // most three brutes and three shooters a room, four in an exit room, the rest swarmers; version 7, work order 030:
         // the two together, the elite counted apart from the caps), copied unchanged from main (work order 034). Version 9
-        // with the themes off and the casters off (the default) makes them still, but for the version in the first line.
+        // with the themes off and the casters off (the default until work order 054) makes them still, but for the version in
+        // the first line.
         static readonly Dictionary<string, string> GoldenThemesOff = new Dictionary<string, string>
         {
             ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 7  8 rooms  48 enemies  88 x 96 m
@@ -1530,7 +1725,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(13), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(14), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor));
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN " + key + "\n" + map);
@@ -1538,8 +1733,24 @@ namespace Roguelike.Rules.Tests
             Assert.That(map, Is.EqualTo(Golden[key].Replace("\r\n", "\n")), "map of seed " + key + "\n" + map);
         }
 
+        // Work order 054 (version 14): with the casters off the floor is version 13's, so the maps are, but for the version
+        // number.
+        [TestCase("WALKTHRU", 1)]
+        [TestCase("WALKTHRU", 5)]
+        [TestCase("RUNNER42", 1)]
+        [TestCase("RUNNER42", 5)]
+        public void GoldenSeeds_WithTheCastersOff_KeepVersion13sMaps(string seedText, int floor)
+        {
+            Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = false });
+            Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster");
+            string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 13 ");
+            string key = seedText + "/" + floor;
+            Assert.That(map, Is.EqualTo(GoldenCastersOff[key].Replace("\r\n", "\n")), "map of seed " + key + " with the casters off\n" + map);
+        }
+
         // Work order 051 (version 13): with the rooms' carved outlines off the floor is version 12's, so the maps are, but for
-        // the version number.
+        // the version number. Work order 054: with the casters off too, as version 12 had them off.
         [TestCase("WALKTHRU", 1)]
         [TestCase("WALKTHRU", 5)]
         [TestCase("RUNNER42", 1)]
@@ -1547,7 +1758,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheShapesOff_KeepVersion12sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Shapes = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Shapes = false, Casters = false });
             Assert.That(level.Rooms.All(r => r.SolidCount == 0), "no carved cell");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 12 ");
             string key = seedText + "/" + floor;
@@ -1556,7 +1767,8 @@ namespace Roguelike.Rules.Tests
 
         // Work order 046 with 044 (version 12): with four combat rooms (LevelPlan.MoreCombatRooms 0) the floor is 044's
         // version 11's, so the maps are, but for the version number; and with the mood off too, version 10's. Work order 051:
-        // with the rooms' carved outlines off too (LevelValues.Shapes false), as those versions had none.
+        // with the rooms' carved outlines off too (LevelValues.Shapes false), as those versions had none. Work order 054: and
+        // the casters off (LevelValues.Casters false), as those versions had them off.
         [TestCase("WALKTHRU", 1)]
         [TestCase("WALKTHRU", 5)]
         [TestCase("RUNNER42", 1)]
@@ -1564,7 +1776,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithFourCombatRooms_KeepVersion11sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            var four = new LevelValues { Shapes = false };
+            var four = new LevelValues { Shapes = false, Casters = false };
             four.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, four);
             Assert.That(level.Rooms.Count(r => r.Kind == RoomKind.Combat), Is.EqualTo(4));
@@ -1580,7 +1792,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithFourCombatRoomsAndNoMood_KeepVersion10sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            var bare = new LevelValues { RoomMood = false, Shapes = false };
+            var bare = new LevelValues { RoomMood = false, Shapes = false, Casters = false }; // work order 054: version 10 had the casters off
             bare.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, bare);
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 10 ");
@@ -1596,7 +1808,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheLineOff_KeepVersion9sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false }); // work order 044: version 9 had no mood
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false, Casters = false }); // work order 044: version 9 had no mood; 054: and the casters off
             Assert.That(level.InALine, Is.False);
             Assert.That(level.Version, Is.EqualTo(LevelGenerator.Version));
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
@@ -1605,8 +1817,8 @@ namespace Roguelike.Rules.Tests
         }
 
         // Work order 028: with the themes off, the props are exactly those of before. Work order 034: and with the casters
-        // off (the default) the whole floor is main's version 7's, so the maps are main's, but for the version number. Work
-        // order 041: with the line off, as these floors have side rooms.
+        // off (the default until work order 054, which sets them off here) the whole floor is main's version 7's, so the maps
+        // are main's, but for the version number. Work order 041: with the line off, as these floors have side rooms.
         [TestCase("WALKTHRU", 1)]
         [TestCase("WALKTHRU", 5)]
         [TestCase("RUNNER42", 1)]
@@ -1614,7 +1826,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithThemesOff_KeepMainsVersion7Maps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Themes = false, InALine = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Themes = false, InALine = false, Casters = false });
             Assert.That(level.Rooms.All(r => r.Theme == RoomTheme.None), "no room has a theme");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 7 ");
             string key = seedText + "/" + floor;
