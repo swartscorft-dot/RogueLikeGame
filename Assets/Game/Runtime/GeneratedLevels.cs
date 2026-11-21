@@ -491,7 +491,9 @@ namespace Roguelike
         string StatsLine()
         {
             FeelValues f = _player != null ? _player.Feel : new FeelValues();
-            return Modifiers.Stats.OneLine(f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery, _health != null ? _health.MaxHealth : 100);
+            // Work order 060: from her pistols' interval before her attack speed (the feel's with no part fitted).
+            float baseInterval = _player != null ? _player.BasicShotBaseInterval : f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery;
+            return Modifiers.Stats.OneLine(baseInterval, _health != null ? _health.MaxHealth : 100);
         }
 
         string RoomWords() =>
@@ -948,6 +950,7 @@ namespace Roguelike
                 for (int i = 0; i < list.Count && !alive; i++) alive = list[i] != null && !list[i].IsDead;
                 if (alive) continue;
                 int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues));
+                BetweenRunsRoomCleared(room); // work order 060: an ordinary room's Echoes, only with the attachments on
                 PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
                 PlaceholderSounds.Current?.AskFor(SoundMoment.CombatRoomCleared); // work order 048: the way on opens
                 if (healed > 0) TimingFeedback.Current?.ShowHeal(healed);

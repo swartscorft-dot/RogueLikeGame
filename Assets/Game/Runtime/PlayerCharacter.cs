@@ -279,6 +279,7 @@ namespace Roguelike
         // The quick duck (Kristian's answer of 2026-11-20 to the cover report, proposal C; work order 043).
         readonly QuickDuck _duck = new QuickDuck();
         readonly QuickDuckRim _rim = new QuickDuckRim();
+        readonly LaserSight _laser = new LaserSight(); // work order 060: the Laser Sight's line, made the first time it shows
         Shelter _duckShelter;   // what she ducked beside
         CoverShape _duckShape;  // its footprint at the tap
         Vector3 _duckHeldAtTap; // the move keys held at the tap, until they are let go
@@ -599,8 +600,21 @@ namespace Roguelike
         /// <summary>Focus from anything, through the run's Keen focus. Returns the focus gained.</summary>
         float GainFocus(float amount) => _focus.Add(amount * FocusGainShare, Identity, Time.time);
 
-        /// <summary>How far the basic shot reaches: the feel's, and the run's Longer barrel (work order 025).</summary>
-        public float BasicShotRange => Feel.BasicShotRange + (Modifiers != null ? Modifiers.BasicShotRangeBonus : 0f);
+        /// <summary>
+        /// How far the basic shot reaches: the feel's, and the run's Longer barrel (work order 025). Work order 060: the feel's
+        /// through her pistols' parts first (a sight's metres); the chest's cap stays on the chest's steps only.
+        /// </summary>
+        public float BasicShotRange =>
+            (Modifiers != null ? Modifiers.Weapon.Reach(Feel.BasicShotRange) : Feel.BasicShotRange) + (Modifiers != null ? Modifiers.BasicShotRangeBonus : 0f);
+
+        /// <summary>Half the width of the basic shot's line (work order 060): the feel's, through her pistols' parts in a run.</summary>
+        public float BasicShotHalfWidth => Modifiers != null ? Modifiers.Weapon.HalfWidth(Feel.BasicShotHalfWidth) : Feel.BasicShotHalfWidth;
+
+        /// <summary>Her pistols' parts in the run (work order 060), or null outside a run: the stock gun.</summary>
+        public AttachmentEffects Weapon => Modifiers != null ? Modifiers.Weapon : null;
+
+        /// <summary>The Laser Sight's line (work order 060); its object exists only once it has shown.</summary>
+        public LaserSight Laser => _laser;
 
         /// <summary>
         /// Sets the practice room's way (its keys, F2, F3 and F4). Nothing changes in a run, where the run's choice holds.
@@ -831,8 +845,13 @@ namespace Roguelike
             ApplyMovementFeel(Feel);
         }
 
-        // The quick duck's rim goes with her, its object and its mesh (the third review of 2026-11-20, work order 047).
-        void OnDestroy() => _rim.Dispose();
+        // The quick duck's rim goes with her, its object and its mesh (the third review of 2026-11-20, work order 047); the
+        // Laser Sight's line too (work order 060).
+        void OnDestroy()
+        {
+            _rim.Dispose();
+            _laser.Dispose();
+        }
 
         // ---------------- Intent API ----------------
 
@@ -1985,7 +2004,8 @@ namespace Roguelike
                 _easing = false;
             // The backpedal cap: held turned away from her movement by a shot, she moves at no more than a share of
             // run speed, eased in and out (decision 0003, a guess).
-            _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time, feel.BackpedalSpeedShare,
+            _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time,
+                                 Modifiers != null ? Modifiers.Weapon.BackpedalShare(feel.BackpedalSpeedShare) : feel.BackpedalSpeedShare, // work order 060: a grip
                                  feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel));
             _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
@@ -2318,7 +2338,6 @@ namespace Roguelike
         {
             BasicShotsFired++;
             float peekStagger = TakePeekStagger(); // the quick duck's reward (work order 043): 0 for every other basic shot
-            FeelValues feel = Feel;
             Look look = LookFor(null, 0f);
             Vector3 muzzle = NextMuzzle(out bool leftHand);
             Kick(leftHand, look);
@@ -2326,13 +2345,9 @@ namespace Roguelike
 
             GroundPoint origin = GroundPosition;
             var aim = new GroundPoint(_aimPoint.x, _aimPoint.z);
-            IReadOnlyList<Damageable> all = Damageable.All;
-            _targetScratch.Clear();
-            for (int i = 0; i < all.Count; i++) _targetScratch.Add(all[i].Info);
-            float range = BasicShotRange; // the run's Longer barrel (work order 025)
-            float stop = CoverRules.LineStop(origin, aim, range, CoverQuery);
-            int index = LineShot.FirstHit(origin, aim, range, feel.BasicShotHalfWidth, _targetScratch, stop);
-            Damageable hit = index >= 0 ? all[index] : null;
+            // Work order 060: where it ends is one calculation, the Laser Sight's line's too (BasicShotEnd).
+            Damageable hit = BasicShotEnd(origin, aim, out float range, out float stop);
+            float halfWidth = BasicShotHalfWidth; // work order 060: a sight's
 
             Vector3 endPoint = hit != null ? hit.transform.position : _aimPoint;
             bool stopped = hit == null && stop < range;
@@ -2345,11 +2360,15 @@ namespace Roguelike
             if (_kegs.Count > 0)
             {
                 float reach = hit != null ? hit.GroundPosition.DistanceTo(origin) : Mathf.Min(stop, range);
-                SetOffKegs(origin, aim, range, feel.BasicShotHalfWidth, reach);
+                SetOffKegs(origin, aim, range, halfWidth, reach);
             }
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
-            int applied = Deal(hit, Placeholders.BasicShotDamage + FlatFor(null), out float focus, peekStagger); // work order 050: her flat damage
+            // Work order 050: her flat damage. Work order 060: her pistols' parts, a barrel's weight and a grip's cost on the
+            // move (the shot was started on the move, or became one before it went off), and a barrel's stagger.
+            int damage = Placeholders.BasicShotDamage + FlatFor(null);
+            if (Modifiers != null) damage = Modifiers.Weapon.ShotDamage(damage, _movingShot);
+            int applied = Deal(hit, damage, out float focus, peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f));
             if (applied <= 0) return ShotFired(false);
             ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);
@@ -2359,6 +2378,68 @@ namespace Roguelike
             if (_basicMarks.Hit(Kit.BasicShotsPerMark, empowered)) AddMarks(hit, 1, -1);
             BasicShotHit(hit);
             return ShotFired(true);
+        }
+
+        /// <summary>
+        /// Where a basic shot from <paramref name="origin"/> toward <paramref name="aim"/> ends now (work order 060: the one
+        /// calculation, for the shot and the Laser Sight's line, so the two never disagree): the first living target its line
+        /// touches before any cover (returned), or null; its reach (<paramref name="range"/>) and where cover stops its
+        /// centre line (<paramref name="stop"/>, the range when nothing does). Nothing is allocated.
+        /// </summary>
+        Damageable BasicShotEnd(GroundPoint origin, GroundPoint aim, out float range, out float stop)
+        {
+            IReadOnlyList<Damageable> all = Damageable.All;
+            _targetScratch.Clear();
+            for (int i = 0; i < all.Count; i++) _targetScratch.Add(all[i].Info);
+            range = BasicShotRange; // the run's Longer barrel (work order 025), and a sight's (060)
+            stop = CoverRules.LineStop(origin, aim, range, CoverQuery);
+            int index = LineShot.FirstHit(origin, aim, range, BasicShotHalfWidth, _targetScratch, stop);
+            return index >= 0 ? all[index] : null;
+        }
+
+        // ---------------- The Laser Sight's line (work order 060) ----------------
+
+        void LateUpdate() => TickLaser();
+
+        /// <summary>
+        /// The Laser Sight's line, once a frame (and by tests): shown in a run with a part fitted that shows it
+        /// (<see cref="AttachmentEffects.ShowsLine"/>), while she is alive, not dashing, not stunned, and no screen or choice
+        /// holds the game. It runs from her at the height the next shot's streak leaves the gun, along the live cursor as the
+        /// shot aims, to where the basic shot would end now (<see cref="BasicShotEnd"/>): the first living target (a brighter
+        /// square there), the cover that stops it, or its full reach. It never alternates the hands: the muzzle is only looked at.
+        /// </summary>
+        public void TickLaser()
+        {
+            bool show = Modifiers != null && Modifiers.Weapon.ShowsLine && !_dashing && !IsStunned
+                        && !PlayerInputDriver.HeldByScreen && !PlayerInputDriver.HeldByChoice;
+            if (show && _herHealth == null) _herHealth = GetComponent<PlayerHealth>();
+            if (show && _herHealth != null && !_herHealth.IsAlive) show = false;
+            if (!show)
+            {
+                _laser.Hide();
+                return;
+            }
+            GroundPoint origin = GroundPosition;
+            Vector3 aimEnd = AimEnd(_shotCursor);
+            var aim = new GroundPoint(aimEnd.x, aimEnd.z);
+            Damageable hit = BasicShotEnd(origin, aim, out float range, out float stop);
+            Vector3 end = hit != null ? hit.transform.position : aimEnd;
+            if (hit == null && stop < range)
+            {
+                GroundPoint at = CoverStopPoint(origin, aim, stop);
+                end = new Vector3(at.X, 0f, at.Z);
+            }
+            float height = MuzzleHeightNext();
+            Vector3 p = transform.position;
+            _laser.Show(new Vector3(p.x, height, p.z), new Vector3(end.x, height, end.z), hit, ShotFxMaterial);
+        }
+
+        /// <summary>The height the next basic shot's streak leaves the gun at, without taking a turn of the hands (<see cref="NextMuzzle"/>).</summary>
+        float MuzzleHeightNext()
+        {
+            Transform muzzle = _leftHandNext ? LeftMuzzle : RightMuzzle;
+            if (muzzle == null) muzzle = _leftHandNext ? RightMuzzle : LeftMuzzle;
+            return muzzle != null ? muzzle.position.y : FallbackMuzzleHeight;
         }
 
         /// <summary>
@@ -2505,9 +2586,27 @@ namespace Roguelike
         bool StatsOn => Modifiers != null && Modifiers.StatsAndTiers;
         /// <summary>What her flat damage adds to a hit of this skill (null: the basic shot); 0 outside a run or with the switch off.</summary>
         int FlatFor(SkillDefinition skill) => StatsOn ? Modifiers.Stats.FlatFor(skill) : 0;
-        /// <summary>The basic shot's recovery now: the feel's, or with the stats on shortened or lengthened by her attack speed.</summary>
+        /// <summary>
+        /// The basic shot's recovery now: the feel's, or with the stats on shortened or lengthened by her attack speed. Work
+        /// order 060: her pistols' parts first (a barrel's longer recovery), and her attack speed works on that as on the feel's.
+        /// </summary>
         float BasicShotRecoveryNow(FeelValues f) =>
-            Modifiers != null ? Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery) : f.BasicShotRecovery;
+            Modifiers != null ? Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive, WeaponRecovery(f)) : f.BasicShotRecovery;
+        /// <summary>The basic shot's recovery as her pistols' parts make it, before her attack speed (work order 060): the feel's with none.</summary>
+        float WeaponRecovery(FeelValues f) =>
+            Modifiers != null ? Modifiers.Weapon.Recovery(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery) : f.BasicShotRecovery;
+        /// <summary>
+        /// The time from shot to shot before her attack speed (work order 060): the feel's 0.225 s, or her pistols' (a Bull
+        /// Barrel's 35 % longer). The base the pause menu's stats and the recorder's stats line measure her rate against.
+        /// </summary>
+        public float BasicShotBaseInterval
+        {
+            get
+            {
+                FeelValues f = Feel;
+                return f.BasicShotStartup + f.BasicShotActive + WeaponRecovery(f);
+            }
+        }
         /// <summary>The time from one basic shot to the next now (work order 050): the feel's 0.225 s, or with the stats on her attack speed's.</summary>
         public float BasicShotInterval
         {
@@ -2867,7 +2966,8 @@ namespace Roguelike
             float now = Time.time;
             float share = Mathf.Min(_backpedalCap.Share,
                                     _easing
-                                        ? MovingShot.SpeedShare(_easeFrom, now - _easeStartedAt, _easeFiredAfter, feel.MovingShotSpeedShare,
+                                        ? MovingShot.SpeedShare(_easeFrom, now - _easeStartedAt, _easeFiredAfter,
+                                                                Modifiers != null ? Modifiers.Weapon.MovingShare(feel.MovingShotSpeedShare) : feel.MovingShotSpeedShare, // work order 060: a grip
                                                                 feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel)) // work order 040
                                         : 1f);
             if (_rising) share = Mathf.Min(share, SkillSlide.RiseShare(_riseFrom, now - _riseStartedAt, OffTheMark.SkillSpeedRecovery(feel, _riseOfChain)));
@@ -2921,12 +3021,15 @@ namespace Roguelike
         /// <summary>Counts a line shot that cover stopped and returns where, on the ground, <paramref name="stop"/> metres along it.</summary>
         Vector3 NoteCoverStop(GroundPoint origin, GroundPoint aim, float stop)
         {
-            GroundPoint dir = LineShot.Direction(origin, aim, new GroundPoint(transform.forward.x, transform.forward.z), 1e-4f);
-            GroundPoint at = origin + dir * stop;
+            GroundPoint at = CoverStopPoint(origin, aim, stop);
             ShotsStoppedByCover++;
             LastCoverStop = new Vector3(at.X, 0f, at.Z);
             return LastCoverStop;
         }
+
+        /// <summary>The point on the ground <paramref name="stop"/> metres along a line shot: where cover stops it (the Laser Sight's line's end too, work order 060).</summary>
+        GroundPoint CoverStopPoint(GroundPoint origin, GroundPoint aim, float stop) =>
+            origin + LineShot.Direction(origin, aim, new GroundPoint(transform.forward.x, transform.forward.z), 1e-4f) * stop;
 
         /// <summary>The hit spark, on the cover that stopped a line shot (Kristian, 2026-11-19): a blocked shot reads as blocked.</summary>
         void SpawnCoverHit(Look look, Vector3 at)

@@ -194,7 +194,16 @@ namespace Roguelike.Rules
             sb.Append("  \"owned\": ").Append(List(s.Owned)).Append(",\n");
             sb.Append("  \"equipped\": ").Append(List(s.Equipped)).Append(",\n");
             sb.Append("  \"feats\": ").Append(List(s.Feats)).Append(",\n");
-            sb.Append("  \"struckOut\": ").Append(Quote(s.StruckOut ?? "")).Append('\n');
+            sb.Append("  \"struckOut\": ").Append(Quote(s.StruckOut ?? ""));
+            // Work order 060: her pistols' parts, only when she has any, so a save with none is written exactly as before,
+            // character for character. The version stays 1: the reader of 029 passes over fields it does not know, so this
+            // save reads in every earlier build, and a newer version would make those builds set it aside as Newer (empty).
+            if (s.AttachmentsOwned.Count > 0 || s.AttachmentsFitted.Count > 0)
+            {
+                sb.Append(",\n  \"attachments\": ").Append(List(s.AttachmentsOwned));
+                sb.Append(",\n  \"fitted\": ").Append(List(s.AttachmentsFitted));
+            }
+            sb.Append('\n');
             sb.Append("}\n");
             return sb.ToString();
         }
@@ -216,6 +225,8 @@ namespace Roguelike.Rules
             Strings(o, "equipped", s.Equipped);
             Strings(o, "feats", s.Feats);
             s.StruckOut = o.TryGetValue("struckOut", out object so) && so is string str ? str : "";
+            Strings(o, "attachments", s.AttachmentsOwned); // work order 060: absent in a save of before, so none
+            Strings(o, "fitted", s.AttachmentsFitted);
             return s;
         }
 
