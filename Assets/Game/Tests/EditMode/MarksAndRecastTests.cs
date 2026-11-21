@@ -101,7 +101,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(kit.BasicShotsPerMark, Is.EqualTo(5));
             Assert.That(kit.StartWithAllSkills, Is.False);
             Assert.That(kit.CleanShare, Is.EqualTo(1f / 3f).Within(1e-6f));
-            Assert.That(kit.CleanDamage, Is.EqualTo(1.5f));
+            Assert.That(kit.CleanDamage, Is.EqualTo(1.75f)); // work order 064: up from 1.5
         }
 
         [Test]

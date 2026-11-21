@@ -36,6 +36,11 @@ namespace Roguelike
             for (int i = 0; i < _shownNumbers.Count; i++)
             {
                 FeedbackShown n = _shownNumbers[i];
+                if (NumberLook.On && HitNumberRules.LookOf(n.Kind) != HitNumberLook.AsBefore)
+                {
+                    DrawKineticNumber(cam, scale, v, n); // work order 064: the numbers in the kinetic anime's style
+                    continue;
+                }
                 float side = n.Kind == NumberKind.Heal ? -HerNumberSide : n.OverHer ? HerNumberSide : NumberSide + (n.Id % 3) * 10f;
                 DrawKineticOne(cam, scale, v, n, side * OldToLayout, Values.NumberRise * OldToLayout * Mathf.Clamp01(n.Age / Values.NumberSeconds));
             }
@@ -85,6 +90,49 @@ namespace Roguelike
             }
             Color c = InterfaceStyle.Ink(InterfaceRules.NumberInk(s.Kind));
             InterfaceStyle.Label(r, s.Text, style, new Color(c.r, c.g, c.b, s.Alpha), true);
+        }
+
+        /// <summary>
+        /// A damage number in the kinetic anime's style (work order 064, <see cref="HitNumberValues"/>): the heavy italic, popping
+        /// from 1.5 times its size, drifting along the slant, in its lane of a crowd. An ordinary hit white and small; a crit
+        /// larger, hot teal, a hard slanted stroke under it; a clean press's or a perfect release's the largest, black on a short
+        /// slanted teal plate. Nothing allocated: its text was made once, its styles are the skin's.
+        /// </summary>
+        void DrawKineticNumber(Camera cam, float scale, InterfaceValues v, FeedbackShown s)
+        {
+            if (s.Alpha <= 0.001f || string.IsNullOrEmpty(s.Text)) return;
+            Vector3 p = cam.WorldToScreenPoint(s.World);
+            if (p.z <= 0f) return;
+            HitNumberValues look = NumberLook;
+            HitNumberRules.DriftAt(s.Age, s.Life, look, out float dx, out float dy);
+            HitNumberRules.LaneOffset(s.Lane, look, out float lx, out float ly);
+            float x = p.x / scale + NumberSide * OldToLayout + dx + lx, y = (Screen.height - p.y) / scale + dy + ly;
+            HitNumberLook kind = HitNumberRules.LookOf(s.Kind);
+            int size = Mathf.Max(8, Mathf.RoundToInt(HitNumberRules.Size(s.Kind, look, v.NumberSize) * HitNumberRules.Pop(s.Age, look)));
+            GUIStyle style = InterfaceStyle.Text(true, size, TextAnchor.MiddleCenter);
+            Vector2 m = InterfaceStyle.Measure(s.Text, style);
+            var r = new Rect(x - m.x * 0.5f, y - m.y * 0.5f, m.x, m.y);
+            Color teal = InterfaceStyle.C(v.Teal, s.Alpha);
+            if (kind == HitNumberLook.Top)
+            {
+                // A short slanted plate, only as tall as the numerals, a dark copy under it; the number black on it.
+                float padX = look.PlatePadX * size / (float)look.TopSize;
+                var plate = new Rect(r.x - padX, r.y + m.y * 0.14f, r.width + 2f * padX, m.y * 0.74f);
+                InterfaceStyle.Slanted(Offset(plate, v.ShadowOffset), InterfaceStyle.C(v.Shadow, s.Alpha * 0.6f));
+                InterfaceStyle.Slanted(plate, teal);
+                Color ink = InterfaceStyle.Ink(UiInk.Black);
+                InterfaceStyle.Label(r, s.Text, style, new Color(ink.r, ink.g, ink.b, s.Alpha));
+                return;
+            }
+            if (kind == HitNumberLook.Crit)
+            {
+                // Its exclamation: a hard slanted stroke under the numerals.
+                float h = look.StrokeHeight * size / (float)look.CritSize;
+                InterfaceStyle.Slanted(new Rect(r.x + m.x * 0.08f, r.y + m.y * 0.86f, m.x * 0.84f, h), teal);
+                InterfaceStyle.Label(r, s.Text, style, teal, true);
+                return;
+            }
+            InterfaceStyle.Label(r, s.Text, style, InterfaceStyle.C(v.White, s.Alpha), true);
         }
 
         static Rect Offset(Rect r, float by) => new Rect(r.x + by, r.y + by, r.width, r.height);

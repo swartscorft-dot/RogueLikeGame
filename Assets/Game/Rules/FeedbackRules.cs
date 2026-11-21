@@ -93,7 +93,11 @@ namespace Roguelike.Rules
     /// dazed target shows larger and in the colour of its word. A number that sums several hits shows the strongest.
     /// </summary>
     /// <summary>Heal (work order 030): health back when a combat room is cleared, a green "+8" over her.</summary>
-    public enum NumberKind { Plain, Dazed, Marks, MarksFull, Perfect, Hurt, Heal }
+    /// <remarks>
+    /// Work order 064: Crit, a crit of hers that was rolled (larger, hot teal, a hard stroke under it); Perfect is now a clean
+    /// press's hit too, not only a perfect release's (the largest, on a slanted plate). Before it a crit showed as Perfect.
+    /// </remarks>
+    public enum NumberKind { Plain, Dazed, Marks, MarksFull, Crit, Perfect, Hurt, Heal }
 
     /// <summary>The rules of the timing feedback (work order 019, 2026-11-20), with no engine in them.</summary>
     public static class FeedbackRules
@@ -174,9 +178,16 @@ namespace Roguelike.Rules
         }
 
         /// <summary>The kind of a number for a hit that spent marks (at the cap or not), was perfect, or landed on a dazed target.</summary>
-        public static NumberKind HitKind(bool perfect, int marksSpent, int cap, bool onDazed)
+        public static NumberKind HitKind(bool perfect, int marksSpent, int cap, bool onDazed) => HitKind(perfect, false, marksSpent, cap, onDazed);
+
+        /// <summary>
+        /// As above, with a crit (work order 064): <paramref name="top"/> a clean press's or a perfect release's hit, the
+        /// strongest kind; <paramref name="crit"/> a crit that was not one of those. Crit above a hit that spent marks.
+        /// </summary>
+        public static NumberKind HitKind(bool top, bool crit, int marksSpent, int cap, bool onDazed)
         {
-            if (perfect) return NumberKind.Perfect;
+            if (top) return NumberKind.Perfect;
+            if (crit) return NumberKind.Crit;
             if (marksSpent > 0) return cap > 0 && marksSpent >= cap ? NumberKind.MarksFull : NumberKind.Marks;
             return onDazed ? NumberKind.Dazed : NumberKind.Plain;
         }
@@ -187,6 +198,7 @@ namespace Roguelike.Rules
             switch (kind)
             {
                 case NumberKind.Perfect: return FeedbackTint.Clean;
+                case NumberKind.Crit: return FeedbackTint.Clean; // work order 064: the hot teal of the skin, the green of the old
                 case NumberKind.MarksFull: return FeedbackTint.MarksFull;
                 case NumberKind.Marks: return FeedbackTint.Marks;
                 case NumberKind.Dazed: return FeedbackTint.Dazed;
@@ -197,7 +209,7 @@ namespace Roguelike.Rules
         }
 
         /// <summary>True for a number shown larger: marks spent, a perfect release, a hit on a dazed target.</summary>
-        public static bool IsBig(NumberKind kind) => kind == NumberKind.Dazed || kind == NumberKind.Marks || kind == NumberKind.MarksFull || kind == NumberKind.Perfect;
+        public static bool IsBig(NumberKind kind) => kind == NumberKind.Dazed || kind == NumberKind.Marks || kind == NumberKind.MarksFull || kind == NumberKind.Perfect || kind == NumberKind.Crit;
 
         // ---------------- The setting ----------------
 
@@ -292,6 +304,11 @@ namespace Roguelike.Rules
         public float First;
         public float Last;
         public NumberKind Kind;
+        /// <summary>
+        /// Its place in a crowd (work order 064): 0 alone; the numbers a fan or a blast starts together get 1, 2, 3 ..., so
+        /// they are spread along the slant (<see cref="HitNumberRules.LaneOffset"/>) and do not pile on one point.
+        /// </summary>
+        public int Lane;
     }
 
     /// <summary>
@@ -313,7 +330,13 @@ namespace Roguelike.Rules
         /// Counts a hit of <paramref name="damage"/> on a target. True when it joined an open number, false when it started
         /// one (or was no damage). <paramref name="window"/> is the merge window with its grace.
         /// </summary>
-        public bool Add(int target, int damage, NumberKind kind, float now, float window, int max)
+        public bool Add(int target, int damage, NumberKind kind, float now, float window, int max) => Add(target, damage, kind, now, window, max, 0f);
+
+        /// <summary>
+        /// As above; a number started no more than <paramref name="together"/> seconds after another still showing takes the
+        /// next lane (work order 064: the numbers of one fan or blast spread). 0: every number in lane 0, as before.
+        /// </summary>
+        public bool Add(int target, int damage, NumberKind kind, float now, float window, int max, float together)
         {
             if (damage <= 0) return false;
             for (int i = _numbers.Count - 1; i >= 0; i--)
@@ -329,7 +352,11 @@ namespace Roguelike.Rules
                 _numbers[i] = open;
                 return true;
             }
-            _numbers.Add(new TallyNumber { Id = _nextId++, Target = target, Sum = damage, Hits = 1, First = now, Last = now, Kind = kind });
+            int lane = 0;
+            if (together > 0f)
+                for (int i = 0; i < _numbers.Count; i++)
+                    if (now - _numbers[i].First <= together + 1e-5f && _numbers[i].Lane >= lane) lane = _numbers[i].Lane + 1;
+            _numbers.Add(new TallyNumber { Id = _nextId++, Target = target, Sum = damage, Hits = 1, First = now, Last = now, Kind = kind, Lane = lane });
             while (_numbers.Count > Math.Max(1, max)) _numbers.RemoveAt(0);
             return false;
         }
@@ -339,6 +366,13 @@ namespace Roguelike.Rules
         {
             for (int i = _numbers.Count - 1; i >= 0; i--)
                 if (now - _numbers[i].Last >= seconds) _numbers.RemoveAt(i);
+        }
+
+        /// <summary>As above, each number by its own life (work order 064: <see cref="HitNumberRules.Life"/>).</summary>
+        public void Expire(float now, HitNumberValues look, float fallback)
+        {
+            for (int i = _numbers.Count - 1; i >= 0; i--)
+                if (now - _numbers[i].Last >= HitNumberRules.Life(_numbers[i].Kind, look, fallback)) _numbers.RemoveAt(i);
         }
 
         public void Clear() => _numbers.Clear();

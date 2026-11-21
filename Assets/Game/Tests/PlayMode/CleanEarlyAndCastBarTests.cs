@@ -163,20 +163,23 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Backstep_APressAt02sIsClean_At005sAndAt045sIsNot_AndTheLateOneSaysSo()
         {
             Assume.That(_player.Kit.CleanEarly, Is.True, "the new placement as the game ships");
+            // Changed deliberately by work order 064: Backstep's clean part after its hop is its own, 0.03 to 0.23 s (it was
+            // the kit's 0.10 to 0.30), so the early press is at 0.01 s, not 0.05.
+            float from = _player.Kit.OpeningMoveCleanFrom, to = _player.Kit.OpeningMoveCleanTo;
             float since = 0f;
             PlayerReport? press = null;
             yield return BackstepPressedAt(0.2f, (s, r) => { since = s; press = r; });
-            Assume.That(since, Is.InRange(_player.Kit.CleanFrom, _player.Kit.CleanTo), "the press came in the clean seconds");
+            Assume.That(since, Is.InRange(from, to), "the press came in the clean seconds");
             Assert.That(press.HasValue && press.Value.Clean, Is.True, "0.2 s after the window opened: clean");
 
-            yield return BackstepPressedAt(0.05f, (s, r) => { since = s; press = r; });
-            Assume.That(since, Is.LessThan(_player.Kit.CleanFrom), "the press came before the clean part");
+            yield return BackstepPressedAt(0.01f, (s, r) => { since = s; press = r; });
+            Assume.That(since, Is.LessThan(from), "the press came before the clean part");
             Assert.That(press.HasValue, Is.True, "a shot");
-            Assert.That(press.Value.Clean, Is.False, "0.05 s in: not clean");
+            Assert.That(press.Value.Clean, Is.False, "0.01 s in: not clean");
             Assert.That(press.Value.Late, Is.False, "early, not late");
 
             yield return BackstepPressedAt(0.45f, (s, r) => { since = s; press = r; });
-            Assume.That(since, Is.InRange(_player.Kit.CleanTo + 1e-3f, 0.6f), "the press came after the clean part, in the window");
+            Assume.That(since, Is.InRange(to + 1e-3f, 0.6f), "the press came after the clean part, in the window");
             Assert.That(press.HasValue, Is.True, "a shot");
             Assert.That(press.Value.Clean, Is.False, "0.45 s in: not clean");
             Assert.That(press.Value.Late, Is.True, "late, and it says so");
@@ -205,7 +208,8 @@ namespace Roguelike.PlayModeTests
         public IEnumerator APressThatWaitedFromBeforeTheWindowOpened_IsNotClean_EvenWhenTheCleanPartOpensWithTheWindow()
         {
             // The clean part from the very instant the window opens, so that only the rule keeps the waiting press out.
-            OwnKit(k => { k.CleanFrom = 0f; k.CleanTo = 0.3f; });
+            // Work order 064: Backstep's own clean part off (below 0), so the kit's is the one that opens with the window.
+            OwnKit(k => { k.CleanFrom = 0f; k.CleanTo = 0.3f; k.OpeningMoveCleanFrom = -1f; k.OpeningMoveCleanTo = -1f; });
             int slot = Slot("Backstep");
             _player.Teleport(NearA);
             yield return null;
@@ -466,6 +470,9 @@ namespace Roguelike.PlayModeTests
         public IEnumerator FromTheLastShot_To90PercentOfRunSpeed_IsAboutAThirdShorter_ThanWithTheOldNumbers()
         {
             Assume.That(_player.Feel.QuickOffTheMark, Is.True, "on as the game ships");
+            // Work order 064 cut Backstep's shot to 0.08 s after its press, so she hardly slows before it goes off: the comparison
+            // of work order 040's numbers is made with the shot's startup as it was (0.2 s).
+            OwnKit(k => k.OpeningMoveShotStartup = -1f);
             float quickShot = 0f, quickStep = 0f, oldShot = 0f, oldStep = 0f;
             yield return AfterAShotOnTheMove(s => quickShot = s);
             yield return AfterBackstepsShot(s => quickStep = s);

@@ -70,10 +70,20 @@ namespace Roguelike.Rules
         public static CleanPart Whole(float window) => new CleanPart(0f, Math.Max(0f, window));
 
         /// <summary>The clean part of a window this long, as the kit's switch places it: early (work order 040) or the last share.</summary>
-        public static CleanPart Of(KitValues kit, float window)
+        public static CleanPart Of(KitValues kit, float window) => Of(kit, window, false);
+
+        /// <summary>
+        /// As above, for a chain that opened with a move (<paramref name="afterOpeningMove"/>: Backstep's shot after its hop):
+        /// work order 064 moves its clean part early, to <see cref="KitValues.OpeningMoveCleanFrom"/> to
+        /// <see cref="KitValues.OpeningMoveCleanTo"/> after the hop's end; each below 0 is the kit's own, as before.
+        /// </summary>
+        public static CleanPart Of(KitValues kit, float window, bool afterOpeningMove)
         {
             kit = kit ?? new KitValues();
-            return kit.CleanEarly ? Early(window, kit.CleanFrom, kit.CleanTo) : Last(window, kit.CleanShare);
+            if (!kit.CleanEarly) return Last(window, kit.CleanShare);
+            float from = afterOpeningMove && kit.OpeningMoveCleanFrom >= 0f ? kit.OpeningMoveCleanFrom : kit.CleanFrom;
+            float to = afterOpeningMove && kit.OpeningMoveCleanTo >= 0f ? kit.OpeningMoveCleanTo : kit.CleanTo;
+            return Early(window, from, to);
         }
     }
 
@@ -106,6 +116,7 @@ namespace Roguelike.Rules
         float _openedAt = float.PositiveInfinity;
         bool _openingMove;
         float _ranOn; // s the open window has run on beyond the time passed in (work order 038); 0 until it opens
+        bool _allInRhythm; // every press of the chain after the first fell in the clean part of its window (work order 064)
 
         /// <summary>The slot whose chain runs, or -1. A chain that has run out still shows here until <see cref="Expired"/> or <see cref="End"/>.</summary>
         public int Slot => _slot;
@@ -130,7 +141,25 @@ namespace Roguelike.Rules
             _openedAt = float.PositiveInfinity;
             _ranOn = 0f;
             _openingMove = openingMove && _slot >= 0;
+            _allInRhythm = true;
         }
+
+        /// <summary>True when the chain running opened with a move (Backstep's hop): its window's clean part is its own (work order 064).</summary>
+        public bool OpenedWithMove => _slot >= 0 && _openingMove;
+
+        /// <summary>
+        /// True when every press of the chain after the first has fallen in the clean part of its window, judged as the last
+        /// press is (work order 064: a full clean chain); false before any such press, and once one missed it.
+        /// </summary>
+        public bool AllInRhythm => _slot >= 0 && _allInRhythm && _shots >= 2;
+
+        /// <summary>
+        /// True when a press of this slot's key now falls in the clean part of the open window, whichever press of the chain it
+        /// is (work order 064: the presses before the last count toward a full clean chain). A press that waited from before
+        /// the window opened never does.
+        /// </summary>
+        public bool InCleanPart(int slot, float now, CleanPart clean, bool buffered = false) =>
+            _slot >= 0 && slot == _slot && !buffered && !Expired(now) && now >= _openedAt && clean.Contains(now - _openedAt + _ranOn);
 
         /// <summary>True while the chain is on its first press and that press is a move that fires nothing.</summary>
         public bool IsOpeningMove => _slot >= 0 && _openingMove && _shots == 1;
@@ -193,9 +222,13 @@ namespace Roguelike.Rules
         }
 
         /// <summary>A press fired the next shot: the window closes until that shot goes off.</summary>
-        public void Recast()
+        public void Recast() => Recast(false);
+
+        /// <summary>As <see cref="Recast()"/>, and whether the press fell in the clean part of its window (<see cref="AllInRhythm"/>).</summary>
+        public void Recast(bool inCleanPart)
         {
             if (_slot < 0) return;
+            _allInRhythm &= inCleanPart;
             _shots++;
             _openedAt = float.PositiveInfinity;
             _ranOn = 0f;

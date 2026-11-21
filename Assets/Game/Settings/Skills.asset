@@ -519,4 +519,4 @@ MonoBehaviour:
     BasicShotsPerMark: 5
     StartWithAllSkills: 0
     CleanShare: 0.33333334
-    CleanDamage: 1.5
+    CleanDamage: 1.75

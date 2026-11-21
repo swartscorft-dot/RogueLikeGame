@@ -33,6 +33,10 @@ namespace Roguelike
         public FeedbackMoment Moment;
         public FeedbackTint Tint;
         public FeedbackSize Size;
+        // Work order 064: the kinetic numbers.
+        /// <summary>A number's lane in a crowd (<see cref="TallyNumber.Lane"/>), and its life after its latest hit.</summary>
+        public int Lane;
+        public float Life;
     }
 
     /// <summary>
@@ -94,6 +98,12 @@ namespace Roguelike
 
         /// <summary>The numbers, defaults in code (work order 019: first guesses).</summary>
         public FeedbackValues Values = new FeedbackValues();
+
+        /// <summary>
+        /// The damage numbers in the kinetic anime's style (work order 064: sizes, pop, drift, lives, lanes), defaults in code;
+        /// off, the numbers as this morning.
+        /// </summary>
+        public HitNumberValues NumberLook = new HitNumberValues();
 
         /// <summary>True when it installed itself at the start of Play.</summary>
         public bool StartedByItself { get; private set; }
@@ -354,12 +364,14 @@ namespace Roguelike
             }
             else if (skill != null && skill.Input == SkillInput.Charge)
                 ShowMiss(FeedbackRules.ChargeMiss(skill, r.Held, false, Values.MissFromCharge));
-            if (_cleanPending.Remove(r.Slot))
+            bool clean = _cleanPending.Remove(r.Slot);
+            if (clean)
             {
                 ShowWord(first, FeedbackRules.Word(FeedbackMoment.Clean));
                 PlayTone(FeedbackTone.Clean);
             }
-            Flush(perfect, r.Slot);
+            // Work order 064: a clean press's hit is the strongest number, as a perfect release's (with the kinetic numbers on).
+            Flush(perfect || (clean && NumberLook.On), r.Slot);
         }
 
         /// <summary>Of the hits waiting to be counted, the target nearest her: "the first target it hit". Null for none.</summary>
@@ -393,9 +405,11 @@ namespace Roguelike
                 PendingHit hit = _pending[i];
                 if (slot.HasValue && hit.Slot != slot.Value) continue;
                 if (!shown || hit.Target == null) continue;
-                NumberKind kind = FeedbackRules.HitKind(perfect || hit.Crit, hit.MarksSpent, cap, hit.OnDazed); // a crit as a perfect hit's (work order 050)
+                // Work order 064: a crit its own kind with the kinetic numbers on (work order 050 showed it as a perfect hit's).
+                NumberKind kind = NumberLook.On ? FeedbackRules.HitKind(perfect, hit.Crit, hit.MarksSpent, cap, hit.OnDazed)
+                                                : FeedbackRules.HitKind(perfect || hit.Crit, hit.MarksSpent, cap, hit.OnDazed);
                 int key = KeyOf(hit.Target);
-                _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers);
+                _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers, NumberLook.On ? NumberLook.Together : 0f);
             }
             if (!slot.HasValue) _pending.Clear();
             else for (int i = _pending.Count - 1; i >= 0; i--) if (_pending[i].Slot == slot.Value) _pending.RemoveAt(i);
@@ -503,7 +517,7 @@ namespace Roguelike
             Flush(false); // hits no shot claimed
             float now = Time.time;
             _board.Expire(now, Values.WordSeconds);
-            _tally.Expire(now, Values.NumberSeconds);
+            _tally.Expire(now, NumberLook, Values.NumberSeconds); // work order 064: each by its kind's life
             if (!NumbersOn) _tally.Clear();
 
             // Indexed, not enumerated through the interface (work order 045: nothing allocated in a frame).
@@ -565,13 +579,15 @@ namespace Roguelike
             if (n.Target == HerKey || n.Target == HerHealKey) a.Her = true;
             // The texts made once (work order 045), the same words as before.
             string text = n.Kind == NumberKind.Heal ? InterfaceStyle.Plus(n.Sum) : InterfaceStyle.Number(n.Sum); // "+8": work order 030
+            float life = HitNumberRules.Life(n.Kind, NumberLook, Values.NumberSeconds); // work order 064
+            float fadeFrom = NumberLook.On && HitNumberRules.LookOf(n.Kind) != HitNumberLook.AsBefore ? NumberLook.FadeFrom : Values.FadeFrom;
             return new FeedbackShown
             {
                 Id = n.Id, Text = text, Color = ColorOf(FeedbackRules.NumberTint(n.Kind)),
                 FontSize = n.Kind == NumberKind.Hurt ? Values.HurtNumberSize : FeedbackRules.IsBig(n.Kind) ? Values.BigNumberSize : Values.NumberSize,
                 World = WorldOf(n.Target), Target = a.Target, OverHer = a.Her, Age = now - n.First,
-                Alpha = FeedbackRules.Alpha(now - n.Last, Values.NumberSeconds, Values.FadeFrom),
-                Sum = n.Sum, Hits = n.Hits, Kind = n.Kind,
+                Alpha = FeedbackRules.Alpha(now - n.Last, life, fadeFrom),
+                Sum = n.Sum, Hits = n.Hits, Kind = n.Kind, Lane = n.Lane, Life = life,
             };
         }
 
