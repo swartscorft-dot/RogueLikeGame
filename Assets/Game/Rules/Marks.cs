@@ -47,6 +47,25 @@ namespace Roguelike.Rules
         // "Ja, alle ferdigheter"). One value for all skills, Backstep's 0.25 s of work order 064 (CooldownBufferRules). The
         // asset holds none of it, so this default is what the game reads.
         public float CooldownBuffer = 0.25f;  // s: a press of any skill this long or less before its cooldown ends waits and goes; 0: refused, as this morning
+
+        // Work order 069 (Kristian, 2026-11-21 evening: "høyreklik er litt klunky. jeg vil at de to første skal kome relativt
+        // fort, og det 3. litt senere"): a chain that opens with a shot (Triple Tap; not Backstep, whose chain opens with its
+        // hop) has a rhythm: tap-tap, a beat, then the last. Every press before the last (the second; with Fourth Tap or Steady
+        // Hand the third and fourth too) is a quick press, its window short and its clean part early; the last press waits a
+        // beat, its window longer and its clean part later (RecastRhythm). Seconds after the shot before the press went off, on
+        // the window's clock. They are the kit's and not the skill's because the asset holds none of them: as kit values their
+        // defaults here are what the game reads with no edit of the asset, and the switch gives the morning's back at once.
+        // From his own presses of that evening (2026-11-21_20-20-54): his quick presses came a median 0.23 s after the shot on
+        // the window's clock (p10 0.13, p90 0.31), so the quick part is centred on them; the last part's middle (0.54 s) is
+        // about twice his beat from press to press (0.15 s of the shot's startup and 0.21 s: 0.36 s; 0.69 s for the last).
+        // First guesses; he tunes them by playing.
+        public bool ChainRhythm = true;            // off: every window of a chain the skill's RecastWindow (0.6) and its clean part CleanFrom to CleanTo, as this morning
+        public float QuickPressWindow = 0.45f;     // s after the shot that a quick press's window stays open; below 0, the skill's RecastWindow
+        public float QuickPressCleanFrom = 0.12f;  // s after the shot that a quick press's clean part begins (the producer's guess was 0.10); below 0, CleanFrom
+        public float QuickPressCleanTo = 0.30f;    // s after the shot that it ends (the producer's guess was 0.28); below 0, CleanTo
+        public float LastPressWindow = 0.80f;      // s after the shot before it that the last press's window stays open; below 0, the skill's RecastWindow
+        public float LastPressCleanFrom = 0.42f;   // s after that shot that the last press's clean part begins: the beat; below 0, CleanFrom
+        public float LastPressCleanTo = 0.66f;     // s after it that it ends; below 0, CleanTo
     }
 
     /// <summary>

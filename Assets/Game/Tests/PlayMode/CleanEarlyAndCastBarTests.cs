@@ -186,8 +186,9 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TripleTap_ALastPressAt02sAfterItsWindowOpened_IsClean()
+        public IEnumerator TripleTap_ALastPressInItsCleanPart_042To066sAfterItsWindowOpened_IsClean_At02sNotAnyMore()
         {
+            // Work order 069: the last press waits a beat (0.42 to 0.66 s); until then it was clean from 0.1 to 0.3 s.
             int slot = Slot("Triple Tap");
             _player.Teleport(NearA);
             yield return null;
@@ -195,10 +196,12 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.1f).Within(1e-5f), "the clean part from 0.1 s...");
-            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.3f).Within(1e-5f), "...to 0.3 s after the window opened");
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f), "the clean part from 0.42 s...");
+            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f), "...to 0.66 s after the window opened");
             yield return Until(() => _player.RecastSinceOpened >= 0.2f, 2f);
-            Assume.That(_player.RecastSinceOpened, Is.InRange(0.1f, 0.3f));
+            Assert.That(_player.RecastPressWouldBeClean, Is.False, "0.2 s: this morning's clean time is early now");
+            yield return Until(() => _player.RecastSinceOpened >= 0.54f, 2f);
+            Assume.That(_player.RecastSinceOpened, Is.InRange(0.42f, 0.66f));
             Assert.That(_player.RecastPressWouldBeClean, Is.True);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the last press");
             Assert.That(_recasts.Last().Clean, Is.True, "clean");
@@ -259,7 +262,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_bar.Showing, Is.True);
             Assert.That(_bar.View.Kind, Is.EqualTo(CastBarKind.Recast));
             Assert.That(_bar.Label, Is.EqualTo("Triple Tap 2 / 3"));
-            Assert.That(_bar.View.HasZone, Is.False, "the second press cannot be clean");
+            Assert.That(_bar.View.HasZone, Is.True, "work order 069: the second press shows its own clean part (until then it had none)");
             Assert.That(_bar.View.Marker, Is.LessThanOrEqualTo(_bar.View.DimTo + 1e-5f), "in the dim part while the first shot winds up");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
