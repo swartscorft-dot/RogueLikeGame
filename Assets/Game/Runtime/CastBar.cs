@@ -25,10 +25,13 @@ namespace Roguelike
     /// default; off, nothing is drawn. It hides while she is dead and under a choice, an end screen or the pause menu.
     /// Nothing is allocated per frame while it is up: its words are made again only when what it shows changes.
     ///
+    /// With the interface's kinetic skin on (work order 045) the same bar is a short slanted blade just over her head
+    /// (CastBarKinetic.cs), and the bar under the middle of the screen is not drawn.
+    ///
     /// It installs itself when Play starts under the same rule as <see cref="PlayerSigns"/> (never in a test run); tests make
     /// one with <see cref="Ensure"/>.
     /// </summary>
-    public sealed class CastBar : MonoBehaviour
+    public sealed partial class CastBar : MonoBehaviour
     {
         static readonly Color s_Back = new Color(0f, 0f, 0f, 0.65f);         // the HUD's
         static readonly Color s_Dim = new Color(0.45f, 0.45f, 0.5f, 0.35f);  // before the window opens: a press only waits
@@ -152,6 +155,7 @@ namespace Roguelike
             Flash = FlashAlpha > 0f ? _flashKind : CastBarFlash.None;
             if (!up && Flash != CastBarFlash.None) View = _flashView;
             Showing = Values.On && alive && !PlayerSigns.ScreenUp && (up || Flash != CastBarFlash.None);
+            PlaceBlade(); // work order 045: in the interface's skin, a blade over her head (CastBarKinetic.cs)
         }
 
         /// <summary>The newest timed thing of hers, if one is up: a recast chain's next press, else the skill in use's charge, hold or cast.</summary>
@@ -224,6 +228,7 @@ namespace Roguelike
             _player = FindAnyObjectByType<PlayerCharacter>();
             _health = _player != null ? _player.GetComponent<PlayerHealth>() : null;
             if (_player != null) _player.Reported += OnReport;
+            _herTop = TopOfHer(); // work order 045: where the blade goes, found once with her
         }
 
         void Forget()
@@ -273,6 +278,11 @@ namespace Roguelike
         {
             if (Event.current.type != EventType.Repaint || !Showing) return;
             GUI.depth = 1; // under the skill bar, the HUD and its screens, as the signs' words
+            if (Kinetic)
+            {
+                DrawBlade(); // work order 045: the blade over her head instead of the bar under the middle
+                return;
+            }
             float scale = Screen.height / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));

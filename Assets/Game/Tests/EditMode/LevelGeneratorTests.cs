@@ -241,13 +241,14 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 10 makes with its defaults (work order 041, 2026-11-20: the floor
+        // These maps are what the generator of version 11 makes with its defaults (work order 041, 2026-11-20: the floor
         // in one row, LevelValues.InALine on, the treasure rooms between the combat rooms; the themes on and the casters
-        // off). Each room holds the groups its namesake holds in the version 9 maps below. A change that changes them must
+        // off; work order 044: the rooms' mood on, so each ossuary's skull and bone piles are banked at its far wall, the
+        // only change from version 10's maps). Each room holds the groups its namesake holds in the version 9 maps below. A change that changes them must
         // raise LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 10  8 rooms  48 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 11  8 rooms  48 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
                                     +-+-+-+-+-+-+-+-+
                                     |X7     oYo     |
                                     + #           # +
@@ -269,15 +270,15 @@ namespace Roguelike.Rules.Tests
                                     +          i+
                                     |        p  |
                   +-+-+-+-+-+-+     +           +
-                  |L4    ^    |     |k          |
-                  +  h^ e     +-+-+-+           +
-                  | ~         |T5  u|           |
+                  |L4  ^~^    |     |k          |
+                  +u h  e     +-+-+-+           +
+                  |           |T5  u|           |
                   +      p    +     +       :   +
-                  |  ~ p          $             |
+                  |    p          $             |
                   +q     : B  +     +           +
                   |           |     |           |
                   +           +-+-+-+          h+
-                  |u          |     |     B   u |
+                  |           |     |     B   u |
                   +-+-+-+ +-+-+     +-+-+-+-+-+-+
                       |T3   |
                       +  $  +
@@ -298,7 +299,7 @@ namespace Roguelike.Rules.Tests
         |          k|
         +-+-+-+-+-+-+
 ",
-            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 10  8 rooms  80 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 11  8 rooms  80 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
                                     +-+-+-+-+-+-+-+-+
                                     |X7     oYo   # |
                                     + #             +
@@ -320,13 +321,13 @@ namespace Roguelike.Rules.Tests
                                     +          i+
                                     |     p  B  |
                   +-+-+-+-+-+-+     +           +
-                  |L4         |     |k          |
-                  +u H  e^    +-+-+-+           +
-                  |   ~     p |T5ik |        p  |
-                  +  ~   B    +     +           +
-                  |    b ^        $             |
-                  +q p     g  +     +     b :   +
-                  |         : |  u  |           |
+                  |L4  ^~^    |     |k          |
+                  +u H  e     +-+-+-+           +
+                  |         p |T5ik |        p  |
+                  +      B    +     +           +
+                  |    b          $             |
+                  +q p   : g  +     +     b :   +
+                  |           |  u  |           |
                   +           +-+-+-+        % H+
                   |           |     |    ug     |
                   +-+-+-+ +-+-+     +-+-+-+-+-+-+
@@ -349,7 +350,7 @@ namespace Roguelike.Rules.Tests
         | %        k|
         +-+-+-+-+-+-+
 ",
-            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 10  8 rooms  49 enemies  100 x 84 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, T5 archive, C6 shrine, X7 throne room
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 11  8 rooms  49 enemies  100 x 84 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, T5 archive, C6 shrine, X7 throne room
 +-+-+-+-+-+-+-+-+
 |X7     oYoh    |
 + #           # +
@@ -384,17 +385,17 @@ namespace Roguelike.Rules.Tests
                 |L4 q       |     |C2        &|
                 +     p   e +     +           +
                 |h          |     |  #       !|
-                +   p ~     +-+-+-+     =  =  +
-                |      ~    |T3 uk|           |
-                +    ^      +     +  p        +
-                |       ~ ~   $               |
-                + :         +     +   [b =    +
+                +   p       +-+-+-+     =  =  +
+                |~          |T3 uk|           |
+                +~       :  +     +  p        +
+                |^            $               |
+                +           +     +   [b =    +
                 |           |     | h      p !|
                 +           +-+-+-+#          +
                 |u    b     |     |    !      |
                 +-+-+-+-+-+-+     +-+-+-+-+-+-+
 ",
-            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 10  8 rooms  80 enemies  100 x 84 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, T5 archive, C6 shrine, X7 throne room
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 11  8 rooms  80 enemies  100 x 84 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, T5 archive, C6 shrine, X7 throne room
 +-+-+-+-+-+-+-+-+
 |X7    oYo H    |
 + #           # +
@@ -428,12 +429,12 @@ namespace Roguelike.Rules.Tests
                 +-+-+-+ +-+-+     +-+-+-+ +-+-+-+
                 |L4 q      g|     |C2        &|
                 +     B     +     +       #   +
-                |e      ^   |     |          !|
-                +   b ~     +-+-+-+  [ = B    +
-                |      ~    |T3 uk|         p |
-                +     p     +     +  b        +
-                |       ~ ~   $               |
-                + : p       +     +    g =   =+
+                |e          |     |          !|
+                +   b  :    +-+-+-+  [ = B    +
+                |~          |T3 uk|         p |
+                +~    p     +     +  b        +
+                |^            $               |
+                +   p       +     +    g =   =+
                 |           |     | H      p  |
                 +   H       +-+-+-+#          +
                 |u          |     |    ! !    |
@@ -946,7 +947,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(10), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(11), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor));
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN " + key + "\n" + map);
@@ -962,7 +963,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheLineOff_KeepVersion9sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false }); // work order 044: version 9 had no mood
             Assert.That(level.InALine, Is.False);
             Assert.That(level.Version, Is.EqualTo(LevelGenerator.Version));
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
@@ -994,7 +995,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithCastersOn_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false, RoomMood = false }); // work order 044: version 9 had no mood
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN CASTERS " + key + "\n" + map);

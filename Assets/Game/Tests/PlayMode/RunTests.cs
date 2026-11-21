@@ -47,6 +47,7 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.StatsAndTiers = false; // work order 050: these tests pin today's chest steps (+10 health, +5 % damage)
         }
 
         [TearDown]

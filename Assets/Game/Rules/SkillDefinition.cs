@@ -113,6 +113,10 @@ namespace Roguelike.Rules
         public int SlideShotMarks = 0;         // KeyMove: marks each basic shot that hits during the move adds (Slide Shot)
         public string CounterReadies = "";     // a counter by this skill makes the named skill ready at once (Riposte)
 
+        // Work order 050 (decision 0012, 2026-11-20): how many times her flat damage a hit of this skill adds. Below 0, which
+        // the settings asset holds for every skill (it has no such field), the skill's own by name or kind (FlatDamage.WeightOf).
+        public float FlatDamageWeight = -1f;
+
         /// <summary>A copy, field for field: a run's own view of the skill, patched by its upgrades (work order 017).</summary>
         public SkillDefinition Copy() => (SkillDefinition)MemberwiseClone();
     }
