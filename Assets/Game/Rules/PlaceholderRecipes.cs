@@ -120,6 +120,66 @@ namespace Roguelike.Rules
                     return Recipe(0.03f, 0f,
                         Sine(2200f, 0f, 0f, 0.03f, 1f, 0.0005f, 0.006f, release: 0.005f),
                         Noise(0f, 0.03f, 0.3f, 0.0005f, 0.003f, high: 4000f, release: 0.005f));
+
+                // ---- Work order 048 (Kristian's wish of 2026-11-20 for sounds for the new things), first guesses ----
+                case PlaceholderSound.ProjectileStopped:
+                    // A short dry knock: a band of noise and a quick low sine, both gone in a few hundredths.
+                    return Recipe(0.08f, 1.4f,
+                        Noise(0f, 0.06f, 0.8f, 0.0005f, 0.008f, low: 2200f, high: 300f),
+                        Sine(330f, 190f, 0f, 0.08f, 0.7f, 0.001f, 0.012f));
+                case PlaceholderSound.OrbLoosed:
+                    // A short hollow breath, softer and lower than the arrow: dull noise swelling in, a low hum under it.
+                    return Recipe(0.18f, 0f,
+                        Noise(0f, 0.18f, 1f, 0.03f, 0.05f, low: 900f, lowTo: 450f, high: 180f, release: 0.04f),
+                        Sine(240f, 190f, 0f, 0.18f, 0.35f, 0.03f, 0.05f, release: 0.04f));
+                case PlaceholderSound.Duck:
+                    // A short low thud of cloth and stone: a falling low sine and dull noise, a brush of brighter noise on
+                    // top. No sweep, unlike the dash's whoosh.
+                    return Recipe(0.12f, 1.5f,
+                        Sine(120f, 65f, 0f, 0.12f, 1f, 0.002f, 0.03f, release: 0.02f),
+                        Noise(0f, 0.1f, 0.6f, 0.002f, 0.025f, low: 650f, release: 0.02f),
+                        Noise(0f, 0.05f, 0.25f, 0.004f, 0.012f, low: 5000f, high: 1500f));
+                case PlaceholderSound.Stunned:
+                    // A dull ring, falling: a mid tone sliding down with a slow wobble, a quieter fifth over it, a soft knock first.
+                    return Recipe(0.45f, 1.1f,
+                        Noise(0f, 0.03f, 0.5f, 0.0005f, 0.008f, low: 1500f),
+                        Wobble(Sine(660f, 420f, 0.004f, 0.44f, 1f, 0.003f, 0.16f, release: 0.06f), 9f, 0.35f),
+                        Sine(990f, 630f, 0.004f, 0.36f, 0.25f, 0.003f, 0.08f, release: 0.05f));
+                case PlaceholderSound.Pulled:
+                    // A short rising whip: noise swept up through a band, a thin rising tone in it, cut off at the top.
+                    return Recipe(0.18f, 1f,
+                        Noise(0f, 0.18f, 1f, 0.12f, 0f, low: 1500f, lowTo: 9000f, high: 500f, highTo: 2800f, release: 0.025f),
+                        Sine(350f, 1100f, 0f, 0.18f, 0.3f, 0.12f, 0f, release: 0.025f));
+                case PlaceholderSound.DropLands:
+                    // A soft bright chime of two notes, D6 then G6, each with a quiet octave.
+                    return Recipe(0.35f, 0f,
+                        Sine(1175f, 0f, 0f, 0.2f, 1f, 0.003f, 0.07f, release: 0.03f),
+                        Sine(2350f, 0f, 0f, 0.15f, 0.15f, 0.003f, 0.04f, release: 0.03f),
+                        Sine(1568f, 0f, 0.1f, 0.25f, 1f, 0.003f, 0.09f, release: 0.04f),
+                        Sine(3136f, 0f, 0.1f, 0.18f, 0.15f, 0.003f, 0.05f, release: 0.04f));
+                case PlaceholderSound.DropTaken:
+                    // A short rising sweep: a tone from 500 Hz to 1500 Hz and its octave, quick in, fading.
+                    return Recipe(0.2f, 0f,
+                        Sine(500f, 1500f, 0f, 0.2f, 1f, 0.01f, 0.1f, release: 0.04f),
+                        Sine(1000f, 3000f, 0f, 0.2f, 0.2f, 0.01f, 0.06f, release: 0.04f));
+                case PlaceholderSound.WayOpens:
+                    // A low stone shift with one soft note over it: dull, grinding noise and a rough low hum, then G4.
+                    return Recipe(0.6f, 1.3f,
+                        Wobble(Noise(0f, 0.5f, 1f, 0.05f, 0.2f, low: 260f, lowTo: 170f, release: 0.08f), 17f, 0.55f),
+                        Rough(Sine(58f, 50f, 0f, 0.45f, 0.5f, 0.05f, 0.2f, release: 0.08f), 2f),
+                        Sine(392f, 0f, 0.16f, 0.44f, 0.45f, 0.006f, 0.2f, release: 0.08f));
+                case PlaceholderSound.Crit:
+                    // A short bright tick to sit over the dull hit tick: a high tone and a hiss, under a tenth of a second.
+                    return Recipe(0.06f, 1.2f,
+                        Sine(3300f, 2900f, 0f, 0.06f, 1f, 0.0005f, 0.009f, release: 0.006f),
+                        Noise(0f, 0.04f, 0.4f, 0.0005f, 0.005f, high: 5000f, release: 0.006f));
+                case PlaceholderSound.RareOffer:
+                    // One soft bell, C6 with two quieter, unevenly spaced partials (a bell's, not a chord's). An epic offer
+                    // plays it twice, the second a fourth up (PlaceholderSoundRules.OfferBells).
+                    return Recipe(0.5f, 0f,
+                        Sine(1047f, 0f, 0f, 0.5f, 1f, 0.003f, 0.17f, release: 0.06f),
+                        Sine(2890f, 0f, 0f, 0.35f, 0.22f, 0.003f, 0.07f, release: 0.05f),
+                        Sine(5650f, 0f, 0f, 0.2f, 0.07f, 0.002f, 0.035f, release: 0.04f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,

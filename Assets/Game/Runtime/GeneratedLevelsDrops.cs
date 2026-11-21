@@ -205,6 +205,7 @@ namespace Roguelike
         void TakeDrop(RewardDrop drop)
         {
             Owed owed = (Owed)drop.Owed;
+            PlaceholderSounds.Current?.AskFor(SoundMoment.DropTaken); // work order 048: heard before its choice opens
             RemoveDrop(drop);
             if (owed.Kind != ChoiceKind.SkillUpgrade && EliteDrop is RewardDrop elite)
             {

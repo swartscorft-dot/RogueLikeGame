@@ -936,6 +936,7 @@ namespace Roguelike
                 if (alive) continue;
                 int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues));
                 PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
+                PlaceholderSounds.Current?.AskFor(SoundMoment.CombatRoomCleared); // work order 048: the way on opens
                 if (healed > 0) TimingFeedback.Current?.ShowHeal(healed);
             }
         }

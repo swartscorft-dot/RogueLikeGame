@@ -12,7 +12,7 @@ namespace Roguelike
     /// is: a gem that bursts up from where the last enemy fell, arcs and bounces to where it lands and lies still after
     /// <see cref="RewardDropValues.SettleSeconds"/> (<see cref="RewardDropRules.Pose"/>), then floats, turns and pulses; a
     /// tall thin beam and a ring on the ground where it lies, and a light of its colour, so it is seen from across the room.
-    /// It rings once as it comes to rest (the chest's chime). While she can pick it up a prompt shows over it, as over a
+    /// It rings once as it comes to rest (its own chime since work order 048). While she can pick it up a prompt shows over it, as over a
     /// chest; while the floor's reward lies, a line at the top of the screen says the way on waits for it. It goes with
     /// its floor. A picture and a place only: what it gives is the run's (<see cref="GeneratedLevels"/>).
     /// </summary>
@@ -115,7 +115,7 @@ namespace Roguelike
             if (!Rang && Settled)
             {
                 Rang = true;
-                PlaceholderSounds.Current?.AskFor(PlaceholderSound.ChestOpens);
+                PlaceholderSounds.Current?.AskFor(SoundMoment.DropLanded); // its own chime since work order 048, the chest's before
             }
         }
 
