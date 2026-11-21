@@ -667,14 +667,16 @@ namespace Roguelike
                     case PlayerReportKind.Hit:
                     {
                         Enemy enemy = r.Target != null ? r.Target.GetComponent<Enemy>() : null;
-                        Add(new SessionEvent(t, SessionEventTypes.Hit, r.Slot >= 0 ? SkillName(r.Slot) : SessionWords.BasicShot)
+                        var hit = new SessionEvent(t, SessionEventTypes.Hit, r.Slot >= 0 ? SkillName(r.Slot) : SessionWords.BasicShot)
                         {
                             Slot = r.Slot >= 0 ? r.Slot : (int?)null,
                             Damage = r.Damage, Target = TargetKind(r.Target), Empowered = r.Empowered,
                             Focus = r.Focus > 0f ? r.Focus : (float?)null,
                             Enemy = enemy != null ? enemy.LogWord : null,
                             EnemyId = enemy != null ? enemy.Id : (int?)null,
-                        });
+                        };
+                        if (r.Crit) hit.AddExtra("crit", "true"); // work order 050
+                        Add(hit);
                         break;
                     }
                     case PlayerReportKind.FocusPressed:
@@ -957,9 +959,20 @@ namespace Roguelike
         public void NoteRoomHeal(int floor, int room, bool elite, int healed, int health) =>
             Note(SessionEventTypes.RoomHeal, null, "floor", Int(floor), "room", Int(room), "elite", elite ? "true" : "false", "healed", Int(healed), "health", Int(health));
 
-        /// <summary>A chest opened: what it offered, and what was taken (short forms).</summary>
-        public void NoteChestOpened(int floor, int room, IList<string> offered, string taken) =>
-            Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered));
+        /// <summary>
+        /// A chest opened: what it offered, and what was taken (short forms). Work order 050: for a tiered pick also its
+        /// stat, tier and size (its amount, and its heal when it heals), and her stats after it in one line.
+        /// </summary>
+        public void NoteChestOpened(int floor, int room, IList<string> offered, string taken, Upgrade tiered = null, string stats = null)
+        {
+            if (tiered == null)
+            {
+                Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered));
+                return;
+            }
+            Note(SessionEventTypes.ChestOpen, taken, "floor", Int(floor), "room", Int(room), "offered", string.Join(" | ", offered),
+                 "stat", tiered.Stat, "tier", tiered.TierWord, "size", Text(tiered.Amount), "heal", Int(tiered.Heal), "stats", stats ?? "");
+        }
 
         /// <summary>She entered the floor's elite room for the first time (work order 017).</summary>
         public void NoteEliteEntered(int floor, int room) => Note(SessionEventTypes.EliteEnter, null, "floor", Int(floor), "room", Int(room));
@@ -984,7 +997,7 @@ namespace Roguelike
         public void NoteFocusChoiceTaken(int floor, string name) => Note(SessionEventTypes.FocusChoiceTake, name, "floor", Int(floor));
 
         /// <summary>The run ended: how (death, act cleared, left), where (floor, room from 1 and its kind), and when.</summary>
-        public void NoteRunEnded(string how, int floor, int room, string kind, float seconds)
+        public void NoteRunEnded(string how, int floor, int room, string kind, float seconds, string stats = null)
         {
             if (!_recording) return;
             try
@@ -994,6 +1007,7 @@ namespace Roguelike
                 e.AddExtra("room", Int(room));
                 if (!string.IsNullOrEmpty(kind)) e.AddExtra("kind", kind);
                 e.AddExtra("seconds", Text(seconds));
+                if (!string.IsNullOrEmpty(stats)) e.AddExtra("stats", stats); // work order 050: her final stats
                 Add(e);
             }
             catch (Exception e)

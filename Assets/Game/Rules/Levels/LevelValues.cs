@@ -277,6 +277,15 @@ namespace Roguelike.Rules
         public bool FloorMap = true;
         public DoorSignValues Signs = new DoorSignValues(); // the signs' and the map's numbers (work order 041)
 
+        // Rooms with a mood (work order 044; Kristian, 2026-11-20: "The rooms must also feel more alive and create atmosphere
+        // like Diablo and Path of Exile", and of the five concept pictures, "build toward them"): light and darkness, air, a
+        // worn floor, one eye-catcher per room theme, a quiet room tone (RoomMoodPlan, and RoomMood in the game), each layer
+        // with its own switch in Mood. Off: every floor is today's, object for object. The generator reads it in one place
+        // only: with it and Mood.Compose on, an ossuary's skull and bone piles are banked at its far wall (the props stage,
+        // from the props' own draws, so which props a room holds stays the same), where they stood in two clusters before.
+        public bool RoomMood = true;
+        public MoodValues Mood = new MoodValues();
+
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
         public ThemeValues ThemeRules = new ThemeValues();

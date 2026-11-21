@@ -26,6 +26,13 @@ namespace Roguelike
         public int Sum;
         public int Hits;
         public NumberKind Kind;
+        // Work order 045: what the interface's skin draws it by.
+        /// <summary>True for a word, false for a number.</summary>
+        public bool IsWord;
+        /// <summary>A word's moment, colour and size as the rules gave them.</summary>
+        public FeedbackMoment Moment;
+        public FeedbackTint Tint;
+        public FeedbackSize Size;
     }
 
     /// <summary>
@@ -54,7 +61,7 @@ namespace Roguelike
     /// also without a window, for tests (<see cref="Words"/>, <see cref="Numbers"/>). It installs itself when Play
     /// starts under the same rule as <see cref="RunHud"/> (never in a test run); tests make one with <see cref="Ensure"/>.
     /// </summary>
-    public sealed class TimingFeedback : MonoBehaviour
+    public sealed partial class TimingFeedback : MonoBehaviour
     {
         /// <summary>The key words and numbers over her go under; a keg's word gets its own, below it.</summary>
         const int HerKey = 0;
@@ -121,6 +128,7 @@ namespace Roguelike
             public int Damage;
             public int MarksSpent;
             public bool OnDazed;
+            public bool Crit; // work order 050: shown as the strong kind, the perfect release's
         }
 
         readonly WordBoard _board = new WordBoard();
@@ -217,10 +225,20 @@ namespace Roguelike
             {
                 Damageable d = all[i];
                 if (d == null || _listening.ContainsKey(d)) continue;
-                Action<float, float> handler = (taken, left) => OnStaggerTaken(d, taken, left);
-                d.StaggerTaken += handler;
-                _listening[d] = handler;
+                ListenTo(d);
             }
+        }
+
+        /// <summary>
+        /// Listens to a target's stagger bar. Its own method (work order 045): a lambda capturing a variable of the loop's
+        /// body makes the compiler allocate the closure at the top of that body, on every pass of every frame, also for the
+        /// targets already listened to; here it is made only for a new one.
+        /// </summary>
+        void ListenTo(Damageable d)
+        {
+            Action<float, float> handler = (taken, left) => OnStaggerTaken(d, taken, left);
+            d.StaggerTaken += handler;
+            _listening[d] = handler;
         }
 
         void Listen(PlayerCharacter player, PlayerHealth health)
@@ -293,7 +311,7 @@ namespace Roguelike
                     // A hit on a dazed target hits harder (StaggerBar.Scale); the hit that emptied the bar did not.
                     bool onDazed = r.Target.Stagger != null && r.Target.Stagger.IsDazed(Time.time)
                                    && !(_emptiedAt.TryGetValue(r.Target, out int frame) && frame == Time.frameCount);
-                    _pending.Add(new PendingHit { Slot = r.Slot, Target = r.Target, Damage = r.Damage, MarksSpent = spent, OnDazed = onDazed });
+                    _pending.Add(new PendingHit { Slot = r.Slot, Target = r.Target, Damage = r.Damage, MarksSpent = spent, OnDazed = onDazed, Crit = r.Crit });
                     if (r.Countered)
                     {
                         ShowWord(r.Target, FeedbackRules.Word(FeedbackMoment.Counter));
@@ -375,7 +393,7 @@ namespace Roguelike
                 PendingHit hit = _pending[i];
                 if (slot.HasValue && hit.Slot != slot.Value) continue;
                 if (!shown || hit.Target == null) continue;
-                NumberKind kind = FeedbackRules.HitKind(perfect, hit.MarksSpent, cap, hit.OnDazed);
+                NumberKind kind = FeedbackRules.HitKind(perfect || hit.Crit, hit.MarksSpent, cap, hit.OnDazed); // a crit as a perfect hit's (work order 050)
                 int key = KeyOf(hit.Target);
                 _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers);
             }
@@ -476,7 +494,10 @@ namespace Roguelike
 
         // ---------------- Every frame ----------------
 
-        void LateUpdate()
+        void LateUpdate() => Tick();
+
+        /// <summary>The frame's work: what shows now (work order 045: public, so tests can count what it allocates).</summary>
+        public void Tick()
         {
             Find();
             Flush(false); // hits no shot claimed
@@ -485,18 +506,21 @@ namespace Roguelike
             _tally.Expire(now, Values.NumberSeconds);
             if (!NumbersOn) _tally.Clear();
 
+            // Indexed, not enumerated through the interface (work order 045: nothing allocated in a frame).
+            IReadOnlyList<BoardWord> words = _board.Words;
+            IReadOnlyList<TallyNumber> numbers = _tally.Numbers;
             _shownWords.Clear();
-            foreach (BoardWord w in _board.Words) _shownWords.Add(Shown(w, now));
+            for (int i = 0; i < words.Count; i++) _shownWords.Add(Shown(words[i], now));
             _shownNumbers.Clear();
-            foreach (TallyNumber n in _tally.Numbers) _shownNumbers.Add(Shown(n, now));
+            for (int i = 0; i < numbers.Count; i++) _shownNumbers.Add(Shown(numbers[i], now));
 
             // Forget the places nothing shows over any more.
             _scratch.Clear();
             foreach (int key in _anchors.Keys)
             {
                 bool used = false;
-                foreach (BoardWord w in _board.Words) used |= w.Target == key;
-                foreach (TallyNumber n in _tally.Numbers) used |= n.Target == key;
+                for (int i = 0; i < words.Count; i++) used |= words[i].Target == key;
+                for (int i = 0; i < numbers.Count; i++) used |= numbers[i].Target == key;
                 if (!used) _scratch.Add(key);
             }
             foreach (int key in _scratch) _anchors.Remove(key);
@@ -531,6 +555,7 @@ namespace Roguelike
                 Id = w.Id, Text = w.Word.Text, Color = ColorOf(w.Word.Tint), FontSize = SizeOf(w.Word.Size),
                 World = WorldOf(w.Target), Target = a.Target, OverHer = a.Her, Age = age,
                 Alpha = FeedbackRules.Alpha(age, Values.WordSeconds, Values.FadeFrom),
+                IsWord = true, Moment = w.Word.Moment, Tint = w.Word.Tint, Size = w.Word.Size,
             };
         }
 
@@ -538,8 +563,8 @@ namespace Roguelike
         {
             _anchors.TryGetValue(n.Target, out Anchor a);
             if (n.Target == HerKey || n.Target == HerHealKey) a.Her = true;
-            string text = n.Sum.ToString(CultureInfo.InvariantCulture);
-            if (n.Kind == NumberKind.Heal) text = "+" + text; // work order 030
+            // The texts made once (work order 045), the same words as before.
+            string text = n.Kind == NumberKind.Heal ? InterfaceStyle.Plus(n.Sum) : InterfaceStyle.Number(n.Sum); // "+8": work order 030
             return new FeedbackShown
             {
                 Id = n.Id, Text = text, Color = ColorOf(FeedbackRules.NumberTint(n.Kind)),
@@ -577,6 +602,11 @@ namespace Roguelike
             if (_shownWords.Count == 0 && _shownNumbers.Count == 0) return;
             Camera cam = Camera.main;
             if (cam == null) return;
+            if (InterfaceStyle.Kinetic)
+            {
+                DrawKinetic(cam); // work order 045 (TimingFeedbackKinetic.cs)
+                return;
+            }
             if (_style == null)
             {
                 _style = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false, clipping = TextClipping.Overflow };

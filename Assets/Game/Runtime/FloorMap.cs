@@ -235,10 +235,26 @@ namespace Roguelike
             GUI.matrix = matrixBefore;
         }
 
+        /// <summary>True when the map is drawn in the interface's kinetic skin (work order 045): thin outlines, no box behind it.</summary>
+        public bool Kinetic => InterfaceStyle.Kinetic;
+
         void Draw(Rect frame, double scale, float line)
         {
-            Fill(frame, s_Back);
-            Fill(new Rect(frame.x, frame.y, 3f, frame.height), s_Accent);
+            bool kinetic = Kinetic;
+            Rules.InterfaceValues v = InterfaceStyle.V;
+            if (kinetic)
+            {
+                // Work order 045: no box behind it, a thin slanted frame round it; a large map keeps a faint back to read over the floor.
+                if (line > 1f) InterfaceStyle.Slanted(frame, InterfaceStyle.C(v.Back, 0.8f));
+                InterfaceStyle.SlantedFrame(frame, InterfaceStyle.C(v.White, 0.35f), v.MapFrameLine * line * 0.75f);
+                InterfaceStyle.Slanted(new Rect(frame.x, frame.y - 3f, frame.width * 0.35f, 2f), InterfaceStyle.C(v.Teal));
+                line *= v.MapLine;
+            }
+            else
+            {
+                Fill(frame, s_Back);
+                Fill(new Rect(frame.x, frame.y, 3f, frame.height), s_Accent);
+            }
             CellRect box = _layout.Bounds();
             double cs = _layout.CellSize;
             float x0 = frame.x + Pad, y0 = frame.y + Pad;
@@ -251,7 +267,13 @@ namespace Roguelike
                 MapShown shown = _shown[i];
                 if (shown == MapShown.Hidden) continue;
                 Rect r = Of(rooms[i].Rect);
-                if (shown == MapShown.Here) Fill(r, new Color(s_Accent.r, s_Accent.g, s_Accent.b, 0.5f));
+                if (kinetic)
+                {
+                    // Work order 045: the room she is in filled teal, a room she has been in faintly white, dimmer once done.
+                    if (shown == MapShown.Here) Fill(r, InterfaceStyle.C(v.Teal, v.MapHereFill));
+                    else if (shown == MapShown.Entered) Fill(r, InterfaceStyle.C(v.White, _done[i] ? v.MapEnteredFill * 0.4f : v.MapEnteredFill));
+                }
+                else if (shown == MapShown.Here) Fill(r, new Color(s_Accent.r, s_Accent.g, s_Accent.b, 0.5f));
                 else if (shown == MapShown.Entered) Fill(r, _done[i] ? s_Done : s_Entered);
                 float k = _strength[i];
                 Color edge = shown == MapShown.Ahead ? s_AheadOutline : s_Outline;

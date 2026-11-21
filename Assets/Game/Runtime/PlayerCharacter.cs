@@ -2106,7 +2106,7 @@ namespace Roguelike
             Look look = LookFor(keg.Skill, 1f);
             Vector3 shotPoint = SpawnSkillFx(keg.Skill, look, area);
             PlaySound(look);
-            int damage = Mathf.RoundToInt(SkillRules.Damage(keg.Skill, 1f) * damageScale);
+            int damage = Mathf.RoundToInt((SkillRules.Damage(keg.Skill, 1f) + FlatFor(keg.Skill)) * damageScale); // work order 050: her flat damage, by its weight
             bool landed = HitArea(keg.Skill, keg.Slot, area, look, shotPoint, damage, keg.Skill.Stagger, clean: false, out _, keg.Prime);
             Report(new PlayerReport { Kind = PlayerReportKind.SkillFired, Slot = keg.Slot, Landed = landed, Charge = 1f, Clean = damageScale > 1f, At = keg.Centre });
             if (landed) HitStop.Trigger(Feel.HitStop);
@@ -2181,7 +2181,7 @@ namespace Roguelike
             ActionsStarted++;
             ActionLeadTime = feel.BasicShotStartup;
             _shotStartedAt = Time.time;
-            _action.Start(Time.time, feel.BasicShotStartup, feel.BasicShotActive, feel.BasicShotRecovery);
+            _action.Start(Time.time, feel.BasicShotStartup, feel.BasicShotActive, BasicShotRecoveryNow(feel)); // work order 050: attack speed
             Report(new PlayerReport { Kind = PlayerReportKind.ShotStarted, Moving = onTheMove });
         }
 
@@ -2345,7 +2345,7 @@ namespace Roguelike
             }
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
-            int applied = Deal(hit, Placeholders.BasicShotDamage, out float focus, peekStagger);
+            int applied = Deal(hit, Placeholders.BasicShotDamage + FlatFor(null), out float focus, peekStagger); // work order 050: her flat damage
             if (applied <= 0) return ShotFired(false);
             ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);
@@ -2480,16 +2480,57 @@ namespace Roguelike
             Report(new PlayerReport
             {
                 Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered, Focus = focus, Countered = countered,
+                Crit = _dealtCrit, // work order 050: of the Deal just before
             });
+
+        // ---------------- Her stats in a run (work order 050, decision 0012) ----------------
+
+        /// <summary>The random stream crits come from: seeded by the run's seed when a run starts, and by tests (<see cref="SeedCrits"/>).</summary>
+        LevelRandom _crits = LevelRandom.Stream(0UL, CritStage);
+        bool _dealtCrit;
+        public const string CritStage = "crit";
+
+        /// <summary>The crits' stream starts again from this seed (a run's start, and tests).</summary>
+        public void SeedCrits(ulong seed) => _crits = LevelRandom.Stream(seed, CritStage);
+        /// <summary>Hits of hers that were crits, rolled or sure (a clean press, a perfect release).</summary>
+        public int Crits { get; private set; }
+
+        /// <summary>Her stats in the run (<see cref="HerStats"/>), or null outside a run.</summary>
+        public HerStats Stats => Modifiers != null ? Modifiers.Stats : null;
+        /// <summary>True in a run with the stats and tiers on: flat damage, attack speed and crits are read.</summary>
+        bool StatsOn => Modifiers != null && Modifiers.StatsAndTiers;
+        /// <summary>What her flat damage adds to a hit of this skill (null: the basic shot); 0 outside a run or with the switch off.</summary>
+        int FlatFor(SkillDefinition skill) => StatsOn ? Modifiers.Stats.FlatFor(skill) : 0;
+        /// <summary>The basic shot's recovery now: the feel's, or with the stats on shortened or lengthened by her attack speed.</summary>
+        float BasicShotRecoveryNow(FeelValues f) =>
+            Modifiers != null ? Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery) : f.BasicShotRecovery;
+        /// <summary>The time from one basic shot to the next now (work order 050): the feel's 0.225 s, or with the stats on her attack speed's.</summary>
+        public float BasicShotInterval
+        {
+            get
+            {
+                FeelValues f = Feel;
+                return f.BasicShotStartup + f.BasicShotActive + BasicShotRecoveryNow(f);
+            }
+        }
 
         /// <summary>
         /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005), and what
         /// was dealt trickles into the focus gauge. Returns the amount actually removed, and the focus gained.
         /// <paramref name="stagger"/> is what the hit takes off a stagger bar (work order 008); the basic shot's is 0.
+        /// Work order 050: in a run with the stats on, the hit may crit (her crit chance, on the crits' stream), and one
+        /// that is <paramref name="sureCrit"/> (a clean press, a perfect release) always does without a roll.
         /// </summary>
-        int Deal(Damageable target, int damage, out float focus, float stagger = 0f)
+        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false)
         {
             IdentityValues identity = Identity;
+            _dealtCrit = false;
+            if (StatsOn && damage > 0 && (sureCrit || CritRules.Rolls(_crits, Modifiers.Stats.CritChance)))
+            {
+                _dealtCrit = true;
+                Crits++;
+                damage = CritRules.Apply(damage, Modifiers.Stats.CritDamage);
+            }
             if (Modifiers != null) damage = Modifiers.ScaleDamage(damage); // a run's upgrades (work order 012)
             damage = target.ScaleForTag(damage); // Tag Round's tag (work order 015)
             bool tagged = target.IsTagged;
@@ -2536,16 +2577,23 @@ namespace Roguelike
             PlaySound(look); // once per hit of a burst, per tick of a hold, per landing
 
             int damage = perfect ? PoolRules.PerfectDamage(skill) : SkillRules.Damage(skill, charge);
+            // Work order 050 (decision 0012): in a run with the stats on, her flat damage by the skill's weight is added, and
+            // a perfect release and a clean press are crits (sureCrit): what their own scale gave beyond a crit at her start
+            // stays (CritRules.Folded), the crit itself is dealt in Deal. Off, exactly as before.
+            bool sureCrit = StatsOn && (perfect || _castClean);
+            if (StatsOn)
+                damage = perfect ? Mathf.RoundToInt((SkillRules.Damage(skill, 1f) + FlatFor(skill)) * Mathf.Max(0f, skill.PerfectScale) * CritRules.Folded(1f, Modifiers.StatValues))
+                                 : damage + FlatFor(skill);
             float stagger = perfect ? skill.Stagger * Mathf.Max(0f, skill.PerfectScale) : skill.Stagger;
             // A clean tap (decision 0005) hits harder by itself; a clean spend (Backstep, amended 2026-11-19) instead
             // takes the marks, as a spender does, for its own bonus per mark.
-            if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * Kit.CleanDamage);
+            if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * (StatsOn ? CritRules.Folded(Kit.CleanDamage, Modifiers.StatValues) : Kit.CleanDamage));
             if (perfect)
             {
                 PerfectReleases++;
                 GainFocus(Identity.FocusPerCleanTap);
             }
-            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first, _castPrime);
+            bool landed = HitArea(skill, _castSlot, area, look, shotPoint, damage, stagger, _castClean, out Damageable first, _castPrime, sureCrit);
 
             // Tag Round (work order 015): the first target it hit is tagged; a tag on a tagged target starts it again.
             if (skill.TagSeconds > 0f && first != null && first.IsAlive)
@@ -2570,7 +2618,7 @@ namespace Roguelike
         /// True if any took damage. <paramref name="first"/> is the target nearest the area's origin that took damage.
         /// </summary>
         bool HitArea(SkillDefinition skill, int slot, SkillArea area, Look look, Vector3 shotPoint, int damage, float stagger,
-                     bool clean, out Damageable first, PrimeUse prime = PrimeUse.None)
+                     bool clean, out Damageable first, PrimeUse prime = PrimeUse.None, bool sureCrit = false)
         {
             first = null;
             float firstDistance = float.PositiveInfinity;
@@ -2605,7 +2653,7 @@ namespace Roguelike
                                      && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
                 if (counteredThis) countered = true;
                 bool wasDazed = d.IsDazed;
-                int applied = Deal(d, dealt, out float focus, hitStagger);
+                int applied = Deal(d, dealt, out float focus, hitStagger, sureCrit); // work order 050: a clean press's or a perfect release's hit is a crit
                 if (!d.IsAlive) killed = true;
                 else if (!wasDazed && d.IsDazed) dazed = true;
                 if (spends)

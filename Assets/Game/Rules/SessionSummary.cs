@@ -228,6 +228,12 @@ namespace Roguelike.Rules
         public readonly List<string> MetaFeats = new List<string>();
         /// <summary>How it ended, in words; "still going" when the session ended first.</summary>
         public string Ended = "still going";
+        /// <summary>
+        /// Work order 050: the chest picks that had a tier, as (tier, short form) in the order taken; and her stats in one
+        /// line, after her last pick or when the run ended, the later.
+        /// </summary>
+        public readonly List<KeyValuePair<string, string>> TieredPicks = new List<KeyValuePair<string, string>>();
+        public string FinalStats = "";
     }
 
     /// <summary>One kind of enemy in a session: its kills, and the damage it did her, by attack.</summary>
@@ -476,6 +482,9 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.ChestOpen:
                         run.Upgrades.Add(e.Name ?? "?");
+                        // Work order 050: a pick with its tier, and her stats after it.
+                        if (!string.IsNullOrEmpty(e.ExtraValue("tier"))) run.TieredPicks.Add(new KeyValuePair<string, string>(e.ExtraValue("tier"), e.Name ?? "?"));
+                        if (!string.IsNullOrEmpty(e.ExtraValue("stats"))) run.FinalStats = e.ExtraValue("stats");
                         break;
                     // Work order 017.
                     case SessionEventTypes.EliteEnter:
@@ -528,6 +537,7 @@ namespace Roguelike.Rules
                         string where = "floor " + Number(e, "floor") + (room > 0 ? ", room " + room + (string.IsNullOrEmpty(kind) ? "" : " (" + kind + ")") : "");
                         float after = float.TryParse(e.ExtraValue("seconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out float t) ? t : 0f;
                         run.Ended = (e.Result == "act cleared" ? "act cleared" : (e.Result ?? "?") + " on " + where) + " after " + Duration(after);
+                        if (!string.IsNullOrEmpty(e.ExtraValue("stats"))) run.FinalStats = e.ExtraValue("stats"); // work order 050
                         run = null;
                         break;
                     }
@@ -967,6 +977,14 @@ namespace Roguelike.Rules
                 sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
                     : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0
                         ? ", primed skills used " + run.PrimesUsed + ", lapsed " + run.PrimesLapsed : ""));
+                // Work order 050: the picks by tier, and her final stats, only when the run had them.
+                if (run.TieredPicks.Count > 0)
+                    sb.Append("  picks by tier    ").AppendLine(string.Join(";  ", UpgradeTiers.All.Select(UpgradeTiers.Word).Select(tier =>
+                    {
+                        List<string> of = run.TieredPicks.Where(p => p.Key == tier).Select(p => p.Value).ToList();
+                        return tier + " " + of.Count + (of.Count > 0 ? " (" + string.Join(", ", of) + ")" : "");
+                    })));
+                if (run.FinalStats.Length > 0) sb.Append("  final stats      ").AppendLine(run.FinalStats);
                 // Work order 029: one line, only when the run started with what lasts between runs switched on.
                 if (run.HasMeta)
                     sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)
