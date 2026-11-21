@@ -97,7 +97,16 @@ namespace Roguelike.Rules
         /// straight way between two points can be walked.
         /// </summary>
         public static GroundPoint Landing(GroundPoint fell, GroundPoint middle, Func<GroundPoint, bool> standable,
-                                          Func<GroundPoint, GroundPoint, bool> open, RewardDropValues v)
+                                          Func<GroundPoint, GroundPoint, bool> open, RewardDropValues v) =>
+            TryLanding(fell, middle, standable, open, v, out GroundPoint at) ? at : middle;
+
+        /// <summary>
+        /// <see cref="Landing"/>, but false when no place is taken: neither the start nor any ring round it can be stood on
+        /// (the fourth review of 2026-11-21, work order 055: a refused point is never given as a landing; the drop's choice
+        /// then opens at once).
+        /// </summary>
+        public static bool TryLanding(GroundPoint fell, GroundPoint middle, Func<GroundPoint, bool> standable,
+                                      Func<GroundPoint, GroundPoint, bool> open, RewardDropValues v, out GroundPoint landing)
         {
             GroundPoint start = standable(fell) ? fell : middle;
             GroundPoint inward = middle - start;
@@ -112,10 +121,15 @@ namespace Roguelike.Rules
                     int step = (i + 1) / 2;
                     float angle = first + (i % 2 == 1 ? 1 : -1) * step * (float)(2 * Math.PI / Angles);
                     var at = new GroundPoint(start.X + r * (float)Math.Cos(angle), start.Z + r * (float)Math.Sin(angle));
-                    if (standable(at) && open(start, at)) return at;
+                    if (standable(at) && open(start, at))
+                    {
+                        landing = at;
+                        return true;
+                    }
                 }
             }
-            return standable(start) ? start : middle;
+            landing = start;
+            return standable(start);
         }
 
         /// <summary>

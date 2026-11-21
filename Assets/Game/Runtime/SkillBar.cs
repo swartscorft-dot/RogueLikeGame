@@ -17,6 +17,9 @@ namespace Roguelike
     /// It is laid out for a view 720 pixels high and scaled to the real height. With the interface's kinetic skin on
     /// (work order 045) it draws the strip and the strokes at her feet instead (SkillBarKinetic.cs).
     /// </summary>
+    // After the camera's move in its LateUpdate (CameraRig, of no order), so the strokes at her feet are placed from this
+    // frame's camera and do not trail her by a frame (the fourth review of 2026-11-21, work order 055; as EnemyBars, 047).
+    [DefaultExecutionOrder(100)]
     public sealed partial class SkillBar : MonoBehaviour
     {
         const float BoxWidth = 112f;

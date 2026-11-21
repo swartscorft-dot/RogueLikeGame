@@ -428,7 +428,9 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < count; i++)
             {
                 Assert.That(_levels.CardNumeralInk(i), Is.EqualTo(inks[i % inks.Length]), "card " + i + ": white common, teal rare, gold epic");
-                Assert.That(_levels.CardTitle(i), Is.EqualTo(offer[i].Text), "what it does, its title");
+                // Work order 055 (the fourth review of 2026-11-21): the short name the title, the rest of what it does in the text.
+                string title = _levels.CardTitle(i), text = _levels.CardText(i);
+                Assert.That(text.Contains(offer[i].Text) || title + ": " + text.Split('\n')[0] == offer[i].Text, Is.True, "what it does, on the card");
                 StringAssert.Contains(offer[i].TierWord.ToUpperInvariant(), _levels.CardText(i), "and its tier's word");
             }
             _levels.BackToPracticeRoom();

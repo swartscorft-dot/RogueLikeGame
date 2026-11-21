@@ -288,7 +288,7 @@ namespace Roguelike
             _root = new GameObject(RootName + "_" + _level.Layout.SeedText) { layer = CryptKit.Layer };
             SceneManager.MoveGameObjectToScene(_root, _level.gameObject.scene);
             _root.SetActive(_level.gameObject.activeInHierarchy);
-            _plan = _given ?? RoomMoodPlan.Make(_level.Layout, _values);
+            _plan = _given ?? MakePlanAsBuilt();
             _given = null;
 
             Texture2D palette = Own(MoodShapes.MakePalette());
@@ -354,6 +354,18 @@ namespace Roguelike
             }
             Here = -2;
             _fogLevel = -1f;
+        }
+
+        /// <summary>
+        /// The plan made again (a rebuild), with the large props as the level has them, not as the switch says now (the fourth
+        /// review of 2026-11-21, work order 055: toggled in the Inspector, the plan no longer matched what was built).
+        /// </summary>
+        RoomMoodPlan MakePlanAsBuilt()
+        {
+            bool was = _values.LargeProps;
+            _values.LargeProps = _level.LargePropsPlan != null;
+            try { return RoomMoodPlan.Make(_level.Layout, _values); }
+            finally { _values.LargeProps = was; }
         }
 
         T Own<T>(T o) where T : Object
@@ -599,8 +611,12 @@ namespace Roguelike
             float cs = _level.Layout.CellSize;
             if (v.Fog && v.FogMostPerRoom > 0)
             {
-                float w = room.Rect.Width * cs, d = room.Rect.Height * cs;
-                parts.Fog = MakeSystem("Mood_Fog", parts.Root.transform, W(room.Middle(cs), v.FogHeight), v.FogMostPerRoom);
+                // The fourth review of 2026-11-21 (work order 055): a room with carved cells has its fog along the edge of its
+                // largest rectangle of open cells, not of its whole rectangle, whose corners lie over the carved cells.
+                CellRect over = room.SolidCount > 0 ? LargestOpenRect(room) : room.Rect;
+                float w = over.Width * cs, d = over.Height * cs;
+                var overMiddle = new LevelPoint((over.X + over.Width * 0.5) * cs, (over.Y + over.Height * 0.5) * cs);
+                parts.Fog = MakeSystem("Mood_Fog", parts.Root.transform, W(room.SolidCount > 0 ? overMiddle : room.Middle(cs), v.FogHeight), v.FogMostPerRoom);
                 ParticleSystem.MainModule main = parts.Fog.main;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(9f, 13f);
                 main.startSpeed = new ParticleSystem.MinMaxCurve(0.04f, 0.18f);
@@ -658,6 +674,20 @@ namespace Roguelike
             r.shadowCastingMode = ShadowCastingMode.Off; // low and flat: they would only cost a shadow pass
             r.receiveShadows = lit;
             return r;
+        }
+
+        /// <summary>The largest of a room's rectangles of open cells (<see cref="RoomShapes.OpenRects"/>), the first of equals (work order 055).</summary>
+        static CellRect LargestOpenRect(LevelRoom room)
+        {
+            CellRect best = room.Rect;
+            int most = -1;
+            foreach (CellRect r in RoomShapes.OpenRects(room))
+                if (r.Width * r.Height > most)
+                {
+                    best = r;
+                    most = r.Width * r.Height;
+                }
+            return best;
         }
 
         ParticleSystem MakeSystem(string name, Transform parent, Vector3 at, int most)

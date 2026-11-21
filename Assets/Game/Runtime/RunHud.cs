@@ -246,6 +246,7 @@ namespace Roguelike
         /// </summary>
         public bool ChangeSetting(MenuLine line, int delta)
         {
+            _pauseLinesStale = true; // work order 055: the pause screen's lists show the dash's way
             if (line == MenuLine.DashDirection)
             {
                 GameSettings.SetDash(DashNow == DashDirection.TowardMovement ? DashDirection.TowardCursor : DashDirection.TowardMovement);
@@ -359,8 +360,9 @@ namespace Roguelike
                 _levels.DevBoxTop = _runBox.Count > 0 ? 10f + RunBoxHeight() + 8f : 10f;
             }
 
-            PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None
-                ? GeneratedLevels.NewLevelKey + "  start a run" : "";
+            // Made once (the fourth review of 2026-11-21, work order 055): the kinetic prompt's cache keys on the string.
+            PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None ? s_StartPrompt : "";
+            PauseLines(); // work order 055
 
             // The end screen.
             _endLines.Clear();
@@ -443,6 +445,31 @@ namespace Roguelike
                           + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : ""));
             }
             return lines;
+        }
+
+        static readonly string s_StartPrompt = GeneratedLevels.NewLevelKey + "  start a run";
+
+        List<string> _pauseKeys, _pauseStats;
+        bool _pauseWasUp, _pauseLinesStale;
+
+        /// <summary>How many times the pause screen's lists of keys and stats were made (work order 055). For tests.</summary>
+        public int PauseListsMade { get; private set; }
+
+        /// <summary>
+        /// The pause screen's lists of keys and of her stats, made when it opens and when a setting it shows changes, not on
+        /// every IMGUI event while it is up (the fourth review of 2026-11-21, work order 055).
+        /// </summary>
+        void PauseLines()
+        {
+            bool paused = _levels != null && _levels.Paused;
+            if (paused && (!_pauseWasUp || _pauseLinesStale || _pauseKeys == null))
+            {
+                _pauseKeys = KeyLines();
+                _pauseStats = StatLines();
+                _pauseLinesStale = false;
+                PauseListsMade++;
+            }
+            _pauseWasUp = paused;
         }
 
         /// <summary>
@@ -614,8 +641,9 @@ namespace Roguelike
         void DrawPause(float viewWidth)
         {
             Fill(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), s_Dim);
-            List<string> keys = KeyLines();
-            List<string> stats = StatLines(); // work order 050
+            PauseLines(); // work order 055: made when it opens and when a setting changes
+            List<string> keys = _pauseKeys;
+            List<string> stats = _pauseStats; // work order 050
             const float w = 560f, rowH = 34f, gap = 6f;
             int keyRows = (keys.Count + 1) / 2, statRows = (stats.Count + 1) / 2;
             float h = 64f + _menu.Count * (rowH + gap) + 18f + keyRows * 17f + 20f + (statRows > 0 ? 24f + statRows * 17f : 0f);

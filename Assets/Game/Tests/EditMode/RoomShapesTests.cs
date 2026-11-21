@@ -263,7 +263,7 @@ namespace Roguelike.Rules.Tests
             // Work order 051 merged with 046 (version 13): with five combat rooms the floors are version 12's, and their number is
             // one only Unity's runtime gives (the .NET one differs: it folds its doubles otherwise). Until it is pinned from the
             // first Unity run on this code, the test fails and says the number it found.
-            const ulong pinned = 0UL; // to be taken from the first Unity run of this test (its message)
+            const ulong pinned = 0x70DF85B31E0B9FF2UL; // to be taken from the first Unity run of this test (its message)
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("SHAPESOFFPRINT " + found);
             if (pinned == 0UL) Assert.Fail("the pin is to be taken from the first Unity run: this run found " + found + " for the five thousand floors of version 12 (the shapes off)");

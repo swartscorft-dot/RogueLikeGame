@@ -99,6 +99,8 @@ namespace Roguelike.Rules
         public const string Duck = "duck";                    // a tap ducked her: name what she ducked beside
         public const string DuckEnd = "duck_end";             // the duck ended: result how (rose, moved, dash, other), stopped how many it stopped
         public const string DuckNothing = "duck_nothing";     // a tap with no low prop in reach: nothing happened
+        // The fourth review of 2026-11-21 (work order 055): the basic shot's cooldown use is measured against her real interval.
+        public const string ShotInterval = "shot_interval";   // her basic shot's interval now (seconds, in "seconds"): when she is found, at a run's start, and when it changes
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>

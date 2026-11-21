@@ -89,6 +89,9 @@ namespace Roguelike
         bool _focusBright, _cooling;
         RunSkillUpgrades _pipsOf;
 
+        // Every icon decoded as the bar wakes, not in a frame of play (the fourth review of 2026-11-21, work order 055).
+        void Awake() => InterfaceStyle.LoadIcons();
+
         void LateUpdate() => Tick();
 
         /// <summary>The frame's work for the kinetic skin: what the strip and the strokes show now. Public for tests, which count what it allocates.</summary>

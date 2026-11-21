@@ -232,6 +232,7 @@ namespace Roguelike
             }
             if (_level != null) Destroy(_level.gameObject);
             if (_spawnRoot != null) Destroy(_spawnRoot.gameObject);
+            ForgetDevBox(); // work order 055: its texture made in code
             if (Current == this) Current = null;
         }
 
@@ -407,6 +408,7 @@ namespace Roguelike
         {
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
+            InterfaceStyle.LoadIcons(); // work order 055: every icon decoded now, none in a frame of play
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
