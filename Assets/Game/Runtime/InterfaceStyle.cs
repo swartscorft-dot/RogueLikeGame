@@ -208,9 +208,14 @@ namespace Roguelike
             string folder = V.IconFolder.TrimEnd('/');
             foreach (TextAsset bytes in Resources.LoadAll<TextAsset>(folder))
             {
-                if (bytes == null || s_IconFiles.ContainsKey(bytes.name)) continue;
+                if (bytes == null) continue;
+                // The name is read BEFORE the mask is made: MakeMask unloads the asset when it is done, and in a built player an
+                // unloaded asset's name throws (in the Editor it does not, so no test saw it). Found by the first run of a built
+                // player after work order 055, 2026-11-21: the skill bar's waking stopped there and no icon was ever loaded.
+                string name = bytes.name;
+                if (s_IconFiles.ContainsKey(name)) continue;
                 Texture2D mask = MakeMask(bytes);
-                if (mask != null) s_IconFiles[bytes.name] = mask;
+                if (mask != null) s_IconFiles[name] = mask;
             }
             return s_IconFiles.Count;
         }
