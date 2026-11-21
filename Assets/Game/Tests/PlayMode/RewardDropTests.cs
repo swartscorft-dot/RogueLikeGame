@@ -49,6 +49,7 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.SkillTiers = false; // work order 057: these count the skill upgrades taken, which a tiered floor reward adds to
         }
 
         [TearDown]

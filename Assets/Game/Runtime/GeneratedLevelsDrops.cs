@@ -112,6 +112,7 @@ namespace Roguelike
             public ChoiceKind Kind;
             public int[] Skills;
             public SkillUpgradeDefinition[] Upgrades;
+            public SkillTierOffer[] Tiers; // work order 057: the floor reward's tiers, kept with its slots
             public GeneratedLevel Level;
         }
 
@@ -197,18 +198,19 @@ namespace Roguelike
                 if (elite || !(EliteDrop is RewardDrop lying)) return false;
                 // The floor's reward with the elite's drop still lying: the elite's first and the floor's after it, as when
                 // the floor's drop is picked up (TakeDrop), or the elite's would be lost with the floor.
-                _floorFollows = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Level = _level };
+                _floorFollows = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Tiers = _offeredSkillTiers.ToArray(), Level = _level };
                 var first = (Owed)lying.Owed;
                 RemoveDrop(lying);
                 OpenOwed(first);
                 return true;
             }
             Color color = elite ? EnemyFactory.EliteTint : kind == ChoiceKind.FocusChoice ? FocusChoiceColor : FloorRewardColor;
-            var owed = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Level = _level };
+            var owed = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Tiers = _offeredSkillTiers.ToArray(), Level = _level };
             RewardDrop drop = RewardDrop.Make(this, owed, kind, color, fell, landing, _level.transform,
                                               _player != null ? _player.ShotFxMaterial : null, DropValues);
             _drops.Add(drop);
             _offeredSkills.Clear(); // the offer waits in the drop; nothing is offered on screen
+            _offeredSkillTiers.Clear(); // work order 057
             _offeredSkillUpgrades.Clear();
             Debug.Log(string.Format(s_Inv, "Reward drop: {0} on floor {1}, fell at ({2:0.0}, {3:0.0}), lands at ({4:0.0}, {5:0.0})",
                                     kind, Floor, fell.x, fell.z, landing.x, landing.z));
@@ -236,6 +238,8 @@ namespace Roguelike
         {
             _offeredSkills.Clear();
             _offeredSkills.AddRange(owed.Skills);
+            _offeredSkillTiers.Clear(); // work order 057: the same tiers as when it fell
+            if (owed.Tiers != null) _offeredSkillTiers.AddRange(owed.Tiers);
             _offeredSkillUpgrades.Clear();
             _offeredSkillUpgrades.AddRange(owed.Upgrades);
             _openingADrop = true;

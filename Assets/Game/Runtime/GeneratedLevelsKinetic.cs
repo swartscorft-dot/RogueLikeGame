@@ -130,10 +130,11 @@ namespace Roguelike
                     {
                         int slot = _offeredSkills[i];
                         _cardsSkills.Add(slot);
+                        _cardsOf.Add(OfferedTierAt(i)); // work order 057: its tier, or null
                         SkillDefinition s = player.Skills[slot];
                         title = s.Name;
-                        text = string.Format(CultureInfo.InvariantCulture, "key {0}   cooldown {1:0.#} s   {2}\n{3}",
-                                             bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
+                        // Today's text; work order 057: a rare or epic card's tier in it and on its numeral (GeneratedLevelsSkillTiers.cs).
+                        text = RewardCardText(i, s, bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", out ink);
                         break;
                     }
                     case ChoiceKind.SkillUpgrade:
@@ -246,7 +247,9 @@ namespace Roguelike
             {
                 switch (Choice)
                 {
-                    case ChoiceKind.FloorReward: if (i >= _cardsSkills.Count || _cardsSkills[i] != _offeredSkills[i]) return false; break;
+                    case ChoiceKind.FloorReward: // work order 057: and its tier, so a redraw that keeps a skill at another tier makes them again
+                        if (i >= _cardsSkills.Count || _cardsSkills[i] != _offeredSkills[i] || i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], OfferedTierAt(i))) return false;
+                        break;
                     case ChoiceKind.SkillUpgrade: if (i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], _offeredSkillUpgrades[i])) return false; break;
                     case ChoiceKind.Chest: if (i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], _offeredUpgrades[i])) return false; break;
                 }

@@ -967,11 +967,19 @@ namespace Roguelike
         public void NoteFloorFinished(int floor, float seconds, int health) =>
             Note(SessionEventTypes.FloorFinish, null, "floor", Int(floor), "seconds", Text(seconds), "health", Int(health));
 
-        /// <summary>The floor reward offered: the skills, in the order shown.</summary>
-        public void NoteRewardOffered(int floor, IList<string> skills) =>
-            Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills));
+        /// <summary>The floor reward offered: the skills, in the order shown; work order 057: with <paramref name="tiers"/> given (the skill tiers on), each card's tier too.</summary>
+        public void NoteRewardOffered(int floor, IList<string> skills, IList<string> tiers = null)
+        {
+            if (tiers == null) Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills));
+            else Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills), "tiers", string.Join(" | ", tiers));
+        }
 
-        public void NoteRewardTaken(int floor, string skill) => Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
+        /// <summary>A floor reward taken; work order 057: a rare or epic card's tier, and an epic's change by name ("" for a rare).</summary>
+        public void NoteRewardTaken(int floor, string skill, string tier = null, string with = null)
+        {
+            if (string.IsNullOrEmpty(tier) || tier == UpgradeTiers.Word(UpgradeTier.Common)) Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
+            else Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor), "tier", tier, "with", with ?? "");
+        }
 
         /// <summary>Work order 023: she was healed as floor <paramref name="floor"/>'s reward was taken: what was given, and her health after.</summary>
         public void NoteFloorHeal(int floor, int healed, int health) =>

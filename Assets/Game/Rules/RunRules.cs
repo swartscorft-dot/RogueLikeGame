@@ -224,6 +224,16 @@ namespace Roguelike.Rules
         public UpgradeDefinition[] TieredUpgrades = DefaultTieredUpgrades();
 
         /// <summary>
+        /// Tiers on the floor reward's skills (decision 0013; Kristian's choice of 2026-11-21, "Tiers på ferdigheter"; work
+        /// order 057), on by default: each card draws common, rare or epic, and a rare or epic skill is taken with its step
+        /// (<see cref="Rules.SkillTiers"/>). Off, the floor reward, its cards, the skills she takes and every number are as
+        /// before. Independent of <see cref="StatsAndTiers"/>: with that off her luck is 0 and these still work.
+        /// </summary>
+        public bool SkillTiers = true;
+        /// <summary>The numbers of the skills' tiers (work order 057).</summary>
+        public SkillTierValues SkillTierNumbers = new SkillTierValues();
+
+        /// <summary>
         /// The tiered table (work order 050), each at its common step; rare is twice it, epic three times. First guesses
         /// of the order: damage +3, attack speed +6 %, crit chance +4 %, crit damage +15 %, luck +1, maximum health +10
         /// (and heal 10), reach +1 m (three in a run at most, as the Longer barrel was); move speed, cooldown, stagger
