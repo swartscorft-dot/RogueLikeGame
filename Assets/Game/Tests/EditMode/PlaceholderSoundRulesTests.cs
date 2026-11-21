@@ -26,6 +26,11 @@ namespace Roguelike.Rules.Tests
             { PlaceholderSound.BossCall, 0.7f }, { PlaceholderSound.ChestOpens, 0.4f }, { PlaceholderSound.ChoiceTaken, 0.3f },
             { PlaceholderSound.FloorCleared, 0.6f }, { PlaceholderSound.ActCleared, 1.2f }, { PlaceholderSound.Menu, 0.03f },
             { PlaceholderSound.FocusFull, 0.3f },
+            // Changed deliberately (work order 048): the ten sounds for the new things, at the lengths that order gave them.
+            { PlaceholderSound.ProjectileStopped, 0.08f }, { PlaceholderSound.OrbLoosed, 0.18f }, { PlaceholderSound.Duck, 0.12f },
+            { PlaceholderSound.Stunned, 0.45f }, { PlaceholderSound.Pulled, 0.18f }, { PlaceholderSound.DropLands, 0.35f },
+            { PlaceholderSound.DropTaken, 0.2f }, { PlaceholderSound.WayOpens, 0.6f }, { PlaceholderSound.Crit, 0.06f },
+            { PlaceholderSound.RareOffer, 0.5f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;

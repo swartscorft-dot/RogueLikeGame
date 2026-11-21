@@ -28,6 +28,17 @@ namespace Roguelike.Rules
         ActCleared,    // the act was cleared
         Menu,          // the pause menu opened, closed, or its line moved
         FocusFull,     // her focus gauge filled
+        // Work order 048 (Kristian's wish of 2026-11-20 for sounds for the new things):
+        ProjectileStopped, // an enemy's arrow, orb or wave ended on a wall, a pillar or a prop
+        OrbLoosed,     // a caster let an orb go
+        Duck,          // she went down in a quick duck
+        Stunned,       // she was stunned (the Shield bash)
+        Pulled,        // she was pulled (the Drag)
+        DropLands,     // a reward drop came to rest on the ground
+        DropTaken,     // she picked a drop up, before its choice opens
+        WayOpens,      // a combat room was cleared (not the exit room: that is FloorCleared)
+        Crit,          // a hit of hers was a crit that no clean tick of its own marks
+        RareOffer,     // a choice opened with a rare or an epic card: one bell, two rising for epic
     }
 
     /// <summary>
@@ -38,6 +49,10 @@ namespace Roguelike.Rules
     {
         EnemyHit, EnemyDied, WindupStarted, EnemyStruck, EnemyDazed, BossCharged, BossAngered, BossCalled,
         HerHurt, HerDied, Dashed, ChestOpened, ChoiceTaken, FloorCleared, ActCleared, MenuOpened, MenuClosed, MenuMoved, FocusFilled,
+        // Work order 048: Loosed is what flies leaving an enemy (its kind's sound: the shooter's arrow, the caster's orb, the
+        // others' strike); ProjectileStopped one ending on a wall, a pillar or a prop; CombatRoomCleared a combat room's last
+        // enemy dead (not the exit room's); HerCrit a crit of hers; RareOffered a choice up with a rare or an epic card.
+        Loosed, ProjectileStopped, Ducked, HerStunned, HerPulled, DropLanded, DropTaken, CombatRoomCleared, HerCrit, RareOffered,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -86,6 +101,13 @@ namespace Roguelike.Rules
         /// all enemies, no more often than this: eight swarmers on her would otherwise be a buzz. Other strikes as before.
         /// </summary>
         public float RapidStrikeGap = 0.3f;
+        /// <summary>
+        /// s: a thing that flew stopping on a wall, a pillar or a prop (work order 048) is heard, across all of them, no more
+        /// often than this: a fan of five into a wall is one knock, not a rattle.
+        /// </summary>
+        public float StoppedGap = 0.25f;
+        /// <summary>s from an epic offer's first bell to its second, higher one (work order 048), in real time: the choice holds the game.</summary>
+        public float EpicNoteGap = 0.14f;
 
         /// <summary>Each sound's volume and cap per second.</summary>
         public PlaceholderSoundSetting[] Sounds = Defaults();
@@ -111,6 +133,17 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.ActCleared, 0.45f, 2),
             new PlaceholderSoundSetting(PlaceholderSound.Menu, 0.25f, 20),
             new PlaceholderSoundSetting(PlaceholderSound.FocusFull, 0.3f, 2),
+            // Work order 048, first guesses: none louder than her pain or the boss, none quieter than the hit tick.
+            new PlaceholderSoundSetting(PlaceholderSound.ProjectileStopped, 0.2f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.OrbLoosed, 0.25f, 6),
+            new PlaceholderSoundSetting(PlaceholderSound.Duck, 0.25f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.Stunned, 0.4f, 3),
+            new PlaceholderSoundSetting(PlaceholderSound.Pulled, 0.35f, 3),
+            new PlaceholderSoundSetting(PlaceholderSound.DropLands, 0.3f, 3),
+            new PlaceholderSoundSetting(PlaceholderSound.DropTaken, 0.3f, 3),
+            new PlaceholderSoundSetting(PlaceholderSound.WayOpens, 0.3f, 2),
+            new PlaceholderSoundSetting(PlaceholderSound.Crit, 0.25f, 12),
+            new PlaceholderSoundSetting(PlaceholderSound.RareOffer, 0.35f, 2),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -173,9 +206,38 @@ namespace Roguelike.Rules
                 case SoundMoment.MenuClosed:
                 case SoundMoment.MenuMoved: return PlaceholderSound.Menu;
                 case SoundMoment.FocusFilled: return PlaceholderSound.FocusFull;
+                // Work order 048: the caster's orb is softer and lower than the arrow; what else flies is heard as before.
+                case SoundMoment.Loosed: return kind == EnemyKind.Caster ? PlaceholderSound.OrbLoosed : SoundFor(SoundMoment.EnemyStruck, kind);
+                case SoundMoment.ProjectileStopped: return PlaceholderSound.ProjectileStopped;
+                case SoundMoment.Ducked: return PlaceholderSound.Duck;
+                case SoundMoment.HerStunned: return PlaceholderSound.Stunned;
+                case SoundMoment.HerPulled: return PlaceholderSound.Pulled;
+                case SoundMoment.DropLanded: return PlaceholderSound.DropLands;
+                case SoundMoment.DropTaken: return PlaceholderSound.DropTaken;
+                case SoundMoment.CombatRoomCleared: return PlaceholderSound.WayOpens;
+                case SoundMoment.HerCrit: return PlaceholderSound.Crit;
+                case SoundMoment.RareOffered: return PlaceholderSound.RareOffer;
                 default: return null;
             }
         }
+
+        /// <summary>
+        /// A crit of hers (work order 048): its bright tick, unless the hit already has a tick of its own. A clean press and a
+        /// perfect release are crits by themselves (work order 050) and ring their own tone (<c>TimingFeedback</c>); when
+        /// that tone rang for it, the crit's tick does not, so the two are never both heard.
+        /// </summary>
+        public static PlaceholderSound? CritSound(bool ownTickRang) => ownTickRang ? (PlaceholderSound?)null : PlaceholderSound.Crit;
+
+        /// <summary>
+        /// The bells of an offer (work order 048), by the best card in it: none for commons (or no tiers), one for a rare,
+        /// two rising for an epic. One sound, <see cref="PlaceholderSound.RareOffer"/>: the second bell is the same clip
+        /// played again <see cref="PlaceholderSoundValues.EpicNoteGap"/> later at <see cref="EpicNoteStep"/> times its pitch.
+        /// </summary>
+        public static int OfferBells(UpgradeTier? best) =>
+            !best.HasValue ? 0 : best.Value == UpgradeTier.Epic ? 2 : best.Value == UpgradeTier.Rare ? 1 : 0;
+
+        /// <summary>The epic offer's second bell over its first: a fourth up (4:3).</summary>
+        public const float EpicNoteStep = 4f / 3f;
 
         /// <summary>
         /// Paused is silent: while the pause menu or a choice is up nothing new starts, except the menu's tick and the

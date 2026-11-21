@@ -19,6 +19,8 @@ namespace Roguelike
         public int Frame;
         /// <summary>A recorded clip from the Resources folder, not the synthesised one.</summary>
         public bool Recorded;
+        /// <summary>Work order 048: the bells it rings, the offer's two for an epic card (the second a little later); 1 for every other.</summary>
+        public int Bells;
     }
 
     /// <summary>
@@ -49,6 +51,15 @@ namespace Roguelike
     ///
     /// It installs itself when Play starts under the same rule as <see cref="TimingFeedback"/> (never in a test run);
     /// tests make one with <see cref="Ensure"/>.
+    ///
+    /// The new things of 2026-11-20 (work order 048, Kristian's wish for their sounds), each from what the game reports:
+    /// what flies stopping on a wall, a pillar or a prop (the end of a thing that flew, <see cref="EnemyReport.Flown"/>, but
+    /// not one that met her or ran out of flight, and not one her quick duck stopped, which has its own impact), no more
+    /// often than <see cref="PlaceholderSoundValues.StoppedGap"/>; the caster's orb let go (<see cref="ThingsThatFly.Loosed"/>);
+    /// her quick duck, her stun and her pull (her reports); a drop coming to rest and being picked up (<see cref="RewardDrop"/>,
+    /// <see cref="GeneratedLevels"/> tell it with <see cref="AskFor(SoundMoment)"/>), a combat room cleared (the run's heal
+    /// for it tells it); a crit of hers, unless the clean press's or the perfect release's own tone rang that frame
+    /// (<see cref="TimingFeedback.TonePlayed"/>); and a choice coming up with a rare or an epic card, found by looking.
     /// </summary>
     public sealed class PlaceholderSounds : MonoBehaviour
     {
@@ -104,6 +115,18 @@ namespace Roguelike
         int _lineSeen;
         bool _focusSeen;
 
+        // Work order 048.
+        readonly RapidStrikeGate _stops = new RapidStrikeGate(); // what flies stopping: one knock for a fan
+        GeneratedLevels.ChoiceKind _choiceSeen;
+        int _crits;              // crits of hers this frame, heard at its end unless a tone of their own rang
+        bool _ownTick;           // the clean press's or the perfect release's tone rang this frame
+        int _bells;              // the bells of the offer asked for this frame
+        float _secondBellAt = -1f;
+        float _secondBellVolume, _secondBellPitch;
+        TimingFeedback _listeningFeedback;
+        Action<FeedbackTone> _onTone;
+        Action _find, _look, _flush; // made once: nothing is allocated in a frame while nothing plays
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -141,8 +164,18 @@ namespace Roguelike
         /// </summary>
         public void AskFor(PlaceholderSound sound, float gain = 1f) => Safely(() => Ask(sound, gain));
 
+        /// <summary>
+        /// A moment told by the place it happens (work order 048: a drop landing, a drop picked up, a combat room cleared),
+        /// its sound as <see cref="PlaceholderSoundRules.SoundFor"/> picks it, under the same rules as every other.
+        /// </summary>
+        public void AskFor(SoundMoment moment) => Safely(() => Ask(PlaceholderSoundRules.SoundFor(moment)));
+
         void Awake()
         {
+            _find = Find;
+            _look = Look;
+            _flush = Flush;
+            _onTone = OnTone;
             MakeClips();
             // Its own voices, of the kind the shots use: plain 2D sounds, the listener's volume over them.
             var voices = new GameObject("PlaceholderVoices");
@@ -153,7 +186,7 @@ namespace Roguelike
             voices.SetActive(true);
             Enemy.Appeared += OnAppeared;
             ThingsThatFly.Loosed += OnLoosed; // work order 036
-            Safely(Find);
+            Safely(_find);
         }
 
         void OnDestroy()
@@ -161,6 +194,7 @@ namespace Roguelike
             Enemy.Appeared -= OnAppeared;
             ThingsThatFly.Loosed -= OnLoosed;
             Listen(null, null);
+            ListenToTones(null);
             foreach (KeyValuePair<Enemy, Action<EnemyReport>> pair in _enemies)
                 if (pair.Key != null) pair.Key.Reported -= pair.Value;
             _enemies.Clear();
@@ -206,13 +240,26 @@ namespace Roguelike
             }
         }
 
-        /// <summary>The moment one of her reports is, or none: a hit that did damage, a dash that started.</summary>
+        /// <summary>
+        /// The moment one of her reports is, or none: a hit that did damage, a dash that started; and (work order 048) a
+        /// quick duck, a stun and a pull that began. A crit is a hit's too, heard at the frame's end (<see cref="OnPlayer"/>).
+        /// </summary>
         public static SoundMoment? MomentOf(PlayerReport r)
         {
             if (r.Kind == PlayerReportKind.Hit && r.Damage > 0) return SoundMoment.EnemyHit;
             if (r.Kind == PlayerReportKind.DashStarted) return SoundMoment.Dashed;
+            if (r.Kind == PlayerReportKind.Ducked) return SoundMoment.Ducked;
+            if (r.Kind == PlayerReportKind.Stunned) return SoundMoment.HerStunned;
+            if (r.Kind == PlayerReportKind.Pulled) return SoundMoment.HerPulled;
             return null;
         }
+
+        /// <summary>
+        /// The moment the end of a thing that flew is (work order 048), or none: stopped by a wall, a pillar or a prop, or by
+        /// what she is behind. One that met her is her hurt's; one that ran out of flight, or passed her, is silent.
+        /// </summary>
+        public static SoundMoment? MomentOfFlown(StrikeOutcome outcome) =>
+            outcome == StrikeOutcome.StoppedByWall || outcome == StrikeOutcome.StoppedByCover ? SoundMoment.ProjectileStopped : (SoundMoment?)null;
 
         // ---------------- Listening ----------------
 
@@ -224,6 +271,8 @@ namespace Roguelike
                 _health = _player != null ? _player.GetComponent<PlayerHealth>() : null;
             }
             if (_player != _listeningPlayer || _health != _listeningHealth) Listen(_player, _health);
+            TimingFeedback feedback = TimingFeedback.Current; // work order 048: its clean and perfect tones
+            if (!ReferenceEquals(feedback, _listeningFeedback)) ListenToTones(feedback);
             IReadOnlyList<Enemy> all = Enemy.All;
             for (int i = 0; i < all.Count; i++) Hear(all[i]);
             // Looked for only when a target was destroyed since the last look (the second reviews of 2026-11-20, work
@@ -250,6 +299,19 @@ namespace Roguelike
                 health.Damaged += OnHurt;
                 health.Died += OnDied;
             }
+        }
+
+        void ListenToTones(TimingFeedback feedback)
+        {
+            if (_listeningFeedback != null) _listeningFeedback.TonePlayed -= _onTone;
+            _listeningFeedback = feedback;
+            if (feedback != null) feedback.TonePlayed += _onTone;
+        }
+
+        /// <summary>A clean press's or a perfect release's tone rang: a crit of this frame has its tick already (work order 048).</summary>
+        void OnTone(FeedbackTone tone)
+        {
+            if (tone == FeedbackTone.Clean || tone == FeedbackTone.Perfect) _ownTick = true;
         }
 
         void OnAppeared(Enemy enemy) => Safely(() => Hear(enemy));
@@ -287,8 +349,13 @@ namespace Roguelike
         void OnEnemy(Enemy enemy, EnemyReport r) => Safely(() =>
         {
             // Work order 036: the end of a thing that flew is no strike to hear: it was heard leaving, and her hurt is heard on her.
-            SoundMoment? moment = r.Flown ? null : MomentOf(r.Kind);
+            // Work order 048: but one stopped by a wall, a pillar or a prop knocks, one knock for a fan; one her quick duck
+            // stopped has the duck's own impact (PlayerCharacter), and no knock over it.
+            SoundMoment? moment = r.Flown ? MomentOfFlown(r.Outcome) : MomentOf(r.Kind);
             if (!moment.HasValue) return;
+            if (moment.Value == SoundMoment.ProjectileStopped
+                && ((r.Outcome == StrikeOutcome.StoppedByCover && _player != null && _player.IsQuickDucking) || !_stops.Ask(Time.time, Values.StoppedGap)))
+                return;
             // The windup's attack is the enemy's own at its report: blue when it can be countered (work order 015).
             bool counterable = r.Kind == EnemyReportKind.AttackStarted && enemy != null && PoolRules.IsCounterable(enemy.Attack);
             // An ordinary attack's windup is silent (work order 035): the windup sounds mean a skill.
@@ -302,16 +369,22 @@ namespace Roguelike
             Ask(PlaceholderSoundRules.SoundFor(moment.Value, r.EnemyKind, counterable, ordinary));
         });
 
-        /// <summary>Work order 036: what flies is heard as it leaves, with its kind's strike (the shooter's arrow, the others' strike).</summary>
+        /// <summary>
+        /// Work order 036: what flies is heard as it leaves, with its kind's strike (the shooter's arrow, the others' strike);
+        /// the caster's orb with a sound of its own since work order 048.
+        /// </summary>
         void OnLoosed(Enemy enemy, EnemyAttackDefinition attack, int count) => Safely(() =>
         {
-            if (enemy != null) Ask(PlaceholderSoundRules.SoundFor(SoundMoment.EnemyStruck, enemy.Kind));
+            if (enemy != null) Ask(PlaceholderSoundRules.SoundFor(SoundMoment.Loosed, enemy.Kind));
         });
 
         void OnPlayer(PlayerReport r) => Safely(() =>
         {
             SoundMoment? moment = MomentOf(r);
             if (moment.HasValue) Ask(PlaceholderSoundRules.SoundFor(moment.Value));
+            // Work order 048: a crit (only with the stats and tiers on; Deal rolls none otherwise) waits for the frame's end,
+            // when it is known whether the clean press's or the perfect release's tone rang for it. Paused as it happened: none.
+            if (moment == SoundMoment.EnemyHit && r.Crit && Values.On && PlaceholderSoundRules.MayStart(PlaceholderSound.Crit, Held)) _crits++;
         });
 
         void OnHurt(int amount) => Safely(() =>
@@ -343,12 +416,43 @@ namespace Roguelike
 
         // ---------------- Every frame ----------------
 
-        void LateUpdate()
+        void LateUpdate() => Tick();
+
+        /// <summary>
+        /// The frame's work: listening, looking, the crowd let through at the frame's end. Public for the test that counts
+        /// what it allocates (work order 048): nothing while nothing plays.
+        /// </summary>
+        public void Tick()
         {
-            Safely(Find);
-            Safely(Look);
-            Safely(Flush);
+            Safely(_find);
+            Safely(_look);
+            AskForCrits();
+            Safely(_flush);
+            RingSecondBell();
+            _bells = 0;
             _heldBefore = Held;
+        }
+
+        /// <summary>
+        /// Work order 048: this frame's crits, one play for them all (the crowd rule), unless the clean press's or the
+        /// perfect release's tone rang this frame (<see cref="PlaceholderSoundRules.CritSound"/>).
+        /// </summary>
+        void AskForCrits()
+        {
+            PlaceholderSound? crit = _crits > 0 && Values.On ? PlaceholderSoundRules.CritSound(_ownTick) : null;
+            if (crit.HasValue)
+                for (int i = 0; i < _crits; i++) _crowd.Ask(crit.Value); // paused or not was judged as each happened
+            _crits = 0;
+            _ownTick = false;
+        }
+
+        /// <summary>An epic offer's second bell, when its time has come (real time: the choice holds the game).</summary>
+        void RingSecondBell()
+        {
+            if (_secondBellAt < 0f || Time.unscaledTime < _secondBellAt) return;
+            _secondBellAt = -1f;
+            AudioClip clip = _clips[(int)PlaceholderSound.RareOffer];
+            if (Values.On && clip != null && _voices != null) _voices.Play(clip, _secondBellVolume, _secondBellPitch, 0f);
         }
 
         /// <summary>The moments found by looking: the run's (a floor or the act cleared, a chest, a pick), the pause menu's, her focus.</summary>
@@ -365,6 +469,19 @@ namespace Roguelike
             bool paused = levels != null && levels.Paused;
             int line = RunHud.Current != null ? RunHud.Current.Selected : 0;
             bool focus = _player != null && _player.IsFocusFull;
+            GeneratedLevels.ChoiceKind choice = levels != null ? levels.Choice : GeneratedLevels.ChoiceKind.None;
+
+            // Work order 048: a choice that came up with a rare or an epic card rings, heard with it up as a chest's is.
+            if (_looked && choice != GeneratedLevels.ChoiceKind.None && choice != _choiceSeen)
+            {
+                int bells = PlaceholderSoundRules.OfferBells(BestTier(levels.OfferedUpgrades));
+                if (bells > 0)
+                {
+                    _bells = Math.Max(_bells, bells);
+                    Ask(PlaceholderSoundRules.SoundFor(SoundMoment.RareOffered), lookedFor: true);
+                }
+            }
+            _choiceSeen = choice;
 
             if (_looked)
             {
@@ -390,6 +507,20 @@ namespace Roguelike
             _focusSeen = focus;
         }
 
+        /// <summary>The best tier of the cards on offer that have one (work order 050's chest cards), or none. Indexed: nothing made.</summary>
+        static UpgradeTier? BestTier(IReadOnlyList<Upgrade> offer)
+        {
+            UpgradeTier? best = null;
+            if (offer == null) return null;
+            for (int i = 0; i < offer.Count; i++)
+            {
+                Upgrade u = offer[i];
+                if (u == null || !u.Tiered) continue;
+                if (!best.HasValue || u.Tier > best.Value) best = u.Tier;
+            }
+            return best;
+        }
+
         void Flush()
         {
             if (!_crowd.Waiting) return;
@@ -406,12 +537,20 @@ namespace Roguelike
                 float volume = Values.Volume(play.Sound) * Values.Master * basic * play.Gain;
                 float pitch = _pitch.Next(Values.PitchSpread);
                 if (clip == null || volume <= 0f) continue;
+                // Work order 048: an epic offer's bell rings twice, the second a fourth up a moment later.
+                int bells = play.Sound == PlaceholderSound.RareOffer ? Math.Max(1, _bells) : 1;
                 Requested?.Invoke(new PlaceholderSoundRequest
                 {
                     Sound = play.Sound, Clip = clip, Volume = volume, Pitch = pitch, Asked = play.Asked,
-                    Frame = Time.frameCount, Recorded = _recorded[(int)play.Sound],
+                    Frame = Time.frameCount, Recorded = _recorded[(int)play.Sound], Bells = bells,
                 });
                 if (_voices != null) _voices.Play(clip, volume, pitch, 0f);
+                if (bells > 1)
+                {
+                    _secondBellAt = Time.unscaledTime + Mathf.Max(0f, Values.EpicNoteGap);
+                    _secondBellVolume = volume;
+                    _secondBellPitch = pitch * PlaceholderSoundRules.EpicNoteStep;
+                }
             }
         }
     }
