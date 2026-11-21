@@ -286,7 +286,8 @@ namespace Roguelike.Rules.Tests
             {
                 LevelRoom r = First(l, RoomKind.Exit);
                 // Work order 028: the throne room's wall prop is the throne (the altar until then).
-                r.Props.First(p => p.Place == PropPlace.Wall).Position = Shift(r.Middle(l.CellSize), 9, 9);
+                // Work order 058: 2 m off the middle, inside the open square every exit room keeps (9 m off it is by a carved corner of the throne arcade).
+                r.Props.First(p => p.Place == PropPlace.Wall).Position = Shift(r.Middle(l.CellSize), 2, 2);
             }, "is meant to stand at a wall");
 
         [Test]

@@ -90,7 +90,7 @@ namespace Roguelike.Rules.Tests
             LevelGenerator.Generate(424242UL, floor); // the first call pays for compiling the code
             var byTheme = new Dictionary<string, Tally>();
             var counts = new Dictionary<string, int>();
-            int repeats = 0, throneNorth = 0, throneElsewhere = 0, throneNone = 0, wallPieces = 0;
+            int repeats = 0, throneNorth = 0, throneFar = 0, throneElsewhere = 0, throneNone = 0, wallPieces = 0;
             double slowest = 0, total = 0;
             ulong slowestSeed = 0;
             var timer = new Stopwatch();
@@ -166,10 +166,14 @@ namespace Roguelike.Rules.Tests
                         Assert.That(r.Theme, Is.EqualTo(RoomTheme.ThroneRoom), where);
                         LevelProp throne = r.Props.FirstOrDefault(p => p.Model == PropModel.BoneThrone);
                         int side = throne != null ? throne.Footprint.NearestSide(r.Rect, level.CellSize, out _) : -1;
-                        if (side == LevelGenerator.North)
+                        // Work order 058: in an exit room drawn by hand its far wall (its A's, never the south one) is the throne's.
+                        int wanted = r.Template != null ? r.Template.FarWall : LevelGenerator.North;
+                        if (side == wanted || side == LevelGenerator.North)
                         {
                             throneNorth++;
-                            Assert.That(throne.Front.Y, Is.LessThan(-0.99), "the throne faces south: " + where);
+                            if (side == wanted && wanted != LevelGenerator.North) throneFar++;
+                            LevelPoint into = PropRules.Inward(side);
+                            Assert.That(throne.Front.X * into.X + throne.Front.Y * into.Y, Is.GreaterThan(0.99), "the throne faces into the room from its wall: " + where);
                         }
                         else
                         {
@@ -193,10 +197,10 @@ namespace Roguelike.Rules.Tests
                 again = Math.Min(again, timer.Elapsed.TotalMilliseconds);
             }
             TestContext.WriteLine(string.Format(s_Inv,
-                "THEMESTATS floor {0} seeds 0-999: {1}; combat themes twice in a row {2}; throne at the north wall {3}, at a side wall {4}, left out {5}; " +
+                "THEMESTATS floor {0} seeds 0-999: {1}; combat themes twice in a row {2}; throne at the north wall or its template's far wall {3} (the far wall not the north {11}), at a side wall {4}, left out {5}; " +
                 "wall pieces {6}; slowest generation {7:0.00} ms (seed {8}; timed again {10:0.00} ms), mean {9:0.000} ms",
                 floor, string.Join(", ", counts.OrderBy(k => k.Key).Select(k => k.Key + " " + k.Value)), repeats, throneNorth, throneElsewhere, throneNone,
-                wallPieces, slowest, slowestSeed, total / 1000, again));
+                wallPieces, slowest, slowestSeed, total / 1000, again, throneFar));
             foreach (KeyValuePair<string, Tally> t in byTheme.OrderBy(k => k.Key)) TestContext.WriteLine("THEMESTATS " + t.Value.Say(t.Key));
 
             Assert.That(repeats, Is.EqualTo(0), "no combat theme twice in a row (with four there is always another)");
@@ -409,7 +413,8 @@ namespace Roguelike.Rules.Tests
 
         [Test]
         public void Validator_ReportsAWallPieceOffTheWallsFace() =>
-            AssertFault(l => { LevelProp t = Throne(l); t.Position = new LevelPoint(t.Position.X, t.Position.Y - 0.3); }, "not within");
+            // Work order 058: 0.3 m out from its wall, whichever wall its template's far wall is (the north one's before).
+            AssertFault(l => { LevelProp t = Throne(l); LevelPoint f = t.Front; t.Position = new LevelPoint(t.Position.X + f.X * 0.3, t.Position.Y + f.Y * 0.3); }, "not within");
 
         [Test]
         public void Validator_ReportsAWallPieceFacingTheWall() =>

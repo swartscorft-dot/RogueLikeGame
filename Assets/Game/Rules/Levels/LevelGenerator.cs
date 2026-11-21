@@ -94,6 +94,22 @@ namespace Roguelike.Rules
     /// an elite may be one. Nothing about how they are drawn, capped or placed changed. Floor 1 holds none and is what it
     /// was; from floor 2 old seeds give other enemies, and with them other floors. With it off every floor is
     /// version 13's, field for field, but for the version.
+    /// Version 15 (work order 058; Kristian, 2026-11-20: "we must take more inspiration from Diablo and Path of Exile 2 in how
+    /// their generators make and design levels. We need a bit of a dungeon-crawler feeling", and on 2026-11-21 he chose "Rom-maler
+    /// slik Diablo og PoE gjør"; the research report d's proposal B, cut to a first version): with <see cref="LevelValues.Templates"/>
+    /// on (the default, read with the shapes and the line on), before each attempt's layout the row's rooms draw their
+    /// templates on a stream of their own ("templates", <see cref="RoomTemplates.Draw"/>): the elite room one of the library's
+    /// elite rooms, the exit room an exit room, about three in four ordinary combat rooms a combat room, by weight, never one
+    /// twice on a floor nor two of a family in a row. A templated room takes no drawn size: its template, turned so its bottom
+    /// is the wall she comes in by (and mirrored as drawn, else the other way), gives it its size, and every room stands
+    /// against the room before it only where an O of the earlier one's template meets an I of the later one's
+    /// (<see cref="RoomTemplates.CanJoin"/>); the door is drawn among those places (<see cref="RoomTemplates.DoorAmong"/>). In
+    /// the carve stage the template is stamped in place of a drawn shape (its # cells, its ? cells drawn, the gate;
+    /// <see cref="RoomShape.Template"/>), and a stamp that breaks a rule gives way to the drawn shapes. The contents, the props
+    /// and the mood try the template's marked places first. The enemies are what they were (<see cref="FightsOf"/> is
+    /// untouched: every room holds the same seed's groups, room for room); from the first templated room on, the rooms stand
+    /// elsewhere, with other sizes, places and doors. With it off every floor is version 14's, field for field, but for the
+    /// version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -115,7 +131,9 @@ namespace Roguelike.Rules
         // carved outlines and a gate inside every door, on the stream "shapes"; off, every floor is version 12's).
         // 14: work order 054, the casters on in the floors (LevelValues.Casters, on by default; off, every floor is version
         // 13's).
-        public const int Version = 14;
+        // 15: work order 058, rooms drawn by hand (LevelValues.Templates, on: the library's templates, joined at their door
+        // marks, on the stream "templates"; off, every floor is version 14's).
+        public const int Version = 15;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -123,6 +141,7 @@ namespace Roguelike.Rules
         public const string ContentsStage = "contents";
         public const string PropsStage = "props";
         public const string ThemesStage = RoomThemes.Stage; // work order 028
+        public const string TemplatesStage = RoomTemplates.Stage; // work order 058
 
         // The sides of a room, as the ways a path can step.
         public const int North = 0, East = 1, South = 2, West = 3;
@@ -265,17 +284,29 @@ namespace Roguelike.Rules
 
             var path = new List<CellRect>();
             var steps = new List<int>();
-            if (!PlaceChain(kinds, rng, v, path, steps)) return false;
-
             int elite = plan.EliteRoomNumber(plan.LineCombatRooms), combat = 0; // work order 046: the row's
+            // Work order 058: the rooms' templates, on their own stream, before the layout puts the rooms down.
+            List<RoomTemplate> templates = null;
+            List<bool> mirrors = null;
+            List<TemplatePlacement> placed = null;
+            if (v.Templates && v.Shapes)
+            {
+                RoomTemplates.Draw(kinds, elite, level.Floor, LevelRandom.Stream(level.Seed, TemplatesStage, level.Attempt - 1), v, out templates, out mirrors);
+                placed = new List<TemplatePlacement>();
+                level.Templates = true;
+            }
+            if (!PlaceChain(kinds, rng, v, path, steps, templates, mirrors, placed)) return false;
+
             for (int i = 0; i < path.Count; i++)
             {
                 if (kinds[i] == RoomKind.Combat) combat++;
-                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = i, Elite = kinds[i] == RoomKind.Combat && combat == elite });
+                level.Rooms.Add(new LevelRoom { Kind = kinds[i], Rect = path[i], Order = i, Elite = kinds[i] == RoomKind.Combat && combat == elite, Template = placed?[i] });
             }
             for (int r = 1; r < level.Rooms.Count; r++)
             {
-                LevelDoor door = DoorBetween(rng, level.Rooms[r - 1], level.Rooms[r], v.DoorWidth);
+                LevelDoor door = level.Rooms[r - 1].Template != null || level.Rooms[r].Template != null
+                    ? RoomTemplates.DoorAmong(rng, level.Rooms[r - 1], level.Rooms[r], v.DoorWidth) // work order 058: at their door marks
+                    : DoorBetween(rng, level.Rooms[r - 1], level.Rooms[r], v.DoorWidth);
                 if (door == null) return false;
                 level.Doors.Add(door);
             }
@@ -287,9 +318,14 @@ namespace Roguelike.Rules
         /// the middle of the grid), into <paramref name="path"/>, and the side each stands against into
         /// <paramref name="steps"/>; false when they fit nowhere. The rules of the class's summary: the way on, no more than
         /// <see cref="LevelValues.MostInARow"/> steps the same way, the exit room never touching the entrance, rooms taken
-        /// back when the next fits nowhere.
+        /// back when the next fits nowhere. Work order 058: with <paramref name="templates"/> (null from <see cref="TryLayout"/> and
+        /// with the templates off) a room with one takes its turned size, tried on each side for its drawn mirror first and the
+        /// other after (never standing to the south of the room before when its far wall may not be south), and every room
+        /// stands against the room before only where their door marks meet (<see cref="RoomTemplates.CanJoin"/>);
+        /// <paramref name="placed"/> keeps each room's turned template (null for none) in step with <paramref name="path"/>.
         /// </summary>
-        static bool PlaceChain(List<RoomKind> kinds, LevelRandom rng, LevelValues v, List<CellRect> path, List<int> steps)
+        static bool PlaceChain(List<RoomKind> kinds, LevelRandom rng, LevelValues v, List<CellRect> path, List<int> steps,
+                               List<RoomTemplate> templates = null, List<bool> mirrors = null, List<TemplatePlacement> placed = null)
         {
             LevelPlan plan = v.Plan;
             int grid = v.GridCells;
@@ -298,6 +334,7 @@ namespace Roguelike.Rules
 
             DrawSize(rng, plan.EntranceSize, out int sw, out int sh);
             path.Add(new CellRect((grid - sw) / 2, (grid - sh) / 2, sw, sh));
+            placed?.Add(null);
             if (!Fits(path[0], grid, path, 0)) return false;
 
             bool TooStraight(int side)
@@ -311,7 +348,9 @@ namespace Roguelike.Rules
             bool PlaceMain(int i)
             {
                 if (i == kinds.Count) return true;
-                DrawSize(rng, plan.SizeOf(kinds[i]), out int w, out int h);
+                RoomTemplate template = templates != null && i < templates.Count ? templates[i] : null; // work order 058
+                int w = 0, h = 0;
+                if (template == null) DrawSize(rng, plan.SizeOf(kinds[i]), out w, out h);
                 // The way on (work order 012): from the entrance any way; after it straight on first, then a turn to
                 // either side in a drawn order, never back through the wall she came in by.
                 List<int> sides;
@@ -327,18 +366,55 @@ namespace Roguelike.Rules
                     rng.Shuffle(turns);
                     sides = new List<int> { on, turns[0], turns[1] };
                 }
+                if (template != null) return PlaceTemplate(i, template, sides);
                 foreach (Placement c in Candidates(rng, path[i - 1], w, h, need, sides))
                 {
                     if (placements >= v.PlacementsPerAttempt) return false;
                     if (TooStraight(c.Side)) continue;
                     if (!Fits(c.Rect, grid, path, path.Count)) continue;
                     if (kinds[i] == RoomKind.Exit && c.Rect.Touches(path[0])) continue;
+                    if (placed != null && !RoomTemplates.CanJoin(path[i - 1], placed[i - 1], c.Rect, null, v.DoorWidth)) continue; // work order 058
                     placements++;
-                    path.Add(c.Rect);
-                    steps.Add(c.Side);
-                    if (PlaceMain(i + 1)) return true;
-                    path.RemoveAt(path.Count - 1);
-                    steps.RemoveAt(steps.Count - 1);
+                    if (Try(i, c, null)) return true;
+                }
+                return false;
+            }
+
+            // A room put down, then the rest of the chain after it; taken back when the rest fits nowhere.
+            bool Try(int i, Placement c, TemplatePlacement o)
+            {
+                path.Add(c.Rect);
+                steps.Add(c.Side);
+                placed?.Add(o);
+                if (PlaceMain(i + 1)) return true;
+                path.RemoveAt(path.Count - 1);
+                steps.RemoveAt(steps.Count - 1);
+                placed?.RemoveAt(placed.Count - 1);
+                return false;
+            }
+
+            // Work order 058: a room with a template, its size its template's turned so the door in is on the wall it stands
+            // against, on each side in the order given, its drawn mirror first.
+            bool PlaceTemplate(int i, RoomTemplate template, List<int> sides)
+            {
+                bool drawn = mirrors != null && i < mirrors.Count && mirrors[i];
+                foreach (int side in sides)
+                {
+                    if (side == South && template.FarNotSouth) continue; // its far wall, the throne's, would be the south one
+                    foreach (bool mirror in new[] { drawn, !drawn })
+                    {
+                        TemplatePlacement o = template.Oriented(Opposite(side), mirror);
+                        foreach (Placement c in Candidates(rng, path[i - 1], o.Width, o.Height, need, new List<int> { side }))
+                        {
+                            if (placements >= v.PlacementsPerAttempt) return false;
+                            if (TooStraight(c.Side)) continue;
+                            if (!Fits(c.Rect, grid, path, path.Count)) continue;
+                            if (kinds[i] == RoomKind.Exit && c.Rect.Touches(path[0])) continue;
+                            if (!RoomTemplates.CanJoin(path[i - 1], placed?[i - 1], c.Rect, o, v.DoorWidth)) continue;
+                            placements++;
+                            if (Try(i, c, o)) return true;
+                        }
+                    }
                 }
                 return false;
             }
@@ -674,6 +750,11 @@ namespace Roguelike.Rules
 
             bool Place(EnemyGroup g, double lo, double hi)
             {
+                // Work order 058: the room's places on its template's mark for the group first (the elite's e, the shooters' and casters' h).
+                char mark = RoomTemplates.MarkFor(room, g);
+                if (mark != '\0')
+                    foreach (LevelPoint p in places)
+                        if (RoomTemplates.MarkAt(room, p, cs) == mark && Fits(g, p, out LevelPoint[] marked)) return Put(g, p, marked);
                 foreach (bool banded in new[] { true, false })
                     foreach (LevelPoint p in places)
                     {

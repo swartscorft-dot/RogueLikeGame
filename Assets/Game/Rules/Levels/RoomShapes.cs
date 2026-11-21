@@ -12,9 +12,10 @@ namespace Roguelike.Rules
     /// be a square; or it may well be one in the 'backend', but it feels very unnatural that everything is a square ... We
     /// need a bit of a dungeon-crawler feeling, not walking into large office landscapes with monsters in them"). None: no
     /// shape was drawn (every room with <see cref="LevelValues.Shapes"/> off, and hand-made layouts). Plain: the rectangle
-    /// with only its gate. The others are said by <see cref="RoomShapes"/>.
+    /// with only its gate. The others are said by <see cref="RoomShapes"/>. Template (work order 058): stamped from the room's
+    /// template (<see cref="RoomTemplates"/>).
     /// </summary>
-    public enum RoomShape { None, Plain, Notch, Cross, Apse, Alcoves, Aisles, Octagon }
+    public enum RoomShape { None, Plain, Notch, Cross, Apse, Alcoves, Aisles, Octagon, Template }
 
     /// <summary>
     /// The numbers of the rooms' carved outlines (work order 051). Data, all first guesses; lengths in cells (4 m) unless they
@@ -103,6 +104,7 @@ namespace Roguelike.Rules
                 case RoomShape.Alcoves: return "alcoves";
                 case RoomShape.Aisles: return "aisles";
                 case RoomShape.Octagon: return "octagon";
+                case RoomShape.Template: return "template"; // work order 058
                 default: return "none";
             }
         }
@@ -194,6 +196,13 @@ namespace Roguelike.Rules
                 room.Shape = RoomShape.None;
                 room.ShapeRedraws = 0;
                 room.ShapeFellBack = false;
+                room.TemplateFellBack = false;
+                // Work order 058: a room with a template is stamped from it; 051's draws below only when the stamp breaks a rule.
+                if (room.Template != null && RoomTemplates.Stamp(level, room, rng, values))
+                {
+                    before = room.Shape;
+                    continue;
+                }
                 List<RoomShape> options = ShapesFor(level, room, v);
                 if (options.Count > 1) options.Remove(before);
                 bool drawn = false;
@@ -285,20 +294,28 @@ namespace Roguelike.Rules
         /// </summary>
         public static void Gate(LevelLayout level, LevelRoom room)
         {
+            foreach ((int x, int y) in GateCells(level, room)) room.SetSolid(x, y, true);
+        }
+
+        /// <summary>The cells <see cref="Gate"/> marks solid (work order 058 factored them out, for the validator's check of a stamped template).</summary>
+        public static List<(int x, int y)> GateCells(LevelLayout level, LevelRoom room)
+        {
+            var cells = new List<(int x, int y)>();
             LevelDoor entry = LevelGeometry.EntryDoor(level, room);
-            if (entry == null) return;
+            if (entry == null) return cells;
             CellRect r = room.Rect;
             int ax = entry.Vertical ? 0 : 1, ay = entry.Vertical ? 1 : 0;
-            if (!InnerCell(room, entry, entry.From, out int fx, out int fy, out _, out _)) return;
-            if (!InnerCell(room, entry, entry.From + entry.Width - 1, out int lx, out int ly, out _, out _)) return;
+            if (!InnerCell(room, entry, entry.From, out int fx, out int fy, out _, out _)) return cells;
+            if (!InnerCell(room, entry, entry.From + entry.Width - 1, out int lx, out int ly, out _, out _)) return cells;
             void Side(int gx, int gy, int sx, int sy)
             {
                 if (!r.Contains(gx, gy)) return;
-                room.SetSolid(gx, gy, true);
-                if (r.Contains(gx + sx, gy + sy) && !r.Contains(gx + 2 * sx, gy + 2 * sy)) room.SetSolid(gx + sx, gy + sy, true);
+                cells.Add((gx, gy));
+                if (r.Contains(gx + sx, gy + sy) && !r.Contains(gx + 2 * sx, gy + 2 * sy)) cells.Add((gx + sx, gy + sy));
             }
             Side(fx - ax, fy - ay, -ax, -ay);
             Side(lx + ax, ly + ay, ax, ay);
+            return cells;
         }
 
         /// <summary>The cells a room must keep open whatever its shape: every door's cell inside and the cells straight in behind it.</summary>
@@ -513,10 +530,12 @@ namespace Roguelike.Rules
                 faults?.Add(f);
             }
 
-            // The share.
-            float share = ShareOf(room, v);
+            // The share; work order 058: a template room's its own.
+            float share = room.Shape == RoomShape.Template ? RoomTemplates.ShareOf(room, values) : ShareOf(room, v);
             if (room.SolidCount > share * w * h + 1e-9)
                 Add($"has {room.SolidCount} of its {w * h} cells solid, more than {share:P0}");
+            string area = RoomTemplates.AreaFault(room, values); // work order 058: a combat or elite template room's open floor
+            if (area != null) Add(area);
 
             // One area.
             int open = w * h - room.SolidCount, reached = 0;
@@ -941,7 +960,8 @@ namespace Roguelike.Rules
         /// <summary>The rooms' shapes and solid cells as text, for the level's description: empty for a room with no shape.</summary>
         public static string Describe(LevelRoom room)
         {
-            if (room.Shape == RoomShape.None && room.SolidCount == 0) return "";
+            string template = RoomTemplates.Describe(room); // work order 058: empty for a room without a template
+            if (room.Shape == RoomShape.None && room.SolidCount == 0) return template;
             var sb = new StringBuilder();
             sb.Append(" shape ").Append(Word(room.Shape));
             if (room.SolidCount > 0)
@@ -949,7 +969,7 @@ namespace Roguelike.Rules
                 sb.Append(" solid");
                 foreach ((int x, int y) in room.SolidList) sb.Append(' ').Append(x.ToString(CultureInfo.InvariantCulture)).Append(',').Append(y.ToString(CultureInfo.InvariantCulture));
             }
-            return sb.ToString();
+            return sb.Append(template).ToString();
         }
     }
 }
