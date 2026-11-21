@@ -95,6 +95,215 @@ namespace Roguelike.Rules
 
         /// <summary>Its length in seconds.</summary>
         public float Width => Any ? To - From : 0f;
+
+        /// <summary>
+        /// The clean part of press <paramref name="press"/> of a chain of <paramref name="count"/> (work order 069): exactly
+        /// <see cref="RecastRhythm.Press(KitValues, float, bool, int, int, float)"/>'s, with its window there.
+        /// </summary>
+        public static CleanPart Of(KitValues kit, float skillWindow, bool openingMove, float wideWindow, int press, int count) =>
+            RecastRhythm.Press(kit, skillWindow, openingMove, press, count, wideWindow).Clean;
+    }
+
+    /// <summary>
+    /// How a press of a recast chain fell (work order 069), for the line of the chain the interface draws
+    /// (<see cref="RecastLine"/>) and for the play session's log. Judged by the press's own window and clean part
+    /// (<see cref="RecastRhythm"/>).
+    /// </summary>
+    public enum RecastTiming
+    {
+        /// <summary>Not pressed (yet).</summary>
+        None,
+        /// <summary>In its clean part: the last press a clean tap (or a clean spend), a press before it in rhythm (toward a full clean chain).</summary>
+        Clean,
+        /// <summary>In its window, before its clean part: its shot, not clean.</summary>
+        Early,
+        /// <summary>In its window, after its clean part: its shot, not clean.</summary>
+        Late,
+        /// <summary>Pressed before its window opened (the shot before had not gone off): it waited and fired when the window opened, never clean.</summary>
+        Waited,
+        /// <summary>Its window ran out with no press: the chain ended there.</summary>
+        Missed,
+        /// <summary>A shot of a skill with no clean press: nothing to judge it by.</summary>
+        Plain,
+    }
+
+    /// <summary>
+    /// One press of a recast chain (work order 069): which press it is (from 1: the first press starts the chain, so the
+    /// recast presses are 2 on), its window and its clean part, both in seconds after the shot before it went off (after
+    /// Backstep's hop, for its shot), on the window's clock.
+    /// </summary>
+    public readonly struct RecastBeat
+    {
+        public readonly int Press;
+        public readonly float Window;
+        public readonly CleanPart Clean;
+        /// <summary>True for the chain's last press: the one whose clean press is a clean tap (or a clean spend).</summary>
+        public readonly bool Last;
+
+        public RecastBeat(int press, float window, CleanPart clean, bool last)
+        {
+            Press = press;
+            Window = window;
+            Clean = clean;
+            Last = last;
+        }
+
+        /// <summary>True for a recast press (2 on): false for the default, the first press, and a press past the chain's count.</summary>
+        public bool Any => Press >= 2;
+    }
+
+    /// <summary>
+    /// The rhythm of a recast chain (work order 069, Kristian, 2026-11-21 evening: "jeg vil at de to første skal kome relativt
+    /// fort, og det 3. litt senere. men de første er veldig utydlig når skal skje"): THE one function that gives a press its
+    /// window and its clean part. The judging, the interface (the strip's box, the cast blade, the signs and their tick, the
+    /// combo bar), Wide window's widening, the card's numbers and the test pilot all read it, so what she is shown is what
+    /// is judged.
+    ///
+    /// A chain that opens with a shot (Triple Tap) has its rhythm with <see cref="KitValues.ChainRhythm"/> on: every press
+    /// before the last is a quick press (<see cref="KitValues.QuickPressWindow"/>, its clean part
+    /// <see cref="KitValues.QuickPressCleanFrom"/> to <see cref="KitValues.QuickPressCleanTo"/>), and the last waits a beat
+    /// (<see cref="KitValues.LastPressWindow"/>, <see cref="KitValues.LastPressCleanFrom"/> to
+    /// <see cref="KitValues.LastPressCleanTo"/>). A chain that opens with a move (Backstep) and every chain with the switch off
+    /// are as before: every window the skill's <see cref="SkillDefinition.RecastWindow"/>, its clean part where
+    /// <see cref="CleanPart.Of(KitValues, float, bool)"/> places it. Each part is then widened by Wide window round its middle,
+    /// inside its own window (<see cref="WideWindow.Widen(CleanPart, float, float)"/>); 0 widens nothing.
+    /// </summary>
+    public static class RecastRhythm
+    {
+        /// <summary>The most presses a chain records the timing of (Triple Tap with Fourth Tap and Steady Hand has six).</summary>
+        public const int MostPresses = 16;
+
+        /// <summary>
+        /// Press <paramref name="press"/> (2 on) of a chain of <paramref name="count"/> presses: its window and clean part.
+        /// <paramref name="skillWindow"/>: the skill's <see cref="SkillDefinition.RecastWindow"/>; <paramref name="openingMove"/>:
+        /// the chain opens with a move; <paramref name="wideWindow"/>: her Wide window (0: none). The default for a press that
+        /// is no recast press (below 2, or past the count).
+        /// </summary>
+        public static RecastBeat Press(KitValues kit, float skillWindow, bool openingMove, int press, int count, float wideWindow)
+        {
+            kit = kit ?? new KitValues();
+            if (press < 2 || press > count) return default;
+            bool last = press >= count;
+            float window;
+            CleanPart clean;
+            if (kit.ChainRhythm && !openingMove)
+            {
+                float own = last ? kit.LastPressWindow : kit.QuickPressWindow;
+                window = Math.Max(0f, own >= 0f ? own : skillWindow);
+                float from = last ? kit.LastPressCleanFrom : kit.QuickPressCleanFrom;
+                float to = last ? kit.LastPressCleanTo : kit.QuickPressCleanTo;
+                clean = CleanPart.Early(window, from >= 0f ? from : kit.CleanFrom, to >= 0f ? to : kit.CleanTo);
+            }
+            else
+            {
+                window = Math.Max(0f, skillWindow);
+                clean = CleanPart.Of(kit, window, openingMove);
+            }
+            return new RecastBeat(press, window, WideWindow.Widen(clean, window, wideWindow), last);
+        }
+
+        /// <summary>As above, for press <paramref name="press"/> of this skill's chain as the skill is (its count, its window, its opening move).</summary>
+        public static RecastBeat Press(KitValues kit, SkillDefinition skill, int press, float wideWindow) =>
+            skill == null ? default : Press(kit, skill.RecastWindow, skill.OpeningMove, press, skill.RecastCount, wideWindow);
+
+        /// <summary>
+        /// The whole chain of this skill on one time line (for the interface's combo bar): its recast presses, 2 to its count,
+        /// into <paramref name="into"/> from index 0 (as many as fit), each counted from the shot before it. Returns how many
+        /// it wrote. Nothing is made: the caller keeps the array.
+        /// </summary>
+        public static int Line(SkillDefinition skill, KitValues kit, float wideWindow, RecastBeat[] into)
+        {
+            if (skill == null || into == null) return 0;
+            int n = 0;
+            for (int press = 2; press <= skill.RecastCount && n < into.Length; press++) into[n++] = Press(kit, skill, press, wideWindow);
+            return n;
+        }
+
+        /// <summary>
+        /// How a press now falls (work order 069): <paramref name="sinceOpened"/> seconds after its window opened (below 0: it
+        /// has not), in a window with this clean part; <paramref name="clean"/>: the judging found it clean (a clean tap, or a
+        /// press before the last in its clean part); <paramref name="buffered"/>: it waited from before the window opened.
+        /// <paramref name="hasCleanPress"/>: the skill has a clean press at all.
+        /// </summary>
+        public static RecastTiming TimingOf(float sinceOpened, CleanPart part, bool clean, bool buffered, bool hasCleanPress)
+        {
+            if (clean) return RecastTiming.Clean;
+            if (!hasCleanPress) return RecastTiming.Plain;
+            if (buffered || sinceOpened < 0f) return RecastTiming.Waited;
+            if (!part.Any) return RecastTiming.Plain;
+            return part.IsAfter(sinceOpened) ? RecastTiming.Late : RecastTiming.Early;
+        }
+    }
+
+    /// <summary>
+    /// A recast chain on one time line (work order 069), for the interface's combo bar (work order 068 draws it): for each
+    /// press its window and clean part (<see cref="Beat"/>, from <see cref="RecastRhythm"/>, as judged), and for a chain in
+    /// progress which press is next, how long since the shot before it went off, and how each press already made fell
+    /// (<see cref="Timing"/>). Made from a skill alone (<see cref="Of(SkillDefinition, KitValues, float)"/>: no chain) or from
+    /// the chain running (the character's <c>RecastLine</c>). A value: it reads, holds no list, and makes nothing.
+    /// </summary>
+    public readonly struct RecastLine
+    {
+        readonly RecastChain _chain;
+        readonly KitValues _kit;
+        readonly float _skillWindow, _wide;
+        readonly bool _openingMove, _primed, _hasCleanPress;
+
+        /// <summary>The chain's presses, the first included (3 for Triple Tap); 0 for no chain and no skill with one.</summary>
+        public readonly int Count;
+        /// <summary>The press whose window is open or comes next (2 to <see cref="Count"/>); 0 when none waits (no chain running, or complete).</summary>
+        public readonly int Next;
+        /// <summary>Seconds since the shot before <see cref="Next"/> went off, on the window's clock; -1 while it has not (its startup) and with none.</summary>
+        public readonly float SinceShotBefore;
+
+        RecastLine(RecastChain chain, KitValues kit, float skillWindow, bool openingMove, int count, int next, float since, float wide, bool primed, bool hasCleanPress)
+        {
+            _chain = chain;
+            _kit = kit;
+            _skillWindow = skillWindow;
+            _openingMove = openingMove;
+            Count = count;
+            Next = next;
+            SinceShotBefore = since;
+            _wide = wide;
+            _primed = primed;
+            _hasCleanPress = hasCleanPress;
+        }
+
+        /// <summary>The skill's chain with none running: every press's window and clean part; <see cref="Next"/> 0.</summary>
+        public static RecastLine Of(SkillDefinition skill, KitValues kit, float wideWindow) =>
+            skill == null || skill.RecastCount < 2 ? default
+                : new RecastLine(null, kit, skill.RecastWindow, skill.OpeningMove, skill.RecastCount, 0, -1f, wideWindow, false, RecastChain.HasCleanPress(skill));
+
+        /// <summary>
+        /// The chain running, of this skill (as she has it): its count and opening move are the chain's own.
+        /// <paramref name="primed"/>: Hair Trigger's priming lies on it (its last press is clean anywhere in its window).
+        /// </summary>
+        public static RecastLine Of(RecastChain chain, SkillDefinition skill, KitValues kit, float wideWindow, bool primed, float now)
+        {
+            if (chain == null || chain.Slot < 0 || skill == null) return default;
+            int next = chain.IsComplete || chain.Expired(now) ? 0 : chain.Shots + 1;
+            return new RecastLine(chain, kit, skill.RecastWindow, chain.OpenedWithMove, chain.Count, next, next > 0 ? chain.SinceOpened(now) : -1f,
+                                  wideWindow, primed, RecastChain.HasCleanPress(skill));
+        }
+
+        /// <summary>True when there is a chain to show: a skill with one, or one running.</summary>
+        public bool Any => Count >= 2;
+
+        /// <summary>
+        /// Press <paramref name="press"/>'s window and clean part, from the shot before it: no clean part for a skill with no
+        /// clean press, and a primed chain's last press clean in its whole window. The default for a press that is no recast press.
+        /// </summary>
+        public RecastBeat Beat(int press)
+        {
+            RecastBeat beat = RecastRhythm.Press(_kit, _skillWindow, _openingMove, press, Count, _wide);
+            if (!beat.Any) return beat;
+            if (!_hasCleanPress) return new RecastBeat(beat.Press, beat.Window, default, beat.Last);
+            return _primed && beat.Last ? new RecastBeat(beat.Press, beat.Window, CleanPart.Whole(beat.Window), true) : beat;
+        }
+
+        /// <summary>How press <paramref name="press"/> of the chain running fell; <see cref="RecastTiming.None"/> before it is made, and with no chain.</summary>
+        public RecastTiming Timing(int press) => _chain != null ? _chain.TimingOf(press) : RecastTiming.None;
     }
 
     /// <summary>
@@ -116,6 +325,9 @@ namespace Roguelike.Rules
     /// An open window's clock is the time passed in, run on by <see cref="RunOn"/> (work order 038, Kristian's answer of
     /// 2026-11-20: the window runs on real time): the caller adds the seconds a hit stop froze, as
     /// <see cref="RecastClock"/> counts them. With none added the window is as it was.
+    ///
+    /// Work order 069: each press may have its own window (<see cref="NextWindow"/>, from <see cref="RecastRhythm"/>: Triple
+    /// Tap's quick presses, then its last a beat later), and the chain keeps how each press fell (<see cref="TimingOf"/>).
     /// </summary>
     public sealed class RecastChain
     {
@@ -127,6 +339,8 @@ namespace Roguelike.Rules
         bool _openingMove;
         float _ranOn; // s the open window has run on beyond the time passed in (work order 038); 0 until it opens
         bool _allInRhythm; // every press of the chain after the first fell in the clean part of its window (work order 064)
+        // Work order 069: how each press of the chain fell, by its number (2 on); kept after the chain ends, until the next starts.
+        readonly RecastTiming[] _timings = new RecastTiming[RecastRhythm.MostPresses + 1];
 
         /// <summary>The slot whose chain runs, or -1. A chain that has run out still shows here until <see cref="Expired"/> or <see cref="End"/>.</summary>
         public int Slot => _slot;
@@ -152,6 +366,29 @@ namespace Roguelike.Rules
             _ranOn = 0f;
             _openingMove = openingMove && _slot >= 0;
             _allInRhythm = true;
+            Array.Clear(_timings, 0, _timings.Length);
+        }
+
+        /// <summary>
+        /// The window for the next press is this long (work order 069: each press its own, from <see cref="RecastRhythm"/>):
+        /// set by the caller after <see cref="Start"/> and after each <see cref="Recast(bool)"/>, while the window is closed.
+        /// Nothing while one is open, or with no chain. Never called, every window is the one <see cref="Start"/> was given.
+        /// </summary>
+        public void NextWindow(float window)
+        {
+            if (_slot < 0 || !float.IsPositiveInfinity(_openedAt)) return;
+            _window = Math.Max(0f, window);
+        }
+
+        /// <summary>How press <paramref name="press"/> (2 on) of the chain fell (work order 069); kept after the chain ends, until the next starts.</summary>
+        public RecastTiming TimingOf(int press) => press >= 2 && press < _timings.Length ? _timings[press] : RecastTiming.None;
+
+        /// <summary>The window for the next press ran out with no press (work order 069): that press is missed. The caller then ends the chain.</summary>
+        public void MarkMissed()
+        {
+            if (_slot < 0 || _shots >= _count) return;
+            int press = _shots + 1;
+            if (press < _timings.Length) _timings[press] = RecastTiming.Missed;
         }
 
         /// <summary>True when the chain running opened with a move (Backstep's hop): its window's clean part is its own (work order 064).</summary>
@@ -235,9 +472,13 @@ namespace Roguelike.Rules
         public void Recast() => Recast(false);
 
         /// <summary>As <see cref="Recast()"/>, and whether the press fell in the clean part of its window (<see cref="AllInRhythm"/>).</summary>
-        public void Recast(bool inCleanPart)
+        public void Recast(bool inCleanPart) => Recast(inCleanPart, inCleanPart ? RecastTiming.Clean : RecastTiming.None);
+
+        /// <summary>As above, and how the press fell (work order 069), kept as the timing of the press it makes (<see cref="TimingOf"/>).</summary>
+        public void Recast(bool inCleanPart, RecastTiming timing)
         {
             if (_slot < 0) return;
+            if (_shots + 1 < _timings.Length) _timings[_shots + 1] = timing;
             _allInRhythm &= inCleanPart;
             _shots++;
             _openedAt = float.PositiveInfinity;
