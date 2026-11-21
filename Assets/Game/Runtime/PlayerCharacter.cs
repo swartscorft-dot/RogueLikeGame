@@ -574,6 +574,60 @@ namespace Roguelike
         public float FocusBarFill => _focus.BarFill(Time.time, Identity);
         public bool IsDashing => _dashing;
 
+        // ---------------- The gains of spent focus (work order 071, 2026-11-21) ----------------
+
+        /// <summary>
+        /// True while spent focus makes her stronger (<see cref="FocusGains"/>): in the window of today's gauge and of Steady
+        /// Hand, and with Hair Trigger for a part's seconds after each part spent. Her shots look and sound empowered for as long.
+        /// </summary>
+        public bool IsFocusBoosted => _focus.IsBoosted(Time.time);
+        /// <summary>Seconds of the gains left, and how long those running were given for (for the effects' last second).</summary>
+        public float FocusBoostRemaining => _focus.BoostRemaining(Time.time);
+        public float FocusBoostSeconds => _focus.BoostSeconds;
+        /// <summary>
+        /// True while focus is ready and unspent (work order 071: "ready" on her, not only on the interface): a full gauge, or
+        /// with Hair Trigger at least one full part; never while the gains run.
+        /// </summary>
+        public bool IsFocusReady => !IsFocusBoosted && !IsEmpowered && (FocusMode == FocusMode.HairTrigger ? FocusPartsFull >= 1 : IsFocusFull);
+        /// <summary>Her damage times this now from focus: the window's multiplier and the gains'.</summary>
+        public float FocusDamageMultiplier => _focus.DamageMultiplier(Time.time, Identity);
+        /// <summary>Her basic shot's rate times this now from the gains; 1 outside them.</summary>
+        public float FocusFireRate => FocusGains.FireRate(IsFocusBoosted, Identity);
+        /// <summary>Her run speed times this now from the gains; 1 outside them.</summary>
+        public float FocusMoveScale => FocusGains.MoveScale(IsFocusBoosted, Identity);
+        /// <summary>How many times as fast the slot's cooldown runs now: the gains' rate, never past the run's floor (work order 065).</summary>
+        public float FocusCooldownRate(int slot)
+        {
+            if (!IsFocusBoosted) return 1f;
+            SkillDefinition skill = slot >= 0 && slot < Skills.Count ? Skills[slot] : null;
+            float share = Modifiers != null && skill != null ? Modifiers.CooldownShare(skill.Name) : 1f;
+            return FocusGains.CooldownRate(true, Identity, share, Modifiers != null ? Modifiers.CooldownFloor : 0f);
+        }
+        /// <summary>The same for the dash's cooldown (her dash steps and the rack's Spare Step make its share).</summary>
+        float FocusDashCooldownRate =>
+            FocusGains.CooldownRate(IsFocusBoosted, Identity, Modifiers != null ? Modifiers.DashCooldownShare : 1f, Modifiers != null ? Modifiers.CooldownFloor : 0f);
+
+        float _gainsTickedAt = float.NaN; // the game time the gains last ran the cooldowns to
+
+        /// <summary>
+        /// Each frame: while the gains run, every running cooldown, the dash's too, runs faster (work order 071): the
+        /// seconds the gains ran since the last frame, times the rate less one, come off what is left. Nothing is allocated.
+        /// </summary>
+        void TickFocusGains(float now)
+        {
+            float from = float.IsNaN(_gainsTickedAt) || _gainsTickedAt > now ? now : _gainsTickedAt;
+            _gainsTickedAt = now;
+            float boosted = _focus.BoostedSeconds(from, now);
+            if (boosted <= 0f) return;
+            for (int slot = 0; slot < _cooldowns.Count; slot++)
+            {
+                float extra = FocusGains.ExtraCooldownSeconds(boosted, FocusCooldownRate(slot));
+                if (extra > 0f) CooldownFor(slot).CutSeconds(now, extra);
+            }
+            float dash = FocusGains.ExtraCooldownSeconds(boosted, FocusDashCooldownRate);
+            if (dash > 0f) _dash.CutCooldownSeconds(now, dash);
+        }
+
         // ---------------- The focus choice (work order 025, 2026-11-20) ----------------
 
         /// <summary>
@@ -724,8 +778,11 @@ namespace Roguelike
             return Modifiers != null ? skill.Cooldown * Modifiers.CooldownShare(skill.Name) : skill.Cooldown;
         }
 
-        /// <summary>The share of the feel's run speed she runs at: 1, more with the run's upgrades.</summary>
-        public float RunSpeedShare => Modifiers != null ? Modifiers.RunSpeedShare : 1f;
+        /// <summary>
+        /// The share of the feel's run speed she runs at: 1, more with the run's upgrades; work order 071: times the gains'
+        /// (<see cref="FocusMoveScale"/>, 1.1) while spent focus's gains run.
+        /// </summary>
+        public float RunSpeedShare => (Modifiers != null ? Modifiers.RunSpeedShare : 1f) * FocusMoveScale;
 
         /// <summary>Basic shot hits counted toward the next mark.</summary>
         public int BasicShotsTowardMark => _basicMarks.Counted;
@@ -1295,7 +1352,8 @@ namespace Roguelike
             FocusMode mode = FocusMode;
             FocusModeValues ways = FocusModeValues;
             // Work order 025: Hair Trigger spends one full part, with no window; Steady Hand a full gauge on a longer window.
-            bool started = mode == FocusMode.HairTrigger ? _focus.TrySpendPart(Identity, FocusParts)
+            // Work order 071: the window brings the gains; a part brings them for its own seconds (Long focus lengthens them).
+            bool started = mode == FocusMode.HairTrigger ? _focus.TrySpendPart(Identity, FocusParts, now, FocusGains.PartSeconds(ways, LongFocusNow))
                          : _focus.TryActivate(now, Identity, (mode == FocusMode.SteadyHand ? ways.WindowSeconds : Identity.EmpoweredDuration) * LongFocusNow); // work order 065: Long focus
             IntentResult result = started ? IntentResult.Started : IntentResult.Rejected;
             Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result, FocusMode = mode });
@@ -1521,6 +1579,7 @@ namespace Roguelike
             float now = Time.time;
             ApplyMovementFeel(feel);
             DropCooldownPressWhenHeldBack(); // work order 066
+            TickFocusGains(now); // work order 071: the cooldowns run faster while spent focus's gains run
             ExpireChain(now);
             BurstKegsOnFuse(now);
             if (_prime.TakeLapsed(now))
@@ -2690,7 +2749,9 @@ namespace Roguelike
         void ReportHit(int slot, Damageable target, int damage, bool empowered, float focus, bool countered = false) =>
             Report(new PlayerReport
             {
-                Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered, Focus = focus, Countered = countered,
+                // Work order 071: a hit in a Hair Trigger part's gains counts as empowered too, so the log's "damage while
+                // empowered" is what the gains dealt in every way of the gauge.
+                Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered || IsFocusBoosted, Focus = focus, Countered = countered,
                 Crit = _dealtCrit, // work order 050: of the Deal just before
             });
 
@@ -2728,6 +2789,9 @@ namespace Roguelike
         /// order 060: her pistols' parts first (a barrel's longer recovery), and her attack speed works on that as on the feel's.
         /// </summary>
         float BasicShotRecoveryNow(FeelValues f) =>
+            FocusGains.Recovery(f.BasicShotStartup, f.BasicShotActive, StatsRecovery(f), FocusFireRate, Identity.EmpoweredLeastRecovery); // work order 071: the gains' faster fire
+        /// <summary>The basic shot's recovery with her stats, before the gains of spent focus (work order 071): as before the order.</summary>
+        float StatsRecovery(FeelValues f) =>
             Modifiers != null ? Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive, WeaponRecovery(f)) : f.BasicShotRecovery;
         /// <summary>The basic shot's recovery as her pistols' parts make it, before her attack speed (work order 060): the feel's with none.</summary>
         float WeaponRecovery(FeelValues f) =>
@@ -2755,7 +2819,8 @@ namespace Roguelike
         }
 
         /// <summary>
-        /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005), and what
+        /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005) and, since work
+        /// order 071, the gains' while they run (<see cref="FocusGauge.DamageMultiplier"/>, 1.35), and what
         /// was dealt trickles into the focus gauge. Returns the amount actually removed, and the focus gained.
         /// <paramref name="stagger"/> is what the hit takes off a stagger bar (work order 008); the basic shot's is 0.
         /// Work order 050: in a run with the stats on, the hit may crit (her crit chance, on the crits' stream), and one
@@ -2969,7 +3034,7 @@ namespace Roguelike
             float master = ShotLooks != null ? ShotLooks.SoundVolume : 1f;
             float spread = Mathf.Max(0f, values.SoundPitchSpread);
             float pitch = values.SoundPitch * (1f + Random.Range(-spread, spread));
-            if (IsEmpowered && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch;
+            if (IsFocusBoosted && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch; // work order 071: for as long as the gains run
             Sounds.Play(values.Sound, values.SoundVolume * master, pitch, values.SoundStart);
         }
 
@@ -2991,7 +3056,7 @@ namespace Roguelike
             AudioClip own = ShotVariationClips.For(ShotVariations, v.Index);
             AudioClip clip = own != null ? own : values.Sound;
             float pitch = values.SoundPitch * v.Pitch;
-            if (IsEmpowered && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch;
+            if (IsFocusBoosted && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch; // work order 071: for as long as the gains run
             Sounds.Play(clip, values.SoundVolume * master * v.Volume, pitch, own != null ? 0f : values.SoundStart, v);
         }
 
@@ -3010,9 +3075,14 @@ namespace Roguelike
                   // with the effects switched off does it borrow its nearest's, sound and all, as before (work order 015).
                   ?? (CombatEffects.PoolLooksBorrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
                   ?? FallbackLook(skill.Name);
-            bool empowered = IsEmpowered;
-            float empoweredScale = ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
-            Color rim = empowered ? (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim) : values.Rim;
+            // Work order 071: empowered for as long as the gains run (a Hair Trigger part's seconds too); with the focus feel
+            // running, larger and in its teal (FocusFeel.ShotLookNow), else the asset's empowered look as before.
+            bool empowered = IsFocusBoosted;
+            FocusFeelValues felt = empowered ? FocusFeel.ShotLookNow : null;
+            float empoweredScale = felt != null ? felt.ShotScale : ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
+            Color rim = !empowered ? values.Rim
+                      : felt != null ? new Color(felt.ShotRimR, felt.ShotRimG, felt.ShotRimB)
+                      : (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim);
             return new Look
             {
                 Values = values,
