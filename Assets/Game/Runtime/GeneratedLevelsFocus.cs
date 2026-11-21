@@ -62,6 +62,7 @@ namespace Roguelike
         {
             PickUpForAPick(ChoiceKind.FocusChoice); // work order 042: its drop (floor 1 with no skill to offer), if it lies, is picked up first
             if (Choice != ChoiceKind.FocusChoice || index < 0 || index >= FocusModeRules.Options.Length) return false;
+            CardPicked(index); // work order 045: its card flashes as it goes
             FocusMode mode = FocusModeRules.Options[index];
             FocusChoice.Take(mode);
             string name = FocusModeRules.Name(mode);

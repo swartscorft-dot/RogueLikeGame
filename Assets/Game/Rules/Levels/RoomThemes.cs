@@ -171,6 +171,7 @@ namespace Roguelike.Rules
                 _tv = values.ThemeRules ?? new ThemeValues();
                 _niches = niches;
                 _recipe = _tv.Of(_room.Theme, _room.Kind);
+                _bank = values.RoomMood && values.Mood != null && values.Mood.Compose; // work order 044
                 if (_recipe == null || _recipe.Props == null) return;
                 if (_room.Kind == RoomKind.Combat)
                 {
@@ -394,8 +395,28 @@ namespace Roguelike.Rules
                 {
                     PropModel model = pick();
                     int turn = Turn(model, rng);
-                    Put(model, round[k % 2].Select(p => (p, turn, PropPlace.Floor)));
+                    IEnumerable<(LevelPoint, int, PropPlace)> places = round[k % 2].Select(p => (p, turn, PropPlace.Floor));
+                    // Work order 044 (the ossuary of the concept pictures): banked against its far wall, the clusters only where
+                    // the wall holds no more. The same draws as without, so the room holds the same props.
+                    if (_bank) places = BankPlaces(model, turn).Concat(places);
+                    Put(model, places);
                 }
+            }
+
+            bool _bank;
+
+            /// <summary>
+            /// The ossuary's bank (work order 044): set pieces along the wall opposite the door in, a clearance and their reach
+            /// out from it, from the wall's middle outward every step; the rules keep them off its doors.
+            /// </summary>
+            IEnumerable<(LevelPoint, int, PropPlace)> BankPlaces(PropModel model, int turn)
+            {
+                LevelDoor entry = LevelGeometry.EntryDoor(_level, _room);
+                int wayIn = entry != null ? LevelGeometry.WallOf(_room.Rect, entry) : -1;
+                int far = wayIn >= 0 ? LevelGenerator.Opposite(wayIn) : LevelGenerator.North;
+                Ends(far, out double lo, out double hi);
+                double depth = _v.WallClearance + Reach(model) + 0.05;
+                return Sweep(far, depth, (lo + hi) * 0.5).Select(p => (p, turn, PropPlace.Set));
             }
 
             List<LevelPoint> Corners(PropModel model)

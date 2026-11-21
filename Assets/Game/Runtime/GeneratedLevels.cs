@@ -419,6 +419,9 @@ namespace Roguelike
             _skillsTaken.Clear();
             Modifiers.Clear();
             Modifiers.CooldownFloor = RunValues.CooldownFloor;
+            Modifiers.StatsAndTiers = RunValues.StatsAndTiers; // work order 050: her stats and the tiers, for this run
+            Modifiers.StatValues = RunValues.Stats;
+            player.SeedCrits(runSeed); // the crits' stream, from the run's seed
             ApplyBetweenRuns(); // work order 029: the rack's pieces, only with the switch on
             player.Modifiers = Modifiers;
             SkillUpgrades.Clear(); // a new run starts with no skill upgrade (work order 017)
@@ -470,7 +473,8 @@ namespace Roguelike
             RecordEnd(how);
             BetweenRunsRunEnded(); // work order 029: what the run earned is kept, with the switch on
             PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null ? CurrentRoom.Order + 1 : 0,
-                                                      CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt);
+                                                      CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt,
+                                                      Modifiers.StatsAndTiers ? StatsLine() : null); // work order 050: her final stats
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
             if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null; // work order 017
@@ -479,6 +483,13 @@ namespace Roguelike
             FocusChoice.Clear();
             if (_health != null) _health.RefreshMax();
             Debug.Log("Run ended (" + how + "): " + line);
+        }
+
+        /// <summary>Her stats in one line (work order 050), for the recorder.</summary>
+        string StatsLine()
+        {
+            FeelValues f = _player != null ? _player.Feel : new FeelValues();
+            return Modifiers.Stats.OneLine(f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery, _health != null ? _health.MaxHealth : 100);
         }
 
         string RoomWords() =>
@@ -553,6 +564,7 @@ namespace Roguelike
         {
             PickUpForAPick(ChoiceKind.FloorReward); // work order 042: its drop, if it lies, is picked up first
             if (Choice != ChoiceKind.FloorReward || index < 0 || index >= _offeredSkills.Count) return false;
+            CardPicked(index); // work order 045: its card flashes as it goes
             PlayerCharacter player = FindPlayer();
             int slot = _offeredSkills[index];
             player.EquipSkill(slot);
@@ -645,6 +657,7 @@ namespace Roguelike
         public bool PickUpgrade(int index)
         {
             if (Choice != ChoiceKind.Chest || index < 0 || index >= _offeredUpgrades.Count) return false;
+            CardPicked(index); // work order 045
             Upgrade u = _offeredUpgrades[index];
             Modifiers.Take(u);
             Record?.TakeUpgrade(u.Short);
@@ -654,7 +667,8 @@ namespace Roguelike
                 if (u.Heal > 0) _health.Heal(u.Heal);
             }
             PlaySessionRecorder.Current?.NoteChestOpened(Floor, _openChest != null ? _openChest.Room.Order : -1,
-                                                         _offeredUpgrades.Select(o => o.Short).ToList(), u.Short);
+                                                         _offeredUpgrades.Select(o => o.Short).ToList(), u.Short,
+                                                         u.Tiered ? u : null, u.Tiered ? StatsLine() : null); // work order 050: its stat, tier and size, and her stats after
             _openChest = null;
             CloseChoice();
             return true;
@@ -696,6 +710,7 @@ namespace Roguelike
         {
             PickUpForAPick(ChoiceKind.SkillUpgrade); // work order 042: its drop, if it lies, is picked up first
             if (Choice != ChoiceKind.SkillUpgrade || index < 0 || index >= _offeredSkillUpgrades.Count) return false;
+            CardPicked(index); // work order 045
             SkillUpgradeDefinition u = _offeredSkillUpgrades[index];
             SkillUpgrades.Take(u);
             Record?.TakeSkillUpgrade(u.FullName);
@@ -979,15 +994,17 @@ namespace Roguelike
             float viewWidth = Screen.width / scale;
             float x = viewWidth - width - 10f;
             // The developer's box: shown or not, and how far down, as the HUD says (work order 018: F1); as before without one.
+            bool kinetic = InterfaceStyle.Kinetic; // work order 045: in the interface's skin (GeneratedLevelsKinetic.cs)
             if (inLevel)
             {
                 if (ShowDevBox) // the status text is built only when it is shown (work order 026)
                 {
                     string text = StatusText();
                     int lines = text.Split('\n').Length;
-                    GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, _style);
+                    GUI.Box(new Rect(x, DevBoxTop, width, 12 + lines * 15), text, DevBoxStyle());
                 }
-                DrawChestPrompt(scale);
+                if (kinetic) DrawChestPromptKinetic();
+                else DrawChestPrompt(scale);
             }
             else if (ShowDevBox)
             {
@@ -996,15 +1013,32 @@ namespace Roguelike
                             + "\n" + CasterKey + " caster" // work order 034: its own line, the line above being full
                             + "\n" + PracticeFocusLine() // work order 025
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
-                GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, _style);
+                GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, DevBoxStyle());
             }
-            if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
+            if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge
+            else if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
+            else if (Notice.Length > 0 && kinetic) DrawNoticeKinetic();
             else if (Notice.Length > 0)
             {
                 if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
                 GUI.Box(new Rect((viewWidth - 460f) * 0.5f, SkillBar.LayoutHeight * 0.3f, 460f, 30f), Notice, _promptStyle);
             }
+            if (kinetic) DrawPickFlash();
             GUI.matrix = matrixBefore;
+        }
+
+        /// <summary>A card's tier as its coloured edge (work order 050): white common, teal rare, gold epic.</summary>
+        static void TierEdge(Rect r, UpgradeTier tier)
+        {
+            float[] c = UpgradeTiers.Rgb(tier);
+            Color before = GUI.color;
+            GUI.color = new Color(c[0], c[1], c[2], before.a);
+            const float t = 3f;
+            GUI.DrawTexture(new Rect(r.x, r.y, r.width, t), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(r.x, r.yMax - t, r.width, t), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(r.x, r.y, t, r.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(r.xMax - t, r.y, t, r.height), Texture2D.whiteTexture);
+            GUI.color = before;
         }
 
         /// <summary>A small prompt over the chest she can open (work order 012).</summary>
@@ -1067,9 +1101,13 @@ namespace Roguelike
                 }
                 else
                 {
-                    text = string.Format(s_Inv, "{0}   {1}", i + 1, _offeredUpgrades[i].Text);
+                    Upgrade up = _offeredUpgrades[i]; // work order 050: a tiered card says its tier first
+                    text = string.Format(s_Inv, "{0}   {1}", i + 1, up.Tiered ? up.TierWord.ToUpperInvariant() + "   " + up.Text : up.Text);
                 }
-                if (GUI.Button(new Rect(left + 10f, top + 32f + i * (rowHeight + 6f), width - 20f, rowHeight), text, _choiceStyle))
+                var card = new Rect(left + 10f, top + 32f + i * (rowHeight + 6f), width - 20f, rowHeight);
+                bool picked = GUI.Button(card, text, _choiceStyle);
+                if (!reward && !skillUpgrade && _offeredUpgrades[i].Tiered) TierEdge(card, _offeredUpgrades[i].Tier); // work order 050
+                if (picked)
                 {
                     if (reward) PickReward(i);
                     else if (skillUpgrade) PickSkillUpgrade(i);

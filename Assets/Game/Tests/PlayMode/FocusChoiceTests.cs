@@ -56,6 +56,7 @@ namespace Roguelike.PlayModeTests
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _a.SetMaxHealth(1000000);
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.StatsAndTiers = false; // work order 050: the Mend test sets today's chest table, which the tiered offer does not read
             _reports.Clear();
             _reportTimes.Clear();
             _player.Reported += r => { _reports.Add(r); _reportTimes.Add(Time.time); };

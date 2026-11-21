@@ -14,9 +14,10 @@ namespace Roguelike
     /// bright when full, and green with "PRIMED" and the seconds left while a priming waits; Steady Hand's one bar, its
     /// window running down on it in the empowered colour with "STEADY HAND" and the seconds left.
     /// Grey-box UI, drawn with IMGUI.
-    /// It is laid out for a view 720 pixels high and scaled to the real height.
+    /// It is laid out for a view 720 pixels high and scaled to the real height. With the interface's kinetic skin on
+    /// (work order 045) it draws the strip and the strokes at her feet instead (SkillBarKinetic.cs).
     /// </summary>
-    public sealed class SkillBar : MonoBehaviour
+    public sealed partial class SkillBar : MonoBehaviour
     {
         const float BoxWidth = 112f;
         const float BoxHeight = 60f;
@@ -57,6 +58,11 @@ namespace Roguelike
             {
                 _box = new GUIStyle(GUI.skin.box) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
                 _label = new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
+            }
+            if (InterfaceStyle.Kinetic)
+            {
+                DrawKinetic(); // work order 045: the strip and the strokes at her feet (SkillBarKinetic.cs)
+                return;
             }
 
             float scale = Screen.height / LayoutHeight;

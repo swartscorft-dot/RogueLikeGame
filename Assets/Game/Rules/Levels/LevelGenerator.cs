@@ -89,9 +89,13 @@ namespace Roguelike.Rules
         // themes and seven new props, on that branch; 9: work order 034, the two lines merged (the capped mixes, the
         // casters behind LevelValues.Casters, off by default, and the themes on).
         // 10: work order 041, the floor in one row (LevelValues.InALine, on; off, every seed's floor is version 9's).
-        // 11: work order 046, a fifth combat room in the row (LevelPlan.MoreCombatRooms, 1; 0, every seed's floor is
-        // version 10's).
-        public const int Version = 11;
+        // 11: two versions at once: work order 044, the rooms' mood (LevelValues.RoomMood, on): an ossuary's skull and bone
+        // piles banked at its far wall, from the props' own draws; every other room of every seed is version 10's, and with
+        // it off every floor is; and on another branch work order 046, a fifth combat room in the row
+        // (LevelPlan.MoreCombatRooms, 1; 0, every seed's floor is version 10's).
+        // 12: the two merged (the night of 2026-11-20 to 21): the fifth combat room and the mood. With MoreCombatRooms 0
+        // every floor is 044's version 11's; with RoomMood off too, version 10's.
+        public const int Version = 12;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string LayoutStage = "layout";

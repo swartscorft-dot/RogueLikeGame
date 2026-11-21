@@ -61,6 +61,7 @@ namespace Roguelike.PlayModeTests
             Enemy.Turns.Values = new TurnValues { Shared = false };
             Enemy.Turns.Clear();
             _levels = GeneratedLevels.Ensure();
+            _levels.RunValues.StatsAndTiers = false; // work order 050: the chest's heal test leans on today's offer (no Mend in it)
             _player.Teleport(Stand);
             yield return null;
         }

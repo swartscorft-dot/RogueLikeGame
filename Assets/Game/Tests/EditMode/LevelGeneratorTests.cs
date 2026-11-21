@@ -241,26 +241,27 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 11 makes with its defaults (work order 046, the night of 2026-11-20:
-        // five combat rooms in the row, LevelPlan.MoreCombatRooms 1; work order 041: the floor in one row, LevelValues.InALine
-        // on, the treasure rooms between the combat rooms; the themes on and the casters off). The four combat rooms of
-        // version 10 hold the groups their namesakes hold in the version 9 maps below, the fifth, after the elite room, its
-        // own. A change that changes them must raise LevelGenerator.Version and paste the new maps here, on purpose.
+        // These maps are what the generator of version 12 makes with its defaults (the night of 2026-11-20 to 21, work
+        // orders 044 and 046 merged: five combat rooms in the row, LevelPlan.MoreCombatRooms 1, the fifth's enemies on their
+        // own stream; the rooms' mood on, each ossuary's skull and bone piles banked at its far wall; work order 041: the
+        // floor in one row; the themes on and the casters off). The four combat rooms of version 10 hold the groups their
+        // namesakes hold in the version 9 maps below, the fifth, after the elite room, its own. A change that changes them
+        // must raise LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 11  9 rooms  57 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 12  9 rooms  57 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
                               +-+-+-+-+-+-+-+-+-+
                               |C5      u  |T6k  |
                   +-+-+-+-+-+-+           +   i +
-                  |L4    ^    |   B           $ |
-                  +  h^ e     +           +   i +
-                  | ~         |           |     |
+                  |L4  ^~^    |   B           $ |
+                  +u h  e     +           +   i +
+                  |           |           |     |
                   +      p    +           +-+ +-+-+-+
-                  |  ~ p                  |C7       |
+                  |    p                  |C7       |
                   +q     : B  + :       hk+         +
                   |           |      p   i|  #    # |
                   +           +    %    p +         +
-                  |u          |           | p       |
+                  |           |           | p       |
                   +-+-+-+ +-+-+-+-+-+-+-+-+    B    +
                       |T3   |             |  #   o  |
                       +  $  +             +      *  +
@@ -283,17 +284,17 @@ namespace Roguelike.Rules.Tests
                                   |              #|
                                   +-+-+-+-+-+-+-+-+
 ",
-            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 11  9 rooms  94 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 12  9 rooms  94 enemies  104 x 64 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, C5 archive, T6 vault, C7 shrine, X8 throne room
                               +-+-+-+-+-+-+-+-+-+
                               |C5      u  |T6   |
                   +-+-+-+-+-+-+         p +   i +
-                  |L4         |   g           $ |
-                  +u H  e^    +           +   i +
-                  |   ~     p |           |     |
-                  +  ~   B    +     p     +-+ +-+-+-+
-                  |    b ^                |C7       |
-                  +q p     g  + :       Hk+        B+
-                  |         : |      B   i|  #      |
+                  |L4  ^~^    |   g           $ |
+                  +u H  e     +           +   i +
+                  |         p |           |     |
+                  +      B    +     p     +-+ +-+-+-+
+                  |    b                  |C7       |
+                  +q p   : g  + :       Hk+        B+
+                  |           |      B   i|  #      |
                   +           +    %    b +     p # +
                   |           |           | b       |
                   +-+-+-+ +-+-+-+-+-+-+-+-+    g    +
@@ -318,7 +319,7 @@ namespace Roguelike.Rules.Tests
                                   |               |
                                   +-+-+-+-+-+-+-+-+
 ",
-            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 11  9 rooms  58 enemies  68 x 108 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, C5 shrine, T6 vault, C7 archive, X8 throne room
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 12  9 rooms  58 enemies  68 x 108 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, C5 shrine, T6 vault, C7 archive, X8 throne room
                 +-+-+-+-+-+-+-+-+
                 |X8    oYo      |
                 + #    h      # +
@@ -365,17 +366,17 @@ namespace Roguelike.Rules.Tests
 |L4 q       |     |C2        &|
 +     p   e +     +           +
 |h          |     |  #       !|
-+   p ~     +-+-+-+     =  =  +
-|      ~    |T3 uk|           |
-+    ^      +     +  p        +
-|       ~ ~   $               |
-+ :         +     +   [b =    +
++   p       +-+-+-+     =  =  +
+|~          |T3 uk|           |
++~       :  +     +  p        +
+|^            $               |
++           +     +   [b =    +
 |           |     | h      p !|
 +           +-+-+-+#          +
 |u    b     |     |    !      |
 +-+-+-+-+-+-+     +-+-+-+-+-+-+
 ",
-            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 11  9 rooms  96 enemies  68 x 108 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, C5 shrine, T6 vault, C7 archive, X8 throne room
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 12  9 rooms  96 enemies  68 x 108 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, C5 shrine, T6 vault, C7 archive, X8 throne room
                 +-+-+-+-+-+-+-+-+
                 |X8  H  oYo     |
                 + #    H      # +
@@ -421,12 +422,12 @@ namespace Roguelike.Rules.Tests
 +-+-+-+ +-+-+-+   +-+-+-+ +-+-+-+
 |L4 q      g|     |C2        &|
 +     B     +     +       #   +
-|e      ^   |     |          !|
-+   b ~     +-+-+-+  [ = B    +
-|      ~    |T3 uk|         p |
-+     p     +     +  b        +
-|       ~ ~   $               |
-+ : p       +     +    g =   =+
+|e          |     |          !|
++   b  :    +-+-+-+  [ = B    +
+|~          |T3 uk|         p |
++~    p     +     +  b        +
+|^            $               |
++   p       +     +    g =   =+
 |           |     | H      p  |
 +   H       +-+-+-+#          +
 |u          |     |    ! !    |
@@ -434,8 +435,206 @@ namespace Roguelike.Rules.Tests
 ",
         };
 
-        // Version 10's maps (work order 041, 2026-11-20: the floor in one row, four combat rooms), which version 11 makes
-        // with LevelPlan.MoreCombatRooms 0 (work order 046), but for the version number.
+        // Work order 044's version 11 maps (four combat rooms, the rooms' mood on), which version 12 makes with
+        // LevelPlan.MoreCombatRooms 0, but for the version number.
+        static readonly Dictionary<string, string> GoldenVersion11 = new Dictionary<string, string>
+        {
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 11  8 rooms  48 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
+                                    +-+-+-+-+-+-+-+-+
+                                    |X7     oYo     |
+                                    + #           # +
+                                    |               |
+                                    +               +
+                                    |               |
+                                    +   B    H      +
+                                    |               |
+                                    +               +
+                                    |               |
+                                    +        p      +
+                                    |               |
+                                    +      p        +
+                                    |               |
+                                    + #           # +
+                                    |               |
+                                    +-+ +-+-+-+-+-+-+
+                                    |C6     ukik|
+                                    +          i+
+                                    |        p  |
+                  +-+-+-+-+-+-+     +           +
+                  |L4  ^~^    |     |k          |
+                  +u h  e     +-+-+-+           +
+                  |           |T5  u|           |
+                  +      p    +     +       :   +
+                  |    p          $             |
+                  +q     : B  +     +           +
+                  |           |     |           |
+                  +           +-+-+-+          h+
+                  |           |     |     B   u |
+                  +-+-+-+ +-+-+     +-+-+-+-+-+-+
+                      |T3   |
+                      +  $  +
+                      |u    |
+                      +k    +
+                      |i   k|
++-+-+-+-+-+-+-+-+-+-+-+-+ +-+-+-+-+
+|E0    *|C1         |C2           |
++       +    %      +    p  #h    +
+|              p                p |
++   @   +           +   #        i+
+|       |          B|          o A|
++      *+i         u+        #   i+
+|       |k          |    b        |
++-+-+-+-+         : +     #       +
+        |           |             |
+        +    h      +-+-+-+-+-+-+-+
+        |          k|
+        +-+-+-+-+-+-+
+",
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 11  8 rooms  80 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
+                                    +-+-+-+-+-+-+-+-+
+                                    |X7     oYo   # |
+                                    + #             +
+                                    |  H          p |
+                                    +               +
+                                    |               |
+                                    +   B    H      +
+                                    |               |
+                                    +       G       +
+                                    |               |
+                                    +        B      +
+                                    |               |
+                                    +      p        +
+                                    |               |
+                                    + #           p +
+                                    |              #|
+                                    +-+ +-+-+-+-+-+-+
+                                    |C6     ukik|
+                                    +          i+
+                                    |     p  B  |
+                  +-+-+-+-+-+-+     +           +
+                  |L4  ^~^    |     |k          |
+                  +u H  e     +-+-+-+           +
+                  |         p |T5ik |        p  |
+                  +      B    +     +           +
+                  |    b          $             |
+                  +q p   : g  +     +     b :   +
+                  |           |  u  |           |
+                  +           +-+-+-+        % H+
+                  |           |     |    ug     |
+                  +-+-+-+ +-+-+     +-+-+-+-+-+-+
+                      |T3   |
+                      +  $ k+
+                      |u    |
+                      +k    +
+                      |i    |
++-+-+-+-+-+-+-+-+-+-+-+-+ +-+-+-+-+
+|E0    *|C1         |C2           |
++       +           +    b  #H    +
+|           b  B                p |
++   @   +           +   #        i+
+|       |          g|          o A|
++      *+i         u+        #   i+
+|       |k  p       |    B        |
++-+-+-+-+         p +     #  p    +
+        |       :   |             |
+        +    H      +-+-+-+-+-+-+-+
+        | %        k|
+        +-+-+-+-+-+-+
+",
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 11  8 rooms  49 enemies  100 x 84 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, T5 archive, C6 shrine, X7 throne room
++-+-+-+-+-+-+-+-+
+|X7     oYoh    |
++ #           # +
+|               |
++        p      +
+|               |
++          b    +
+|               |
++               +                         +-+-+-+-+
+|               |                         |E0     |
++               +-+-+-+-+-+-+-+           +       +
+|               |C6   *A*     |           |       |
++   B p         +             +           +   @   +
+|                   #  o      |           |       |
++ #           # +   H      #  +           +       +
+|               |      p      |           |*    * |
++-+-+-+-+-+-+-+-+             +       +-+-+-+ +-+-+
+                |   p         |       |C1       |
+                +        b    +       +         +
+                |             |       |        :|
+                + #    #    # +       + p       +
+                |             |       |         |
+                +             +       +       % +
+                |             |       |         |
+                +-+-+-+ +-+-+-+       +  b      +
+                    |T5   |           |       p |
+                    +i $ k+           +u        +
+                    |k    |           |k    h   |
+                    +u    +           +         +
+                    |     |           |         |
+                +-+-+-+ +-+-+     +-+-+-+ +-+-+-+
+                |L4 q       |     |C2        &|
+                +     p   e +     +           +
+                |h          |     |  #       !|
+                +   p       +-+-+-+     =  =  +
+                |~          |T3 uk|           |
+                +~       :  +     +  p        +
+                |^            $               |
+                +           +     +   [b =    +
+                |           |     | h      p !|
+                +           +-+-+-+#          +
+                |u    b     |     |    !      |
+                +-+-+-+-+-+-+     +-+-+-+-+-+-+
+",
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 11  8 rooms  80 enemies  100 x 84 m  themes C1 archive, C2 tomb hall, T3 archive, L4 ossuary, T5 archive, C6 shrine, X7 throne room
++-+-+-+-+-+-+-+-+
+|X7    oYo H    |
++ #           # +
+|               |
++        B      +
+|     p         |
++          g    +
+|               |
++       G       +                         +-+-+-+-+
+|    p          |                         |E0     |
++          p    +-+-+-+-+-+-+-+           +       +
+|               |C6   *A*     |           |       |
++   H B         +             +           +   @   +
+|                   #  o      |           |       |
++ #           # +   H      #  +           +       +
+|               |      b      |           |*    * |
++-+-+-+-+-+-+-+-+          p  +       +-+-+-+ +-+-+
+                |   p         |       |C1       |
+                +        B    +       +         +
+                |             |       |        :|
+                + #    #    # +       + p       +
+                |             |       |         |
+                +             +       +    p  % +
+                |             |       |        k|
+                +-+-+-+ +-+-+-+       +  B      +
+                    |T5   |           |         |
+                    +i $ k+           +u       b+
+                    |k    |           |     H   |
+                    +u    +           +         +
+                    |     |           |         |
+                +-+-+-+ +-+-+     +-+-+-+ +-+-+-+
+                |L4 q      g|     |C2        &|
+                +     B     +     +       #   +
+                |e          |     |          !|
+                +   b  :    +-+-+-+  [ = B    +
+                |~          |T3 uk|         p |
+                +~    p     +     +  b        +
+                |^            $               |
+                +   p       +     +    g =   =+
+                |           |     | H      p  |
+                +   H       +-+-+-+#          +
+                |u          |     |    ! !    |
+                +-+-+-+-+-+-+     +-+-+-+-+-+-+
+",
+        };
+
+        // Version 10's maps (work order 041, 2026-11-20: the floor in one row, four combat rooms, no mood), which version 12
+        // makes with LevelPlan.MoreCombatRooms 0 and LevelValues.RoomMood off, but for the version number.
         static readonly Dictionary<string, string> GoldenVersion10 = new Dictionary<string, string>
         {
             ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 10  8 rooms  48 enemies  104 x 96 m  themes C1 archive, C2 shrine, T3 archive, L4 ossuary, T5 archive, C6 archive, X7 throne room
@@ -1137,7 +1336,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(11), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(12), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor));
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN " + key + "\n" + map);
@@ -1145,22 +1344,37 @@ namespace Roguelike.Rules.Tests
             Assert.That(map, Is.EqualTo(Golden[key].Replace("\r\n", "\n")), "map of seed " + key + "\n" + map);
         }
 
-        // Work order 046: with four combat rooms (LevelPlan.MoreCombatRooms 0) the floor is version 10's, so the maps are
-        // version 10's, but for the version number.
+        // Work order 046 with 044 (version 12): with four combat rooms (LevelPlan.MoreCombatRooms 0) the floor is 044's
+        // version 11's, so the maps are, but for the version number; and with the mood off too, version 10's.
         [TestCase("WALKTHRU", 1)]
         [TestCase("WALKTHRU", 5)]
         [TestCase("RUNNER42", 1)]
         [TestCase("RUNNER42", 5)]
-        public void GoldenSeeds_WithFourCombatRooms_KeepVersion10sMaps(string seedText, int floor)
+        public void GoldenSeeds_WithFourCombatRooms_KeepVersion11sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
             var four = new LevelValues();
             four.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, four);
             Assert.That(level.Rooms.Count(r => r.Kind == RoomKind.Combat), Is.EqualTo(4));
+            string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 11 ");
+            string key = seedText + "/" + floor;
+            Assert.That(map, Is.EqualTo(GoldenVersion11[key].Replace("\r\n", "\n")), "map of seed " + key + " with four combat rooms\n" + map);
+        }
+
+        [TestCase("WALKTHRU", 1)]
+        [TestCase("WALKTHRU", 5)]
+        [TestCase("RUNNER42", 1)]
+        [TestCase("RUNNER42", 5)]
+        public void GoldenSeeds_WithFourCombatRoomsAndNoMood_KeepVersion10sMaps(string seedText, int floor)
+        {
+            Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
+            var bare = new LevelValues { RoomMood = false };
+            bare.Plan.MoreCombatRooms = 0;
+            LevelLayout level = LevelGenerator.Generate(seed, floor, bare);
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 10 ");
             string key = seedText + "/" + floor;
-            Assert.That(map, Is.EqualTo(GoldenVersion10[key].Replace("\r\n", "\n")), "map of seed " + key + " with four combat rooms\n" + map);
+            Assert.That(map, Is.EqualTo(GoldenVersion10[key].Replace("\r\n", "\n")), "map of seed " + key + " with four combat rooms and no mood\n" + map);
         }
 
         // Work order 041: with the line off, the floor is version 9's, so the maps are version 9's, but for the version number.
@@ -1171,7 +1385,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheLineOff_KeepVersion9sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false }); // work order 044: version 9 had no mood
             Assert.That(level.InALine, Is.False);
             Assert.That(level.Version, Is.EqualTo(LevelGenerator.Version));
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
@@ -1203,7 +1417,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithCastersOn_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false, RoomMood = false }); // work order 044: version 9 had no mood
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN CASTERS " + key + "\n" + map);

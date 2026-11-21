@@ -93,6 +93,8 @@ namespace Roguelike
         public bool Late;             // RecastPressed: not clean, and after the clean part of its window (it comes early now)
         // Work order 043.
         public DuckEnd DuckEnd;       // DuckEnded: how the duck ended
+        // Work order 050.
+        public bool Crit;             // Hit: the hit was a crit (rolled, or a clean press's or a perfect release's)
     }
 
     /// <summary>
