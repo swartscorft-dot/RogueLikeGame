@@ -339,7 +339,24 @@ namespace Roguelike.PlayModeTests
             Assert.That(boss, Is.Not.Null, "the act boss");
             LevelRoom exit = level.Layout.ExitRoom;
             double cs = level.Layout.CellSize;
-            _player.Teleport(level.ToWorld(new LevelPoint(exit.Rect.X * cs + 2.5, exit.Rect.Y * cs + 2.5)));
+            // Changed deliberately (work order 051): the south-west corner 2.5 m in, or, when the room's outline is carved there,
+            // the middle of its open cell nearest that corner.
+            var corner = new LevelPoint(exit.Rect.X * cs + 2.5, exit.Rect.Y * cs + 2.5);
+            if (level.Layout.RoomAt(corner.X, corner.Y) != exit)
+            {
+                double best = double.MaxValue;
+                for (int x = exit.Rect.X; x < exit.Rect.Right; x++)
+                    for (int y = exit.Rect.Y; y < exit.Rect.Top; y++)
+                    {
+                        var mid = new LevelPoint((x + 0.5) * cs, (y + 0.5) * cs);
+                        if (exit.IsOpen(x, y) && mid.DistanceTo(corner) < best)
+                        {
+                            best = mid.DistanceTo(corner);
+                            corner = mid;
+                        }
+                    }
+            }
+            _player.Teleport(level.ToWorld(corner));
             yield return Frames(() => _levels.CurrentRoom == exit);
             Assert.That(_levels.CurrentRoom, Is.SameAs(exit), "in the boss's room");
 

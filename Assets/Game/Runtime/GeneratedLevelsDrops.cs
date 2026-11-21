@@ -356,6 +356,8 @@ namespace Roguelike
             if (room == null) return false;
             // Every prop's footprint, also one low enough to be in the NavMesh, or with no collider.
             LevelPoint at = _level.ToLevel(w);
+            // Work order 051: on an open cell (RoomAt answers no room for a carved one) and clear of the carved walls as of the others.
+            if (RoomShapes.NearSolid(room, at, _level.Layout.CellSize, DropValues.Clearance + _level.Values.WallThickness * 0.5f)) return false;
             foreach (LevelProp prop in room.Props)
                 if (prop.Footprint.DistanceTo(at) < DropValues.Clearance) return false;
             if (!NavMesh.SamplePosition(w, out NavMeshHit hit, 0.6f, NavMesh.AllAreas)) return false;

@@ -19,7 +19,9 @@ namespace Roguelike.Rules.Tests
         static LevelLayout Make(ulong seed, int propsWarmUp = 0) => LevelGenerator.Generate(seed, new LevelValues(), 0, propsWarmUp);
 
         /// <summary>Work order 028: with the room themes off, the rooms are dressed as before them; the sets of work order 009 are tested so.</summary>
-        static LevelLayout MakeWithoutThemes(ulong seed) => LevelGenerator.Generate(seed, new LevelValues { Themes = false });
+        // Work order 051: and with the rooms' carved outlines off, as the sets were made for the rectangles (a cross or an
+        // octagon takes the exit room's corners, where its four pillars stood).
+        static LevelLayout MakeWithoutThemes(ulong seed) => LevelGenerator.Generate(seed, new LevelValues { Themes = false, Shapes = false });
 
         static int PropCount(LevelLayout l) => l.Rooms.Sum(r => r.Props.Count);
 

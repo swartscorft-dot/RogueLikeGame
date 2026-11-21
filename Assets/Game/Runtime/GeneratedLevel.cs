@@ -40,6 +40,12 @@ namespace Roguelike
     /// changes: the boxes keep their colliders, cover, shelter and layer, and no piece has a collider. Off, the grey
     /// boxes show as before.
     ///
+    /// Rooms that are not boxes (work order 051, <see cref="LevelValues.Shapes"/>): the walls ask
+    /// <see cref="LevelLayout.RoomAtCell"/>, which answers no room for a carved cell, so a carved cell gets walls on its open
+    /// sides (and the kit's piers at their corners) by the same rule as the floor's outline; the floor is a box per rectangle
+    /// of a room's open cells, none under a carved cell, so the NavMesh never covers one; a carved group walled in on every
+    /// side gets a dark top at the walls' height (<see cref="BuildSolidCaps"/>), so nothing shows through it.
+    ///
     /// Positions: the level's ground point (x, y) in metres is the world point (x, 0, y) moved so that the start
     /// room's middle lands on (<see cref="LevelValues.OffsetX"/>, 0, <see cref="LevelValues.OffsetZ"/>).
     /// </summary>
@@ -84,12 +90,29 @@ namespace Roguelike
         readonly List<PlacedGroup> _groups = new List<PlacedGroup>();
         readonly List<Material> _materials = new List<Material>();
         readonly List<GameObject> _floorBoxes = new List<GameObject>();
+        readonly List<LevelRoom> _floorRooms = new List<LevelRoom>();   // work order 051: the room of each floor box
+        readonly List<CellRect> _floorRects = new List<CellRect>();     // and its cells
+        readonly List<GameObject> _solidCaps = new List<GameObject>();  // work order 051
+        GameObject _capRoot;
+        /// <summary>How thick a carved cell's top is, in metres (work order 051).</summary>
+        public const float CapThickness = 0.2f;
+        /// <summary>The dark of a carved cell's top under the crypt kit (work order 051): as dark as the outside of the floor.</summary>
+        public static readonly Color CapTint = new Color(0.07f, 0.065f, 0.06f);
         readonly List<GameObject> _wallBoxes = new List<GameObject>();
         readonly List<KitPiece> _kitPieces = new List<KitPiece>();
         Vector3 _shift;
 
-        /// <summary>The floor boxes, one per room in the order of the rooms.</summary>
+        /// <summary>
+        /// The floor boxes, one per room in the order of the rooms; work order 051: then a carved room's other boxes, one for
+        /// each rectangle of its open cells (<see cref="FloorRoomOf"/>, <see cref="FloorCellsOf"/>).
+        /// </summary>
         public IReadOnlyList<GameObject> FloorBoxes => _floorBoxes;
+        /// <summary>The room a floor box (by its place in <see cref="FloorBoxes"/>) is a floor of (work order 051).</summary>
+        public LevelRoom FloorRoomOf(int box) => _floorRooms[box];
+        /// <summary>The cells a floor box covers (work order 051).</summary>
+        public CellRect FloorCellsOf(int box) => _floorRects[box];
+        /// <summary>The tops of the carved cells walled in on all sides (work order 051, <see cref="BuildSolidCaps"/>): no collider, on the kit's layer.</summary>
+        public IReadOnlyList<GameObject> SolidCaps => _solidCaps;
         /// <summary>The wall boxes, full and low, in the order they were built.</summary>
         public IReadOnlyList<GameObject> WallBoxes => _wallBoxes;
         /// <summary>Where the crypt kit's pieces go (work order 016); null with the kit off.</summary>
@@ -198,20 +221,85 @@ namespace Roguelike
             };
             Material elite = null;
             float cs = Layout.CellSize;
-            foreach (LevelRoom room in Layout.Rooms)
+            // Work order 051: a box per rectangle of a room's open cells (RoomShapes.OpenRects), so no floor lies under a carved
+            // cell; each room's first box in the order of the rooms, the others after them all. A room with no carved cell has
+            // its one box, as before.
+            var more = new List<(LevelRoom room, CellRect rect, int k)>();
+            GameObject Box(LevelRoom room, CellRect rect, string name)
             {
                 GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                floor.name = "Floor_" + room.Letter + room.Order;
+                floor.name = name;
                 floor.transform.SetParent(transform, false);
-                Vector3 middle = Middle(room);
+                Vector3 middle = ToWorld(new LevelPoint((rect.X + rect.Width * 0.5) * cs, (rect.Y + rect.Height * 0.5) * cs));
                 floor.transform.position = new Vector3(middle.x, -Values.FloorThickness * 0.5f, middle.z);
-                floor.transform.localScale = new Vector3(room.Rect.Width * cs, Values.FloorThickness, room.Rect.Height * cs);
+                floor.transform.localScale = new Vector3(rect.Width * cs, Values.FloorThickness, rect.Height * cs);
                 floor.GetComponent<Renderer>().sharedMaterial = room.Elite
                     ? elite != null ? elite : elite = Tinted(baseMaterial, EliteTint, "LevelFloor_Elite")
                     : tints[room.Kind];
                 _floorBoxes.Add(floor);
+                _floorRooms.Add(room);
+                _floorRects.Add(rect);
                 Floors++;
+                return floor;
             }
+            foreach (LevelRoom room in Layout.Rooms)
+            {
+                List<CellRect> rects = RoomShapes.OpenRects(room);
+                Box(room, rects[0], "Floor_" + room.Letter + room.Order);
+                for (int k = 1; k < rects.Count; k++) more.Add((room, rects[k], k));
+            }
+            foreach ((LevelRoom room, CellRect rect, int k) in more) Box(room, rect, "Floor_" + room.Letter + room.Order + "_" + k);
+        }
+
+        /// <summary>
+        /// The tops of the carved cells (work order 051): every group of solid cells walled in on all sides (no side of it open
+        /// to the dark outside the floor) gets a flat top at the walls' height over each cell, so nothing shows through the
+        /// hollow its walls leave; a group open to the outside is the outside, as the rest of the floor's outline. No collider:
+        /// the walls round a carved cell stop her and her shots, and no floor lies under it, so the NavMesh has none there.
+        /// </summary>
+        void BuildSolidCaps(Material material)
+        {
+            float cs = Layout.CellSize;
+            var seen = new HashSet<(int, int)>();
+            foreach (LevelRoom room in Layout.Rooms)
+                foreach ((int sx, int sy) in room.SolidList)
+                {
+                    if (seen.Contains((sx, sy))) continue;
+                    var group = new List<(int, int)>();
+                    var queue = new Queue<(int, int)>();
+                    bool open = false;
+                    seen.Add((sx, sy));
+                    queue.Enqueue((sx, sy));
+                    while (queue.Count > 0)
+                    {
+                        (int x, int y) = queue.Dequeue();
+                        group.Add((x, y));
+                        foreach ((int dx, int dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                        {
+                            int nx = x + dx, ny = y + dy;
+                            if (Layout.RoomRectAtCell(nx, ny) == null) open = true;
+                            else if (Layout.IsSolidCell(nx, ny) && seen.Add((nx, ny))) queue.Enqueue((nx, ny));
+                        }
+                    }
+                    if (open) continue;
+                    if (_capRoot == null)
+                    {
+                        _capRoot = new GameObject("SolidCaps") { layer = CryptKit.Layer };
+                        _capRoot.transform.SetParent(transform, false);
+                    }
+                    foreach ((int x, int y) in group)
+                    {
+                        GameObject cap = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        DestroyImmediate(cap.GetComponent<Collider>());
+                        cap.name = "SolidCap_" + x + "_" + y;
+                        cap.layer = CryptKit.Layer;
+                        cap.transform.SetParent(_capRoot.transform, false);
+                        cap.transform.position = ToWorld(new LevelPoint((x + 0.5) * cs, (y + 0.5) * cs)) + Vector3.up * (Values.WallHeight - CapThickness * 0.5f);
+                        cap.transform.localScale = new Vector3(cs, CapThickness, cs);
+                        cap.GetComponent<Renderer>().sharedMaterial = material;
+                        _solidCaps.Add(cap);
+                    }
+                }
         }
 
         /// <summary>
@@ -266,6 +354,7 @@ namespace Roguelike
                     }
                 }
             }
+            BuildSolidCaps(wallMaterial); // work order 051
         }
 
         /// <summary>A wall on a line from one cell boundary to another, a little longer at both ends so corners close.</summary>
@@ -416,9 +505,9 @@ namespace Roguelike
             // The elite room's floor has its own faint tint (work order 017), its kind's texture.
             var floorMaterials = new Dictionary<(RoomKind, bool), Material>();
             var block = new MaterialPropertyBlock();
-            for (int i = 0; i < _floorBoxes.Count && i < Layout.Rooms.Count; i++)
+            for (int i = 0; i < _floorBoxes.Count; i++)
             {
-                LevelRoom room = Layout.Rooms[i];
+                LevelRoom room = _floorRooms[i]; // work order 051: a carved room has a box per rectangle of its open cells
                 if (!floorMaterials.TryGetValue((room.Kind, room.Elite), out Material m))
                 {
                     floorMaterials[(room.Kind, room.Elite)] = m = CryptKit.MakeFloorMaterial(room.Kind, v, room.Elite);
@@ -427,11 +516,18 @@ namespace Roguelike
                 Renderer r = _floorBoxes[i].GetComponent<Renderer>();
                 r.sharedMaterial = m;
                 float tile = v.FloorTile > 1e-3f ? v.FloorTile : cs;
-                float w = room.Rect.Width * cs / tile, d = room.Rect.Height * cs / tile;
+                float w = _floorRects[i].Width * cs / tile, d = _floorRects[i].Height * cs / tile;
                 bool uAlongX = CryptKit.TopFaceUAlongX(_floorBoxes[i].GetComponent<MeshFilter>().sharedMesh);
                 block.Clear();
                 block.SetVector("_BaseMap_ST", uAlongX ? new Vector4(w, d, 0f, 0f) : new Vector4(d, w, 0f, 0f));
                 r.SetPropertyBlock(block);
+            }
+
+            // Work order 051: the carved cells' tops dark, as the outside of the floor.
+            if (_solidCaps.Count > 0)
+            {
+                Material dark = Tinted(null, CapTint, "LevelSolidCap");
+                foreach (GameObject cap in _solidCaps) cap.GetComponent<Renderer>().sharedMaterial = dark;
             }
 
             // The boxes stop showing; their colliders, cover and shelter stay.

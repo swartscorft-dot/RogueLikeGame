@@ -328,11 +328,13 @@ namespace Roguelike.Rules
             mr.LargeProps.Add(dais);
             mr.Raised.AddRange(carried);
             OnTheDais(g, dais);
-            // The carpet runs to the dais's front edge.
-            CompositionPiece carpet = mr.Pieces.FirstOrDefault(c => c.Kind == CompositionKind.Carpet);
+            // The carpet runs to the dais's front edge (work order 051: its last run, in a carved room it may bend on the way).
+            CompositionPiece carpet = mr.Pieces.LastOrDefault(c => c.Kind == CompositionKind.Carpet);
             if (carpet != null)
             {
+                LevelPoint was = carpet.To;
                 carpet.To = OnWall(side, along, g.Pv.WallFace + ds.Depth - 0.1, x0, x1, y0, y1);
+                if (RunOnCarved(room, carpet, cs)) carpet.To = was; // work order 051: never over a carved cell
                 if (carpet.At.DistanceTo(carpet.To) < 1) mr.Pieces.Remove(carpet);
             }
 

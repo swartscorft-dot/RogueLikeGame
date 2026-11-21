@@ -153,6 +153,88 @@ namespace Roguelike.Rules
 
         public LevelPoint Middle(double cellSize) =>
             new LevelPoint((Rect.X + Rect.Width * 0.5) * cellSize, (Rect.Y + Rect.Height * 0.5) * cellSize);
+
+        /// <summary>
+        /// The outline its rectangle is carved to (work order 051, <see cref="RoomShapes"/>): None for a room no shape was drawn
+        /// for (every room with <see cref="LevelValues.Shapes"/> off, and a hand-made layout). Its solid cells are
+        /// <see cref="IsSolid"/>; <see cref="LevelLayout.RoomAtCell"/> answers no room for them.
+        /// </summary>
+        public RoomShape Shape;
+        /// <summary>The generator's notes, not part of the level (work order 051): draws of its shape that broke a rule, and whether it fell back to its gate alone.</summary>
+        public int ShapeRedraws;
+        public bool ShapeFellBack;
+
+        bool[] _solid;
+        int _solidCount;
+        (int x, int y)[] _solidList;
+        CellRect _solidFor; // the rectangle the cells were marked in
+        /// <summary>What <see cref="RoomShapes"/> worked out of its solid cells (its carved faces), dropped when they change.</summary>
+        internal object ShapeCache;
+
+        /// <summary>The cell is in its rectangle and solid: carved out of the room (work order 051).</summary>
+        public bool IsSolid(int x, int y) =>
+            _solid != null && Rect.Contains(x, y) && _solidFor.Contains(x, y) && _solid[(y - _solidFor.Y) * _solidFor.Width + (x - _solidFor.X)];
+
+        /// <summary>The cell is in its rectangle and not solid: the room's floor.</summary>
+        public bool IsOpen(int x, int y) => Rect.Contains(x, y) && !IsSolid(x, y);
+
+        /// <summary>How many of its cells are solid.</summary>
+        public int SolidCount => _solidCount;
+
+        /// <summary>Its solid cells, south to north and west to east in each row.</summary>
+        public (int x, int y)[] SolidList
+        {
+            get
+            {
+                if (_solidList != null) return _solidList;
+                var list = new List<(int, int)>();
+                if (_solid != null)
+                    for (int y = Rect.Y; y < Rect.Top; y++)
+                        for (int x = Rect.X; x < Rect.Right; x++)
+                            if (IsSolid(x, y)) list.Add((x, y));
+                return _solidList = list.ToArray();
+            }
+        }
+
+        /// <summary>Makes a cell of its rectangle solid or open again (work order 051).</summary>
+        public void SetSolid(int x, int y, bool solid)
+        {
+            if (!Rect.Contains(x, y) || IsSolid(x, y) == solid) return;
+            if (_solid != null && !_solidFor.Equals(Rect))
+            {
+                // The rectangle was changed after its cells were marked: the marks are kept where it still has them.
+                bool[] old = _solid;
+                CellRect was = _solidFor;
+                _solid = new bool[Rect.Width * Rect.Height];
+                _solidFor = Rect;
+                _solidCount = 0;
+                for (int j = was.Y; j < was.Top; j++)
+                    for (int i = was.X; i < was.Right; i++)
+                        if (old[(j - was.Y) * was.Width + (i - was.X)] && Rect.Contains(i, j))
+                        {
+                            _solid[(j - Rect.Y) * Rect.Width + (i - Rect.X)] = true;
+                            _solidCount++;
+                        }
+            }
+            if (_solid == null)
+            {
+                _solid = new bool[Rect.Width * Rect.Height];
+                _solidFor = Rect;
+            }
+            _solid[(y - _solidFor.Y) * _solidFor.Width + (x - _solidFor.X)] = solid;
+            _solidCount += solid ? 1 : -1;
+            _solidList = null;
+            ShapeCache = null;
+        }
+
+        /// <summary>Every cell of its rectangle open again.</summary>
+        public void ClearSolid()
+        {
+            _solid = null;
+            _solidCount = 0;
+            _solidList = null;
+            ShapeCache = null;
+        }
     }
 
     /// <summary>
@@ -218,6 +300,11 @@ namespace Roguelike.Rules
         /// sides, as before. The validator reads the rules a floor keeps from it.
         /// </summary>
         public bool InALine;
+        /// <summary>
+        /// The rooms' outlines were carved (work order 051, <see cref="LevelValues.Shapes"/>, <see cref="RoomShapes"/>): each room
+        /// with a shape has its gate. False: every room is its rectangle, as before.
+        /// </summary>
+        public bool Shapes;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
 
@@ -245,13 +332,28 @@ namespace Roguelike.Rules
             }
         }
 
-        /// <summary>The room that has this cell, or null.</summary>
+        /// <summary>
+        /// The room that has this cell, or null: what is at a cell. Work order 051: null too for a cell carved out of a room
+        /// (<see cref="LevelRoom.IsSolid"/>), so whatever asks this (the walls, the kit, the text map, the places of everything)
+        /// follows the room's outline, not its rectangle.
+        /// </summary>
         public LevelRoom RoomAtCell(int x, int y)
+        {
+            foreach (LevelRoom r in Rooms)
+                if (r.Rect.Contains(x, y)) return r.IsSolid(x, y) ? null : r;
+            return null;
+        }
+
+        /// <summary>The room whose rectangle has this cell, solid or open, or null (work order 051).</summary>
+        public LevelRoom RoomRectAtCell(int x, int y)
         {
             foreach (LevelRoom r in Rooms)
                 if (r.Rect.Contains(x, y)) return r;
             return null;
         }
+
+        /// <summary>The cell is carved out of a room (work order 051).</summary>
+        public bool IsSolidCell(int x, int y) => RoomRectAtCell(x, y)?.IsSolid(x, y) ?? false;
 
         /// <summary>The room under this ground point (metres from the grid's corner), or null.</summary>
         public LevelRoom RoomAt(double x, double y) =>
@@ -297,10 +399,12 @@ namespace Roguelike.Rules
         {
             var sb = new StringBuilder();
             sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) floor {6} version {2} grid {3} cell {4:R} attempt {5}{7}\n",
-                            Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor, InALine ? " in a line" : ""); // work order 041
+                            Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor,
+                            (Shapes ? " carved" : "") + (InALine ? " in a line" : "")); // work orders 051 and 041
             foreach (LevelRoom r in Rooms)
             {
                 sb.Append(r.Order).Append(' ').Append(r.Kind).Append(r.Elite ? " elite" : "").Append(' ').Append(r.Rect);
+                sb.Append(RoomShapes.Describe(r)); // work order 051: nothing for a room with no shape
                 if (r.PlayerStart.HasValue) sb.Append(" start ").Append(r.PlayerStart.Value);
                 for (int i = 0; i < r.EnemyPoints.Count; i++) sb.Append(" enemy ").Append(r.EnemyPoints[i]).Append(' ').Append(r.GroupAt(i));
                 sb.Append('\n');

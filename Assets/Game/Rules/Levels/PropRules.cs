@@ -62,6 +62,9 @@ namespace Roguelike.Rules
         {
             public int Side;
             public double From, To;
+            /// <summary>On a carved cell's face (work order 051), whose line is <see cref="Line"/> (cells); else on its room's side.</summary>
+            public bool Carved;
+            public int Line;
         }
 
         /// <summary>
@@ -94,6 +97,28 @@ namespace Roguelike.Rules
         }
 
         /// <summary>
+        /// The niches of the crypt kit on the faces of a room's carved cells, toward it (work order 051), as stretches of those
+        /// faces: <see cref="WallSpan.Carved"/>, on their line, the side a wall there stands for. None for a room with no carved cell.
+        /// </summary>
+        public static List<WallSpan> CarvedNichesOf(LevelLayout level, LevelRoom room, CryptKitPlan plan)
+        {
+            var spans = new List<WallSpan>();
+            if (plan == null || room.SolidCount == 0) return spans;
+            double cs = level.CellSize;
+            CellRect r = room.Rect;
+            foreach (CryptKitSection s in plan.Sections)
+            {
+                if (!s.Niche || s.RoomOn(s.Facing) != room.Order) continue;
+                bool onSide = s.Vertical ? s.Line == r.X || s.Line == r.Right : s.Line == r.Y || s.Line == r.Top;
+                if (onSide) continue;
+                bool towardPlus = s.Facing > 0; // the room is on the side it faces; the face is a wall of the other side
+                int side = s.Vertical ? (towardPlus ? LevelGenerator.West : LevelGenerator.East) : (towardPlus ? LevelGenerator.South : LevelGenerator.North);
+                spans.Add(new WallSpan { Side = side, From = s.Cell * cs, To = (s.Cell + 1) * cs, Carved = true, Line = s.Line });
+            }
+            return spans;
+        }
+
+        /// <summary>
         /// The share of a room's floor that is walkable with its props (work order 028), on the lane's grid: of the squares
         /// whose middle is at least <see cref="PropValues.WalkRadius"/> from the room's walls, those that are as far from
         /// every prop's footprint too.
@@ -113,15 +138,41 @@ namespace Roguelike.Rules
                     for (int i = i0; i <= i1; i++)
                         if (!blocked[j * nx + i] && f.DistanceTo(new LevelPoint(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step)) < r) blocked[j * nx + i] = true;
             }
+            bool[] carved = null; // work order 051: the outline's floor only
+            if (room.SolidCount > 0) RoomShapes.MarkNearSolid(room, cs, x0, y0, step, nx, ny, r, carved = new bool[nx * ny]);
             int floor = 0, walkable = 0;
             for (int j = 0; j < ny; j++)
                 for (int i = 0; i < nx; i++)
                 {
-                    if (LevelGeometry.DistanceToWalls(new LevelPoint(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step), room.Rect, cs) < r) continue;
+                    LevelPoint c = new LevelPoint(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step);
+                    if (LevelGeometry.DistanceToWalls(c, room.Rect, cs) < r) continue;
+                    if (carved != null && carved[j * nx + i]) continue;
                     floor++;
                     if (!blocked[j * nx + i]) walkable++;
                 }
             return floor > 0 ? walkable / (double)floor : 1;
+        }
+
+        /// <summary>
+        /// The squares of the walkable reckoning's grid that are its floor (<see cref="WalkableShare"/>'s denominator): their
+        /// middles at least <see cref="PropValues.WalkRadius"/> from the room's walls and its carved cells (work order 051).
+        /// </summary>
+        public static int FloorSquares(LevelLayout level, LevelRoom room, PropValues v)
+        {
+            double cs = level.CellSize, step = v.LaneGrid, r = v.WalkRadius, x0 = room.Rect.X * cs, y0 = room.Rect.Y * cs;
+            int nx = Math.Max(1, (int)Math.Round(room.Rect.Width * cs / step)), ny = Math.Max(1, (int)Math.Round(room.Rect.Height * cs / step));
+            bool[] carved = null;
+            if (room.SolidCount > 0) RoomShapes.MarkNearSolid(room, cs, x0, y0, step, nx, ny, r, carved = new bool[nx * ny]);
+            int floor = 0;
+            for (int j = 0; j < ny; j++)
+                for (int i = 0; i < nx; i++)
+                {
+                    LevelPoint c = new LevelPoint(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step);
+                    if (LevelGeometry.DistanceToWalls(c, room.Rect, cs) < r) continue;
+                    if (carved != null && carved[j * nx + i]) continue;
+                    floor++;
+                }
+            return floor;
         }
 
         /// <summary>The unit into the room from its wall of this side.</summary>
@@ -162,6 +213,10 @@ namespace Roguelike.Rules
 
             double wall = f.DistanceToWalls(room.Rect, cs);
             if (wall < -Slack && Broken("reaches out of its room")) return first;
+            // Work order 051: the walls are the room's outline; a carved cell is a wall like its rectangle's sides.
+            double carved = RoomShapes.DistanceToSolid(room, f, cs, Math.Max(0, wall) + 1e-6);
+            if (carved <= Slack && Broken("reaches into a carved cell of its room")) return first;
+            if (carved > Slack) wall = Math.Min(wall, carved); // one reaching into it is told so above, and measured to its rectangle
             if (prop.Place == PropPlace.Wall)
             {
                 if (wall > v.AtWallMost + Slack && Broken($"is meant to stand at a wall and is {wall:0.##} m from the nearest")) return first;
@@ -178,7 +233,8 @@ namespace Roguelike.Rules
                 }
                 else
                 {
-                    int side = f.NearestSide(room.Rect, cs, out double back);
+                    WallFace face = RoomShapes.NearestFace(room, f, cs, out double back); // work order 051: a carved face too
+                    int side = face.Side;
                     if ((back < v.WallFace - Slack || back > v.WallFace + v.HandWidth + Slack)
                         && Broken($"has its back {back:0.###} m from its wall's line, not within {v.HandWidth:0.###} m past the wall's face at {v.WallFace:0.###} m")) return first;
                     LevelPoint into = Inward(side), front = prop.Front;
@@ -189,13 +245,21 @@ namespace Roguelike.Rules
                         bool alongX = side == LevelGenerator.North || side == LevelGenerator.South;
                         double lo = alongX ? minX : minY, hi = alongX ? maxX : maxY;
                         foreach (WallSpan n in niches)
-                            if (n.Side == side && lo < n.To - Slack && hi > n.From + Slack && Broken("stands in front of a wall niche")) return first;
+                            if (n.Side == side && n.Carved == face.Carved && (!n.Carved || n.Line == face.Line)
+                                && lo < n.To - Slack && hi > n.From + Slack && Broken("stands in front of a wall niche")) return first;
                     }
                 }
             }
             if (prop.Place == PropPlace.Wall && prop.Height > v.SouthWallMostHeight + 1e-3
                 && f.DistanceToSide(room.Rect, cs, LevelGenerator.South) <= v.AtWallMost + Slack
                 && Broken($"stands at the south wall, the low one the camera looks over, and is taller than {v.SouthWallMostHeight:0.##} m")) return first;
+            // Work order 051: a carved cell's north face is low as well (the room is to its north).
+            if (prop.Place == PropPlace.Wall && prop.Height > v.SouthWallMostHeight + 1e-3 && room.SolidCount > 0)
+            {
+                WallFace near = RoomShapes.NearestFace(room, f, cs, out double gap);
+                if (near.Carved && near.Low && gap <= v.AtWallMost + Slack
+                    && Broken($"stands at a carved cell's low north face and is taller than {v.SouthWallMostHeight:0.##} m")) return first;
+            }
 
             foreach (LevelDoor d in level.DoorsOf(room.Order))
             {
@@ -271,6 +335,9 @@ namespace Roguelike.Rules
                                 break;
                             }
                     }
+
+                // Work order 051: half the lane from a carved cell too.
+                RoomShapes.MarkNearSolid(room, cs, _x0, _y0, _step, _nx, _ny, _half, _blocked);
 
                 // The doorways: the row of squares inside the room along each door's opening.
                 foreach (LevelDoor d in doors)
@@ -442,7 +509,9 @@ namespace Roguelike.Rules
                 {
                     // Work order 028: the kit's plan comes of the layout alone, so where its niches are is known here.
                     kit = kit ?? PropRules.KitPlanForProps(level);
-                    placer.Themed(rng, values, PropRules.NichesOf(level, room, kit));
+                    List<PropRules.WallSpan> niches = PropRules.NichesOf(level, room, kit);
+                    niches.AddRange(PropRules.CarvedNichesOf(level, room, kit)); // work order 051
+                    placer.Themed(rng, values, niches);
                     continue;
                 }
                 switch (room.Kind)

@@ -142,19 +142,22 @@ namespace Roguelike.Rules.Tests
 
                     // Wall pieces at a wall, their backs within a hand of its face, facing in, never at the south wall nor a niche.
                     List<PropRules.WallSpan> niches = PropRules.NichesOf(level, r, kit);
+                    niches.AddRange(PropRules.CarvedNichesOf(level, r, kit)); // work order 051
                     foreach (LevelProp p in r.Props.Where(p => PropSize.Of(p.Model).WallPiece))
                     {
                         wallPieces++;
                         string what = where + " " + r.Letter + r.Order + ": " + p;
                         Assert.That(p.Place, Is.EqualTo(PropPlace.Wall), what);
-                        int side = p.Footprint.NearestSide(r.Rect, level.CellSize, out double back);
+                        // Work order 051: its wall may be a carved cell's face (an alcove's back), measured as a side.
+                        WallFace face = RoomShapes.NearestFace(r, p.Footprint, level.CellSize, out double back);
+                        int side = face.Side;
                         Assert.That(back, Is.InRange(pv.WallFace - 1e-6, pv.WallFace + pv.HandWidth + 1e-6), "its back within a hand of the wall's face: " + what);
                         LevelPoint into = PropRules.Inward(side), front = p.Front;
                         Assert.That(front.X * into.X + front.Y * into.Y, Is.GreaterThan(0.99), "facing into the room: " + what);
                         Assert.That(side, Is.Not.EqualTo(LevelGenerator.South), "never at the low south wall: " + what);
                         p.Footprint.Extent(out double minX, out double minY, out double maxX, out double maxY);
                         bool alongX = side == LevelGenerator.North || side == LevelGenerator.South;
-                        foreach (PropRules.WallSpan n in niches.Where(n => n.Side == side))
+                        foreach (PropRules.WallSpan n in niches.Where(n => n.Side == side && n.Carved == face.Carved && (!n.Carved || n.Line == face.Line)))
                             Assert.That((alongX ? maxX : maxY) <= n.From + 1e-9 || (alongX ? minX : minY) >= n.To - 1e-9, "not in front of a niche: " + what);
                     }
 

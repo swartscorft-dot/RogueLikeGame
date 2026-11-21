@@ -306,6 +306,15 @@ namespace Roguelike.Rules
         // Mood.Compose; read when a floor is built. Off: every floor is as work order 044 left it. The generator never reads it.
         public bool LargeProps = true;
 
+        // Rooms that are not boxes (work order 051; Kristian, 2026-11-20: "Now we have very clear squares per room. A room does
+        // not have to be a square ... not walking into large office landscapes with monsters in them"; the research report d's
+        // proposal A): on, each room's rectangle is carved (cut corners, a cross, an apse, alcoves, pillar aisles) and has a
+        // gate inside its door in, on the generator's own stream "shapes" after the layout (RoomShapes), so a seed keeps its
+        // rooms' places, sizes, order and doors. Off: every floor is version 12's (044 and 046 merged), field for field, but
+        // for the version.
+        public bool Shapes = true;
+        public ShapeValues ShapeRules = new ShapeValues();
+
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
         public ThemeValues ThemeRules = new ThemeValues();

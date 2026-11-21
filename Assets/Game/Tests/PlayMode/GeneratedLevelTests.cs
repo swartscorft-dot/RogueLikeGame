@@ -85,7 +85,9 @@ namespace Roguelike.PlayModeTests
             foreach (LevelRoom r in layout.Rooms)
                 Assert.That(Flat(level.Middle(r), Vector3.zero), Is.GreaterThan(100f), "every room far from the practice room: " + r.Letter + r.Order);
 
-            Assert.That(level.Floors, Is.EqualTo(layout.Rooms.Count), "a floor per room");
+            // Work order 051: a floor box per rectangle of a room's open cells (RoomShapes.OpenRects), so a carved room may have more.
+            Assert.That(level.Floors, Is.EqualTo(layout.Rooms.Sum(r => RoomShapes.OpenRects(r).Count)), "a floor per rectangle of a room's open cells");
+            Assert.That(level.Floors, Is.GreaterThanOrEqualTo(layout.Rooms.Count));
             Assert.That(level.Walls, Is.GreaterThan(layout.Rooms.Count));
             Assert.That(level.LowWalls, Is.GreaterThan(0), "walls on the camera's side are low");
             Assert.That(level.LowWalls, Is.LessThan(level.Walls));
@@ -123,10 +125,31 @@ namespace Roguelike.PlayModeTests
 
             // At each door, the wall cell beside it: 1.5 m either side of the wall, the straight line is blocked and the
             // way round goes through the door, much longer than the 3 m between the two points.
+            // Changed deliberately (work order 051): the cell beside the door is its gate in the room beyond, carved; the first
+            // wall cell along the wall with open floor on both sides is taken (a door with none is passed).
             double cs = layout.CellSize;
+            int doorsTried = 0;
             foreach (LevelDoor d in layout.Doors)
             {
-                double along = (d.From - 0.5) * cs;
+                int beside = int.MinValue;
+                foreach (int k in new[] { d.From - 1, d.From + d.Width, d.From - 2, d.From + d.Width + 1, d.From - 3, d.From + d.Width + 2 })
+                {
+                    bool openA = d.Vertical ? layout.RoomAtCell(d.Line - 1, k) == layout.Rooms[d.RoomA] || layout.RoomAtCell(d.Line - 1, k) == layout.Rooms[d.RoomB]
+                                            : layout.RoomAtCell(k, d.Line - 1) == layout.Rooms[d.RoomA] || layout.RoomAtCell(k, d.Line - 1) == layout.Rooms[d.RoomB];
+                    bool openB = d.Vertical ? layout.RoomAtCell(d.Line, k) == layout.Rooms[d.RoomA] || layout.RoomAtCell(d.Line, k) == layout.Rooms[d.RoomB]
+                                            : layout.RoomAtCell(k, d.Line) == layout.Rooms[d.RoomA] || layout.RoomAtCell(k, d.Line) == layout.Rooms[d.RoomB];
+                    if (!openA || !openB) continue;
+                    // And floor to stand on there (no prop on either point).
+                    double alongK = (k + 0.5) * cs, lineK = d.Line * cs;
+                    LevelPoint qa = d.Vertical ? new LevelPoint(lineK - 1.5, alongK) : new LevelPoint(alongK, lineK - 1.5);
+                    LevelPoint qb = d.Vertical ? new LevelPoint(lineK + 1.5, alongK) : new LevelPoint(alongK, lineK + 1.5);
+                    if (!NavMesh.SamplePosition(level.ToWorld(qa), out _, 0.5f, NavMesh.AllAreas) || !NavMesh.SamplePosition(level.ToWorld(qb), out _, 0.5f, NavMesh.AllAreas)) continue;
+                    beside = k;
+                    break;
+                }
+                if (beside == int.MinValue) continue;
+                doorsTried++;
+                double along = (beside + 0.5) * cs;
                 double line = d.Line * cs;
                 LevelPoint a = d.Vertical ? new LevelPoint(line - 1.5, along) : new LevelPoint(along, line - 1.5);
                 LevelPoint b = d.Vertical ? new LevelPoint(line + 1.5, along) : new LevelPoint(along, line + 1.5);
@@ -138,6 +161,7 @@ namespace Roguelike.PlayModeTests
                 for (int i = 1; i < path.corners.Length; i++) length += Vector3.Distance(path.corners[i - 1], path.corners[i]);
                 Assert.That(length, Is.GreaterThan(5f), "the way round goes through the door " + where);
             }
+            Assert.That(doorsTried, Is.GreaterThan(0), "a wall cell beside a door with open floor on both sides");
 
             // And none out of the level: the ground just outside the start room's outer walls has no NavMesh.
             Assert.That(NavMesh.SamplePosition(level.PlayerStart + new Vector3(0f, 0f, 0f), out _, 0.5f, NavMesh.AllAreas), Is.True);

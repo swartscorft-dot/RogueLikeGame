@@ -238,7 +238,7 @@ namespace Roguelike.Rules
         public static string WearFault(LevelLayout layout, LevelRoom room, LevelPoint at, double reach, bool flat, MoodValues mv)
         {
             double cs = layout.CellSize;
-            if (LevelGeometry.DistanceToWalls(at, room.Rect, cs) < reach + 0.3 || layout.RoomAt(at.X, at.Y) != room) return "reaches into a wall";
+            if (RoomShapes.DistanceToWalls(room, at, cs) < reach + 0.3 || layout.RoomAt(at.X, at.Y) != room) return "reaches into a wall"; // work order 051: to the outline
             if (at.DistanceTo(room.Middle(cs)) - reach < MiddleClearOf(layout, room, mv)) return "lies in the room's middle";
             foreach (LevelDoor d in layout.DoorsOf(room.Order))
                 if (LevelGeometry.DistanceToDoor(at, d, cs) - reach < mv.DoorClear) return "lies in a doorway";
@@ -257,7 +257,7 @@ namespace Roguelike.Rules
 
         static bool InsideClear(LevelLayout layout, LevelRoom room, LevelPoint at, double reach)
         {
-            if (LevelGeometry.DistanceToWalls(at, room.Rect, layout.CellSize) < reach + 0.3) return false;
+            if (RoomShapes.DistanceToWalls(room, at, layout.CellSize) < reach + 0.3) return false; // work order 051: to the outline
             foreach (LevelProp p in room.Props)
                 if (p.Footprint.DistanceTo(at) - reach < 0.05) return false;
             return true;
@@ -277,6 +277,8 @@ namespace Roguelike.Rules
                 int wayIn = entry != null ? LevelGeometry.WallOf(room.Rect, entry) : -1;
                 mr.FarSide = wayIn >= 0 ? LevelGenerator.Opposite(wayIn) : LevelGenerator.North;
                 if (mv.Compose) Compose(layout, room, mr, values, rng);
+                // Work order 051: no piece of an eye-catcher on a carved cell (the carpet's runs are checked as they are laid).
+                if (room.SolidCount > 0) mr.Pieces.RemoveAll(c => OnCarved(room, c, layout.CellSize));
                 SourcesOf(layout, room, mr, mv.Compose);
                 if (mv.Wear) WearOf(layout, room, mr, mv, rng);
                 if (mv.Compose) mr.LargePropPlace = LargePlace(layout, room, mr, values, out mr.LargePropTurn, out mr.LargePropSide);
@@ -458,13 +460,102 @@ namespace Roguelike.Rules
         {
             uint variant = (uint)rng.NextBits();
             if (height <= 0 && !InsideClear(layout, room, at, 0.2)) return;
-            if (LevelGeometry.DistanceToWalls(at, room.Rect, layout.CellSize) < 0.35) return;
+            if (RoomShapes.DistanceToWalls(room, at, layout.CellSize) < 0.35) return; // work order 051: to the outline
             foreach (LevelDoor d in layout.DoorsOf(room.Order))
                 if (LevelGeometry.DistanceToDoor(at, d, layout.CellSize) < 1.5) return;
             foreach (CompositionPiece c in mr.Pieces)
                 if (c.Kind == CompositionKind.Candles && c.At.DistanceTo(at) < 0.5) return;
             mr.Pieces.Add(new CompositionPiece { Room = room.Order, Kind = CompositionKind.Candles, At = at, Height = height, Variant = variant });
             mr.Sources.Add(new MoodSource { Room = room.Order, Kind = MoodSourceKind.Candle, At = at, Height = height + 0.3, Flame = true });
+        }
+
+        /// <summary>
+        /// A piece of an eye-catcher reaches a carved cell of its room (work order 051): a dais by its rectangle or circle, the
+        /// others by their reach round their middle. The carpet's runs are checked as they are laid.
+        /// </summary>
+        public static bool OnCarved(LevelRoom room, CompositionPiece c, double cs)
+        {
+            if (room.SolidCount == 0 || c.Kind == CompositionKind.Carpet) return false;
+            if (c.Kind == CompositionKind.Dais)
+            {
+                var f = new PropFootprint { Shape = PropShape.Rectangle, Centre = c.At, Rotation = c.Turn, HalfWidth = c.Width * 0.5, HalfDepth = c.Depth * 0.5 };
+                return RoomShapes.DistanceToSolid(room, f, cs) < 0.05;
+            }
+            return RoomShapes.DistanceToSolid(room, c.At, cs) < c.Reach + 0.05;
+        }
+
+        /// <summary>
+        /// The throne room's carpet in a carved room when a carved cell stands between its door and its dais (work order 051):
+        /// in through the gate to the middle of the cell inside the door, along the middles of the open cells by the fewest
+        /// cells to the dais's cell, and on to the dais's front; a run for each straight stretch. Nothing when no way is found.
+        /// </summary>
+        static void CarpetByTheCells(LevelLayout layout, LevelRoom room, MoodRoom mr, LevelDoor entry, LevelPoint door, LevelPoint daisFront, MoodValues mv, LevelRandom rng)
+        {
+            double cs = layout.CellSize;
+            if (!RoomShapes.InnerCell(room, entry, entry.From, out int sx, out int sy, out int ix, out int iy)) return;
+            int tx = (int)Math.Floor(daisFront.X / cs), ty = (int)Math.Floor(daisFront.Y / cs);
+            if (!room.IsOpen(tx, ty)) return;
+            var before = new Dictionary<(int, int), (int, int)> { [(sx, sy)] = (sx, sy) };
+            var queue = new Queue<(int, int)>();
+            queue.Enqueue((sx, sy));
+            while (queue.Count > 0 && !before.ContainsKey((tx, ty)))
+            {
+                (int x, int y) = queue.Dequeue();
+                foreach ((int ddx, int ddy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                    if (room.IsOpen(x + ddx, y + ddy) && !before.ContainsKey((x + ddx, y + ddy)))
+                    {
+                        before[(x + ddx, y + ddy)] = (x, y);
+                        queue.Enqueue((x + ddx, y + ddy));
+                    }
+            }
+            if (!before.ContainsKey((tx, ty))) return;
+            var cells = new List<(int x, int y)>();
+            for ((int, int) c = (tx, ty); ; c = before[c])
+            {
+                cells.Insert(0, c);
+                if (c == (sx, sy)) break;
+            }
+            LevelPoint Mid((int x, int y) c) => new LevelPoint((c.x + 0.5) * cs, (c.y + 0.5) * cs);
+            var points = new List<LevelPoint> { new LevelPoint(door.X + ix * 0.5, door.Y + iy * 0.5) };
+            for (int k = 0; k < cells.Count; k++)
+            {
+                bool turn = k == 0 || k == cells.Count - 1
+                            || (cells[k].x - cells[k - 1].x != cells[k + 1].x - cells[k].x) || (cells[k].y - cells[k - 1].y != cells[k + 1].y - cells[k].y);
+                if (turn) points.Add(Mid(cells[k]));
+            }
+            points.Add(daisFront);
+            for (int k = 1; k < points.Count; k++)
+            {
+                if (points[k - 1].DistanceTo(points[k]) < 1e-6) continue;
+                uint variant = (uint)rng.NextBits();
+                mr.Pieces.Add(new CompositionPiece { Room = room.Order, Kind = CompositionKind.Carpet, Width = mv.CarpetWidth, Variant = variant, At = points[k - 1], To = points[k] });
+            }
+        }
+
+        /// <summary>A run of the carpet lies on a carved cell of its room (work order 051): nearer one than half its width.</summary>
+        public static bool RunOnCarved(LevelRoom room, CompositionPiece run, double cs)
+        {
+            foreach ((int x, int y) in room.SolidList)
+            {
+                var cell = new PropFootprint { Shape = PropShape.Rectangle, Centre = new LevelPoint((x + 0.5) * cs, (y + 0.5) * cs), HalfWidth = cs * 0.5, HalfDepth = cs * 0.5 };
+                if (cell.DistanceTo(run.At, run.To) < run.Width * 0.5) return true;
+            }
+            return false;
+        }
+
+        /// <summary>A run of the throne room's carpet in a carved room (work order 051): only when it is longer than a step and lies on no carved cell.</summary>
+        static bool AddCarpet(LevelLayout layout, LevelRoom room, MoodRoom mr, LevelPoint from, LevelPoint to, MoodValues mv, LevelRandom rng)
+        {
+            uint variant = (uint)rng.NextBits();
+            if (from.DistanceTo(to) < 1) return false;
+            double cs = layout.CellSize, half = mv.CarpetWidth * 0.5;
+            foreach ((int x, int y) in room.SolidList)
+            {
+                var cell = new PropFootprint { Shape = PropShape.Rectangle, Centre = new LevelPoint((x + 0.5) * cs, (y + 0.5) * cs), HalfWidth = cs * 0.5, HalfDepth = cs * 0.5 };
+                if (cell.DistanceTo(from, to) < half + 0.05) return false;
+            }
+            mr.Pieces.Add(new CompositionPiece { Room = room.Order, Kind = CompositionKind.Carpet, Width = mv.CarpetWidth, Variant = variant, At = from, To = to });
+            return true;
         }
 
         static void Compose(LevelLayout layout, LevelRoom room, MoodRoom mr, LevelValues values, LevelRandom rng)
@@ -494,7 +585,15 @@ namespace Roguelike.Rules
                         entry.Opening(layout.CellSize, out LevelPoint a, out LevelPoint b);
                         LevelPoint door = new LevelPoint((a.X + b.X) * 0.5, (a.Y + b.Y) * 0.5);
                         double dx = daisFront.X - door.X, dy = daisFront.Y - door.Y, len = Math.Sqrt(dx * dx + dy * dy);
-                        if (len > 2)
+                        if (room.SolidCount > 0)
+                        {
+                            // Work order 051: straight from the door to the dais when no carved cell is in the way; else in
+                            // through the gate and on along the middles of the open cells (2 m from every carved cell), turning
+                            // where the way turns, to the dais.
+                            var straight = new LevelPoint(door.X + dx / len * 0.5, door.Y + dy / len * 0.5);
+                            if (len <= 2 || !AddCarpet(layout, room, mr, straight, daisFront, mv, rng)) CarpetByTheCells(layout, room, mr, entry, door, daisFront, mv, rng);
+                        }
+                        else if (len > 2)
                             mr.Pieces.Add(new CompositionPiece
                             {
                                 Room = room.Order, Kind = CompositionKind.Carpet, Width = mv.CarpetWidth, Variant = (uint)rng.NextBits(),

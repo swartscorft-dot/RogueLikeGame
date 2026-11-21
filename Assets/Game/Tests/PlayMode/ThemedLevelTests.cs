@@ -93,6 +93,20 @@ namespace Roguelike.PlayModeTests
             }
         }
 
+        /// <summary>How far a model's back is from a carved cell's face (work order 051), into the room.</summary>
+        static float BackFromFace(GeneratedLevel level, WallFace face, Bounds b)
+        {
+            float cs = level.Layout.CellSize;
+            Vector3 at = level.ToWorld(new LevelPoint(face.Line * cs, face.Line * cs));
+            switch (face.Side)
+            {
+                case LevelGenerator.North: return at.z - b.max.z;
+                case LevelGenerator.South: return b.min.z - at.z;
+                case LevelGenerator.East: return at.x - b.max.x;
+                default: return b.min.x - at.x;
+            }
+        }
+
         [UnityTest]
         public IEnumerator FloorsOneAndFive_OfTwoSeeds_EveryPropStandsAsThePlanSays_AndEveryRoomCanBeReached()
         {
@@ -150,8 +164,10 @@ namespace Roguelike.PlayModeTests
                             // As drawn: the model's back within a hand of the wall's face (work order 028), facing into the room.
                             wallPieces++;
                             LevelRoom room = placed.Room;
-                            int side = p.Footprint.NearestSide(room.Rect, layout.CellSize, out _);
-                            float back = BackFromLine(level, room, side, renderer.bounds) - pv.WallFace;
+                            // Changed deliberately (work order 051): its wall may be a carved cell's face (an alcove's back).
+                            WallFace face = RoomShapes.NearestFace(room, p.Footprint, layout.CellSize, out _);
+                            int side = face.Side;
+                            float back = (face.Carved ? BackFromFace(level, face, renderer.bounds) : BackFromLine(level, room, side, renderer.bounds)) - pv.WallFace;
                             Assert.That(back, Is.InRange(-0.03f, pv.HandWidth + 1e-3f), "its back within a hand of the wall's face: " + what);
                             LevelPoint into = PropRules.Inward(side), front = p.Front;
                             Assert.That(front.X * into.X + front.Y * into.Y, Is.GreaterThan(0.99), "facing into the room: " + what);
