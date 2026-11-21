@@ -359,6 +359,8 @@ namespace Roguelike.PlayModeTests
             yield return Charging(elite.transform.position);
             TickAll();
             Assume.That(_cast.BladeDrawn && _map.Shown && _bars.Count > 0 && _skillBar.StrokesShown, Is.True, "everything up");
+            Assume.That(_feedback.Numbers.Count + _feedback.Words.Count, Is.GreaterThan(0), "a number up");
+            EachPieceAllocatesNothing("a fight");
             Assert.That(() => { for (int i = 0; i < 300; i++) TickAll(); }, NotAllocating, "a fight's frame allocates nothing");
             _player.ReleaseSkill(Slot("Long Shot"));
 
@@ -369,11 +371,68 @@ namespace Roguelike.PlayModeTests
             Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward));
             TickAll();
             Assume.That(_levels.KineticCards(), Is.GreaterThan(0));
+            EachPieceAllocatesNothing("a choice");
             Assert.That(() => { for (int i = 0; i < 300; i++) TickAll(); }, NotAllocating, "a choice's frame allocates nothing: its texts are made once");
             _levels.BackToPracticeRoom();
         }
 
         static byte[] s_junk;
+
+        /// <summary>
+        /// Each piece's frame measured apart (night of 2026-11-21: the whole frame allocated, and it was the words' and
+        /// numbers' search for new stagger bars, TimingFeedback.Find), so a fault names its piece.
+        /// </summary>
+        void EachPieceAllocatesNothing(string when)
+        {
+            var allocating = new List<string>();
+            void Measure(string piece, Action tick)
+            {
+                TestDelegate frames = () => { for (int i = 0; i < 300; i++) tick(); };
+                if (!NotAllocating.Resolve().ApplyTo(frames).IsSuccess) allocating.Add(piece);
+            }
+            Measure("the strip and the strokes (SkillBar.Tick)", _skillBar.Tick);
+            Measure("the cast blade (CastBar.Tick)", _cast.Tick);
+            Measure("the bars over enemies (EnemyBars.Tick)", _bars.Tick);
+            Measure("the map (FloorMap.Tick)", _map.Tick);
+            Measure("the words and numbers (TimingFeedback.Tick)", _feedback.Tick);
+            Measure("the signs (PlayerSigns.Tick)", _signs.Tick);
+            Measure("the cards (GeneratedLevels.KineticCards)", () => _levels.KineticCards());
+            Assert.That(allocating, Is.Empty, when + ": these pieces allocate in a frame");
+        }
+
+        // ---------------- A chest card's tier (work order 050) ----------------
+
+        [UnityTest]
+        public IEnumerator AChestCard_ShowsItsTier_AsItsNumeralsColour_AndItsWord()
+        {
+            _levels.StartRun(RunSeed);
+            yield return null;
+            List<GeneratedLevel.PlacedProp> chests = _levels.Chests();
+            Assume.That(chests.Count, Is.GreaterThan(0), "a chest on floor 1");
+            Assert.That(_levels.OpenChest(chests[0]), Is.True);
+            yield return null;
+            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.Chest));
+            IReadOnlyList<Upgrade> offer = _levels.OfferedUpgrades;
+            Assert.That(offer.Count, Is.GreaterThan(0));
+            Assert.That(offer.Any(u => u.Tiered), Is.True, "the run's chest offers are tiered (stats and tiers on by default)");
+            // Every tier once, read from the offer's own data before its cards are made.
+            UpgradeTier[] tiers = { UpgradeTier.Common, UpgradeTier.Rare, UpgradeTier.Epic };
+            for (int i = 0; i < offer.Count; i++)
+            {
+                offer[i].Tiered = true;
+                offer[i].Tier = tiers[i % tiers.Length];
+            }
+            int count = _levels.KineticCards();
+            Assert.That(count, Is.EqualTo(offer.Count), "a card per upgrade");
+            UiInk[] inks = { UiInk.White, UiInk.Teal, UiInk.Gold };
+            for (int i = 0; i < count; i++)
+            {
+                Assert.That(_levels.CardNumeralInk(i), Is.EqualTo(inks[i % inks.Length]), "card " + i + ": white common, teal rare, gold epic");
+                Assert.That(_levels.CardTitle(i), Is.EqualTo(offer[i].Text), "what it does, its title");
+                StringAssert.Contains(offer[i].TierWord.ToUpperInvariant(), _levels.CardText(i), "and its tier's word");
+            }
+            _levels.BackToPracticeRoom();
+        }
 
         void TickAll()
         {

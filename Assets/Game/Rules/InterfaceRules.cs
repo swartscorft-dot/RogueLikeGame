@@ -344,6 +344,13 @@ namespace Roguelike.Rules
             return new UiBox(x, top + index * (height + v.CardGap), v.CardWidth, height);
         }
 
+        /// <summary>
+        /// A chest card's tier (work order 050, drawn in the skin by work order 045): its numeral in the tier's colour, white
+        /// common, teal rare, gold epic, and nothing else. A card with no tier has a white numeral.
+        /// </summary>
+        public static UiInk TierInk(bool tiered, UpgradeTier tier) =>
+            !tiered ? UiInk.White : tier == UpgradeTier.Epic ? UiInk.Gold : tier == UpgradeTier.Rare ? UiInk.Teal : UiInk.White;
+
         static readonly string[] s_Numerals = { "01", "02", "03", "04", "05", "06", "07", "08", "09" };
 
         /// <summary>A card's large numeral: 01, 02, 03.</summary>

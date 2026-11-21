@@ -28,6 +28,8 @@ namespace Roguelike
         public Rect CardRect(int index) => index >= 0 && index < _cardRects.Count ? _cardRects[index] : default;
         public string CardTitle(int index) => index >= 0 && index < _cardTitles.Count ? _cardTitles[index] : "";
         public string CardText(int index) => index >= 0 && index < _cardTexts.Count ? _cardTexts[index] : "";
+        /// <summary>The colour of a card's numeral: a chest card's tier (work order 050), else white.</summary>
+        public UiInk CardNumeralInk(int index) => index >= 0 && index < _cardInks.Count ? _cardInks[index] : UiInk.White;
         /// <summary>The last pick: which card, and whether its flash shows now.</summary>
         public int LastPickedCard { get; private set; } = -1;
         public bool PickFlashing => InterfaceStyle.Kinetic && LastPickedCard >= 0 && Time.unscaledTime - _pickedAt < InterfaceStyle.V.PickFlashSeconds;
@@ -35,6 +37,7 @@ namespace Roguelike
         readonly List<string> _cardTitles = new List<string>();
         readonly List<string> _cardTexts = new List<string>();
         readonly List<string> _cardKeys = new List<string>();
+        readonly List<UiInk> _cardInks = new List<UiInk>();
         readonly List<Rect> _cardRects = new List<Rect>();
         readonly List<object> _cardsOf = new List<object>();
         readonly List<int> _cardsSkills = new List<int>();
@@ -77,12 +80,13 @@ namespace Roguelike
             _cardsWidth = viewWidth;
             PlayerCharacter player = _player;
             InputBindings bindings = player != null && player.GetComponent<PlayerInputDriver>() is PlayerInputDriver d ? d.ActiveBindings : null;
-            float height = Choice == ChoiceKind.FocusChoice ? v.FocusCardHeight : Choice == ChoiceKind.Chest ? v.CardHeight * 0.75f : v.CardHeight;
+            float height = Choice == ChoiceKind.FocusChoice ? v.FocusCardHeight : v.CardHeight; // a chest card too: its line may wrap over its tier's word
             _cardsHeight = height;
             string heading;
             for (int i = 0; i < count; i++)
             {
                 string title, text;
+                UiInk ink = UiInk.White;
                 switch (Choice)
                 {
                     case ChoiceKind.FloorReward:
@@ -117,12 +121,15 @@ namespace Roguelike
                         Upgrade u = _offeredUpgrades[i];
                         _cardsOf.Add(u);
                         title = u.Text;
-                        text = "";
+                        // Work order 050's tier: its word in the card's text, its colour on the numeral (from the offer's data).
+                        text = u.Tiered ? u.TierWord.ToUpperInvariant() : "";
+                        ink = InterfaceRules.TierInk(u.Tiered, u.Tier);
                         break;
                     }
                 }
                 _cardTitles.Add(title);
                 _cardTexts.Add(text);
+                _cardInks.Add(ink);
                 _cardKeys.Add(InterfaceStyle.Number(i + 1));
                 UiBox b = InterfaceRules.Card(i, count, height, viewWidth, v);
                 _cardRects.Add(new Rect(b.X, b.Y, b.W, b.H));
@@ -162,6 +169,7 @@ namespace Roguelike
             _cardTitles.Clear();
             _cardTexts.Clear();
             _cardKeys.Clear();
+            _cardInks.Clear();
             _cardRects.Clear();
             _cardsOf.Clear();
             _cardsSkills.Clear();
@@ -232,7 +240,7 @@ namespace Roguelike
             Rect s = Shift(r, pivot, v);
             float numW = v.NumeralSize * 1.25f;
             InterfaceStyle.Label(new Rect(s.x + 12f, s.y, numW, Mathf.Min(r.height, v.NumeralSize * 1.4f)), InterfaceRules.Numeral(i),
-                                 InterfaceStyle.Text(true, v.NumeralSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White, light), true);
+                                 InterfaceStyle.Text(true, v.NumeralSize, TextAnchor.MiddleLeft), Lit(InterfaceStyle.Ink(_cardInks[i]), light), true);
             float keyH = v.KeySize * 1.25f;
             var keyPlate = new Rect(s.x + 16f, s.y + v.NumeralSize * 1.4f - 2f, keyH * 1.2f, keyH);
             if (keyPlate.yMax < r.yMax - 2f)
@@ -276,6 +284,8 @@ namespace Roguelike
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
         }
+
+        static Color Lit(Color c, float light) => new Color(c.r, c.g, c.b, c.a * light);
 
         static Rect Shift(Rect r, float pivotY, InterfaceValues v) => new Rect(r.x + (pivotY - r.center.y) * v.Slant, r.y, r.width, r.height);
 

@@ -225,10 +225,20 @@ namespace Roguelike
             {
                 Damageable d = all[i];
                 if (d == null || _listening.ContainsKey(d)) continue;
-                Action<float, float> handler = (taken, left) => OnStaggerTaken(d, taken, left);
-                d.StaggerTaken += handler;
-                _listening[d] = handler;
+                ListenTo(d);
             }
+        }
+
+        /// <summary>
+        /// Listens to a target's stagger bar. Its own method (work order 045): a lambda capturing a variable of the loop's
+        /// body makes the compiler allocate the closure at the top of that body, on every pass of every frame, also for the
+        /// targets already listened to; here it is made only for a new one.
+        /// </summary>
+        void ListenTo(Damageable d)
+        {
+            Action<float, float> handler = (taken, left) => OnStaggerTaken(d, taken, left);
+            d.StaggerTaken += handler;
+            _listening[d] = handler;
         }
 
         void Listen(PlayerCharacter player, PlayerHealth health)

@@ -139,6 +139,15 @@ namespace Roguelike.Rules.Tests
             Assert.That(InterfaceRules.Numeral(2), Is.EqualTo("03"));
         }
 
+        [Test]
+        public void AChestCardsTier_ColoursItsNumeral_WhiteCommon_TealRare_GoldEpic()
+        {
+            Assert.That(InterfaceRules.TierInk(true, UpgradeTier.Common), Is.EqualTo(UiInk.White));
+            Assert.That(InterfaceRules.TierInk(true, UpgradeTier.Rare), Is.EqualTo(UiInk.Teal));
+            Assert.That(InterfaceRules.TierInk(true, UpgradeTier.Epic), Is.EqualTo(UiInk.Gold));
+            Assert.That(InterfaceRules.TierInk(false, UpgradeTier.Epic), Is.EqualTo(UiInk.White), "an upgrade with no tier: white");
+        }
+
         // ---------------- 6. Words and numbers ----------------
 
         [Test]
