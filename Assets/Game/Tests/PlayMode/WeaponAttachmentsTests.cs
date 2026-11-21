@@ -855,7 +855,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_hud.Escape(), Is.True);
             yield return null;
             List<string> lines = _hud.StatLines();
-            Assert.That(lines.Count, Is.EqualTo(17), "her sixteen (eleven of work order 050 and five of work order 065), and the weapon's");
+            Assert.That(lines.Count, Is.EqualTo(19), "her eighteen (eleven of work order 050, five of 065, two of 067), and the weapon's"); // changed deliberately (work order 067): 17 before
             Assert.That(lines.Last(), Is.EqualTo("Loadout  Pistols: Laser Sight, Bull Barrel"));
             Assert.That(lines.Single(l => l.StartsWith("Reach")), Is.EqualTo("Reach  12 m  (12 m)"), "the sight's reach is her start");
             StringAssert.StartsWith("Attack speed  2.8 shots/s  (2.8)", lines.Single(l => l.StartsWith("Attack speed")), "0.85 over 0.304 s: the barrel's rate");

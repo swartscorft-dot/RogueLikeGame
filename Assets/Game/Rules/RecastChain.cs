@@ -85,6 +85,16 @@ namespace Roguelike.Rules
             float to = afterOpeningMove && kit.OpeningMoveCleanTo >= 0f ? kit.OpeningMoveCleanTo : kit.CleanTo;
             return Early(window, from, to);
         }
+
+        /// <summary>
+        /// As above, widened by her Wide window (work order 067, <see cref="WideWindow.Widen(CleanPart, float, float)"/>): round
+        /// its middle, inside the window; <paramref name="wideWindow"/> 0 (not taken, the stats off) is exactly the part above.
+        /// </summary>
+        public static CleanPart Of(KitValues kit, float window, bool afterOpeningMove, float wideWindow) =>
+            WideWindow.Widen(Of(kit, window, afterOpeningMove), window, wideWindow);
+
+        /// <summary>Its length in seconds.</summary>
+        public float Width => Any ? To - From : 0f;
     }
 
     /// <summary>

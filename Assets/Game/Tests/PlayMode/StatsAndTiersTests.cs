@@ -341,7 +341,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_hud.Escape(), Is.True);
             Assert.That(_levels.Paused, Is.True);
             List<string> lines = _hud.StatLines();
-            Assert.That(lines.Count, Is.EqualTo(16), "work order 065: its five lines after work order 050's eleven");
+            Assert.That(lines.Count, Is.EqualTo(18), "work order 065: its five lines after work order 050's eleven; 067: its two after them"); // changed deliberately (work order 067): 16 before
             Assert.That(lines[0], Is.EqualTo("Damage  +3 a shot, skills by weight  (+0)"));
             StringAssert.StartsWith("Attack speed  3.8 shots/s  (3.8)", lines[1]);
             Assert.That(lines.Single(l => l.StartsWith("Max health")), Is.EqualTo("Max health  " + _health.Max + "  (" + _health.MaxHealth + ")"));

@@ -119,6 +119,13 @@ namespace Roguelike.Rules
 
         /// <summary>A copy, field for field: a run's own view of the skill, patched by its upgrades (work order 017).</summary>
         public SkillDefinition Copy() => (SkillDefinition)MemberwiseClone();
+
+        // Work order 067: the skill as her run's upgrades made it before her stats' layer (Blast, Wide window) was laid on it
+        // (SkillStatLayer). Not a number of the skill: never serialized, never patched, null on every skill of the settings.
+        [NonSerialized] SkillDefinition _beforeStats;
+        /// <summary>The skill before her stats' layer (work order 067): itself when no layer is on it. The cards reckon an upgrade on this.</summary>
+        public SkillDefinition BeforeStats => _beforeStats ?? this;
+        internal void SetBeforeStats(SkillDefinition before) => _beforeStats = ReferenceEquals(before, this) ? null : before;
     }
 
     /// <summary>

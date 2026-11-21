@@ -68,6 +68,8 @@ namespace Roguelike.PlayModeTests
         public void CleanUp()
         {
             if (_player != null) _player.Reported -= OnReport;
+            if (_player != null && _wide != null && _player.Modifiers == _wide) _player.Modifiers = null; // work order 067: put on by hand
+            _wide = null;
             if (_health != null) _health.Untouchable = false;
             if (_levels != null)
             {
@@ -627,6 +629,154 @@ namespace Roguelike.PlayModeTests
             Assert.That(_cast.Blade.width, Is.EqualTo(v.BladeWidth * InterfaceRules.BladeFactor(v)).Within(1e-3f), "1.5 times on top of the master scale");
             _bar.Tick();
             Assert.That(_bar.SlotOf(_player.KeyOfSkill(slot)).Recast, Is.True, "and the box lit with it");
+        }
+
+        // ---------------- Work order 067: with Wide window taken, the wider part is what is shown and what is judged ----------------
+
+        RunModifiers _wide;
+
+        /// <summary>Her Wide window at its cap (+50 %), put on her by hand as a run puts its modifiers on: the stats on, nothing else taken.</summary>
+        void TakeWideWindow()
+        {
+            _wide = new RunModifiers { StatsAndTiers = true };
+            _wide.Take(new Upgrade { Kind = UpgradeKind.WideWindow, Amount = 0.25f, Tier = UpgradeTier.Epic, Tiered = true });
+            _wide.Take(new Upgrade { Kind = UpgradeKind.WideWindow, Amount = 0.25f, Tier = UpgradeTier.Epic, Tiered = true });
+            _player.Modifiers = _wide;
+            Assert.That(_player.WideWindowNow, Is.EqualTo(0.5f).Within(1e-6f), "+50 %, its cap");
+        }
+
+        /// <summary>
+        /// The press of the open window made when its clock reaches <paramref name="at"/> seconds: in that frame what the strip's
+        /// box showed, what the cast blade showed (lit, and its marker in its zone), and the judge's word on the press.
+        /// </summary>
+        IEnumerator PressWhenSince(string skill, float at, Action<float, bool, bool, bool, PlayerReport?> done)
+        {
+            int slot = Slot(skill), key = _player.KeyOfSkill(slot);
+            yield return Until(() => _player.RecastSinceOpened >= at || !_player.IsRecastWindowOpen, 2f);
+            _bar.Tick();
+            _cast.Tick();
+            float since = _player.RecastSinceOpened;
+            bool box = _bar.SlotOf(key).CleanLit, blade = _cast.Lit, marker = _cast.View.MarkerInZone;
+            int before = _recasts.Count;
+            _player.PressSkill(slot, _a.transform.position);
+            done(since, box, blade, marker, _recasts.Count > before ? _recasts.Last() : (PlayerReport?)null);
+        }
+
+        /// <summary>One press at <paramref name="at"/>: the judge, the box and the blade agree in its frame, and the judge says <paramref name="clean"/>.</summary>
+        IEnumerator PressAndAgree(string skill, float at, bool clean, float from, float to, string what)
+        {
+            float since = 0f;
+            bool box = false, blade = false, marker = false;
+            PlayerReport? press = null;
+            yield return PressWhenSince(skill, at, (s, b, bl, m, r) => { since = s; box = b; blade = bl; marker = m; press = r; });
+            Assert.That(press.HasValue, Is.True, what + ": a recast press");
+            Assert.That(press.Value.Clean, Is.EqualTo(box), what + ": the judge says what the box showed, at " + since);
+            Assert.That(press.Value.Clean, Is.EqualTo(blade), what + ": and what the blade showed lit");
+            Assert.That(press.Value.Clean, Is.EqualTo(marker), what + ": its marker in its zone");
+            Assume.That(since >= from - 1e-5f && since <= to + 1e-5f, Is.EqualTo(clean), what + ": the press came where it was meant to (" + since + " in " + from + " to " + to + ")");
+            Assert.That(press.Value.Clean, Is.EqualTo(clean), what);
+        }
+
+        [UnityTest]
+        public IEnumerator WithWideWindowTaken_BackstepsWiderPart_IsShownAndJudgedAlike_JustPastTheOldPartCleanAndFurtherNot()
+        {
+            Assume.That(_player.KeyOfSkill(Slot("Backstep")), Is.GreaterThanOrEqualTo(0), "Backstep on a key");
+            // With no stat, today's part (0.03 to 0.23 s after the hop): a press at 0.265 s is late.
+            yield return BackstepWindowOpen();
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.03f).Within(1e-5f), "today's part");
+            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.23f).Within(1e-5f));
+            yield return PressAndAgree("Backstep", 0.265f, false, 0.03f, 0.23f, "no stat, at 0.265 s");
+            // Taken at its cap: 0.20 s and its 50 %, round its middle; the 0.02 s it would start before the window opens is given
+            // to its end: 0 to 0.30 s.
+            TakeWideWindow();
+            float[] at = { 0.265f, 0.15f, 0.34f };
+            bool[] clean = { true, true, false };
+            string[] what = { "just past the old part", "in the middle", "further out" };
+            for (int i = 0; i < at.Length; i++)
+            {
+                yield return BackstepWindowOpen();
+                Assert.That(_player.RecastCleanFrom, Is.EqualTo(0f).Within(1e-5f), "never before the window opens");
+                Assert.That(_player.RecastCleanTo, Is.EqualTo(0.30f).Within(1e-5f), "the cut given to its end");
+                _bar.Tick();
+                KineticSlot s = _bar.SlotOf(_player.KeyOfSkill(Slot("Backstep")));
+                float window = _player.RecastWindowSeconds;
+                Assert.That(s.Band.xMin, Is.EqualTo(s.RecastBar.x).Within(1f), "the box's band from the window's start");
+                Assert.That(s.Band.xMax, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.30f / window).Within(1f), "to the wider part's end");
+                yield return PressAndAgree("Backstep", at[i], clean[i], 0f, 0.30f, what[i]);
+            }
+            // Nothing allocated with the stat on while a window is open.
+            yield return BackstepWindowOpen();
+            Assert.That(() => { for (int i = 0; i < 300; i++) { _bar.Tick(); _cast.Tick(); } }, NotAllocating, "nothing allocated with Wide window taken");
+        }
+
+        [UnityTest]
+        public IEnumerator WithWideWindowTaken_TripleTapsWiderPart_IsShownAndJudgedAlike_JustOutsideTheOldPartCleanAndFurtherNot()
+        {
+            // With no stat, today's part (0.10 to 0.30 s): a press at 0.075 s is early.
+            yield return TripleTapLastWindowOpen();
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.10f).Within(1e-5f), "today's part");
+            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.30f).Within(1e-5f));
+            yield return PressAndAgree("Triple Tap", 0.075f, false, 0.10f, 0.30f, "no stat, at 0.075 s");
+            // Taken at its cap: 0.05 to 0.35 s, 0.05 s more at either edge.
+            TakeWideWindow();
+            float[] at = { 0.075f, 0.025f, 0.325f, 0.375f };
+            bool[] clean = { true, false, true, false };
+            string[] what = { "just before the old part", "further before", "just after the old part", "further after" };
+            for (int i = 0; i < at.Length; i++)
+            {
+                yield return TripleTapLastWindowOpen();
+                Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.05f).Within(1e-5f));
+                Assert.That(_player.RecastCleanTo, Is.EqualTo(0.35f).Within(1e-5f));
+                _bar.Tick();
+                KineticSlot s = _bar.SlotOf(_player.KeyOfSkill(Slot("Triple Tap")));
+                float window = _player.RecastWindowSeconds;
+                Assert.That(s.Band.xMin, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.05f / window).Within(1f), "the box's band at the wider part's shares");
+                Assert.That(s.Band.xMax, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.35f / window).Within(1f));
+                yield return PressAndAgree("Triple Tap", at[i], clean[i], 0.05f, 0.35f, what[i]);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator WithWideWindowTaken_LongShotsWiderBand_OnTheCastBlade_IsShownAndJudgedAlike()
+        {
+            int slot = Slot("Long Shot");
+            _player.EquipSkill(slot);
+            // No stat, a release at 0.77 s (before today's 0.8 to 1 s band); then at its cap 0.75 to 1.05 s: at 0.77 and 1.03 s
+            // perfect, at 0.72 s not.
+            float[] wide = { 0f, 0.5f, 0.5f, 0.5f };
+            float[] at = { 0.77f, 0.77f, 0.72f, 1.03f };
+            bool[] perfect = { false, true, false, true };
+            for (int i = 0; i < at.Length; i++)
+            {
+                if (wide[i] > 0f && _wide == null) TakeWideWindow();
+                yield return UntilFree();
+                _player.StartFresh();
+                _player.Teleport(NearA);
+                yield return null;
+                SkillDefinition shot = _player.Skills[slot];
+                float from = wide[i] > 0f ? 0.75f : 0.8f, to = wide[i] > 0f ? 1.05f : 1f;
+                Assert.That(shot.PerfectFrom, Is.EqualTo(from).Within(1e-5f), "the band as she has it");
+                Assert.That(shot.PerfectTo, Is.EqualTo(to).Within(1e-5f));
+                Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the charge");
+                _cast.Tick();
+                Assert.That(_cast.View.Kind, Is.EqualTo(CastBarKind.Charge));
+                Assert.That(_cast.View.ZoneFrom, Is.EqualTo(from / shot.HoldMax).Within(1e-4f), "the blade's zone is the band judged");
+                Assert.That(_cast.View.ZoneTo, Is.EqualTo(to / shot.HoldMax).Within(1e-4f));
+                yield return Until(() => _player.SkillChargedSeconds >= at[i] || _player.ActiveSkillSlot != slot, 5f);
+                _cast.Tick();
+                float charged = _player.SkillChargedSeconds;
+                bool lit = _cast.Lit, marker = _cast.View.MarkerInZone, inBand = _player.InPerfectBand;
+                int perfectBefore = _player.PerfectReleases, fired = _player.SkillShotsFired;
+                _player.ReleaseSkill(slot);
+                yield return Until(() => _player.SkillShotsFired > fired, 2f);
+                bool was = _player.PerfectReleases > perfectBefore;
+                string what = "at " + charged + " s (" + from + " to " + to + ")";
+                Assert.That(was, Is.EqualTo(inBand), what + ": judged as the character said a release would be");
+                Assert.That(was, Is.EqualTo(lit), what + ": as the blade showed lit");
+                Assert.That(was, Is.EqualTo(marker), what + ": its marker in its zone");
+                Assume.That(charged >= from - 1e-4f && charged <= to + 1e-4f, Is.EqualTo(perfect[i]), what + ": let go where it was meant to");
+                Assert.That(was, Is.EqualTo(perfect[i]), what);
+            }
         }
     }
 }
