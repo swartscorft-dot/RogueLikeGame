@@ -227,6 +227,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator InARun_TheMapAndTheChoice_AreDrawnInTheSkin_AndAPickFlashes()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.StartRun(RunSeed);
             yield return null;
             _map.Tick();
@@ -426,6 +427,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AChestCard_ShowsItsTier_AsItsNumeralsColour_AndItsWord()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.StartRun(RunSeed);
             yield return null;
             List<GeneratedLevel.PlacedProp> chests = _levels.Chests();

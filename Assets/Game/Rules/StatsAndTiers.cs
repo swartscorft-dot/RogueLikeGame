@@ -47,6 +47,21 @@ namespace Roguelike.Rules
         /// <summary>Each point of luck moves this share of the common odds to rare, and the next to epic (6 % and 2 %).</summary>
         public float LuckToRare = 0.06f;
         public float LuckToEpic = 0.02f;
+
+        // Work order 065 (2026-11-21, Kristian: "og mere stats"): the caps of the six new kinds, read only with the switch on.
+        // First guesses of the order (Cooldowns, Clean press) and of the producer's message of the same day (the other four).
+        /// <summary>Every skill's cooldown at most this much shorter from the Cooldowns steps (20 %), and never under the floor.</summary>
+        public float MostAllCooldowns = 0.20f;
+        /// <summary>A clean press and a perfect release at most this much more (+50 %).</summary>
+        public float MostCleanPress = 0.50f;
+        /// <summary>Her hits on a marked enemy at most this much more (+30 %).</summary>
+        public float MostMarkedPrey = 0.30f;
+        /// <summary>At most this much more health from a cleared room (+15).</summary>
+        public int MostMending = 15;
+        /// <summary>The focus window at most this much longer (+50 %).</summary>
+        public float MostLongFocus = 0.50f;
+        /// <summary>At most this many more dashes held (1: a second dash; the row is also taken once a run at most).</summary>
+        public int MostSecondDash = 1;
     }
 
     /// <summary>The tiers (work order 050): their odds as luck leans them, a draw, their words and colours.</summary>
@@ -214,6 +229,23 @@ namespace Roguelike.Rules
         /// <summary>Luck: leans every tiered offer upward (<see cref="UpgradeTiers.Shares"/>). 0 off.</summary>
         public float Luck => On ? _m.Total(UpgradeKind.Luck) : 0f;
 
+        // ---------------- Work order 065's six (2026-11-21, "og mere stats"): each capped, each nothing with the switch off ----------------
+
+        /// <summary>The share every skill's cooldown is cut by beside its own cuts (Cooldowns), to its cap; 0 off.</summary>
+        public float AllCooldowns => On ? Math.Min(Math.Max(0f, V.MostAllCooldowns), Math.Max(0f, _m.Total(UpgradeKind.AllCooldowns))) : 0f;
+        /// <summary>A clean press's and a perfect release's damage times this (Clean press): 1 plus the steps, to the cap; 1 off.</summary>
+        public float CleanPress => On ? 1f + Math.Min(Math.Max(0f, V.MostCleanPress), Math.Max(0f, _m.Total(UpgradeKind.CleanPress))) : 1f;
+        /// <summary>Her hits on an enemy that carries marks times this (Marked prey); 1 off.</summary>
+        public float MarkedPrey => On ? 1f + Math.Min(Math.Max(0f, V.MostMarkedPrey), Math.Max(0f, _m.Total(UpgradeKind.MarkedPrey))) : 1f;
+        /// <summary>Health more from every cleared combat room (Mending), to its cap; 0 off.</summary>
+        public int Mending => On ? Math.Min(Math.Max(0, V.MostMending), (int)Math.Round(Math.Max(0f, _m.Total(UpgradeKind.Mending)), MidpointRounding.AwayFromZero)) : 0;
+        /// <summary>The focus window's length (and Hair Trigger's priming) times this (Long focus); 1 off.</summary>
+        public float LongFocus => On ? 1f + Math.Min(Math.Max(0f, V.MostLongFocus), Math.Max(0f, _m.Total(UpgradeKind.LongFocus))) : 1f;
+        /// <summary>Dashes held more than the rack gives (Second dash); 0 off.</summary>
+        public int ExtraDashes => On ? Math.Min(Math.Max(0, V.MostSecondDash), (int)Math.Round(Math.Max(0f, _m.Total(UpgradeKind.SecondDash)), MidpointRounding.AwayFromZero)) : 0;
+        /// <summary>The dashes she holds: the rack's (Spare Step) and the second dash's.</summary>
+        public int DashCharges => Math.Max(1, _m.Meta.DashCharges) + ExtraDashes;
+
         // ---------------- The stats that were there before, as before ----------------
 
         /// <summary>The share of the feel's run speed she runs at: 1 plus each step's share.</summary>
@@ -224,8 +256,11 @@ namespace Roguelike.Rules
         public int BonusMaxHealth => (int)Math.Round(_m.Total(UpgradeKind.MaxHealth));
         /// <summary>The share of damage dealt: 1 plus each damage share's step (an epic one with the switch on), times the rack's step.</summary>
         public float DamageShare => (1f + _m.Total(UpgradeKind.Damage)) * (1f + _m.Meta.DamageShare);
-        /// <summary>The share of a skill's own cooldown it runs: 1 less each cut to it, never under the floor.</summary>
-        public float CooldownShare(string skill) => Math.Max(_m.CooldownFloor, 1f - _m.Total(UpgradeKind.Cooldown, skill ?? ""));
+        /// <summary>
+        /// The share of a skill's own cooldown it runs: 1 less each cut to it, and since work order 065 less every skill's
+        /// cut (<see cref="AllCooldowns"/>, 0 off), never under the floor.
+        /// </summary>
+        public float CooldownShare(string skill) => Math.Max(_m.CooldownFloor, 1f - _m.Total(UpgradeKind.Cooldown, skill ?? "") - AllCooldowns);
         /// <summary>The share of the dash's own cooldown it runs: 1 less each cut, never under the floor; times Spare Step's.</summary>
         public float DashCooldownShare => Math.Max(_m.CooldownFloor, 1f - _m.Total(UpgradeKind.DashCooldown)) * _m.Meta.DashRechargeScale;
         /// <summary>Metres the basic shot reaches farther; with the switch on never more than <see cref="StatValues.MostReach"/>.</summary>
@@ -264,12 +299,24 @@ namespace Roguelike.Rules
                 "Stagger  " + Pct(Stagger) + "  (100 %)",
                 "Damage dealt  +" + Pct(DamageShare - 1f) + "  (+" + Pct(_m.Meta.DamageShare) + ")",
             };
+            AddNewLines(lines);
             return lines;
+        }
+
+        /// <summary>Work order 065: the six new stats' lines, after those of work order 050 (Cooldowns' is in its line above).</summary>
+        void AddNewLines(List<string> lines)
+        {
+            lines.Add("Clean press  +" + Pct(CleanPress - 1f) + "  (+0 %)");
+            lines.Add("Marked prey  +" + Pct(MarkedPrey - 1f) + "  (+0 %)");
+            lines.Add("Mending  +" + Mending.ToString(CultureInfo.InvariantCulture) + " a room  (+0)");
+            lines.Add("Focus time  +" + Pct(LongFocus - 1f) + "  (+0 %)");
+            lines.Add("Dashes  " + DashCharges.ToString(CultureInfo.InvariantCulture) + "  (" + Math.Max(1, _m.Meta.DashCharges).ToString(CultureInfo.InvariantCulture) + ")");
         }
 
         string CooldownWords()
         {
             var parts = new List<string>();
+            if (AllCooldowns > 0f) parts.Add("every skill -" + Pct(AllCooldowns)); // work order 065
             foreach (string skill in _m.Taken.Where(u => u.Kind == UpgradeKind.Cooldown).Select(u => u.Skill).Distinct())
                 parts.Add(skill + " -" + Pct(1f - CooldownShare(skill)));
             float dash = _m.Total(UpgradeKind.DashCooldown);
@@ -277,12 +324,14 @@ namespace Roguelike.Rules
             return parts.Count == 0 ? "none" : string.Join(", ", parts);
         }
 
-        /// <summary>Her stats in one short line, for the play session log and its summary.</summary>
+        /// <summary>Her stats in one short line, for the play session log and its summary; work order 065's six at its end.</summary>
         public string OneLine(float baseInterval, int ownMaxHealth) =>
             string.Format(CultureInfo.InvariantCulture,
                           "dmg +{0:0.#}, attack {1:0.00}/s, crit {2:0.#}% x{3:0.##}, luck {4:0.#}, speed {5:0.#}%, hp {6}, reach +{7:0.#} m, stagger {8:0.#}%, dmg dealt +{9:0.#}%",
                           Damage, baseInterval > 0f ? AttackSpeed / baseInterval : 0f, CritChance * 100f, 1f + CritDamage, Luck, MoveSpeed * 100f,
-                          MaxHealthFor(ownMaxHealth), Reach, Stagger * 100f, (DamageShare - 1f) * 100f);
+                          MaxHealthFor(ownMaxHealth), Reach, Stagger * 100f, (DamageShare - 1f) * 100f)
+            + string.Format(CultureInfo.InvariantCulture, ", cd all -{0:0.#}%, clean +{1:0.#}%, marked +{2:0.#}%, room heal +{3}, focus time +{4:0.#}%, dashes {5}",
+                            AllCooldowns * 100f, (CleanPress - 1f) * 100f, (MarkedPrey - 1f) * 100f, Mending, (LongFocus - 1f) * 100f, DashCharges);
     }
 
     /// <summary>
@@ -318,6 +367,13 @@ namespace Roguelike.Rules
                 case UpgradeKind.Mend: return "heal";
                 case UpgradeKind.LastingMarks: return "mark lifetime";
                 case UpgradeKind.KeenFocus: return "focus";
+                // Work order 065: every skill's cooldown is the cooldown stat, as one skill's and the dash's are.
+                case UpgradeKind.AllCooldowns: return "cooldown";
+                case UpgradeKind.CleanPress: return "clean press";
+                case UpgradeKind.MarkedPrey: return "marked prey";
+                case UpgradeKind.Mending: return "mending";
+                case UpgradeKind.LongFocus: return "focus time";
+                case UpgradeKind.SecondDash: return "second dash";
                 default: return "first mark";
             }
         }
@@ -329,7 +385,7 @@ namespace Roguelike.Rules
             UpgradeDefinition[] table = values.TieredUpgrades ?? Array.Empty<UpgradeDefinition>();
             LevelRandom rng = LevelRandom.Stream(runSeed, Stage, floor * 64 + chest);
             double[] shares = UpgradeTiers.Shares(odds ?? v.ChestOdds, taken != null ? taken.Total(UpgradeKind.Luck) : 0f, v);
-            int count = values.UpgradesOffered + Math.Max(0, extra);
+            int count = values.TieredUpgradesOffered + Math.Max(0, extra); // work order 065: three (UpgradesOffered, two, is the plain chest's)
             var offer = new List<Upgrade>();
             var shown = new HashSet<string>();
             while (offer.Count < count)
@@ -364,22 +420,46 @@ namespace Roguelike.Rules
                 skill = cuttable[rng.Below(cuttable.Count)];
             }
             float scale = row.MinTier == UpgradeTier.Epic ? 1f : UpgradeTiers.Scale(tier, v);
+            float amount = StepOf(row, tier, v);
+            // A heal grows with its row's step: by the tier's scale, or for a row with steps of its own by the step's share.
+            float healScale = row.Amount > 0f && (row.RareAmount > 0f || row.EpicAmount > 0f) ? amount / row.Amount : scale;
             return new Upgrade
             {
-                Kind = row.Kind, Amount = row.Amount * scale, Heal = (int)Math.Round(row.Heal * scale, MidpointRounding.AwayFromZero),
+                Kind = row.Kind, Amount = amount, Heal = (int)Math.Round(row.Heal * healScale, MidpointRounding.AwayFromZero),
                 Skill = skill, Tier = tier, Tiered = true,
             };
         }
 
-        /// <summary>The skills she has whose cooldown is not yet at its floor.</summary>
+        /// <summary>
+        /// A row's step at a tier: an epic-only row's own amount; a rare's or an epic's own step where the row has one (work order
+        /// 065's new kinds); else the common step times the tier's scale, as work order 050 made it.
+        /// </summary>
+        public static float StepOf(UpgradeDefinition row, UpgradeTier tier, StatValues v)
+        {
+            if (row == null) return 0f;
+            if (row.MinTier == UpgradeTier.Epic) return row.Amount;
+            if (tier == UpgradeTier.Epic && row.EpicAmount > 0f) return row.EpicAmount;
+            if (tier == UpgradeTier.Rare && row.RareAmount > 0f) return row.RareAmount;
+            return row.Amount * UpgradeTiers.Scale(tier, v ?? new StatValues());
+        }
+
+        /// <summary>
+        /// The skills she has whose cooldown is not yet at its floor (since work order 065 with every skill's cut counted, to
+        /// its cap, whatever the run's switch).
+        /// </summary>
         static List<string> Cuttable(IReadOnlyList<string> equipped, RunValues values, RunModifiers taken)
         {
             var list = new List<string>();
             if (equipped == null) return list;
+            float all = AllCut(values, taken);
             foreach (string s in equipped)
-                if (1f - (taken != null ? taken.Total(UpgradeKind.Cooldown, s) : 0f) > values.CooldownFloor + 1e-5f) list.Add(s);
+                if (1f - (taken != null ? taken.Total(UpgradeKind.Cooldown, s) : 0f) - all > values.CooldownFloor + 1e-5f) list.Add(s);
             return list;
         }
+
+        /// <summary>Every skill's cut taken (work order 065), to its cap.</summary>
+        static float AllCut(RunValues values, RunModifiers taken) =>
+            taken == null ? 0f : Math.Min((values.Stats ?? new StatValues()).MostAllCooldowns, Math.Max(0f, taken.Total(UpgradeKind.AllCooldowns)));
 
         /// <summary>True when taking a step of this row now would change something.</summary>
         public static bool Useful(UpgradeDefinition d, IReadOnlyList<string> equipped, RunValues values, StatValues v, RunModifiers taken, bool atFullHealth)
@@ -397,9 +477,16 @@ namespace Roguelike.Rules
                 case UpgradeKind.DashCooldown: return 1f - Total(UpgradeKind.DashCooldown) > values.CooldownFloor + 1e-5f;
                 case UpgradeKind.Cooldown:
                     return (d.Skill ?? "").Length > 0
-                        ? 1f - (taken != null ? taken.Total(UpgradeKind.Cooldown, d.Skill) : 0f) > values.CooldownFloor + 1e-5f
+                        ? 1f - (taken != null ? taken.Total(UpgradeKind.Cooldown, d.Skill) : 0f) - AllCut(values, taken) > values.CooldownFloor + 1e-5f
                         : Cuttable(equipped, values, taken).Count > 0;
                 case UpgradeKind.FirstMark: return equipped == null || equipped.Contains(d.Skill);
+                // Work order 065: a new kind at its cap would do nothing; every skill's cut also not when every skill is at the floor.
+                case UpgradeKind.AllCooldowns: return Total(UpgradeKind.AllCooldowns) < v.MostAllCooldowns - 1e-5f && (equipped == null || Cuttable(equipped, values, taken).Count > 0);
+                case UpgradeKind.CleanPress: return Total(UpgradeKind.CleanPress) < v.MostCleanPress - 1e-5f;
+                case UpgradeKind.MarkedPrey: return Total(UpgradeKind.MarkedPrey) < v.MostMarkedPrey - 1e-5f;
+                case UpgradeKind.Mending: return Total(UpgradeKind.Mending) < v.MostMending - 1e-5f;
+                case UpgradeKind.LongFocus: return Total(UpgradeKind.LongFocus) < v.MostLongFocus - 1e-5f;
+                case UpgradeKind.SecondDash: return Total(UpgradeKind.SecondDash) < v.MostSecondDash - 1e-5f;
                 default: return true;
             }
         }

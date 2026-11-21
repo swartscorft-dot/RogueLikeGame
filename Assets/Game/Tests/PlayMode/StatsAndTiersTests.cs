@@ -272,9 +272,9 @@ namespace Roguelike.PlayModeTests
             yield return StandBy(_levels.Chests().First());
             Assert.That(_levels.OpenChest(), Is.True);
             IReadOnlyList<Upgrade> offer = _levels.OfferedUpgrades;
-            Assert.That(offer.Count, Is.EqualTo(2));
+            Assert.That(offer.Count, Is.EqualTo(3), "work order 065: three");
             Assert.That(offer.All(u => u.Tiered), Is.True, "every card has a tier");
-            Assert.That(offer.Select(u => u.Stat).Distinct().Count(), Is.EqualTo(2), "two different stats");
+            Assert.That(offer.Select(u => u.Stat).Distinct().Count(), Is.EqualTo(3), "three different stats");
             Assert.That(offer.All(u => u.TierWord == "common" || u.TierWord == "rare" || u.TierWord == "epic"), Is.True);
 
             Upgrade u0 = offer[0];
@@ -318,6 +318,13 @@ namespace Roguelike.PlayModeTests
                 case UpgradeKind.LastingMarks: return _levels.Modifiers.MarkLifetimeBonus;
                 case UpgradeKind.KeenFocus: return _levels.Modifiers.FocusGainShare;
                 case UpgradeKind.FirstMark: return _levels.Modifiers.FirstMarkBonus(u.Skill);
+                // Work order 065's six.
+                case UpgradeKind.AllCooldowns: return s.AllCooldowns;
+                case UpgradeKind.CleanPress: return s.CleanPress;
+                case UpgradeKind.MarkedPrey: return s.MarkedPrey;
+                case UpgradeKind.Mending: return s.Mending;
+                case UpgradeKind.LongFocus: return s.LongFocus;
+                case UpgradeKind.SecondDash: return _player.DashMaxCharges;
                 default: return 0f;
             }
         }
@@ -334,7 +341,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_hud.Escape(), Is.True);
             Assert.That(_levels.Paused, Is.True);
             List<string> lines = _hud.StatLines();
-            Assert.That(lines.Count, Is.EqualTo(11));
+            Assert.That(lines.Count, Is.EqualTo(16), "work order 065: its five lines after work order 050's eleven");
             Assert.That(lines[0], Is.EqualTo("Damage  +3 a shot, skills by weight  (+0)"));
             StringAssert.StartsWith("Attack speed  3.8 shots/s  (3.8)", lines[1]);
             Assert.That(lines.Single(l => l.StartsWith("Max health")), Is.EqualTo("Max health  " + _health.Max + "  (" + _health.MaxHealth + ")"));

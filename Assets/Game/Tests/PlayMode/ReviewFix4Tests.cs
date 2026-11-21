@@ -214,6 +214,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheCards_OfAChestWithStatsOn_AFloorReward_AndASkillUpgrade_HoldTheWholeOfTheirText()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.StartRun(RunSeed);
             yield return null;
             List<GeneratedLevel.PlacedProp> chests = _levels.Chests();
@@ -271,6 +272,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ACardsSeenCorner_IsOnTheCard_AndThePatchBesideTheOtherCorner_IsNot()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.StartRun(RunSeed);
             yield return null;
             _levels.FinishFloorForTests();
