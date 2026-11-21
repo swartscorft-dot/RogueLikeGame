@@ -22,6 +22,8 @@ namespace Roguelike.Rules
     /// Work order 051: the walls are drawn by <see cref="LevelLayout.RoomAtCell"/>, so a room's carved outline shows by
     /// itself: a cell walled round with nothing inside is solid. The room's label stands in its first open cell from the
     /// north-west.
+    /// Work order 058: after the themes, the legend of the rooms stamped from a template (<see cref="RoomTemplates.Legend"/>),
+    /// none when no room is.
     /// </summary>
     public static class LevelMap
     {
@@ -112,6 +114,12 @@ namespace Roguelike.Rules
                 sb.Length--;
                 sb.Append("  themes ").Append(string.Join(", ", level.Rooms.Where(r => r.Theme != RoomTheme.None)
                     .Select(r => r.Letter + r.Order.ToString(CultureInfo.InvariantCulture) + " " + RoomThemes.Word(r.Theme)))).Append('\n');
+            }
+            string templates = RoomTemplates.Legend(level); // work order 058: the rooms stamped from a template, after the themes
+            if (templates.Length > 0)
+            {
+                sb.Length--;
+                sb.Append("  templates ").Append(templates).Append('\n');
             }
             for (int r = 0; r < rows; r++)
             {

@@ -286,7 +286,10 @@ namespace Roguelike.PlayModeTests
             var counts = new Dictionary<bool, (int pieces, int walls, int caps, int floors)>();
             foreach (bool shapes in new[] { false, true })
             {
-                GeneratedLevel level = Build(5, v => v.Shapes = shapes);
+                // Work order 058: this is the budget of the carved shapes alone (work order 051), so the templates are off here; with
+                // them on the same floor has 565 pieces against 327 without shapes (1.73 times). The templates' own budget is in
+                // RoomTemplatesPlayTests.Floor5_TheKitsPieces_WithTheTemplatesOffAndOn.
+                GeneratedLevel level = Build(5, v => { v.Shapes = shapes; v.Templates = false; });
                 yield return Frames(2);
                 counts[shapes] = (level.KitPieces.Count, level.Walls, level.SolidCaps.Count, level.Floors);
             }

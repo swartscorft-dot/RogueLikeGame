@@ -60,7 +60,8 @@ namespace Roguelike.Rules
         /// <summary>Where a room is between the smallest (0) and the largest (1) of its kind, by floor area, as the combat rooms' prop counts were.</summary>
         public static double SizeShare(LevelRoom room, RoomSizeRange size)
         {
-            int cells = room.Rect.Width * room.Rect.Height, fewest = size.Min * size.Min, most = size.Max * size.Max;
+            // Work order 058: a template room's open cells.
+            int cells = room.Rect.Width * room.Rect.Height - (room.Template != null ? room.SolidCount : 0), fewest = size.Min * size.Min, most = size.Max * size.Max;
             return most > fewest ? Math.Max(0, Math.Min(1, (cells - fewest) / (double)(most - fewest))) : 0;
         }
 
@@ -94,7 +95,7 @@ namespace Roguelike.Rules
                 {
                     ThemeRecipe r = tv.Of(th, RoomKind.Combat);
                     double w = r.SmallWeight + t * (r.LargeWeight - r.SmallWeight);
-                    return Math.Max(0, w * (room.Elite ? r.EliteWeight : 1f));
+                    return Math.Max(0, w * (room.Elite ? r.EliteWeight : 1f) * RoomTemplates.SuitsFactor(room, th, v)); // work order 058: a theme its template suits
                 }).ToList();
                 double total = weights.Sum(), pick = u * total;
                 room.Theme = options[options.Count - 1];
@@ -388,7 +389,7 @@ namespace Roguelike.Rules
                 {
                     PropModel model = pick();
                     int turn = (alongX ? 0 : 90) + 180 * rng.Below(2); // its long side (its own x) along the row
-                    Put(model, places.Select(p => (p, turn, PropPlace.Floor)));
+                    Put(model, RoomTemplates.CoverPlaces(_room, _cs).Concat(places).Select(p => (p, turn, PropPlace.Floor))); // work order 058: the c marks first
                 }
             }
 
@@ -476,7 +477,7 @@ namespace Roguelike.Rules
                     ? grid.Where(p => RoomShapes.DistanceToWalls(_room, p, _cs) <= fromWallsMost).ToList() // work order 051: to the outline
                     : grid.Where(p => RoomShapes.DistanceToWalls(_room, p, _cs) >= _tv.OpenFromWalls).ToList();
                 rng.Shuffle(grid);
-                Put(model, grid.Select(p => (p, turn, PropPlace.Floor)));
+                Put(model, RoomTemplates.CoverPlaces(_room, _cs).Concat(grid).Select(p => (p, turn, PropPlace.Floor))); // work order 058: the c marks first
             }
 
             void Ring(int n, Func<PropModel> pick, LevelRandom rng)
@@ -511,7 +512,8 @@ namespace Roguelike.Rules
                 for (int k = 0; k < n; k++)
                 {
                     PropModel model = pick();
-                    Put(model, Nearby(points[k], Turn(model, rng), PropPlace.Floor));
+                    int turn = Turn(model, rng);
+                    Put(model, RoomTemplates.CoverPlaces(_room, _cs).Select(p => (p, turn, PropPlace.Floor)).Concat(Nearby(points[k], turn, PropPlace.Floor))); // work order 058: the c marks first
                 }
             }
 
@@ -523,7 +525,7 @@ namespace Roguelike.Rules
                 PropSize altar = PropSize.Of(model), statue = PropSize.Of(PropModel.Statue);
                 double depth = _v.AtWallGap + statue.Depth + _tv.AltarStatueGap + altar.Depth * 0.5;
                 Ends(_farSide, out double lo, out double hi);
-                List<LevelPoint> places = Sweep(_farSide, depth, (lo + hi) * 0.5);
+                List<LevelPoint> places = Sweep(_farSide, depth, RoomTemplates.FarMarkAlong(_room, _farSide, _cs) ?? (lo + hi) * 0.5); // work order 058: from the A mark
                 _altarWanted = places.Count > 0 ? places[0] : _room.Middle(_cs);
                 int turn = Facing(model, PropRules.Inward(_farSide));
                 _altar = Put(model, places.Select(p => (p, turn, PropPlace.Set)));
@@ -598,7 +600,14 @@ namespace Roguelike.Rules
                     int turn = Facing(model, PropRules.Inward(side));
                     places.AddRange(Sweep(side, depth, (lo + hi) * 0.5).Select(p => (p, turn, PropPlace.Wall)));
                 }
-                Wall(LevelGenerator.North);
+                // Work order 058: in a template room the far wall from its A mark first, when that wall is not the south one.
+                bool fromMark = RoomTemplates.FarMark(_room, _cs, out int markSide, out double markAlong) && markSide != LevelGenerator.South;
+                if (fromMark)
+                {
+                    int turn = Facing(model, PropRules.Inward(markSide));
+                    places.AddRange(Sweep(markSide, depth, markAlong).Select(p => (p, turn, PropPlace.Wall)));
+                }
+                if (!fromMark || markSide != LevelGenerator.North) Wall(LevelGenerator.North);
                 // Work order 051: else the northmost carved faces that face south into the room (a gate's back, an apse's
                 // side), nearest the room's middle first.
                 {
@@ -625,6 +634,7 @@ namespace Roguelike.Rules
                 bool eastFirst = Math.Abs(X1 - door.X) >= Math.Abs(door.X - X0);
                 Wall(eastFirst ? LevelGenerator.East : LevelGenerator.West);
                 Wall(eastFirst ? LevelGenerator.West : LevelGenerator.East);
+                if (fromMark) places = places.GroupBy(p => (p.Item1.X, p.Item1.Y, p.Item2)).Select(g => g.First()).ToList(); // the far wall's places once
                 // Work order 051: in a carved room, room for its dais (work order 044) between it and any carved cell.
                 if (_room.SolidCount > 0 && _daisRoom > 0)
                 {

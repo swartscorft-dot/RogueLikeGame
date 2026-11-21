@@ -540,7 +540,12 @@ namespace Roguelike.PlayModeTests
                 int f = 1 + (int)(s % 5);
                 LevelLayout layout = LevelGenerator.Generate(s, f, new LevelValues());
                 foreach (LevelRoom room in new[] { layout.EliteRoom, layout.ExitRoom })
-                    if (room != null && room.SolidCount > 0 && (room.Shape == RoomShape.Cross || room.Shape == RoomShape.Octagon))
+                    if (room != null && room.SolidCount > 0 && (room.Shape == RoomShape.Cross || room.Shape == RoomShape.Octagon
+                                                                     // Changed deliberately (work order 058): with the templates on the elite and the
+                                                                     // exit room are stamped from a template (the cross hall, the throne arcade's cut
+                                                                     // corners), whose outline is no rectangle either; a cross or an octagon they are
+                                                                     // only when a stamp falls back, which no floor of 10,000 did.
+                                                                     || room.Shape == RoomShape.Template))
                     {
                         carved = room;
                         seed = s;
@@ -548,7 +553,7 @@ namespace Roguelike.PlayModeTests
                         break;
                     }
             }
-            Assume.That(carved, Is.Not.Null, "an elite or exit room that is a cross or an octagon");
+            Assume.That(carved, Is.Not.Null, "an elite or exit room that is a cross, an octagon or a template");
             _levels.Values = new LevelValues();
             GeneratedLevel level = _levels.Build(seed, floor);
             LevelRoom here = level.Layout.Rooms.First(r => r.Order == carved.Order);

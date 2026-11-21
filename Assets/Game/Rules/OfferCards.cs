@@ -244,6 +244,8 @@ namespace Roguelike.Rules
                 case UpgradeKind.Mending: return "Mending";
                 case UpgradeKind.LongFocus: return "Long focus";
                 case UpgradeKind.SecondDash: return "Second dash";
+                case UpgradeKind.WideWindow: return "Wide window"; // work order 067
+                case UpgradeKind.Blast: return "Blast";
                 default: return "First mark";
             }
         }
@@ -275,6 +277,8 @@ namespace Roguelike.Rules
                 case UpgradeKind.LongFocus:
                     return c != null && c.FocusMode == FocusMode.HairTrigger ? "A part of focus primes your next skill for longer." : "Your focus window lasts longer.";
                 case UpgradeKind.SecondDash: return "Hold one more dash before it must recharge.";
+                case UpgradeKind.WideWindow: return "The clean part of a window and the perfect band are wider."; // work order 067, the order's words
+                case UpgradeKind.Blast: return "Your area skills hit a wider area.";
                 default: return (u.Skill ?? "") + " puts more marks on an unmarked enemy.";
             }
         }
@@ -371,6 +375,8 @@ namespace Roguelike.Rules
                     break;
                 }
                 case UpgradeKind.SecondDash: Add("dashes held", Int(s.DashCharges)); break;
+                case UpgradeKind.WideWindow: WideWindowNumbers(c, s, Add); break; // work order 067
+                case UpgradeKind.Blast: BlastNumbers(c, s, Add); break;
                 default: // FirstMark
                 {
                     SkillDefinition skill = c.Skill(u.Skill);
@@ -379,6 +385,72 @@ namespace Roguelike.Rules
                     break;
                 }
             }
+        }
+
+        /// <summary>The most lines a card of work order 067's two names her skills on (the order: "at most three lines").</summary>
+        public const int MostSkillLines = 3;
+
+        /// <summary>Seconds to the hundredth, for the parts of a window: "0.20 s".</summary>
+        static string Sec2(double seconds) => seconds.ToString("0.00", s_Inv) + " s";
+
+        /// <summary>
+        /// Wide window's numbers (work order 067): for each skill she has with a clean part (Backstep, Triple Tap) its width, and
+        /// with a perfect band (Long Shot) its width, as her stats give them now, at most <see cref="MostSkillLines"/>; with none
+        /// of them the stat itself. The clean part as the kit places it in the skill's window (<see cref="CleanPart.Of(KitValues, float, bool, float)"/>),
+        /// the band as the layer lays it on the skill before her stats (<see cref="SkillDefinition.BeforeStats"/>): what the judge reads.
+        /// </summary>
+        static void WideWindowNumbers(OfferContext c, HerStats s, Action<string, string, string> add)
+        {
+            int lines = 0;
+            KitValues kit = c.Kit ?? new KitValues();
+            foreach (SkillDefinition skill in c.Equipped ?? Array.Empty<SkillDefinition>())
+            {
+                if (skill == null || lines >= MostSkillLines) continue;
+                if (WideWindow.HasCleanPart(skill))
+                    add(skill.Name + " clean part", Sec2(WideWindow.CleanPartOf(skill, kit, s.WideWindow).Width), "");
+                else if (WideWindow.HasBand(skill) && !skill.NoCharge)
+                {
+                    SkillDefinition band = s.SkillLayer.Apply(skill.BeforeStats);
+                    add(skill.Name + " perfect band", Sec2(band.PerfectTo - band.PerfectFrom), "");
+                }
+                else continue;
+                lines++;
+            }
+            if (lines == 0) add("clean parts and perfect bands", Plus(s.WideWindow), "");
+        }
+
+        /// <summary>
+        /// Blast's numbers (work order 067): for each area skill she has, its one area number as her stats make it now (a
+        /// burst's radius, a cone's angle, a line's width), at most <see cref="MostSkillLines"/>; with none of them the stat itself.
+        /// </summary>
+        static void BlastNumbers(OfferContext c, HerStats s, Action<string, string, string> add)
+        {
+            int lines = 0;
+            SkillStatLayer layer = s.SkillLayer;
+            IReadOnlyList<string> areas = layer.AreaSkills ?? (c.Modifiers.StatValues ?? new StatValues()).BlastSkills; // the layer's own list
+            foreach (SkillDefinition skill in c.Equipped ?? Array.Empty<SkillDefinition>())
+            {
+                if (skill == null || lines >= MostSkillLines || !Blast.IsArea(skill, areas)) continue;
+                SkillDefinition now = layer.Apply(skill.BeforeStats);
+                float n = Blast.Of(now);
+                add(skill.Name + " " + Blast.Word(now), now.Shape == SkillShape.Cone ? n.ToString("0", s_Inv) + "°" : Metres(n), "");
+                lines++;
+            }
+            if (lines == 0) add("area skills", Plus(s.Blast), "");
+        }
+
+        /// <summary>
+        /// The skill as she would have it with these upgrades taken (work order 067): the upgrades on the skill before her
+        /// stats' layer, then the layer as her stats give it now, as the run's view makes it. With no layer, the old way: the
+        /// skill as she has it, a copy, patched.
+        /// </summary>
+        static SkillDefinition WithRows(SkillDefinition now, IEnumerable<SkillUpgradeDefinition> rows, OfferContext c)
+        {
+            if (now == null) return null;
+            SkillDefinition after = now.BeforeStats.Copy();
+            after.SetBeforeStats(null);
+            foreach (SkillUpgradeDefinition u in rows ?? Array.Empty<SkillUpgradeDefinition>()) u?.ApplyTo(after);
+            return c.Stats.SkillLayer.Apply(after);
         }
 
         /// <summary>The skill she has that her flat damage counts most in (the first of the heaviest), or null.</summary>
@@ -444,7 +516,8 @@ namespace Roguelike.Rules
         {
             c = c ?? new OfferContext();
             bool tiered = tier != null && tier.Tiered;
-            SkillDefinition shown = tiered ? SkillTiers.Preview(skill, tier) : skill;
+            // Work order 067: the tier's rows on the skill before her stats' layer, then the layer (an epic's Slug, then Blast), as the view makes it.
+            SkillDefinition shown = tiered ? WithRows(skill, tier.Rows, c) : skill;
             var card = new OfferCard
             {
                 Name = skill != null ? skill.Name : "", Tiered = tiered, Tier = tiered ? tier.Tier : UpgradeTier.Common,
@@ -498,8 +571,7 @@ namespace Roguelike.Rules
             card.Sentence = UpgradeSentence(u);
             if (now != null)
             {
-                SkillDefinition after = now.Copy();
-                u.ApplyTo(after);
+                SkillDefinition after = WithRows(now, new[] { u }, c); // work order 067: the upgrade first, then her stats' layer
                 card.Numbers.AddRange(SkillDiff(now, after, c));
             }
             card.Cost = UpgradeCost(u);

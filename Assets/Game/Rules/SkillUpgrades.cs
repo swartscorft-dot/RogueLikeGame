@@ -288,26 +288,45 @@ namespace Roguelike.Rules
         /// The run's view of these skills: the same list when no upgrade is taken, else a copy of every skill, each patched
         /// by its upgrades in the order taken. Made again only when the list or the upgrades change.
         /// </summary>
-        public IReadOnlyList<SkillDefinition> View(IReadOnlyList<SkillDefinition> skills)
+        public IReadOnlyList<SkillDefinition> View(IReadOnlyList<SkillDefinition> skills) => View(skills, default);
+
+        /// <summary>
+        /// As above, with her stats' layer laid on each skill after its upgrades (work order 067: Blast, Wide window,
+        /// <see cref="SkillStatLayer"/>): the one place a skill's area and perfect band are read as she has them. The same list
+        /// when no upgrade is taken and the layer changes nothing; made again only when the list, the upgrades or the layer change.
+        /// </summary>
+        public IReadOnlyList<SkillDefinition> View(IReadOnlyList<SkillDefinition> skills, SkillStatLayer layer)
         {
-            if (skills == null || _taken.Count == 0) return skills;
-            if (_view != null && ReferenceEquals(_viewOf, skills) && _viewVersion == Version) return _view;
+            if (skills == null || (_taken.Count == 0 && !layer.Any)) return skills;
+            if (_view != null && ReferenceEquals(_viewOf, skills) && _viewVersion == Version && _viewLayer.Equals(layer)) return _view;
             _viewOf = skills;
             _viewVersion = Version;
+            _viewLayer = layer;
             _view = new SkillDefinition[skills.Count];
-            for (int i = 0; i < skills.Count; i++) _view[i] = Patched(skills[i], _taken);
+            for (int i = 0; i < skills.Count; i++) _view[i] = Patched(skills[i], _taken, layer);
             return _view;
         }
+
+        SkillStatLayer _viewLayer; // work order 067: the layer the view was made with
 
         /// <summary>A copy of the skill with every upgrade of the list that is its own applied, in order; null for null.</summary>
         public static SkillDefinition Patched(SkillDefinition skill, IEnumerable<SkillUpgradeDefinition> upgrades)
         {
             if (skill == null) return null;
             SkillDefinition copy = skill.Copy();
+            copy.SetBeforeStats(null); // work order 067: a copy is patched from scratch, with no layer on it yet
             foreach (SkillUpgradeDefinition u in upgrades)
                 if (u != null && u.Skill == skill.Name) u.ApplyTo(copy);
             return copy;
         }
+
+        /// <summary>
+        /// As above, then her stats' layer on it (work order 067): an upgrade that sets or scales an area (Big Keg's radius
+        /// times 4/3, Slug's line) first, then Blast times it; a band an upgrade narrows (Overcharge) first, then Wide window
+        /// widens it.
+        /// </summary>
+        public static SkillDefinition Patched(SkillDefinition skill, IEnumerable<SkillUpgradeDefinition> upgrades, SkillStatLayer layer) =>
+            layer.Apply(Patched(skill, upgrades));
 
         /// <summary>"Quick Shot: Double Tap, Backstep: Long Step"; "none" without. A tier's step is not listed (work order 057).</summary>
         public string Text() => _taken.All(u => u.TierStep) ? "none" : string.Join(", ", _taken.Where(u => !u.TierStep).Select(u => u.FullName));

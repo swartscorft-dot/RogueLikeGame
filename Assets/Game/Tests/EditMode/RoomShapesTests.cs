@@ -68,8 +68,8 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void TwoThousandSeeds_EveryRoomKeepsTheRules_AndEverythingStandsOnOpenCells(int floor)
         {
-            var values = new LevelValues();
-            var off = new LevelValues { Shapes = false };
+            var values = new LevelValues { Templates = false }; // work order 058: 051's drawn shapes, as they were
+            var off = new LevelValues { Shapes = false, Templates = false };
             var shapes = new Dictionary<string, int>();
             int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0, earlier = 0;
             const int seeds = 2000;
@@ -215,8 +215,8 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Generation_CostsAtMostHalfAsMuchAgain_ByTheMedian()
         {
-            var on = new LevelValues();
-            var off = new LevelValues { Shapes = false };
+            var on = new LevelValues { Templates = false }; // work order 058: what 051's shapes cost alone
+            var off = new LevelValues { Shapes = false, Templates = false };
             LevelGenerator.Generate(424242UL, 3, on);
             LevelGenerator.Generate(424242UL, 3, off);
             var tOn = new List<double>();
@@ -255,7 +255,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_FiveThousandFloors_AreVersion12s_FieldForField()
         {
-            var off = new LevelValues { Shapes = false, Casters = false }; // work order 054: version 12 had the casters off
+            var off = new LevelValues { Shapes = false, Casters = false, Templates = false }; // work order 054: version 12 had the casters off; 058: nor templates
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 5000; s++)
             {

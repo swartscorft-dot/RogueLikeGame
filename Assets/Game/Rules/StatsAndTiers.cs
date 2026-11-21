@@ -62,6 +62,19 @@ namespace Roguelike.Rules
         public float MostLongFocus = 0.50f;
         /// <summary>At most this many more dashes held (1: a second dash; the row is also taken once a run at most).</summary>
         public int MostSecondDash = 1;
+
+        // Work order 067 (his choice of 2026-11-21 for the evening, "Wide window og Blast"): the caps of the two, read only with
+        // the switch on. First guesses of the order.
+        /// <summary>The clean parts and perfect bands at most this much wider (+50 %): Backstep's 0.20 s clean part 0.30 s at most.</summary>
+        public float MostWideWindow = 0.50f;
+        /// <summary>Her area skills' area at most this much larger (+40 %): Powder Keg's burst 2.5 m, 3.5 m at most.</summary>
+        public float MostBlast = 0.40f;
+        /// <summary>
+        /// The skills Blast grows, by name (work order 067: the order's list): the burst (Powder Keg), the cones (Fan Fire,
+        /// Scatter Blast, and its line with Slug) and the wide lines (Heavy Volley, Breaker Slug). The thin single shots, the
+        /// hop, the slide and the counter have no area.
+        /// </summary>
+        public string[] BlastSkills = { "Powder Keg", "Fan Fire", "Scatter Blast", "Heavy Volley", "Breaker Slug" };
     }
 
     /// <summary>The tiers (work order 050): their odds as luck leans them, a draw, their words and colours.</summary>
@@ -246,6 +259,15 @@ namespace Roguelike.Rules
         /// <summary>The dashes she holds: the rack's (Spare Step) and the second dash's.</summary>
         public int DashCharges => Math.Max(1, _m.Meta.DashCharges) + ExtraDashes;
 
+        // ---------------- Work order 067's two (his choice of 2026-11-21: "Wide window og Blast"): each capped, each nothing with the switch off ----------------
+
+        /// <summary>The share clean parts and perfect bands are wider by (Wide window, <see cref="Rules.WideWindow"/>), to its cap; 0 off.</summary>
+        public float WideWindow => On ? Math.Min(Math.Max(0f, V.MostWideWindow), Math.Max(0f, _m.Total(UpgradeKind.WideWindow))) : 0f;
+        /// <summary>The share her area skills' area is larger by (Blast, <see cref="Rules.Blast"/>), to its cap; 0 off.</summary>
+        public float Blast => On ? Math.Min(Math.Max(0f, V.MostBlast), Math.Max(0f, _m.Total(UpgradeKind.Blast))) : 0f;
+        /// <summary>The two as the layer laid on her skills as she has them (<see cref="SkillStatLayer"/>); none off.</summary>
+        public SkillStatLayer SkillLayer => On ? new SkillStatLayer(Blast, WideWindow, V.BlastSkills) : default;
+
         // ---------------- The stats that were there before, as before ----------------
 
         /// <summary>The share of the feel's run speed she runs at: 1 plus each step's share.</summary>
@@ -311,6 +333,9 @@ namespace Roguelike.Rules
             lines.Add("Mending  +" + Mending.ToString(CultureInfo.InvariantCulture) + " a room  (+0)");
             lines.Add("Focus time  +" + Pct(LongFocus - 1f) + "  (+0 %)");
             lines.Add("Dashes  " + DashCharges.ToString(CultureInfo.InvariantCulture) + "  (" + Math.Max(1, _m.Meta.DashCharges).ToString(CultureInfo.InvariantCulture) + ")");
+            // Work order 067: after 065's.
+            lines.Add("Wide window  +" + Pct(WideWindow) + "  (+0 %)");
+            lines.Add("Blast  +" + Pct(Blast) + "  (+0 %)");
         }
 
         string CooldownWords()
@@ -331,7 +356,8 @@ namespace Roguelike.Rules
                           Damage, baseInterval > 0f ? AttackSpeed / baseInterval : 0f, CritChance * 100f, 1f + CritDamage, Luck, MoveSpeed * 100f,
                           MaxHealthFor(ownMaxHealth), Reach, Stagger * 100f, (DamageShare - 1f) * 100f)
             + string.Format(CultureInfo.InvariantCulture, ", cd all -{0:0.#}%, clean +{1:0.#}%, marked +{2:0.#}%, room heal +{3}, focus time +{4:0.#}%, dashes {5}",
-                            AllCooldowns * 100f, (CleanPress - 1f) * 100f, (MarkedPrey - 1f) * 100f, Mending, (LongFocus - 1f) * 100f, DashCharges);
+                            AllCooldowns * 100f, (CleanPress - 1f) * 100f, (MarkedPrey - 1f) * 100f, Mending, (LongFocus - 1f) * 100f, DashCharges)
+            + string.Format(CultureInfo.InvariantCulture, ", wide window +{0:0.#}%, blast +{1:0.#}%", WideWindow * 100f, Blast * 100f); // work order 067
     }
 
     /// <summary>
@@ -374,6 +400,8 @@ namespace Roguelike.Rules
                 case UpgradeKind.Mending: return "mending";
                 case UpgradeKind.LongFocus: return "focus time";
                 case UpgradeKind.SecondDash: return "second dash";
+                case UpgradeKind.WideWindow: return "wide window"; // work order 067: each a stat of its own
+                case UpgradeKind.Blast: return "blast";
                 default: return "first mark";
             }
         }
@@ -487,6 +515,9 @@ namespace Roguelike.Rules
                 case UpgradeKind.Mending: return Total(UpgradeKind.Mending) < v.MostMending - 1e-5f;
                 case UpgradeKind.LongFocus: return Total(UpgradeKind.LongFocus) < v.MostLongFocus - 1e-5f;
                 case UpgradeKind.SecondDash: return Total(UpgradeKind.SecondDash) < v.MostSecondDash - 1e-5f;
+                // Work order 067: never offered at its cap.
+                case UpgradeKind.WideWindow: return Total(UpgradeKind.WideWindow) < v.MostWideWindow - 1e-5f;
+                case UpgradeKind.Blast: return Total(UpgradeKind.Blast) < v.MostBlast - 1e-5f;
                 default: return true;
             }
         }

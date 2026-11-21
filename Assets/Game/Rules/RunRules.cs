@@ -100,6 +100,12 @@ namespace Roguelike.Rules
         LongFocus,
         /// <summary>Amount more dashes held before the dash must recharge (an epic only, once a run).</summary>
         SecondDash,
+        // Work order 067 (2026-11-21, his choice for the evening: "Wide window og Blast"): two more, offered only with
+        // RunValues.StatsAndTiers on, read through HerStats, each capped there.
+        /// <summary>The clean part of every recast window and the perfect band of a charge the share Amount wider, round its middle (<see cref="Rules.WideWindow"/>).</summary>
+        WideWindow,
+        /// <summary>Her area skills' one area number (a burst's radius, a cone's angle, a line's width) the share Amount larger (<see cref="Rules.Blast"/>).</summary>
+        Blast,
     }
 
     /// <summary>One row of the chest table: a kind, how much, and for some a skill.</summary>
@@ -189,6 +195,8 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Mending ? "+" + Int(Amount) + " health from every cleared room"
             : Kind == UpgradeKind.LongFocus ? "+" + Pct(Amount) + " longer focus window"
             : Kind == UpgradeKind.SecondDash ? "+" + Int(Amount) + " dash held"
+            : Kind == UpgradeKind.WideWindow ? "+" + Pct(Amount) + " wider clean parts and perfect bands" // work order 067
+            : Kind == UpgradeKind.Blast ? "+" + Pct(Amount) + " larger area for your area skills"
             : null;
 
         /// <summary>Work order 065: the six new kinds' short form; null for the others.</summary>
@@ -199,6 +207,8 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.Mending ? "+" + Int(Amount) + " room heal"
             : Kind == UpgradeKind.LongFocus ? "+" + Pct(Amount) + " focus time"
             : Kind == UpgradeKind.SecondDash ? "+" + Int(Amount) + " dash"
+            : Kind == UpgradeKind.WideWindow ? "+" + Pct(Amount) + " window" // work order 067
+            : Kind == UpgradeKind.Blast ? "+" + Pct(Amount) + " area"
             : null;
 
         /// <summary>The short form for the box on screen and the log.</summary>
@@ -315,6 +325,10 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.Mending, 3f, rare: 5f, epic: 8f),
             new UpgradeDefinition(UpgradeKind.LongFocus, 0.10f, rare: 0.18f, epic: 0.25f),
             new UpgradeDefinition(UpgradeKind.SecondDash, 1f, maxTaken: 1, minTier: UpgradeTier.Epic), // an epic of its own, once a run
+            // Work order 067 (his choice of 2026-11-21 for the evening, "Wide window og Blast"): first guesses of the order,
+            // +10 / 18 / 25 % and +8 / 14 / 20 %; their caps are in StatValues.
+            new UpgradeDefinition(UpgradeKind.WideWindow, 0.10f, rare: 0.18f, epic: 0.25f),
+            new UpgradeDefinition(UpgradeKind.Blast, 0.08f, rare: 0.14f, epic: 0.20f),
         };
 
         /// <summary>

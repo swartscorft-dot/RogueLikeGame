@@ -467,10 +467,16 @@ namespace Roguelike
         {
             get
             {
-                IReadOnlyList<SkillDefinition> skills = SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills) : SettingsSkills;
+                // Work order 067: her stats' layer (Blast, Wide window) laid on in the run's view, after the upgrades: the one
+                // place a skill's area and perfect band are read as she has them. None outside a run or with the stats off.
+                SkillStatLayer layer = SkillLayerNow;
+                IReadOnlyList<SkillDefinition> skills = SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills, layer)
+                                                       : layer.Any ? _layerOnly.View(SettingsSkills, layer) : SettingsSkills;
                 return IsSteadyHandWindow ? _steadyView.View(skills, FocusModeValues) : skills;
             }
         }
+        /// <summary>The view for her stats' layer when the run hands her no skill upgrades (tests that put only the modifiers on): none taken.</summary>
+        readonly RunSkillUpgrades _layerOnly = new RunSkillUpgrades();
 
         /// <summary>
         /// The skills of the settings, in their list order: the settings asset's, and after them, from the start values in
@@ -755,7 +761,15 @@ namespace Roguelike
         /// </summary>
         public CleanPart RecastCleanPart =>
             _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove)) : default; // work order 064: after a hop, its own
+                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : ChainCleanPart) : default; // work order 064: after a hop, its own
+
+        /// <summary>
+        /// The clean part of the running chain's window as the kit places it (work order 064: after a hop, its own), widened by
+        /// her Wide window (work order 067; 0 outside a run or with the stats off): the ONE place the judging
+        /// (<see cref="JudgeRecast"/>, a press's rhythm in <see cref="Recast"/>) and everything that shows it
+        /// (<see cref="RecastCleanPart"/>: the cast blade, the strip's box, the signs) read it.
+        /// </summary>
+        CleanPart ChainCleanPart => CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove, WideWindowNow);
         /// <summary>Seconds after the window opened that its clean part begins, and ends; both 0 when the next press cannot be clean.</summary>
         public float RecastCleanFrom => RecastCleanPart.From;
         public float RecastCleanTo => RecastCleanPart.To;
@@ -1139,7 +1153,7 @@ namespace Roguelike
         RecastPress JudgeRecast(int slot, float now, bool buffered = false)
         {
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
-            RecastPress judged = _chain.Judge(slot, now, CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove), hasClean, buffered); // work order 064: after a hop, its own
+            RecastPress judged = _chain.Judge(slot, now, ChainCleanPart, hasClean, buffered); // work order 064: after a hop, its own; 067: widened
             return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
         }
 
@@ -1160,7 +1174,7 @@ namespace Roguelike
             // Work order 040: a press of the last shot after the clean part, in the window, was late (the word says so).
             bool late = !clean && _chain.Slot == slot && RecastCleanPart.IsAfter(_chain.SinceOpened(now));
             // Work order 064: whether this press fell in its window's clean part, the last press or not (a full clean chain).
-            bool inRhythm = clean || _chain.InCleanPart(slot, now, CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove), buffered);
+            bool inRhythm = clean || _chain.InCleanPart(slot, now, ChainCleanPart, buffered); // work order 067: the one clean part
             _chain.Recast(inRhythm);
             bool fullClean = MarkRules.IsFullCleanChain(Skills[slot], clean, _chain.Shots, _chain.AllInRhythm);
             float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
@@ -2702,6 +2716,13 @@ namespace Roguelike
         float CleanPressNow => StatsOn ? Modifiers.Stats.CleanPress : 1f;
         float MarkedPreyNow => StatsOn ? Modifiers.Stats.MarkedPrey : 1f;
         float LongFocusNow => StatsOn ? Modifiers.Stats.LongFocus : 1f;
+        /// <summary>
+        /// Work order 067: her Wide window and Blast (<see cref="HerStats"/>); 0 outside a run or with the switch off. Wide window
+        /// widens the clean part (<see cref="ChainCleanPart"/>) and, with Blast, lies on her skills as she has them (<see cref="Skills"/>).
+        /// </summary>
+        public float WideWindowNow => StatsOn ? Modifiers.Stats.WideWindow : 0f;
+        public float BlastNow => StatsOn ? Modifiers.Stats.Blast : 0f;
+        SkillStatLayer SkillLayerNow => StatsOn ? Modifiers.Stats.SkillLayer : default;
         /// <summary>
         /// The basic shot's recovery now: the feel's, or with the stats on shortened or lengthened by her attack speed. Work
         /// order 060: her pistols' parts first (a barrel's longer recovery), and her attack speed works on that as on the feel's.
