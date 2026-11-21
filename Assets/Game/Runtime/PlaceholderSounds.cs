@@ -316,9 +316,20 @@ namespace Roguelike
 
         void OnAppeared(Enemy enemy) => Safely(() => Hear(enemy));
 
+        /// <summary>
+        /// Listens to an enemy not yet heard. Asked for every enemy every frame (<see cref="Find"/>), so the handler's closure
+        /// is made in <see cref="StartHearing"/> alone: a lambda that captures a parameter has its closure made as the method
+        /// begins, before any early return, and here that was one allocation an enemy a frame (the first Unity run of the
+        /// night's combination, 2026-11-21; work order 056).
+        /// </summary>
         void Hear(Enemy enemy)
         {
             if (enemy == null || _enemies.ContainsKey(enemy)) return;
+            StartHearing(enemy);
+        }
+
+        void StartHearing(Enemy enemy)
+        {
             Action<EnemyReport> handler = r => OnEnemy(enemy, r);
             enemy.Reported += handler;
             _enemies[enemy] = handler;
