@@ -208,12 +208,27 @@ namespace Roguelike.Rules
         public float ReadyEdge = 3f;
 
         /// <summary>
-        /// The strokes' top this far under the point her feet stand on, in metres in the camera's picture at her depth (her
-        /// feet's point moved down the screen by this many metres, converted to pixels every frame, so it holds at every
-        /// resolution). 0.35 m is 25 layout pixels at 1080 with the game's camera (28 m, 30°); this morning's 16 pixels were
-        /// 0.22 m. 0 is this morning's <see cref="UnderFeet"/> in pixels.
+        /// The strokes' top this far under the lowest point of her boots as the camera sees it, in metres in the camera's
+        /// picture at her depth (converted to pixels every frame, so it holds at every resolution): 0.30 m is about 21.6
+        /// layout pixels at 1080 with the game's camera (28 m, 30°). 0 is this morning's <see cref="UnderFeet"/>: 16 pixels
+        /// under her point. Her point (the character's position) stands about 1.05 m over her soles (measured 2026-11-21),
+        /// so this morning's strokes, 16 pixels under it, lay over her shins: that was "for høyt på karakteren".
         /// </summary>
-        public float UnderFeetMetres = 0.35f;
+        public float UnderFeetMetres = 0.30f;
+        /// <summary>
+        /// How far her boots reach from the point under her middle toward the camera, on the floor, in metres: the lowest a
+        /// boot shows on the screen. Measured 2026-11-21 standing, facing four ways: up to 0.41 m (a boot's toe facing the
+        /// camera); 0.45 keeps the strokes clear by the gap while she stands, steady as she turns and runs (a constant, not
+        /// her animated feet, so the strokes do not bob with her steps).
+        /// </summary>
+        public float BootReach = 0.45f;
+        /// <summary>
+        /// How far under her point (the character's position) her soles are, in metres: measured 2026-11-21 in the
+        /// ControlRoom from her foot and toe bones (1.01 to 1.05 m) and her body's lowest vertex (1.09 m). A named value, not
+        /// read from her renderers each run: their bounds are not kept up to date where nothing is drawn (a test run gave
+        /// 1.23 m).
+        /// </summary>
+        public float SoleDrop = 1.05f;
 
         // The recast window on the skill's own box (work order 063, item 2b: Backstep's clean press fell from 16 of 17 to 6
         // of 20 when the cast bar under the middle became the blade over her head that hops with her).
