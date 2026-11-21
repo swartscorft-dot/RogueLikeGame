@@ -232,7 +232,9 @@ namespace Roguelike.PlayModeTests
                 foreach (GeneratedLevel.PlacedProp placed in level.Props)
                 {
                     if (candle == null && placed.Prop.Slender && LineThrough(level, placed, out cFrom, out cTo)) candle = placed;
-                    if (tall == null && placed.IsCover && LineThrough(level, placed, out tFrom, out tTo)) tall = placed;
+                    // Changed deliberately (work order 058: seed 42's floor is another, and its first tall prop a grave marker,
+                    // which the quick duck's sort of work order 043 makes stop nothing): a tall prop that stops shots.
+                    if (tall == null && placed.IsCover && placed.Object.GetComponent<Cover>() is Cover c && c.Stops && LineThrough(level, placed, out tFrom, out tTo)) tall = placed;
                 }
             }
             Assert.That(candle, Is.Not.Null, "a slender prop with a clear line through it in seeds 42 to 61");

@@ -42,6 +42,10 @@ namespace Roguelike.Rules
     /// <see cref="RoomShapes.Faults"/> (one open area, the open square round its middle, open floor straight in behind every
     /// door, no dead-end slot, no thin corner, no more than its share solid, and on a carved floor its gate), and the
     /// enemies, her start and the props keep off the solid cells, measured to the outline.
+    /// Since work order 058 the rooms drawn by hand (<see cref="RoomTemplates.Check"/>): a template room's rectangle is its
+    /// template's turned size in place of the plan's, its kind the template's, its door in beside an I and its door out beside
+    /// an O, a stamped one's solid cells its template's # and ? cells and its gate, every # solid; no two neighbouring combat
+    /// rooms of the row of one family, and no template twice on a floor.
     /// </summary>
     public static class LevelValidator
     {
@@ -88,7 +92,7 @@ namespace Roguelike.Rules
                 if (c.X < 0 || c.Y < 0 || c.Right > level.GridCells || c.Top > level.GridCells)
                     faults.Add($"{Name(r)} {c} is outside the grid of {level.GridCells}");
                 RoomSizeRange size = plan.SizeOf(r.Kind);
-                if (!size.Allows(c.Width) || !size.Allows(c.Height))
+                if (r.Template == null && (!size.Allows(c.Width) || !size.Allows(c.Height))) // work order 058: a template room's size is its template's, below
                     faults.Add($"{Name(r)} is {c.Width}x{c.Height}, not {size.Min} to {size.Max} on a side for a {r.Kind} room");
             }
             for (int i = 0; i < rooms.Count; i++)
@@ -266,6 +270,7 @@ namespace Roguelike.Rules
                 RoomShapes.Faults(level, r, values, broken);
                 foreach (string fault in broken) faults.Add(Name(r) + " " + fault);
             }
+            RoomTemplates.Check(level, faults); // work order 058: the template rooms' size, kind, door marks, stamp and families
 
             // The props (work order 009).
             PropValues pv = values.PropRules;

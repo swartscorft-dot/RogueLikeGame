@@ -316,6 +316,15 @@ namespace Roguelike.Rules
         // for the version.
         public bool Shapes = true;
         public ShapeValues ShapeRules = new ShapeValues();
+        // Rooms drawn by hand (work order 058; Kristian, 2026-11-20: "we must take more inspiration from Diablo and Path of
+        // Exile 2 in how their generators make and design levels. We need a bit of a dungeon-crawler feeling", and on
+        // 2026-11-21 he chose "Rom-maler slik Diablo og PoE gjør"; the research report d's proposal B): on, the elite room, the
+        // exit room and about three in four of the other combat rooms take a template of the library (RoomTemplateLibrary),
+        // which gives the room its size, its outline and where its doors may be, and is joined to the room before it at their
+        // door marks (RoomTemplates, on the generator's own stream "templates"). Read only with Shapes and InALine on. Off:
+        // every floor is version 14's, field for field, but for the version.
+        public bool Templates = true;
+        public TemplateValues TemplateRules = new TemplateValues();
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();

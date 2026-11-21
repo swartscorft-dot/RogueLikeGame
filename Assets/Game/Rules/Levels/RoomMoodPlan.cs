@@ -705,7 +705,8 @@ namespace Roguelike.Rules
             walls.Add(b);
             foreach (int w in walls)
             {
-                double? from = room.Theme == RoomTheme.ThroneRoom && throne != null && w == mr.FarSide ? (AlongX(w) ? throne.Position.X : throne.Position.Y) : (double?)null;
+                double? from = room.Theme == RoomTheme.ThroneRoom && throne != null && w == mr.FarSide ? (AlongX(w) ? throne.Position.X : throne.Position.Y)
+                             : w == mr.FarSide ? RoomTemplates.FarMarkAlong(room, w, layout.CellSize) : null; // work order 058: from a template's A mark
                 LevelPoint? at = AlongWall(layout, room, mr, pv, lane, w, from, out turn);
                 if (!at.HasValue) continue;
                 side = w;

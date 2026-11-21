@@ -163,6 +163,14 @@ namespace Roguelike.Rules
         /// <summary>The generator's notes, not part of the level (work order 051): draws of its shape that broke a rule, and whether it fell back to its gate alone.</summary>
         public int ShapeRedraws;
         public bool ShapeFellBack;
+        /// <summary>
+        /// The template the room was drawn by, turned and mirrored (work order 058, <see cref="RoomTemplates"/>): it gave the room
+        /// its size and where its doors are, and the carve stage stamps it (<see cref="RoomShape.Template"/>). Null for a room
+        /// without one (every room with <see cref="LevelValues.Templates"/> off).
+        /// </summary>
+        public TemplatePlacement Template;
+        /// <summary>The generator's note, not part of the level (work order 058): its template's stamp broke a rule, and it was carved by work order 051's draws instead.</summary>
+        public bool TemplateFellBack;
 
         bool[] _solid;
         int _solidCount;
@@ -305,6 +313,8 @@ namespace Roguelike.Rules
         /// with a shape has its gate. False: every room is its rectangle, as before.
         /// </summary>
         public bool Shapes;
+        /// <summary>The rooms were drawn with the templates on (work order 058, <see cref="LevelValues.Templates"/>): some have a <see cref="LevelRoom.Template"/>.</summary>
+        public bool Templates;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
 
@@ -400,7 +410,7 @@ namespace Roguelike.Rules
             var sb = new StringBuilder();
             sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) floor {6} version {2} grid {3} cell {4:R} attempt {5}{7}\n",
                             Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor,
-                            (Shapes ? " carved" : "") + (InALine ? " in a line" : "")); // work orders 051 and 041
+                            (Shapes ? " carved" : "") + (Templates ? " templated" : "") + (InALine ? " in a line" : "")); // work orders 051, 058 and 041
             foreach (LevelRoom r in Rooms)
             {
                 sb.Append(r.Order).Append(' ').Append(r.Kind).Append(r.Elite ? " elite" : "").Append(' ').Append(r.Rect);
