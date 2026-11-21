@@ -111,6 +111,12 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < MostFrames && !condition(); i++) yield return null;
         }
 
+        static IEnumerator ForRealTimeUntil(Func<bool> condition, float seconds)
+        {
+            float end = Time.realtimeSinceStartup + seconds;
+            while (!condition() && Time.realtimeSinceStartup < end) yield return null;
+        }
+
         static IEnumerator ForRealTime(float seconds)
         {
             float end = Time.realtimeSinceStartup + seconds;
@@ -160,12 +166,13 @@ namespace Roguelike.PlayModeTests
             Assert.That(_skillBar.StrokesShown, Is.True, "she is on screen: the strokes show");
             Vector2 feet = Feet();
             Rect h = _skillBar.HealthStroke, f = _skillBar.FocusStroke;
-            Assert.That(h.y - feet.y, Is.EqualTo(v.UnderFeet).Within(0.5f), "just under her feet");
+            Assert.That(h.y - feet.y, Is.EqualTo(_skillBar.StrokesUnder).Within(0.5f), "under her feet (work order 063: by the gap in metres, made pixels)");
+            Assert.That(_skillBar.StrokesUnder, Is.GreaterThan(v.UnderFeet), "lower than this morning's 16 pixels");
             Assert.That((h.xMin + f.xMax) * 0.5f, Is.EqualTo(feet.x).Within(0.5f), "centred on her");
             Assert.That(f.xMin, Is.GreaterThan(h.xMax), "health left, focus right");
             Assert.That(_skillBar.HealthNumber, Is.EqualTo(_health.Current.ToString()), "one number: her health");
             KineticSlot first = _skillBar.SlotOf(0);
-            Assert.That(first.Box.yMax, Is.EqualTo(v.LayoutHeight - v.StripBottom).Within(0.5f), "the strip at the bottom");
+            Assert.That(first.Box.yMax, Is.EqualTo(v.LayoutHeight - InterfaceRules.StripBottomEdge(v)).Within(0.5f), "the strip at the bottom, lifted (work order 063)");
 
             // Her HUD health bar is not drawn, not even where no skill bar shows it.
             _skillBar.enabled = false;
@@ -185,7 +192,7 @@ namespace Roguelike.PlayModeTests
             feet = Feet();
             Assert.That(_cast.Blade.yMax, Is.LessThan(feet.y - 20f), "over her, well above her feet");
             Assert.That(_cast.Blade.center.x, Is.EqualTo(feet.x).Within(60f), "over her");
-            Assert.That(_cast.Blade.width, Is.EqualTo(v.BladeWidth));
+            Assert.That(_cast.Blade.width, Is.EqualTo(v.BladeWidth * InterfaceRules.BladeFactor(v)).Within(1e-3f), "grown (work order 063)");
             _player.ReleaseSkill(Slot("Long Shot"));
 
             // The small bars over enemies, and the boss's at the top.
@@ -220,6 +227,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator InARun_TheMapAndTheChoice_AreDrawnInTheSkin_AndAPickFlashes()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.StartRun(RunSeed);
             yield return null;
             _map.Tick();
@@ -364,6 +372,20 @@ namespace Roguelike.PlayModeTests
             Assert.That(() => { for (int i = 0; i < 300; i++) TickAll(); }, NotAllocating, "a fight's frame allocates nothing");
             _player.ReleaseSkill(Slot("Long Shot"));
 
+            // Work order 063: a box flashing ready, with the strip and the strokes on screen.
+            int quick = Slot("Quick Shot");
+            yield return ForRealTimeUntil(() => _player.Action == ActionKind.None && !HitStop.IsActive, 3f);
+            yield return ForRealTimeUntil(() => _player.SkillCooldownRemaining(quick) <= 0f, 6f);
+            Assume.That(_player.PressSkill(quick, elite.transform.position), Is.EqualTo(IntentResult.Started).Or.EqualTo(IntentResult.Buffered), "Quick Shot, now or when she is free");
+            yield return ForRealTimeUntil(() => _player.SkillCooldownRemaining(quick) > 0f, 3f);
+            Assume.That(_player.SkillCooldownRemaining(quick), Is.GreaterThan(0f), "Quick Shot on its cooldown");
+            int quickKey = _player.KeyOfSkill(quick), flashes = _skillBar.ReadyFlashesOn(quickKey);
+            yield return ForRealTimeUntil(() => _skillBar.ReadyFlashesOn(quickKey) > flashes, 8f);
+            _skillBar.Tick();
+            Assume.That(_skillBar.SlotOf(quickKey).Flash, Is.GreaterThan(0f), "its box flashing");
+            EachPieceAllocatesNothing("a box flashing ready");
+            Assert.That(() => { for (int i = 0; i < 300; i++) TickAll(); }, NotAllocating, "a frame with a box flashing allocates nothing");
+
             // A choice open: the cards.
             yield return Frames(() => _player.Action == ActionKind.None);
             _levels.FinishFloorForTests();
@@ -405,6 +427,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AChestCard_ShowsItsTier_AsItsNumeralsColour_AndItsWord()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.StartRun(RunSeed);
             yield return null;
             List<GeneratedLevel.PlacedProp> chests = _levels.Chests();
@@ -428,7 +451,9 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < count; i++)
             {
                 Assert.That(_levels.CardNumeralInk(i), Is.EqualTo(inks[i % inks.Length]), "card " + i + ": white common, teal rare, gold epic");
-                Assert.That(_levels.CardTitle(i), Is.EqualTo(offer[i].Text), "what it does, its title");
+                // Work order 055 (the fourth review of 2026-11-21): the short name the title, the rest of what it does in the text.
+                string title = _levels.CardTitle(i), text = _levels.CardText(i);
+                Assert.That(text.Contains(offer[i].Text) || title + ": " + text.Split('\n')[0] == offer[i].Text, Is.True, "what it does, on the card");
                 StringAssert.Contains(offer[i].TierWord.ToUpperInvariant(), _levels.CardText(i), "and its tier's word");
             }
             _levels.BackToPracticeRoom();

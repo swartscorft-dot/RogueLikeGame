@@ -86,6 +86,20 @@ namespace Roguelike.Rules
         CritDamage,
         /// <summary>Amount points of luck: every tiered offer leans upward.</summary>
         Luck,
+        // Work order 065 (2026-11-21, Kristian: "og mere stats"; the producer's message of the same day): six kinds no row had,
+        // offered only with RunValues.StatsAndTiers on, read through HerStats, each capped there.
+        /// <summary>Every skill's cooldown down by the share Amount, beside a skill's own cuts; never under the cooldown floor.</summary>
+        AllCooldowns,
+        /// <summary>A clean press and a perfect release deal the share Amount more, on whatever their own bonus is.</summary>
+        CleanPress,
+        /// <summary>Her hits on an enemy that carries marks deal the share Amount more.</summary>
+        MarkedPrey,
+        /// <summary>Amount health more from every cleared combat room, on top of the room's own heal.</summary>
+        Mending,
+        /// <summary>The focus window (and Hair Trigger's priming) lasts the share Amount longer.</summary>
+        LongFocus,
+        /// <summary>Amount more dashes held before the dash must recharge (an epic only, once a run).</summary>
+        SecondDash,
     }
 
     /// <summary>One row of the chest table: a kind, how much, and for some a skill.</summary>
@@ -104,10 +118,16 @@ namespace Roguelike.Rules
         /// it is and never scaled (damage +15 %, decision 0012: "5 % can be saved for somewhat stronger things").
         /// </summary>
         public UpgradeTier MinTier;
+        /// <summary>
+        /// Work order 065, the tiered table only: a rare's and an epic's step of their own (above 0), where a row's tiers are not
+        /// twice and three times its common step (the new kinds: Cooldowns 3 / 5 / 8 %). 0: the tier's scale, as before.
+        /// </summary>
+        public float RareAmount, EpicAmount;
 
         public UpgradeDefinition() { }
 
-        public UpgradeDefinition(UpgradeKind kind, float amount, int heal = 0, string skill = "", int maxTaken = 0, UpgradeTier minTier = UpgradeTier.Common)
+        public UpgradeDefinition(UpgradeKind kind, float amount, int heal = 0, string skill = "", int maxTaken = 0, UpgradeTier minTier = UpgradeTier.Common,
+                                 float rare = 0f, float epic = 0f)
         {
             Kind = kind;
             Amount = amount;
@@ -115,6 +135,8 @@ namespace Roguelike.Rules
             Skill = skill;
             MaxTaken = maxTaken;
             MinTier = minTier;
+            RareAmount = rare;
+            EpicAmount = epic;
         }
     }
 
@@ -157,7 +179,27 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.CritChance ? "+" + Pct(Amount) + " crit chance"
             : Kind == UpgradeKind.CritDamage ? "+" + Pct(Amount) + " crit damage"
             : Kind == UpgradeKind.Luck ? "+" + Num(Amount) + " luck: rarer upgrades come more often"
-            : "+" + Int(Amount) + " mark from " + Skill + "'s hit on a target with none";
+            : NewText ?? "+" + Int(Amount) + " mark from " + Skill + "'s hit on a target with none";
+
+        /// <summary>Work order 065: the six new kinds' line; null for the others.</summary>
+        string NewText =>
+            Kind == UpgradeKind.AllCooldowns ? "-" + Pct(Amount) + " cooldown on every skill"
+            : Kind == UpgradeKind.CleanPress ? "+" + Pct(Amount) + " damage on a clean press or a perfect release"
+            : Kind == UpgradeKind.MarkedPrey ? "+" + Pct(Amount) + " damage to an enemy that carries marks"
+            : Kind == UpgradeKind.Mending ? "+" + Int(Amount) + " health from every cleared room"
+            : Kind == UpgradeKind.LongFocus ? "+" + Pct(Amount) + " longer focus window"
+            : Kind == UpgradeKind.SecondDash ? "+" + Int(Amount) + " dash held"
+            : null;
+
+        /// <summary>Work order 065: the six new kinds' short form; null for the others.</summary>
+        string NewShort =>
+            Kind == UpgradeKind.AllCooldowns ? "-" + Pct(Amount) + " cd all"
+            : Kind == UpgradeKind.CleanPress ? "+" + Pct(Amount) + " clean"
+            : Kind == UpgradeKind.MarkedPrey ? "+" + Pct(Amount) + " vs marked"
+            : Kind == UpgradeKind.Mending ? "+" + Int(Amount) + " room heal"
+            : Kind == UpgradeKind.LongFocus ? "+" + Pct(Amount) + " focus time"
+            : Kind == UpgradeKind.SecondDash ? "+" + Int(Amount) + " dash"
+            : null;
 
         /// <summary>The short form for the box on screen and the log.</summary>
         public string Short =>
@@ -176,7 +218,7 @@ namespace Roguelike.Rules
             : Kind == UpgradeKind.CritChance ? "+" + Pct(Amount) + " crit"
             : Kind == UpgradeKind.CritDamage ? "+" + Pct(Amount) + " crit dmg"
             : Kind == UpgradeKind.Luck ? "+" + Num(Amount) + " luck"
-            : "+" + Int(Amount) + " first mark " + Skill;
+            : NewShort ?? "+" + Int(Amount) + " first mark " + Skill;
 
         public override string ToString() => Short;
     }
@@ -192,6 +234,13 @@ namespace Roguelike.Rules
         public int SkillsOffered = 3;
         public float ChestReach = 2f;          // m from her to the chest's footprint middle
         public int UpgradesOffered = 2;
+        /// <summary>
+        /// How many upgrades a chest offers with <see cref="StatsAndTiers"/> on (work order 065, 2026-11-21, Kristian: "jeg syntes
+        /// også kisten skal ha flere valg, gjerne 3"): three, of three different stats. Off, <see cref="UpgradesOffered"/> (2), as before.
+        /// </summary>
+        public int TieredUpgradesOffered = 3;
+        /// <summary>What a chest offers now, before Deep Chests' one more: three with the stats on, two off (work order 065).</summary>
+        public int ChestOffers => StatsAndTiers ? TieredUpgradesOffered : UpgradesOffered;
         public float CooldownFloor = 0.5f;     // a skill's cooldown never goes under this share of its own
         /// <summary>
         /// A breath between floors (work order 023, 2026-11-20): when a floor's reward is taken (floors 1 to 4) she is
@@ -224,6 +273,16 @@ namespace Roguelike.Rules
         public UpgradeDefinition[] TieredUpgrades = DefaultTieredUpgrades();
 
         /// <summary>
+        /// Tiers on the floor reward's skills (decision 0013; Kristian's choice of 2026-11-21, "Tiers på ferdigheter"; work
+        /// order 057), on by default: each card draws common, rare or epic, and a rare or epic skill is taken with its step
+        /// (<see cref="Rules.SkillTiers"/>). Off, the floor reward, its cards, the skills she takes and every number are as
+        /// before. Independent of <see cref="StatsAndTiers"/>: with that off her luck is 0 and these still work.
+        /// </summary>
+        public bool SkillTiers = true;
+        /// <summary>The numbers of the skills' tiers (work order 057).</summary>
+        public SkillTierValues SkillTierNumbers = new SkillTierValues();
+
+        /// <summary>
         /// The tiered table (work order 050), each at its common step; rare is twice it, epic three times. First guesses
         /// of the order: damage +3, attack speed +6 %, crit chance +4 %, crit damage +15 %, luck +1, maximum health +10
         /// (and heal 10), reach +1 m (three in a run at most, as the Longer barrel was); move speed, cooldown, stagger
@@ -248,6 +307,14 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.KeenFocus, 0.1f),
             new UpgradeDefinition(UpgradeKind.FirstMark, 1f, skill: "Quick Shot"),
             new UpgradeDefinition(UpgradeKind.Damage, 0.15f, minTier: UpgradeTier.Epic),
+            // Work order 065 (Kristian, 2026-11-21: "og mere stats"): six new kinds, each with its own common, rare and epic
+            // step (first guesses of the order and of the producer's message of the same day); their caps are in StatValues.
+            new UpgradeDefinition(UpgradeKind.AllCooldowns, 0.03f, rare: 0.05f, epic: 0.08f),
+            new UpgradeDefinition(UpgradeKind.CleanPress, 0.08f, rare: 0.14f, epic: 0.20f),
+            new UpgradeDefinition(UpgradeKind.MarkedPrey, 0.06f, rare: 0.10f, epic: 0.15f),
+            new UpgradeDefinition(UpgradeKind.Mending, 3f, rare: 5f, epic: 8f),
+            new UpgradeDefinition(UpgradeKind.LongFocus, 0.10f, rare: 0.18f, epic: 0.25f),
+            new UpgradeDefinition(UpgradeKind.SecondDash, 1f, maxTaken: 1, minTier: UpgradeTier.Epic), // an epic of its own, once a run
         };
 
         /// <summary>
@@ -385,15 +452,38 @@ namespace Roguelike.Rules
         }
 
         /// <summary>
+        /// Takes this very upgrade back off (its last place in the list); false when it was not taken. Work order 065: an offer's
+        /// card reads her stats with the card taken and then takes it back, so its "after" is what taking it gives.
+        /// </summary>
+        public bool TakeBack(Upgrade u)
+        {
+            for (int i = _taken.Count - 1; i >= 0; i--)
+                if (ReferenceEquals(_taken[i], u))
+                {
+                    _taken.RemoveAt(i);
+                    return true;
+                }
+            return false;
+        }
+
+        /// <summary>
         /// The pieces of the rack equipped for this run (work order 029, decision 0009, a proposal he has not ruled on): empty
         /// unless what lasts between runs is switched on, and empty they change none of the numbers here.
         /// </summary>
         public RunMetaEffects Meta { get; } = new RunMetaEffects();
 
+        /// <summary>
+        /// Her pistols' parts fitted for this run, their part of the loadout (work order 060, decision 0014): empty unless the
+        /// attachments are switched on, and empty every one of its methods gives back the stock gun's numbers. A second weapon's
+        /// parts would have their own effects beside this.
+        /// </summary>
+        public AttachmentEffects Weapon { get; } = new AttachmentEffects();
+
         public void Clear()
         {
             _taken.Clear();
             Meta.Clear();
+            Weapon.Clear(); // work order 060
         }
 
         float Sum(UpgradeKind kind, string skill = null)

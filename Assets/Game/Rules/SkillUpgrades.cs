@@ -103,6 +103,11 @@ namespace Roguelike.Rules
         public string Line = "";
         public string[] Excludes = Array.Empty<string>();
         public SkillPatch[] Patches = Array.Empty<SkillPatch>();
+        /// <summary>
+        /// A tier's numbers step (work order 057, <see cref="SkillTiers.Step"/>): taken with the skill when it is picked at a
+        /// tier, never in the table, never offered, no pip, no name in the lists.
+        /// </summary>
+        public bool TierStep;
 
         public SkillUpgradeDefinition() { }
 
@@ -248,18 +253,36 @@ namespace Roguelike.Rules
 
         public void Clear()
         {
+            _tiers.Clear(); // work order 057
             if (_taken.Count == 0) return;
             _taken.Clear();
             Version++;
         }
 
+        // Work order 057 (decision 0013): a skill taken at a tier at the floor reward.
+        readonly Dictionary<string, UpgradeTier> _tiers = new Dictionary<string, UpgradeTier>();
+
+        /// <summary>
+        /// A skill picked at a tier (work order 057): its rows (the step, then an epic's change) are taken in order as
+        /// <see cref="Take"/> takes any, and the skill keeps its tier. A common, or none, takes nothing.
+        /// </summary>
+        public void TakeTier(SkillTierOffer offer)
+        {
+            if (offer == null || !offer.Tiered) return;
+            foreach (SkillUpgradeDefinition row in offer.Rows) Take(row);
+            _tiers[offer.Skill ?? ""] = offer.Tier;
+        }
+
+        /// <summary>The tier a skill was taken at (work order 057); Common when none.</summary>
+        public UpgradeTier TierOf(string skill) => skill != null && _tiers.TryGetValue(skill, out UpgradeTier t) ? t : UpgradeTier.Common;
+
         public bool Has(string skill, string name) => _taken.Any(u => u.Skill == skill && u.Name == name);
 
-        /// <summary>How many upgrades a skill has, by its name: the pips on its box.</summary>
-        public int CountFor(string skill) => _taken.Count(u => u.Skill == skill);
+        /// <summary>How many upgrades a skill has, by its name: the pips on its box. A tier's step is none (work order 057).</summary>
+        public int CountFor(string skill) => _taken.Count(u => u.Skill == skill && !u.TierStep);
 
-        /// <summary>The names of a skill's upgrades, in the order taken.</summary>
-        public List<string> NamesFor(string skill) => _taken.Where(u => u.Skill == skill).Select(u => u.Name).ToList();
+        /// <summary>The names of a skill's upgrades, in the order taken; a tier's step has none (work order 057).</summary>
+        public List<string> NamesFor(string skill) => _taken.Where(u => u.Skill == skill && !u.TierStep).Select(u => u.Name).ToList();
 
         /// <summary>
         /// The run's view of these skills: the same list when no upgrade is taken, else a copy of every skill, each patched
@@ -286,8 +309,8 @@ namespace Roguelike.Rules
             return copy;
         }
 
-        /// <summary>"Quick Shot: Double Tap, Backstep: Long Step"; "none" without.</summary>
-        public string Text() => _taken.Count == 0 ? "none" : string.Join(", ", _taken.Select(u => u.FullName));
+        /// <summary>"Quick Shot: Double Tap, Backstep: Long Step"; "none" without. A tier's step is not listed (work order 057).</summary>
+        public string Text() => _taken.All(u => u.TierStep) ? "none" : string.Join(", ", _taken.Where(u => !u.TierStep).Select(u => u.FullName));
     }
 
     /// <summary>

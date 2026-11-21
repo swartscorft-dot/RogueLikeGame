@@ -30,6 +30,45 @@ namespace Roguelike
         public string CardText(int index) => index >= 0 && index < _cardTexts.Count ? _cardTexts[index] : "";
         /// <summary>The colour of a card's numeral: a chest card's tier (work order 050), else white.</summary>
         public UiInk CardNumeralInk(int index) => index >= 0 && index < _cardInks.Count ? _cardInks[index] : UiInk.White;
+        /// <summary>The words under the cards (the footer), as made with them. For tests (work order 055).</summary>
+        public string CardsFooter => _cardsFooter;
+
+        /// <summary>
+        /// Where a card's title and its text are drawn (layout pixels): each as high as the longest of the offer needs, the
+        /// card as high as both (the fourth review of 2026-11-21, work order 055: a card cut off its own text).
+        /// </summary>
+        public Rect CardTitleRect(int index)
+        {
+            if (_cardsPopUp) return CardNameRect(index); // work order 065: the pop-up's name
+            Rect r = CardRect(index);
+            float tx = CardTextLeft(r), tw = CardTextWidth(InterfaceStyle.V);
+            return CardText(index).Length == 0 ? new Rect(tx, r.y + 6f, tw, r.height - 12f) : new Rect(tx, r.y + 6f, tw, _cardsTitleHeight);
+        }
+
+        public Rect CardTextRect(int index)
+        {
+            if (_cardsPopUp) // work order 065: from the pop-up's first part to its last
+                return CardPartCount(index) == 0 ? default
+                    : Rect.MinMaxRect(CardPartRect(index, 0).xMin, CardPartRect(index, 0).yMin, CardPartRect(index, 0).xMax, CardPartRect(index, CardPartCount(index) - 1).yMax);
+            Rect r = CardRect(index);
+            return new Rect(CardTextLeft(r), r.y + 6f + _cardsTitleHeight, CardTextWidth(InterfaceStyle.V), r.height - 12f - _cardsTitleHeight);
+        }
+
+        /// <summary>
+        /// True when a point (layout pixels) is on the card as it is seen: its rectangle leaning about its middle line by the
+        /// slant (the fourth review of 2026-11-21, work order 055: hover and the click took the upright rectangle, so a seen
+        /// corner did not take the click and the patch beside the other did).
+        /// </summary>
+        public bool CardHit(int index, Vector2 point)
+        {
+            if (index < 0 || index >= _cardRects.Count) return false;
+            Rect r = _cardRects[index];
+            float slant = _cardsPopUp ? Offers.Slant : InterfaceStyle.V.Slant; // work order 065: the pop-up's cards lean less
+            return r.Contains(new Vector2(point.x - slant * (r.center.y - point.y), point.y));
+        }
+
+        static float CardTextLeft(Rect r) => r.x + 12f + InterfaceStyle.V.NumeralSize * 1.25f + 6f;
+        static float CardTextWidth(InterfaceValues v) => v.CardWidth - (12f + v.NumeralSize * 1.25f + 6f) - 10f;
         /// <summary>The last pick: which card, and whether its flash shows now.</summary>
         public int LastPickedCard { get; private set; } = -1;
         public bool PickFlashing => InterfaceStyle.Kinetic && LastPickedCard >= 0 && Time.unscaledTime - _pickedAt < InterfaceStyle.V.PickFlashSeconds;
@@ -42,6 +81,9 @@ namespace Roguelike
         readonly List<object> _cardsOf = new List<object>();
         readonly List<int> _cardsSkills = new List<int>();
         ChoiceKind _cardsKind;
+        bool _cardsCanRedraw;
+        int _cardPressed = -1;
+        float _cardsTitleHeight;
         float _cardsLiveFrom = float.NaN, _cardsWidth, _cardsHeight, _pickedAt = float.NegativeInfinity;
         string _cardsHeading = "", _cardsSub = "", _cardsFooter = "", _pickedTitle = "";
         Rect _pickedRect;
@@ -56,7 +98,10 @@ namespace Roguelike
             KineticCards();
             _pickedTitle = CardTitle(index);
             _pickedRect = CardRect(index);
+            _pickedSlant = _cardsPopUp ? Offers.Slant : InterfaceStyle.V.Slant; // work order 065
         }
+
+        float _pickedSlant = 0.32f;
 
         /// <summary>
         /// The cards of the choice on screen, made again only when a choice opens or its offer changes (Second Look). Returns
@@ -70,11 +115,14 @@ namespace Roguelike
                 return 0;
             }
             InterfaceValues v = InterfaceStyle.V;
-            float viewWidth = Screen.width / Mathf.Max(1e-4f, InterfaceStyle.Scale);
+            float viewWidth = ViewWidthForTests > 0f ? ViewWidthForTests : Screen.width / Mathf.Max(1e-4f, InterfaceStyle.Scale); // work order 065: a test's view
             int count = Choice == ChoiceKind.FloorReward ? _offeredSkills.Count : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count
                       : Choice == ChoiceKind.FocusChoice ? FocusModeRules.Options.Length : _offeredUpgrades.Count;
-            if (SameCards(count) && Mathf.Approximately(_cardsWidth, viewWidth)) return count;
+            if (SameCards(count) && Mathf.Approximately(_cardsWidth, viewWidth) && _cardsPopUp == OfferPopUp) return count;
             ClearCards();
+            // Work order 065: the pop-up in the middle, its cards' words from OfferTexts (GeneratedLevelsOffers.cs); off, this morning's.
+            bool popUp = OfferPopUp;
+            OfferContext context = popUp ? OfferContextNow() : null;
             _cardsKind = Choice;
             _cardsLiveFrom = ChoiceLiveFrom;
             _cardsWidth = viewWidth;
@@ -93,10 +141,11 @@ namespace Roguelike
                     {
                         int slot = _offeredSkills[i];
                         _cardsSkills.Add(slot);
+                        _cardsOf.Add(OfferedTierAt(i)); // work order 057: its tier, or null
                         SkillDefinition s = player.Skills[slot];
                         title = s.Name;
-                        text = string.Format(CultureInfo.InvariantCulture, "key {0}   cooldown {1:0.#} s   {2}\n{3}",
-                                             bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
+                        // Today's text; work order 057: a rare or epic card's tier in it and on its numeral (GeneratedLevelsSkillTiers.cs).
+                        text = RewardCardText(i, s, bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", out ink);
                         break;
                     }
                     case ChoiceKind.SkillUpgrade:
@@ -123,17 +172,35 @@ namespace Roguelike
                         title = u.Text;
                         // Work order 050's tier: its word in the card's text, its colour on the numeral (from the offer's data).
                         text = u.Tiered ? u.TierWord.ToUpperInvariant() : "";
+                        // Work order 055: a tiered card's title is the upgrade's short name (before its colon, else its stat), the
+                        // rest of what it does over the tier's word in the text.
+                        if (u.Tiered) SplitUpgradeText(u, ref title, ref text);
                         ink = InterfaceRules.TierInk(u.Tiered, u.Tier);
                         break;
                     }
+                }
+                if (popUp)
+                {
+                    OfferCard card = OfferCardFor(i, context, bindings);
+                    _offerCards.Add(card);
+                    title = card.Name;
+                    text = card.Body;
                 }
                 _cardTitles.Add(title);
                 _cardTexts.Add(text);
                 _cardInks.Add(ink);
                 _cardKeys.Add(InterfaceStyle.Number(i + 1));
-                UiBox b = InterfaceRules.Card(i, count, height, viewWidth, v);
-                _cardRects.Add(new Rect(b.X, b.Y, b.W, b.H));
             }
+            if (popUp)
+            {
+                _cardsPopUp = true;
+                LayOutPopUp(count, viewWidth); // work order 065: every part measured, the row in the middle
+            }
+            else
+            {
+                MeasureAtTheEdge(count, viewWidth, height, v);
+            }
+            _cardsCanRedraw = CanRedraw;
             // The heading and the footer, the same words as the plain choice's.
             heading = Choice == ChoiceKind.FloorReward
                 ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
@@ -149,14 +216,72 @@ namespace Roguelike
             return count;
         }
 
+        /// <summary>This morning's cards at the right edge, measured and placed as work order 055 made them (the pop-up off).</summary>
+        void MeasureAtTheEdge(int count, float viewWidth, float height, InterfaceValues v)
+        {
+            // The fourth review of 2026-11-21 (work order 055): every card's title and text measured once, at the width they
+            // are drawn in, and the cards of the offer all as high as the longest needs, so nothing is cut off.
+            float textWidth = CardTextWidth(v);
+            GUIStyle titleStyle = InterfaceStyle.Text(true, v.CardTitleSize, TextAnchor.UpperLeft, true);
+            GUIStyle textStyle = InterfaceStyle.Text(false, v.CardTextSize, TextAnchor.UpperLeft, true);
+            float titleHeight = v.CardTitleSize * 1.35f, textHeight = 0f, bodylessTitle = 0f;
+            bool bodies = false, bodyless = false;
+            for (int i = 0; i < count; i++)
+            {
+                float t = InterfaceStyle.MeasureHeight(_cardTitles[i], titleStyle, textWidth);
+                if (_cardTexts[i].Length == 0)
+                {
+                    bodyless = true;
+                    bodylessTitle = Mathf.Max(bodylessTitle, t);
+                    continue;
+                }
+                bodies = true;
+                titleHeight = Mathf.Max(titleHeight, t);
+                textHeight = Mathf.Max(textHeight, InterfaceStyle.MeasureHeight(_cardTexts[i], textStyle, textWidth));
+            }
+            _cardsTitleHeight = Mathf.Ceil(titleHeight);
+            if (bodies) height = Mathf.Max(height, Mathf.Ceil(12f + _cardsTitleHeight + textHeight + 2f + (Choice == ChoiceKind.FocusChoice ? 20f : 0f)));
+            if (bodyless) height = Mathf.Max(height, Mathf.Ceil(12f + bodylessTitle + 2f));
+            _cardsHeight = height;
+            for (int i = 0; i < count; i++)
+            {
+                UiBox b = InterfaceRules.Card(i, count, height, viewWidth, v);
+                _cardRects.Add(new Rect(b.X, b.Y, b.W, b.H));
+            }
+        }
+
+        /// <summary>
+        /// A tiered chest card's words (work order 055): the title the part of what it does before its colon ("Longer barrel"),
+        /// or its stat's name where it has none ("Damage"); the text the rest of it ("+5 damage ..." whole where there is no
+        /// colon), and under it the tier's word as before.
+        /// </summary>
+        static void SplitUpgradeText(Upgrade u, ref string title, ref string text)
+        {
+            string all = u.Text, tier = text;
+            int colon = all.IndexOf(": ", System.StringComparison.Ordinal);
+            if (colon > 0)
+            {
+                title = all.Substring(0, colon);
+                text = all.Substring(colon + 2) + "\n" + tier;
+                return;
+            }
+            string stat = u.Stat ?? "";
+            title = stat.Length > 0 ? char.ToUpperInvariant(stat[0]) + stat.Substring(1) : all;
+            text = all + "\n" + tier;
+        }
+
         bool SameCards(int count)
         {
             if (_cardsKind != Choice || _cardTitles.Count != count || !(_cardsLiveFrom == ChoiceLiveFrom)) return false;
+            // Work order 055: a Second Look that gave the same skills back has spent its draw: the footer is made again.
+            if (_cardsCanRedraw != CanRedraw) return false;
             for (int i = 0; i < count; i++)
             {
                 switch (Choice)
                 {
-                    case ChoiceKind.FloorReward: if (i >= _cardsSkills.Count || _cardsSkills[i] != _offeredSkills[i]) return false; break;
+                    case ChoiceKind.FloorReward: // work order 057: and its tier, so a redraw that keeps a skill at another tier makes them again
+                        if (i >= _cardsSkills.Count || _cardsSkills[i] != _offeredSkills[i] || i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], OfferedTierAt(i))) return false;
+                        break;
                     case ChoiceKind.SkillUpgrade: if (i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], _offeredSkillUpgrades[i])) return false; break;
                     case ChoiceKind.Chest: if (i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], _offeredUpgrades[i])) return false; break;
                 }
@@ -175,6 +300,8 @@ namespace Roguelike
             _cardsSkills.Clear();
             _cardsKind = ChoiceKind.None;
             _cardsLiveFrom = float.NaN;
+            _cardPressed = -1;
+            ClearPopUp(); // work order 065
         }
 
         // ---------------- Drawing ----------------
@@ -194,25 +321,41 @@ namespace Roguelike
             float viewWidth = InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
             float light = live ? 1f : Mathf.Lerp(v.CardDim, 0.85f, _guard.Share(now));
 
-            // The heading over the cards, right aligned to them, and the footer under them.
+            // The heading over the cards, right aligned to them, and the footer under them; work order 065: the pop-up's veil,
+            // heading and footer, centred.
             Rect first = _cardRects[0], last = _cardRects[count - 1];
-            float right = viewWidth - v.CardRight;
-            float headW = Mathf.Min(viewWidth * 0.6f, 760f);
-            InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 2.6f, headW, v.ChoiceTitleSize * 1.3f), _cardsHeading,
-                                 InterfaceStyle.Text(true, v.ChoiceTitleSize, TextAnchor.LowerRight), InterfaceStyle.C(v.White), true);
-            InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 1.3f, headW, v.ChoiceTitleSize * 1.1f), _cardsSub,
-                                 InterfaceStyle.Text(false, v.CardTextSize + 1, TextAnchor.UpperRight), InterfaceStyle.C(v.Teal), true);
-            InterfaceStyle.Label(new Rect(right - headW, last.yMax + 8f, headW, v.CardTextSize * 2.6f), _cardsFooter,
-                                 InterfaceStyle.Text(false, v.CardTextSize - 1, TextAnchor.UpperRight, true), InterfaceStyle.C(v.Grey), true);
+            if (_cardsPopUp) DrawPopUpFrame(viewWidth, light);
+            else
+            {
+                float right = viewWidth - v.CardRight;
+                float headW = Mathf.Min(viewWidth * 0.6f, 760f);
+                InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 2.6f, headW, v.ChoiceTitleSize * 1.3f), _cardsHeading,
+                                     InterfaceStyle.Text(true, v.ChoiceTitleSize, TextAnchor.LowerRight), InterfaceStyle.C(v.White), true);
+                InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 1.3f, headW, v.ChoiceTitleSize * 1.1f), _cardsSub,
+                                     InterfaceStyle.Text(false, v.CardTextSize + 1, TextAnchor.UpperRight), InterfaceStyle.C(v.Teal), true);
+                InterfaceStyle.Label(new Rect(right - headW, last.yMax + 8f, headW, v.CardTextSize * 2.6f), _cardsFooter,
+                                     InterfaceStyle.Text(false, v.CardTextSize - 1, TextAnchor.UpperRight, true), InterfaceStyle.C(v.Grey), true);
+            }
 
             for (int i = 0; i < count; i++)
             {
                 Rect r = _cardRects[i];
-                bool hover = live && e != null && r.Contains(e.mousePosition);
-                DrawCard(r, i, light, hover, v);
-                GUI.enabled = live;
-                bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
-                GUI.enabled = enabledBefore;
+                // Work order 055: hover and the click on the card as it is seen, leaning (CardHit), a press and its release on it.
+                bool on = live && e != null && CardHit(i, e.mousePosition);
+                if (_cardsPopUp) DrawPopUpCard(r, i, light, on); // work order 065
+                else DrawCard(r, i, light, on, v);
+                bool clicked = false;
+                if (on && e.button == 0 && e.type == EventType.MouseDown)
+                {
+                    _cardPressed = i;
+                    e.Use();
+                }
+                else if (on && e.button == 0 && e.type == EventType.MouseUp && _cardPressed == i)
+                {
+                    _cardPressed = -1;
+                    e.Use();
+                    clicked = true;
+                }
                 if (clicked && live)
                 {
                     GUI.enabled = enabledBefore;
@@ -225,6 +368,7 @@ namespace Roguelike
                     return;
                 }
             }
+            if (e != null && e.rawType == EventType.MouseUp) _cardPressed = -1; // a press let go off its card picks nothing (work order 055)
             GUI.enabled = enabledBefore;
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
@@ -248,12 +392,12 @@ namespace Roguelike
                 InterfaceStyle.Slanted(keyPlate, InterfaceStyle.C(v.White, light));
                 InterfaceStyle.Label(keyPlate, _cardKeys[i], InterfaceStyle.Text(true, v.KeySize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.Black, light));
             }
-            float tx = s.x + 12f + numW + 6f, tw = r.width - (tx - s.x) - 10f;
             bool bodyless = _cardTexts[i].Length == 0;
-            InterfaceStyle.Label(new Rect(tx, s.y + 6f, tw, bodyless ? r.height - 12f : v.CardTitleSize * 1.35f), _cardTitles[i],
+            // Work order 055: the title and the text where KineticCards measured room for them (CardTitleRect, CardTextRect).
+            InterfaceStyle.Label(CardTitleRect(i), _cardTitles[i],
                                  InterfaceStyle.Text(true, v.CardTitleSize, bodyless ? TextAnchor.MiddleLeft : TextAnchor.UpperLeft, true), InterfaceStyle.C(v.White, light), true);
             if (!bodyless)
-                InterfaceStyle.Label(new Rect(tx, s.y + 6f + v.CardTitleSize * 1.35f, tw, r.height - 12f - v.CardTitleSize * 1.35f), _cardTexts[i],
+                InterfaceStyle.Label(CardTextRect(i), _cardTexts[i],
                                      InterfaceStyle.Text(false, v.CardTextSize, TextAnchor.UpperLeft, true), InterfaceStyle.C(v.White, 0.85f * light));
             if (Choice == ChoiceKind.FocusChoice) DrawGaugeSketchKinetic(FocusModeRules.Options[i], new Rect(r.xMax - 110f, r.yMax - 18f, 90f, 7f), light, v);
         }
@@ -279,7 +423,7 @@ namespace Roguelike
             float a = 1f - (Time.unscaledTime - _pickedAt) / Mathf.Max(0.01f, v.PickFlashSeconds);
             Color colorBefore = GUI.color;
             InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
-            InterfaceStyle.Slanted(_pickedRect, InterfaceStyle.C(v.White, a));
+            Leaning(_pickedRect, _pickedRect.center.y, _pickedSlant, InterfaceStyle.C(v.White, a)); // work order 065: at the card's own slant
             InterfaceStyle.Label(Shift(_pickedRect, _pickedRect.center.y, v), _pickedTitle, InterfaceStyle.Text(true, v.CardTitleSize, TextAnchor.MiddleCenter, true), InterfaceStyle.C(v.Black, a));
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
@@ -346,6 +490,13 @@ namespace Roguelike
                 _devKinetic.normal.textColor = Color.white;
             }
             return _devKinetic;
+        }
+
+        /// <summary>The developer's box's texture, made in code, destroyed with this (the fourth review of 2026-11-21, work order 055).</summary>
+        void ForgetDevBox()
+        {
+            if (_devKinetic != null && _devKinetic.normal.background != null) Destroy(_devKinetic.normal.background);
+            _devKinetic = null;
         }
     }
 }

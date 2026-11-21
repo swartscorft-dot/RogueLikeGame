@@ -73,6 +73,11 @@ namespace Roguelike
 
         void BetweenRunsKeys(Keyboard keyboard, bool enter)
         {
+            if (WeaponOn)
+            {
+                WeaponKeys(keyboard, enter); // work order 060: the arrows go on into the weapon's lines (RunHudWeapon.cs)
+                return;
+            }
             int rows = BetweenRunsRows;
             if (keyboard.upArrowKey.wasPressedThisFrame) BetweenRunsSelected = (BetweenRunsSelected + rows - 1) % rows;
             else if (keyboard.downArrowKey.wasPressedThisFrame) BetweenRunsSelected = (BetweenRunsSelected + 1) % rows;
@@ -133,10 +138,12 @@ namespace Roguelike
             MetaValues v = _levels.MetaValues;
             var from = new List<string>();
             if (e.FloorsCleared > 0) from.Add("floors " + e.FromFloors(v).ToString(s_Inv));
+            if (e.RoomsCleared > 0) from.Add("rooms " + e.FromRooms(v).ToString(s_Inv)); // work order 060: never with the attachments off
             if (e.ElitesCleared > 0) from.Add("elite rooms " + e.FromElites(v).ToString(s_Inv));
             if (e.BossKilled) from.Add("act boss " + e.FromBoss(v).ToString(s_Inv));
             _endLines.Add(string.Format(s_Inv, "{0}  +{1} this run{2},  {3} in all", v.CurrencyName, e.Total(v),
                                         from.Count > 0 ? "  (" + string.Join(", ", from) + ")" : "", e.TotalAfter));
+            AddWeaponEndLine(); // work order 060: what the Echoes buy for her pistols, with the attachments on (RunHudWeapon.cs)
             foreach (MetaFeat f in e.NewFeats)
             {
                 _endLines.Add("Feat  " + MetaFeats.Words(f) + ":  budget +1");
@@ -148,6 +155,11 @@ namespace Roguelike
         void DrawBetweenRuns(float viewWidth)
         {
             if (_betweenLines.Count < 4) return;
+            if (WeaponOn)
+            {
+                DrawBetweenRunsWithWeapon(viewWidth); // work order 060: the rack and the weapon side by side (RunHudWeapon.cs)
+                return;
+            }
             if (_pieceButton == null)
             {
                 _pieceButton = new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.UpperLeft, wordWrap = true, padding = new RectOffset(10, 10, 4, 4) };

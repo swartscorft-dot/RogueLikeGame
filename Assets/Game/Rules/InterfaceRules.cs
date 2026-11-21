@@ -169,6 +169,112 @@ namespace Roguelike.Rules
         public int RunLineSize = 17;
         public int PromptSize = 18;
         public float PromptKeyWidth = 26f;
+
+        // ---------------- 8. Larger, higher, under her feet (work order 063) ----------------
+        // His words of 2026-11-21 after two runs: "uiet er ikke helt på plass. må være litt større. vanskelig å se
+        // coolddowns nede. så litt høyere opp og en del større"; "hp indikator og focus er for høyt på karakteren, må være
+        // mer under"; "gjerne en liten visual på spell uiet når noe er av cd". His new word overrides decision 0011's "a
+        // notch smaller". Every value here at 1 (a scale), 0 (a lift, a gap in metres) or off gives this morning's look.
+
+        /// <summary>
+        /// The master scale of the interface in a fight: the strip, the strokes at her feet, the cast blade, the run box and
+        /// the bars over enemies all grow with it, so the whole is turned up or down with one number. 1 is this morning's.
+        /// </summary>
+        public float FightScale = 1.25f;
+        /// <summary>The strip's own factor on top of <see cref="FightScale"/>: 1.25 × 1.28 = 1.6 times this morning's boxes (work order 063: "about 1.6").</summary>
+        public float StripScale = 1.28f;
+        /// <summary>
+        /// The strip's bottom edge this share of the view's height over the view's bottom (9 %: 97 layout pixels at 1080,
+        /// this morning 22, 2 %), so a cooldown is read in the corner of the eye; never closer than <see cref="StripBottom"/>.
+        /// 0 is this morning's.
+        /// </summary>
+        public float StripLift = 0.09f;
+        /// <summary>The cooldown's number on its own factor over the strip's, the largest thing in a cooling box: 21 × 1.6 × 1.25 = 42 (its digits about 29 layout pixels high at 1080). 1 with the scales at 1 is this morning's 21.</summary>
+        public float CooldownGrow = 1.25f;
+        /// <summary>A cooling box's dark shade over the share of the cooldown still to run, from its top down, so "not ready" reads without the number. Clear is this morning's.</summary>
+        public Rgba CoolingShade = new Rgba(0.02f, 0.02f, 0.03f, 0.6f);
+        /// <summary>A cooling skill's icon this opaque (this morning 1: grey only).</summary>
+        public float CoolingIconAlpha = 0.5f;
+
+        /// <summary>A skill coming off cooldown kicks its box along the strip's slant and flashes its edge teal, once (work order 063); off is this morning's.</summary>
+        public bool ReadyFlash = true;
+        /// <summary>How long the kick and the flash last, in real seconds.</summary>
+        public float ReadyFlashSeconds = 0.25f;
+        /// <summary>How far the box jumps along the slant, in layout pixels at the strip's scale of 1 (grows with the strip), before it settles.</summary>
+        public float ReadyKick = 6f;
+        /// <summary>The share of <see cref="ReadyFlashSeconds"/> the jump takes; the rest it settles back.</summary>
+        public float ReadyKickRise = 0.15f;
+        /// <summary>The flash's edge round the box, in layout pixels at the strip's scale of 1.</summary>
+        public float ReadyEdge = 3f;
+
+        /// <summary>
+        /// The strokes' top this far under the lowest point of her boots as the camera sees it, in metres in the camera's
+        /// picture at her depth (converted to pixels every frame, so it holds at every resolution): 0.30 m is about 21.6
+        /// layout pixels at 1080 with the game's camera (28 m, 30°). 0 is this morning's <see cref="UnderFeet"/>: 16 pixels
+        /// under her point. Her point (the character's position) stands about 1.05 m over her soles (measured 2026-11-21),
+        /// so this morning's strokes, 16 pixels under it, lay over her shins: that was "for høyt på karakteren".
+        /// </summary>
+        public float UnderFeetMetres = 0.30f;
+        /// <summary>
+        /// How far her boots reach from the point under her middle toward the camera, on the floor, in metres: the lowest a
+        /// boot shows on the screen. Measured 2026-11-21 standing, facing four ways: up to 0.41 m (a boot's toe facing the
+        /// camera); 0.45 keeps the strokes clear by the gap while she stands, steady as she turns and runs (a constant, not
+        /// her animated feet, so the strokes do not bob with her steps).
+        /// </summary>
+        public float BootReach = 0.45f;
+        /// <summary>
+        /// How far under her point (the character's position) her soles are, in metres: measured 2026-11-21 in the
+        /// ControlRoom from her foot and toe bones (1.01 to 1.05 m) and her body's lowest vertex (1.09 m). A named value, not
+        /// read from her renderers each run: their bounds are not kept up to date where nothing is drawn (a test run gave
+        /// 1.23 m).
+        /// </summary>
+        public float SoleDrop = 1.05f;
+
+        // The recast window on the skill's own box (work order 063, item 2b: Backstep's clean press fell from 16 of 17 to 6
+        // of 20 when the cast bar under the middle became the blade over her head that hops with her).
+        /// <summary>A box whose recast window is open grows this much about its middle (1: this morning's).</summary>
+        public float RecastGrow = 1.12f;
+        /// <summary>The window's bar across the lit box, in layout pixels at the strip's scale of 1.</summary>
+        public float RecastBarHeight = 7f;
+        /// <summary>The key's label on the lit box's face this many times the key's size (where the old bar wrote "shoot").</summary>
+        public float RecastKeyGrow = 2.2f;
+        /// <summary>
+        /// The run box's own factor on top of <see cref="FightScale"/>. 0.8 (1.25 × 0.8 = 1: this morning's size) because the
+        /// small map stands at a fixed 278 pixels of the 720 layout left of the view's right edge (FloorMap, not this order's)
+        /// and a larger run box would run into it; raise it with the map moved.
+        /// </summary>
+        public float RunBoxScale = 0.8f;
+        /// <summary>The cast blade's own factor on top of <see cref="FightScale"/> (the producer's first guess of 2026-11-21: 1.5). 1 is this morning's.</summary>
+        public float BladeScale = 1.5f;
+
+        // ---------------- 9. Less flat, nearer the first kinetic picture (work order 063, item 4) ----------------
+        // His words of 2026-11-21: "også er den ikke helt lik som på konseptet ... mer av konsept uiet vi først gikk for,
+        // syntes denne var for flat sammenlignet med den" (ui_b_kinetic_anime.png, and ui_kinetic_small_1.png). Each at 0 or
+        // off gives this morning's flat look.
+
+        /// <summary>
+        /// The dark plate behind a slanted box (a strip box and its ends, the strokes, the blade, an enemy's bar): moved down
+        /// and right by this many layout pixels at a scale of 1 (it grows with its piece), so the box stands off the floor.
+        /// 0: flat.
+        /// </summary>
+        public float Depth = 3f;
+        /// <summary>That plate this much larger than its box on every side at a scale of 1: a hard black outline. 0: none.</summary>
+        public float Outline = 1.5f;
+        /// <summary>The plate's ink: the palette's black, nearly opaque.</summary>
+        public Rgba DepthInk = new Rgba(0.02f, 0.02f, 0.03f, 0.92f);
+        /// <summary>One dark slanted plate behind the whole strip, edged in a thin white line, as in both pictures; off: the boxes float apart.</summary>
+        public bool StripPlate = true;
+        /// <summary>The strip's plate this far round its boxes, and its white edge this thick, at the strip's scale of 1.</summary>
+        public float StripPlatePad = 5f;
+        public float StripEdge = 1f;
+        /// <summary>A thin white line round each box's face on the strip's plate, this opaque, so the boxes read apart on it as in the pictures. 0: none.</summary>
+        public float CellEdge = 0.35f;
+        /// <summary>The hot stripes along a cut edge (teal at the strip's left end, red at its right; two red slashes before the blade), this wide at a scale of 1. 0: none.</summary>
+        public float Slash = 4f;
+        /// <summary>The halftone patch at the strip's top left corner (teal dots shrinking along the cut), this opaque. 0: none.</summary>
+        public float Halftone = 0.6f;
+        /// <summary>The halftone patch's size, at the strip's scale of 1.</summary>
+        public float HalftoneSize = 40f;
     }
 
     /// <summary>A rectangle of the interface, in pixels with 0,0 at the top left (a GUI rectangle without the engine).</summary>
@@ -224,36 +330,84 @@ namespace Roguelike.Rules
         /// <summary>How far a slanted shape <paramref name="height"/> high leans over its height.</summary>
         public static float Lean(float height, InterfaceValues v) => height * v.Slant;
 
+        // ---------------- The scales of a fight (work order 063) ----------------
+
+        /// <summary>The master scale of the interface in a fight (<see cref="InterfaceValues.FightScale"/>), never under 0.1.</summary>
+        public static float Fight(InterfaceValues v) => Math.Max(0.1f, v.FightScale);
+
+        /// <summary>The strip's scale: the master scale times the strip's own factor.</summary>
+        public static float Strip(InterfaceValues v) => Fight(v) * Math.Max(0.1f, v.StripScale);
+
+        /// <summary>The cast blade's scale: the master scale times the blade's own factor.</summary>
+        public static float BladeFactor(InterfaceValues v) => Fight(v) * Math.Max(0.1f, v.BladeScale);
+
+        /// <summary>A font size grown by a scale, at least 1.</summary>
+        public static int Size(int size, float scale) => Math.Max(1, (int)Math.Round(size * scale));
+
+        /// <summary>The cooldown's number's font size on the strip: the largest thing in a cooling box.</summary>
+        public static int CooldownFont(InterfaceValues v) => Size(v.CooldownSize, Strip(v) * Math.Max(0.1f, v.CooldownGrow));
+
+        /// <summary>The key's label on the strip: readable but small, with the master scale only.</summary>
+        public static int KeyFont(InterfaceValues v) => Size(v.KeySize, Fight(v));
+
+        /// <summary>The height of the white plate a key sits on, under each box's face.</summary>
+        public static float KeyPlateHeight(InterfaceValues v) => KeyFont(v) * 1.25f;
+
+        /// <summary>The distance from the view's bottom to the strip's bottom edge, in layout pixels: the lift's share of the height, never under <see cref="InterfaceValues.StripBottom"/>.</summary>
+        public static float StripBottomEdge(InterfaceValues v) => Math.Max(v.StripBottom, Math.Max(0f, v.StripLift) * v.LayoutHeight);
+
         // ---------------- 1. At the figure ----------------
 
         /// <summary>
         /// The two strokes under her feet, in layout pixels: side by side, centred under <paramref name="feetX"/>, their top
-        /// <see cref="InterfaceValues.UnderFeet"/> under <paramref name="feetY"/> (both layout pixels, top left 0,0). Health
-        /// left, focus right.
+        /// <see cref="InterfaceValues.UnderFeet"/> (grown with the master scale) under <paramref name="feetY"/> (both layout
+        /// pixels, top left 0,0). Health left, focus right.
         /// </summary>
-        public static UiBox HealthStroke(float feetX, float feetY, InterfaceValues v)
+        public static UiBox HealthStroke(float feetX, float feetY, InterfaceValues v) => HealthStroke(feetX, feetY, v.UnderFeet * Fight(v), v);
+
+        /// <summary>
+        /// The two strokes with their top <paramref name="under"/> layout pixels under her feet's point (work order 063: the
+        /// gap worked out every frame from <see cref="InterfaceValues.UnderFeetMetres"/> through the camera).
+        /// </summary>
+        public static UiBox HealthStroke(float feetX, float feetY, float under, InterfaceValues v)
         {
-            float total = 2f * v.StrokeWidth + v.StrokeGap;
-            return new UiBox(feetX - total * 0.5f, feetY + v.UnderFeet, v.StrokeWidth, v.StrokeHeight);
+            float s = Fight(v);
+            float w = v.StrokeWidth * s, total = 2f * w + v.StrokeGap * s;
+            return new UiBox(feetX - total * 0.5f, feetY + under, w, v.StrokeHeight * s);
         }
 
-        public static UiBox FocusStroke(float feetX, float feetY, InterfaceValues v)
+        public static UiBox FocusStroke(float feetX, float feetY, InterfaceValues v) => FocusStroke(feetX, feetY, v.UnderFeet * Fight(v), v);
+
+        public static UiBox FocusStroke(float feetX, float feetY, float under, InterfaceValues v)
         {
-            UiBox h = HealthStroke(feetX, feetY, v);
-            return new UiBox(h.Right + v.StrokeGap, h.Y, v.StrokeWidth, v.StrokeHeight);
+            UiBox h = HealthStroke(feetX, feetY, under, v);
+            return new UiBox(h.Right + v.StrokeGap * Fight(v), h.Y, h.W, h.H);
         }
 
         /// <summary>The health number's box: right of the focus stroke, its middle on the strokes' middle.</summary>
-        public static UiBox HealthNumber(float feetX, float feetY, InterfaceValues v)
+        public static UiBox HealthNumber(float feetX, float feetY, InterfaceValues v) => HealthNumber(feetX, feetY, v.UnderFeet * Fight(v), v);
+
+        public static UiBox HealthNumber(float feetX, float feetY, float under, InterfaceValues v)
         {
-            UiBox f = FocusStroke(feetX, feetY, v);
-            float h = v.HealthNumberSize * 1.3f;
-            return new UiBox(f.Right + v.NumberGap + Lean(v.StrokeHeight, v) * 0.5f, f.CenterY - h * 0.5f, v.HealthNumberSize * 3f, h);
+            UiBox f = FocusStroke(feetX, feetY, under, v);
+            float size = Size(v.HealthNumberSize, Fight(v));
+            float h = size * 1.3f;
+            return new UiBox(f.Right + v.NumberGap * Fight(v) + Lean(f.H, v) * 0.5f, f.CenterY - h * 0.5f, size * 3f, h);
         }
 
-        /// <summary>The cast blade: centred over <paramref name="headX"/>, its bottom <see cref="InterfaceValues.OverHead"/> over <paramref name="headY"/>.</summary>
-        public static UiBox Blade(float headX, float headY, InterfaceValues v) =>
-            new UiBox(headX - v.BladeWidth * 0.5f, headY - v.OverHead - v.BladeHeight, v.BladeWidth, v.BladeHeight);
+        /// <summary>
+        /// The strokes' gap under her feet in layout pixels, from her feet's point and the point <see cref="InterfaceValues.UnderFeetMetres"/>
+        /// under it in the camera's picture, both on the screen in layout pixels (y down); this morning's pixels when the metres are 0.
+        /// </summary>
+        public static float UnderFeetGap(float feetY, float metresDownY, InterfaceValues v) =>
+            v.UnderFeetMetres > 0f ? Math.Max(0f, metresDownY - feetY) : v.UnderFeet * Fight(v);
+
+        /// <summary>The cast blade: centred over <paramref name="headX"/>, its bottom <see cref="InterfaceValues.OverHead"/> over <paramref name="headY"/>, grown with its scale.</summary>
+        public static UiBox Blade(float headX, float headY, InterfaceValues v)
+        {
+            float b = BladeFactor(v), w = v.BladeWidth * b, h = v.BladeHeight * b;
+            return new UiBox(headX - w * 0.5f, headY - v.OverHead * Fight(v) - h, w, h);
+        }
 
         /// <summary>
         /// The white of health just lost: its share of the stroke from the health now up to where it was, and its opacity,
@@ -281,24 +435,132 @@ namespace Roguelike.Rules
         /// <summary>The slot of key <paramref name="key"/> of <paramref name="count"/>, in layout pixels, for a view <paramref name="viewWidth"/> wide.</summary>
         public static UiBox Slot(int key, int count, float viewWidth, InterfaceValues v)
         {
-            float total = count * v.SlotWidth + Math.Max(0, count - 1) * v.SlotGap;
+            float s = Strip(v);
+            float w = v.SlotWidth * s, h = v.SlotHeight * s, gap = v.SlotGap * s;
+            float total = count * w + Math.Max(0, count - 1) * gap;
             float left = (viewWidth - total) * 0.5f;
-            float top = v.LayoutHeight - v.StripBottom - v.SlotHeight;
-            return new UiBox(left + key * (v.SlotWidth + v.SlotGap), top, v.SlotWidth, v.SlotHeight);
+            float top = v.LayoutHeight - StripBottomEdge(v) - h;
+            return new UiBox(left + key * (w + gap), top, w, h);
         }
 
         /// <summary>The strip's left end (the dash) and right end (focus), outside the slots.</summary>
         public static UiBox LeftEnd(int count, float viewWidth, InterfaceValues v)
         {
             UiBox first = Slot(0, count, viewWidth, v);
-            return new UiBox(first.X - v.EndGap - v.EndWidth, first.Y, v.EndWidth, first.H);
+            float s = Strip(v);
+            return new UiBox(first.X - v.EndGap * s - v.EndWidth * s, first.Y, v.EndWidth * s, first.H);
         }
 
         public static UiBox RightEnd(int count, float viewWidth, InterfaceValues v)
         {
             UiBox last = Slot(Math.Max(0, count - 1), count, viewWidth, v);
-            return new UiBox(last.Right + v.EndGap, last.Y, v.EndWidth, last.H);
+            float s = Strip(v);
+            return new UiBox(last.Right + v.EndGap * s, last.Y, v.EndWidth * s, last.H);
         }
+
+        /// <summary>The cover tag beside the dash (2026-11-19): left of the left end, a little lower than its middle.</summary>
+        public static UiBox CoverTag(int count, float viewWidth, InterfaceValues v)
+        {
+            UiBox left = LeftEnd(count, viewWidth, v);
+            float s = Strip(v), w = v.EndWidth * s * 1.3f;
+            return new UiBox(left.X - v.EndGap * s - w, left.Y + left.H * 0.3f, w, left.H * 0.4f);
+        }
+
+        /// <summary>The whole strip from the cover tag's left to focus's right, for the overlap checks (work order 063).</summary>
+        public static UiBox WholeStrip(int count, float viewWidth, InterfaceValues v)
+        {
+            UiBox cover = CoverTag(count, viewWidth, v), right = RightEnd(count, viewWidth, v);
+            float lean = Lean(right.H, v) * 0.5f; // a slanted box leans half its height's lean past each side
+            return new UiBox(cover.X - lean, right.Y, right.Right + lean - (cover.X - lean), right.H);
+        }
+
+        /// <summary>
+        /// The dark plate behind the whole strip (work order 063, item 4): round the dash's box to focus's, the pad's width
+        /// round them (inside the gap to the cover tag). Its lean is its own, about its middle.
+        /// </summary>
+        public static UiBox StripPlate(int count, float viewWidth, InterfaceValues v)
+        {
+            UiBox left = LeftEnd(count, viewWidth, v), right = RightEnd(count, viewWidth, v);
+            float pad = Math.Max(0f, v.StripPlatePad) * Strip(v);
+            return new UiBox(left.X - pad, left.Y - pad, right.Right + pad - (left.X - pad), left.H + 2f * pad);
+        }
+
+        /// <summary>A box's face (over its key's plate) and its plate, from its box.</summary>
+        public static UiBox Face(UiBox box, InterfaceValues v) => new UiBox(box.X, box.Y, box.W, box.H - KeyPlateHeight(v) - 2f * Strip(v));
+
+        public static UiBox Plate(UiBox box, InterfaceValues v)
+        {
+            float h = KeyPlateHeight(v);
+            return new UiBox(box.X, box.Bottom - h, box.W, h);
+        }
+
+        /// <summary>A box grown by <paramref name="factor"/> about its middle (a lit recast box, work order 063 item 2b).</summary>
+        public static UiBox Grown(UiBox b, float factor)
+        {
+            factor = Math.Max(0.1f, factor);
+            float w = b.W * factor, h = b.H * factor;
+            return new UiBox(b.CenterX - w * 0.5f, b.CenterY - h * 0.5f, w, h);
+        }
+
+        // ---------------- 3b. A skill off cooldown (work order 063, item 2) ----------------
+
+        /// <summary>
+        /// A skill came off its cooldown this frame and its box shows it: it waited before and does not now, the same skill
+        /// is on the key, and nothing quiets it (a pause, a choice open, a run starting or a floor changing, a frame the
+        /// box was not worked out in).
+        /// </summary>
+        public static bool CameReady(bool waitedBefore, bool waitsNow, bool sameSkill, bool quiet) => waitedBefore && !waitsNow && sameSkill && !quiet;
+
+        /// <summary>The ready flash's strength, 1 at once to 0 after <see cref="InterfaceValues.ReadyFlashSeconds"/> of real time; 0 off.</summary>
+        public static float ReadyFlashAlpha(float since, InterfaceValues v)
+        {
+            if (!v.ReadyFlash || since < 0f || v.ReadyFlashSeconds <= 0f || since >= v.ReadyFlashSeconds) return 0f;
+            return 1f - since / v.ReadyFlashSeconds;
+        }
+
+        /// <summary>
+        /// The kick: how far along the strip's slant the box stands, in layout pixels: up to <see cref="InterfaceValues.ReadyKick"/>
+        /// (grown with the strip) in the first <see cref="InterfaceValues.ReadyKickRise"/> of the flash, then settling back, eased.
+        /// </summary>
+        public static float ReadyKickNow(float since, InterfaceValues v)
+        {
+            if (ReadyFlashAlpha(since, v) <= 0f) return 0f;
+            float p = since / v.ReadyFlashSeconds, rise = Math.Min(0.9f, Math.Max(0.01f, v.ReadyKickRise));
+            float most = v.ReadyKick * Strip(v);
+            if (p < rise) return most * p / rise;
+            float back = 1f - (p - rise) / (1f - rise);
+            return most * back * back;
+        }
+
+        // ---------------- 3c. The recast window on its box (work order 063, item 2b) ----------------
+
+        /// <summary>
+        /// The open recast window as the box shows it, as shares of the window: the "now" mark (seconds since it opened over
+        /// its length) and the clean part's start and end. False when no window is open (before it opens, after it ran out).
+        /// </summary>
+        public static bool RecastShares(float window, float sinceOpened, float cleanFrom, float cleanTo, out float now, out float bandFrom, out float bandTo)
+        {
+            now = bandFrom = bandTo = 0f;
+            if (window <= 0f || sinceOpened < 0f || sinceOpened > window) return false;
+            now = Clamp01(sinceOpened / window);
+            if (cleanTo > cleanFrom)
+            {
+                bandFrom = Clamp01(cleanFrom / window);
+                bandTo = Clamp01(cleanTo / window);
+            }
+            return true;
+        }
+
+        /// <summary>The window's bar across a lit box's face: the lower part of the face, inset from its sides.</summary>
+        public static UiBox RecastBar(UiBox face, InterfaceValues v)
+        {
+            float s = Strip(v), h = v.RecastBarHeight * s, inset = 4f * s;
+            return new UiBox(face.X + inset, face.Bottom - h - 3f * s, Math.Max(1f, face.W - 2f * inset), h);
+        }
+
+        /// <summary>The clean part's band on that bar.</summary>
+        public static UiBox RecastBand(UiBox bar, float bandFrom, float bandTo) =>
+            new UiBox(bar.X + bar.W * Clamp01(bandFrom), bar.Y, bar.W * Math.Max(0f, Clamp01(bandTo) - Clamp01(bandFrom)), bar.H);
 
         /// <summary>How a skill's slot shows: empty, in use or with something waiting (teal), on cooldown (grey), or ready (white).</summary>
         public static SlotLook Look(bool hasSkill, bool inUse, bool waiting, float cooldown) =>

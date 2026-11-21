@@ -112,6 +112,7 @@ namespace Roguelike
             public ChoiceKind Kind;
             public int[] Skills;
             public SkillUpgradeDefinition[] Upgrades;
+            public SkillTierOffer[] Tiers; // work order 057: the floor reward's tiers, kept with its slots
             public GeneratedLevel Level;
         }
 
@@ -189,13 +190,27 @@ namespace Roguelike
             }
             LevelRoom room = elite ? _level.Layout.EliteRoom : _level.Layout.ExitRoom;
             Vector3 fell = LastFallen(room);
-            Vector3 landing = LandingFor(fell, room);
+            // The fourth review of 2026-11-21 (work order 055): nowhere in the room she can stand at and reach, the choice the
+            // drop owes opens at once, as with the drops off.
+            if (!TryLandingFor(fell, room, out Vector3 landing))
+            {
+                Debug.Log(string.Format(s_Inv, "Reward drop: {0} on floor {1} has nowhere in its room to land that she can reach: its choice opens at once", kind, Floor));
+                if (elite || !(EliteDrop is RewardDrop lying)) return false;
+                // The floor's reward with the elite's drop still lying: the elite's first and the floor's after it, as when
+                // the floor's drop is picked up (TakeDrop), or the elite's would be lost with the floor.
+                _floorFollows = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Tiers = _offeredSkillTiers.ToArray(), Level = _level };
+                var first = (Owed)lying.Owed;
+                RemoveDrop(lying);
+                OpenOwed(first);
+                return true;
+            }
             Color color = elite ? EnemyFactory.EliteTint : kind == ChoiceKind.FocusChoice ? FocusChoiceColor : FloorRewardColor;
-            var owed = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Level = _level };
+            var owed = new Owed { Kind = kind, Skills = _offeredSkills.ToArray(), Upgrades = _offeredSkillUpgrades.ToArray(), Tiers = _offeredSkillTiers.ToArray(), Level = _level };
             RewardDrop drop = RewardDrop.Make(this, owed, kind, color, fell, landing, _level.transform,
                                               _player != null ? _player.ShotFxMaterial : null, DropValues);
             _drops.Add(drop);
             _offeredSkills.Clear(); // the offer waits in the drop; nothing is offered on screen
+            _offeredSkillTiers.Clear(); // work order 057
             _offeredSkillUpgrades.Clear();
             Debug.Log(string.Format(s_Inv, "Reward drop: {0} on floor {1}, fell at ({2:0.0}, {3:0.0}), lands at ({4:0.0}, {5:0.0})",
                                     kind, Floor, fell.x, fell.z, landing.x, landing.z));
@@ -223,6 +238,8 @@ namespace Roguelike
         {
             _offeredSkills.Clear();
             _offeredSkills.AddRange(owed.Skills);
+            _offeredSkillTiers.Clear(); // work order 057: the same tiers as when it fell
+            if (owed.Tiers != null) _offeredSkillTiers.AddRange(owed.Tiers);
             _offeredSkillUpgrades.Clear();
             _offeredSkillUpgrades.AddRange(owed.Upgrades);
             _openingADrop = true;
@@ -337,33 +354,60 @@ namespace Roguelike
             return last != null ? new Vector3(last.transform.position.x, 0f, last.transform.position.z) : middle;
         }
 
-        /// <summary>Where the drop lands, on the floor's NavMesh (<see cref="RewardDropRules.Landing"/>).</summary>
-        Vector3 LandingFor(Vector3 fell, LevelRoom room)
+        /// <summary>
+        /// Where the drop lands, on the floor's NavMesh (<see cref="RewardDropRules.TryLanding"/>): in its room, clear, and with a
+        /// whole path from her (the fourth review of 2026-11-21, work order 055: the last fallback took any walkable point
+        /// within four metres, or the refused point itself). False when there is no such place. Public for tests.
+        /// </summary>
+        public bool TryLandingFor(Vector3 fell, LevelRoom room, out Vector3 landing)
         {
-            Vector3 middle = room != null ? _level.Middle(room) : fell;
-            GroundPoint at = RewardDropRules.Landing(new GroundPoint(fell.x, fell.z), new GroundPoint(middle.x, middle.z), Standable, OpenWay, DropValues);
-            var landing = new Vector3(at.X, 0f, at.Z);
-            // Neither where it fell nor the middle could be stood on, nor anywhere round them: the nearest walkable ground.
-            if (!Standable(at) && NavMesh.SamplePosition(landing, out NavMeshHit near, 4f, NavMesh.AllAreas))
-                landing = new Vector3(near.position.x, 0f, near.position.z);
-            return landing;
+            landing = fell;
+            if (_level == null || room == null) return false;
+            Vector3 middle = _level.Middle(room);
+            bool Takes(GroundPoint p) => Standable(p, room) && Reachable(p);
+            if (!RewardDropRules.TryLanding(new GroundPoint(fell.x, fell.z), new GroundPoint(middle.x, middle.z), Takes, OpenWay, DropValues, out GroundPoint at))
+                return false;
+            landing = new Vector3(at.X, 0f, at.Z);
+            return true;
         }
 
-        /// <summary>A point of this floor she can stand at: on its NavMesh, in a room, and clear of walls and props by the clearance.</summary>
-        bool Standable(GroundPoint p)
+        /// <summary>
+        /// A point of this room she can stand at: on the floor's NavMesh, on an open cell of the room, and clear of walls and of
+        /// the props built (work order 055: the level's placed and large props, not the plan's, whose replaced props were never
+        /// built and whose large props were missing) by the clearance. Public for tests.
+        /// </summary>
+        public bool Standable(GroundPoint p, LevelRoom room)
         {
             var w = new Vector3(p.X, 0f, p.Z);
-            LevelRoom room = _level != null ? _level.RoomAt(w) : null;
-            if (room == null) return false;
-            // Every prop's footprint, also one low enough to be in the NavMesh, or with no collider.
+            if (_level == null || room == null || _level.RoomAt(w) != room) return false;
+            // Every prop's footprint, also one low enough to be in the NavMesh, or with no collider (the dais).
             LevelPoint at = _level.ToLevel(w);
             // Work order 051: on an open cell (RoomAt answers no room for a carved one) and clear of the carved walls as of the others.
             if (RoomShapes.NearSolid(room, at, _level.Layout.CellSize, DropValues.Clearance + _level.Values.WallThickness * 0.5f)) return false;
-            foreach (LevelProp prop in room.Props)
-                if (prop.Footprint.DistanceTo(at) < DropValues.Clearance) return false;
+            if (NearBuilt(_level.Props, room, at) || NearBuilt(_level.LargeProps, room, at)) return false;
             if (!NavMesh.SamplePosition(w, out NavMeshHit hit, 0.6f, NavMesh.AllAreas)) return false;
             if (new Vector2(hit.position.x - w.x, hit.position.z - w.z).magnitude > 0.05f) return false; // off the NavMesh: in a wall or a prop
             return !NavMesh.FindClosestEdge(hit.position, out NavMeshHit edge, NavMesh.AllAreas) || edge.distance >= DropValues.Clearance;
+        }
+
+        bool NearBuilt(IReadOnlyList<GeneratedLevel.PlacedProp> props, LevelRoom room, LevelPoint at)
+        {
+            for (int i = 0; i < props.Count; i++)
+                if (props[i].Room == room && props[i].Prop.Footprint.DistanceTo(at) < DropValues.Clearance) return true;
+            return false;
+        }
+
+        NavMeshPath _dropPath;
+
+        /// <summary>A whole path on the NavMesh from her to the point (work order 055); from the floor's start when she is off it.</summary>
+        bool Reachable(GroundPoint p)
+        {
+            Vector3 from = _player != null ? _player.Position : _level.PlayerStart;
+            if (!NavMesh.SamplePosition(new Vector3(from.x, 0f, from.z), out NavMeshHit her, 2f, NavMesh.AllAreas)
+                && !NavMesh.SamplePosition(_level.PlayerStart, out her, 2f, NavMesh.AllAreas)) return false;
+            if (!NavMesh.SamplePosition(new Vector3(p.X, 0f, p.Z), out NavMeshHit to, 0.6f, NavMesh.AllAreas)) return false;
+            _dropPath = _dropPath ?? new NavMeshPath();
+            return NavMesh.CalculatePath(her.position, to.position, NavMesh.AllAreas, _dropPath) && _dropPath.status == NavMeshPathStatus.PathComplete;
         }
 
         /// <summary>The straight way between two points is walkable: nothing in between.</summary>

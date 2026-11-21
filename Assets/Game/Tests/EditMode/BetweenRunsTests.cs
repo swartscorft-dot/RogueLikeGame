@@ -274,7 +274,7 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void DeepChests_TheFirstChestOffersThree_TheSameTwoFirst()
+        public void DeepChests_TheFirstChestOffersOneMore_TheSameOnesFirst() // work order 065: three a chest, four with Deep Chests
         {
             RunModifiers m = WithOnly(MetaPieces.DeepChests);
             Assert.That(m.Meta.FirstChestExtra, Is.EqualTo(1));
@@ -284,10 +284,10 @@ namespace Roguelike.Rules.Tests
             {
                 List<Upgrade> two = ChestUpgrades.Offer(seed, 1, 3, skills, values);
                 List<Upgrade> three = ChestUpgrades.Offer(seed, 1, 3, skills, values, m.Meta.FirstChestExtra);
-                Assert.That(two.Count, Is.EqualTo(2));
-                Assert.That(three.Count, Is.EqualTo(3));
-                Assert.That(three.Take(2).Select(u => u.Short), Is.EqualTo(two.Select(u => u.Short)), "seed " + seed);
-                Assert.That(three.Select(u => u.Kind).Distinct().Count(), Is.EqualTo(3), "three different rows");
+                Assert.That(two.Count, Is.EqualTo(values.ChestOffers), "work order 065: three with the stats on");
+                Assert.That(three.Count, Is.EqualTo(values.ChestOffers + 1));
+                Assert.That(three.Take(two.Count).Select(u => u.Short), Is.EqualTo(two.Select(u => u.Short)), "seed " + seed);
+                Assert.That(three.Select(u => u.Kind).Distinct().Count(), Is.EqualTo(three.Count), "different rows");
             }
         }
 

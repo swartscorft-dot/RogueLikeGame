@@ -98,6 +98,14 @@ namespace Roguelike
 
         static AudioClip s_tone;
 
+        /// <summary>
+        /// For tests only (work order 061, the assert "Converting invalid MinMaxAABB" seen since work order 044): 0, the game's
+        /// own, leaves each particle system's seed automatic; any other number gives the systems of a build fixed seeds made
+        /// from it, in the order they are made with every layer on (a layer switched off keeps the others' seeds).
+        /// </summary>
+        public static uint ParticleSeedForTests;
+        uint _systemsMade;
+
         /// <summary>The plan built from, or null with the master off.</summary>
         public RoomMoodPlan Plan => _plan;
         /// <summary>The object everything is under.</summary>
@@ -118,6 +126,7 @@ namespace Roguelike
         static void ResetStatics()
         {
             s_tone = null;
+            ParticleSeedForTests = 0;
             s_claims = 0;
             s_saved = false;
             s_key = null;
@@ -284,11 +293,12 @@ namespace Roguelike
             _signature = Signature();
             _built = true;
             Builds++;
+            _systemsMade = 0;
             _block = _block ?? new MaterialPropertyBlock();
             _root = new GameObject(RootName + "_" + _level.Layout.SeedText) { layer = CryptKit.Layer };
             SceneManager.MoveGameObjectToScene(_root, _level.gameObject.scene);
             _root.SetActive(_level.gameObject.activeInHierarchy);
-            _plan = _given ?? RoomMoodPlan.Make(_level.Layout, _values);
+            _plan = _given ?? MakePlanAsBuilt();
             _given = null;
 
             Texture2D palette = Own(MoodShapes.MakePalette());
@@ -329,6 +339,7 @@ namespace Roguelike
                 noise.frequency = 0.3f;
                 FadeInOut(_dust);
                 _dustLevel = -1f;
+                _dust.gameObject.SetActive(true);
                 _dust.Play();
             }
             if (v.Tone)
@@ -354,6 +365,18 @@ namespace Roguelike
             }
             Here = -2;
             _fogLevel = -1f;
+        }
+
+        /// <summary>
+        /// The plan made again (a rebuild), with the large props as the level has them, not as the switch says now (the fourth
+        /// review of 2026-11-21, work order 055: toggled in the Inspector, the plan no longer matched what was built).
+        /// </summary>
+        RoomMoodPlan MakePlanAsBuilt()
+        {
+            bool was = _values.LargeProps;
+            _values.LargeProps = _level.LargePropsPlan != null;
+            try { return RoomMoodPlan.Make(_level.Layout, _values); }
+            finally { _values.LargeProps = was; }
         }
 
         T Own<T>(T o) where T : Object
@@ -599,8 +622,12 @@ namespace Roguelike
             float cs = _level.Layout.CellSize;
             if (v.Fog && v.FogMostPerRoom > 0)
             {
-                float w = room.Rect.Width * cs, d = room.Rect.Height * cs;
-                parts.Fog = MakeSystem("Mood_Fog", parts.Root.transform, W(room.Middle(cs), v.FogHeight), v.FogMostPerRoom);
+                // The fourth review of 2026-11-21 (work order 055): a room with carved cells has its fog along the edge of its
+                // largest rectangle of open cells, not of its whole rectangle, whose corners lie over the carved cells.
+                CellRect over = room.SolidCount > 0 ? LargestOpenRect(room) : room.Rect;
+                float w = over.Width * cs, d = over.Height * cs;
+                var overMiddle = new LevelPoint((over.X + over.Width * 0.5) * cs, (over.Y + over.Height * 0.5) * cs);
+                parts.Fog = MakeSystem("Mood_Fog", parts.Root.transform, W(room.SolidCount > 0 ? overMiddle : room.Middle(cs), v.FogHeight), v.FogMostPerRoom);
                 ParticleSystem.MainModule main = parts.Fog.main;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(9f, 13f);
                 main.startSpeed = new ParticleSystem.MinMaxCurve(0.04f, 0.18f);
@@ -617,7 +644,9 @@ namespace Roguelike
                 FadeInOut(parts.Fog);
                 ParticleSystemRenderer r = parts.Fog.GetComponent<ParticleSystemRenderer>();
                 r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+                parts.Fog.gameObject.SetActive(true);
             }
+            else if (v.FogMostPerRoom > 0) _systemsMade++; // a test's seeds stay on the same systems with the fog off (work order 061)
             if (v.Embers && v.EmbersPerBrazier > 0)
                 foreach (MoodSource s in mr.Sources)
                 {
@@ -642,8 +671,12 @@ namespace Roguelike
                     noise.strength = 0.3f;
                     noise.frequency = 0.8f;
                     FadeInOut(e);
+                    e.gameObject.SetActive(true);
                     parts.Embers.Add(e);
                 }
+            else if (v.EmbersPerBrazier > 0)
+                foreach (MoodSource s in mr.Sources)
+                    if (s.Kind == MoodSourceKind.Brazier && s.Flame) _systemsMade++; // as the fog's, with the embers off
             return parts;
         }
 
@@ -660,13 +693,42 @@ namespace Roguelike
             return r;
         }
 
+        /// <summary>The largest of a room's rectangles of open cells (<see cref="RoomShapes.OpenRects"/>), the first of equals (work order 055).</summary>
+        static CellRect LargestOpenRect(LevelRoom room)
+        {
+            CellRect best = room.Rect;
+            int most = -1;
+            foreach (CellRect r in RoomShapes.OpenRects(room))
+                if (r.Width * r.Height > most)
+                {
+                    best = r;
+                    most = r.Width * r.Height;
+                }
+            return best;
+        }
+
+        /// <summary>
+        /// One of the air's systems, made on an object that stays inactive until its maker has set it up and turns it on. Work
+        /// order 061 (the engine's assert "Converting invalid MinMaxAABB", seen since work order 044 about once in 600 floors): a
+        /// particle system added to an active object wakes at once with the engine's own defaults (playing on awake, in local
+        /// space) and was stopped and set up only after; so made, the engine's particle update in the frame of her first tick
+        /// after the build (PreLateUpdate.ParticleSystemBeginUpdateAll) logged the assert about once in 600 builds of the mood,
+        /// the dust and the fog both needed (either off: 0 in 3000; the embers off: 3 in 3000). Made inactive it never came.
+        /// </summary>
         ParticleSystem MakeSystem(string name, Transform parent, Vector3 at, int most)
         {
             var go = new GameObject(name) { layer = CryptKit.Layer };
+            go.SetActive(false);
             go.transform.SetParent(parent, false);
             go.transform.position = at;
             var ps = go.AddComponent<ParticleSystem>();
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            if (ParticleSeedForTests != 0)
+            {
+                ps.useAutoRandomSeed = false;
+                ps.randomSeed = unchecked(ParticleSeedForTests * 2654435761u + _systemsMade);
+            }
+            _systemsMade++;
             ParticleSystem.MainModule main = ps.main;
             main.playOnAwake = false;
             main.loop = true;

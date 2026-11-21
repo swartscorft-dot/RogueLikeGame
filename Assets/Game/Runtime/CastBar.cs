@@ -31,6 +31,9 @@ namespace Roguelike
     /// It installs itself when Play starts under the same rule as <see cref="PlayerSigns"/> (never in a test run); tests make
     /// one with <see cref="Ensure"/>.
     /// </summary>
+    // After the camera's move in its LateUpdate (CameraRig, of no order), so the blade over her head is placed from this
+    // frame's camera (the fourth review of 2026-11-21, work order 055; as EnemyBars, 047).
+    [DefaultExecutionOrder(100)]
     public sealed partial class CastBar : MonoBehaviour
     {
         static readonly Color s_Back = new Color(0f, 0f, 0f, 0.65f);         // the HUD's

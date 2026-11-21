@@ -108,6 +108,7 @@ namespace Roguelike
         bool _heldBefore;
         GeneratedLevel _levelSeen;
         bool _clearedSeen;
+        bool _actClearedSeen; // work order 055
         int _chestsSeen;
         RunRecord _recordSeen;
         int _picksSeen;
@@ -123,6 +124,8 @@ namespace Roguelike
         int _bells;              // the bells of the offer asked for this frame
         float _secondBellAt = -1f;
         float _secondBellVolume, _secondBellPitch;
+        GeneratedLevels.ChoiceKind _secondBellChoice; // work order 055: the choice and the floor it rings for
+        GeneratedLevel _secondBellLevel;
         TimingFeedback _listeningFeedback;
         Action<FeedbackTone> _onTone;
         Action _find, _look, _flush; // made once: nothing is allocated in a frame while nothing plays
@@ -460,7 +463,15 @@ namespace Roguelike
         /// <summary>An epic offer's second bell, when its time has come (real time: the choice holds the game).</summary>
         void RingSecondBell()
         {
-            if (_secondBellAt < 0f || Time.unscaledTime < _secondBellAt) return;
+            if (_secondBellAt < 0f) return;
+            // The fourth review of 2026-11-21 (work order 055): the choice that rang it, or its floor, is gone: it does not ring.
+            GeneratedLevels levels = GeneratedLevels.Current;
+            if (levels == null || levels.Choice != _secondBellChoice || levels.Level != _secondBellLevel)
+            {
+                _secondBellAt = -1f;
+                return;
+            }
+            if (Time.unscaledTime < _secondBellAt) return;
             _secondBellAt = -1f;
             AudioClip clip = _clips[(int)PlaceholderSound.RareOffer];
             if (Values.On && clip != null && _voices != null) _voices.Play(clip, _secondBellVolume, _secondBellPitch, 0f);
@@ -472,6 +483,7 @@ namespace Roguelike
             GeneratedLevels levels = GeneratedLevels.Current;
             GeneratedLevel level = levels != null ? levels.Level : null;
             bool cleared = levels != null && levels.Cleared;
+            bool actCleared = levels != null && levels.ActCleared;
             int chests = levels != null ? levels.ChestsOpened.Count : 0;
             RunRecord record = levels != null ? levels.Record : null;
             // A skill upgrade from an elite room is a pick too (where work orders 017 and 021 met, 2026-11-20).
@@ -485,7 +497,8 @@ namespace Roguelike
             // Work order 048: a choice that came up with a rare or an epic card rings, heard with it up as a chest's is.
             if (_looked && choice != GeneratedLevels.ChoiceKind.None && choice != _choiceSeen)
             {
-                int bells = PlaceholderSoundRules.OfferBells(BestTier(levels.OfferedUpgrades));
+                int bells = PlaceholderSoundRules.OfferBells(choice == GeneratedLevels.ChoiceKind.FloorReward
+                                                                 ? BestTier(levels.OfferedSkillTiers) : BestTier(levels.OfferedUpgrades)); // work order 057: the floor reward's tiers
                 if (bells > 0)
                 {
                     _bells = Math.Max(_bells, bells);
@@ -500,6 +513,9 @@ namespace Roguelike
                 {
                     if (cleared && !_clearedSeen)
                         Ask(levels.ActCleared ? PlaceholderSound.ActCleared : PlaceholderSound.FloorCleared, lookedFor: true);
+                    // The act ended later than its floor was cleared (the elite's upgrade, left lying, came first): its
+                    // sound where it ends (the fourth review of 2026-11-21, work order 055: it was never heard).
+                    else if (actCleared && !_actClearedSeen) Ask(PlaceholderSound.ActCleared, lookedFor: true);
                     if (chests > _chestsSeen) Ask(PlaceholderSound.ChestOpens, lookedFor: true);
                 }
                 if (record != null && record == _recordSeen && picks > _picksSeen) Ask(PlaceholderSound.ChoiceTaken, lookedFor: true);
@@ -510,6 +526,7 @@ namespace Roguelike
             _looked = true;
             _levelSeen = level;
             _clearedSeen = cleared;
+            _actClearedSeen = actCleared;
             _chestsSeen = chests;
             _recordSeen = record;
             _picksSeen = picks;
@@ -528,6 +545,20 @@ namespace Roguelike
                 Upgrade u = offer[i];
                 if (u == null || !u.Tiered) continue;
                 if (!best.HasValue || u.Tier > best.Value) best = u.Tier;
+            }
+            return best;
+        }
+
+        /// <summary>The best tier of the floor reward's cards that have one (work order 057), or none. Indexed: nothing made.</summary>
+        static UpgradeTier? BestTier(IReadOnlyList<SkillTierOffer> offer)
+        {
+            UpgradeTier? best = null;
+            if (offer == null) return null;
+            for (int i = 0; i < offer.Count; i++)
+            {
+                SkillTierOffer t = offer[i];
+                if (t == null) continue;
+                if (!best.HasValue || t.Tier > best.Value) best = t.Tier;
             }
             return best;
         }
@@ -561,6 +592,9 @@ namespace Roguelike
                     _secondBellAt = Time.unscaledTime + Mathf.Max(0f, Values.EpicNoteGap);
                     _secondBellVolume = volume;
                     _secondBellPitch = pitch * PlaceholderSoundRules.EpicNoteStep;
+                    GeneratedLevels levels = GeneratedLevels.Current;
+                    _secondBellChoice = levels != null ? levels.Choice : GeneratedLevels.ChoiceKind.None;
+                    _secondBellLevel = levels != null ? levels.Level : null;
                 }
             }
         }

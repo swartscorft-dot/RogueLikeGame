@@ -291,6 +291,7 @@ namespace Roguelike
             if (!BetweenRunsReadable()) return; // work order 033: the save is there but cannot be read now: this run is no meta run
             MetaState s = BetweenRunsState;
             MetaRack.Apply(s, MetaValues, Modifiers.Meta, StruckOutSkill);
+            ApplyWeapon(s); // work order 060: her pistols' parts, only with the attachments on (GeneratedLevelsWeapon.cs)
             _metaRun = true;
             Earnings = new RunEarnings();
             _eliteEntrySeen = false;
@@ -307,7 +308,8 @@ namespace Roguelike
             if (floor == 1)
             {
                 MetaState s = BetweenRunsState;
-                PlaySessionRecorder.Current?.NoteBetweenRunsLoadout(Modifiers.Meta.Pieces, s.Currency, MetaRack.Budget(s, MetaValues), MetaRack.PointsUsed(s, MetaValues));
+                PlaySessionRecorder.Current?.NoteBetweenRunsLoadout(Modifiers.Meta.Pieces, s.Currency, MetaRack.Budget(s, MetaValues), MetaRack.PointsUsed(s, MetaValues),
+                                                                    WeaponLoadoutWords()); // work order 060: null with the attachments off
             }
             if (floor >= 3) Earnings.Do(MetaFeat.ReachFloor3);
             if (floor >= 5) Earnings.Do(MetaFeat.ReachFloor5);
@@ -413,7 +415,8 @@ namespace Roguelike
             Modifiers.Meta.RedrawsLeft--;
             _offeredSkills.Clear();
             _offeredSkills.AddRange(again);
-            PlaySessionRecorder.Current?.NoteRewardOffered(Floor, _offeredSkills.Select(s => player.Skills[s].Name).ToList());
+            DrawSkillTiers(player, 1); // work order 057: new tiers with the new slots
+            NoteRewardOffer(player);
             Debug.Log("Between runs: Second Look drew the floor reward again");
             return true;
         }

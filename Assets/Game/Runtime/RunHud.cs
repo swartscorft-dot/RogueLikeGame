@@ -49,8 +49,12 @@ namespace Roguelike
         public const Key PauseKey = Key.Escape;
         public const Key DevTextKey = Key.F1;
 
-        /// <summary>The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch, last.</summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns }
+        /// <summary>
+        /// The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch. CameraKick (work
+        /// order 064): the camera's kick when she fires, on or off. Attachments (work order 060): her pistols' parts' switch,
+        /// last (RunHudWeapon.cs).
+        /// </summary>
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -235,7 +239,9 @@ namespace Roguelike
                     GameSettings.SetVolumeStep(GameSettings.VolumeStep >= SettingsRules.VolumeSteps ? 0 : GameSettings.VolumeStep + 1);
                     break;
                 case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
+                case MenuLine.CameraKick: ChangeSetting(line, 1); break; // work order 064
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
+                case MenuLine.Attachments: ChangeSetting(line, 1); break; // work order 060
             }
             return true;
         }
@@ -246,6 +252,7 @@ namespace Roguelike
         /// </summary>
         public bool ChangeSetting(MenuLine line, int delta)
         {
+            _pauseLinesStale = true; // work order 055: the pause screen's lists show the dash's way
             if (line == MenuLine.DashDirection)
             {
                 GameSettings.SetDash(DashNow == DashDirection.TowardMovement ? DashDirection.TowardCursor : DashDirection.TowardMovement);
@@ -261,9 +268,19 @@ namespace Roguelike
                 GameSettings.SetDamageNumbers(!TimingFeedback.NumbersOn); // either way it flips (work order 019)
                 return true;
             }
+            if (line == MenuLine.CameraKick)
+            {
+                GameSettings.SetCameraKick(!GameSettings.CameraKick); // either way it flips (work order 064)
+                return true;
+            }
             if (line == MenuLine.BetweenRuns)
             {
                 BetweenRunsSwitch.Set(!BetweenRunsOn); // either way it flips (work order 029)
+                return true;
+            }
+            if (line == MenuLine.Attachments)
+            {
+                FlipAttachments(); // work order 060 (RunHudWeapon.cs): on turns the trial on too
                 return true;
             }
             return false;
@@ -359,8 +376,9 @@ namespace Roguelike
                 _levels.DevBoxTop = _runBox.Count > 0 ? 10f + RunBoxHeight() + 8f : 10f;
             }
 
-            PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None
-                ? GeneratedLevels.NewLevelKey + "  start a run" : "";
+            // Made once (the fourth review of 2026-11-21, work order 055): the kinetic prompt's cache keys on the string.
+            PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None ? s_StartPrompt : "";
+            PauseLines(); // work order 055
 
             // The end screen.
             _endLines.Clear();
@@ -381,6 +399,7 @@ namespace Roguelike
             }
             if (_levels != null && _levels.Paused) BuildMenu();
             BuildBetweenRunsLines(); // work order 029
+            BuildWeaponLines(); // work order 060: nothing with the attachments off
         }
 
         void BuildMenu()
@@ -394,7 +413,9 @@ namespace Roguelike
             _menu.Add(MenuLine.DashDirection);
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
+            _menu.Add(MenuLine.CameraKick); // work order 064: the camera's kick when a shot goes off
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
+            _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
 
@@ -410,7 +431,9 @@ namespace Roguelike
                 case MenuLine.Quit: return "Quit";
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
+                case MenuLine.CameraKick: return GameSettings.CameraKick ? "Camera kick:  on" : "Camera kick:  off"; // work order 064
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
+                case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }
@@ -439,10 +462,42 @@ namespace Roguelike
                 int slot = _player.SkillOnKey(key);
                 // Work order 017: the run's upgrades of the skill beside it.
                 List<string> upgrades = slot >= 0 && slot < skills.Count && _player.SkillUpgrades != null ? _player.SkillUpgrades.NamesFor(skills[slot].Name) : null;
-                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name : "(empty)")
+                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name + TierAfter(skills[slot].Name) : "(empty)")
                           + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : ""));
             }
             return lines;
+        }
+
+        /// <summary>A rare or epic skill's tier after its name in the list of keys (work order 057), "  epic"; "" for a common.</summary>
+        string TierAfter(string skill)
+        {
+            UpgradeTier tier = _player != null && _player.SkillUpgrades != null ? _player.SkillUpgrades.TierOf(skill) : UpgradeTier.Common;
+            return tier == UpgradeTier.Common ? "" : "  " + UpgradeTiers.Word(tier);
+        }
+
+        static readonly string s_StartPrompt = GeneratedLevels.NewLevelKey + "  start a run";
+
+        List<string> _pauseKeys, _pauseStats;
+        bool _pauseWasUp, _pauseLinesStale;
+
+        /// <summary>How many times the pause screen's lists of keys and stats were made (work order 055). For tests.</summary>
+        public int PauseListsMade { get; private set; }
+
+        /// <summary>
+        /// The pause screen's lists of keys and of her stats, made when it opens and when a setting it shows changes, not on
+        /// every IMGUI event while it is up (the fourth review of 2026-11-21, work order 055).
+        /// </summary>
+        void PauseLines()
+        {
+            bool paused = _levels != null && _levels.Paused;
+            if (paused && (!_pauseWasUp || _pauseLinesStale || _pauseKeys == null))
+            {
+                _pauseKeys = KeyLines();
+                _pauseStats = StatLines();
+                _pauseLinesStale = false;
+                PauseListsMade++;
+            }
+            _pauseWasUp = paused;
         }
 
         /// <summary>
@@ -452,9 +507,10 @@ namespace Roguelike
         public List<string> StatLines()
         {
             RunModifiers m = _player != null ? _player.Modifiers : null;
-            if (m == null || !m.StatsAndTiers || _levels == null || !_levels.InRun) return new List<string>();
+            if (m == null || !m.StatsAndTiers || _levels == null || !_levels.InRun) return WithWeaponLine(new List<string>(), m); // work order 060
             FeelValues f = _player.Feel;
-            return m.Stats.Lines(f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery, f.BasicShotRange, _health != null ? _health.MaxHealth : 100);
+            // Work order 060: her start as her pistols' parts make it (the feel's with none), and a line naming them.
+            return WithWeaponLine(m.Stats.Lines(_player.BasicShotBaseInterval, m.Weapon.Reach(f.BasicShotRange), _health != null ? _health.MaxHealth : 100), m);
         }
 
         // ---------------- Drawing ----------------
@@ -614,11 +670,20 @@ namespace Roguelike
         void DrawPause(float viewWidth)
         {
             Fill(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), s_Dim);
-            List<string> keys = KeyLines();
-            List<string> stats = StatLines(); // work order 050
-            const float w = 560f, rowH = 34f, gap = 6f;
+            PauseLines(); // work order 055: made when it opens and when a setting changes
+            List<string> keys = _pauseKeys;
+            List<string> stats = _pauseStats; // work order 050
+            const float w = 560f;
+            float rowH = 34f, gap = 6f;
             int keyRows = (keys.Count + 1) / 2, statRows = (stats.Count + 1) / 2;
             float h = 64f + _menu.Count * (rowH + gap) + 18f + keyRows * 17f + 20f + (statRows > 0 ? 24f + statRows * 17f : 0f);
+            // Work order 060: with the attachments' line the menu of a run outgrew the view; the lines close up only then.
+            if (h > SkillBar.LayoutHeight - 20f)
+            {
+                h -= _menu.Count * 7f;
+                rowH = 30f;
+                gap = 3f;
+            }
             var r = new Rect((viewWidth - w) * 0.5f, Mathf.Max(10f, (SkillBar.LayoutHeight - h) * 0.5f), w, h);
             Panel(r, s_Accent, r.y + 52f);
             GUI.Label(new Rect(r.x, r.y + 10f, w, 40f), "Paused", _pauseTitle);
@@ -628,7 +693,9 @@ namespace Roguelike
                 MenuLine line = _menu[i];
                 var row = new Rect(r.x + 30f, y, w - 60f, rowH);
                 if (i == Selected) Frame(new Rect(row.x - 3f, row.y - 3f, row.width + 6f, row.height + 6f), s_Accent);
-                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns;
+                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns
+                               || line == MenuLine.CameraKick    // work order 064
+                               || line == MenuLine.Attachments;  // work order 060
                 if (setting)
                 {
                     const float arrow = 36f;

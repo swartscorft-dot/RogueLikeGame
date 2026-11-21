@@ -23,6 +23,14 @@ namespace Roguelike
         public int SkillsHeld;
         /// <summary>The cover key is down this frame (Left Ctrl to start with; Kristian 2026-11-19, an experiment).</summary>
         public bool CoverHeld;
+        /// <summary>
+        /// The fourth review of 2026-11-21 (work order 055): the move keys were read one by one (<see cref="MoveKeysRead"/>),
+        /// and one of them went down this frame (<see cref="MovePressed"/>), whatever the axis came to: the opposite key
+        /// pressed while one is held gives a zero axis, and is a press all the same. A frame that gives only
+        /// <see cref="Move"/> (tests, tools) leaves them false, and a press is read from the axis as before.
+        /// </summary>
+        public bool MoveKeysRead;
+        public bool MovePressed;
     }
 
     /// <summary>
@@ -188,8 +196,10 @@ namespace Roguelike
             }
 
             // Movement first, so a shot this frame knows whether she is moving; the cover key with it.
-            // With whether a move key went down: a quick duck ends on a key going down, not on one let go (work order 047).
-            _player.Steer(ScreenToGround(input.Move), Rules.QuickDuckRules.MoveKeyWentDown(_moveBefore.x, _moveBefore.y, input.Move.x, input.Move.y));
+            // With whether a move key went down: a quick duck ends on a key going down, not on one let go (work order 047);
+            // read key by key where the keys were read (work order 055), else from the axis.
+            _player.Steer(ScreenToGround(input.Move), input.MoveKeysRead ? input.MovePressed
+                                                      : Rules.QuickDuckRules.MoveKeyWentDown(_moveBefore.x, _moveBefore.y, input.Move.x, input.Move.y));
             _moveBefore = input.Move;
             _player.HoldCover(input.CoverHeld);
             _player.AimAt(cursor);
@@ -255,6 +265,7 @@ namespace Roguelike
             if (mouse == null || keyboard == null || bindings == null) return null;
             float Axis(Key positive, Key negative) =>
                 (positive != Key.None && keyboard[positive].isPressed ? 1f : 0f) - (negative != Key.None && keyboard[negative].isPressed ? 1f : 0f);
+            bool Down(Key k) => k != Key.None && keyboard[k].wasPressedThisFrame; // work order 055: each move key's own press
             var frame = new InputFrame
             {
                 CursorScreen = mouse.position.ReadValue(),
@@ -264,6 +275,8 @@ namespace Roguelike
                 DashPressed = bindings.Dash != Key.None && keyboard[bindings.Dash].wasPressedThisFrame,
                 IdentityPressed = bindings.Focus != Key.None && keyboard[bindings.Focus].wasPressedThisFrame,
                 CoverHeld = bindings.TakeCover != Key.None && keyboard[bindings.TakeCover].isPressed,
+                MoveKeysRead = true,
+                MovePressed = Down(bindings.MoveRight) || Down(bindings.MoveLeft) || Down(bindings.MoveUp) || Down(bindings.MoveDown),
             };
             InputBinding[] skills = bindings.Skills ?? Array.Empty<InputBinding>();
             for (int slot = 0; slot < skills.Length && slot < 32; slot++)

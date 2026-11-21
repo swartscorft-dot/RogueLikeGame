@@ -208,6 +208,11 @@ namespace Roguelike.Rules
         /// <summary>Seconds per finished floor, by the floor's number.</summary>
         public readonly SortedDictionary<int, float> FloorSeconds = new SortedDictionary<int, float>();
         public readonly List<string> Skills = new List<string>();
+        /// <summary>
+        /// Work order 057: what each of <see cref="Skills"/> came with, in the same order: "epic, Overcharge", "rare", or "" for a
+        /// common (and for a log written before the skills had tiers).
+        /// </summary>
+        public readonly List<string> SkillsWith = new List<string>();
         public readonly List<string> Upgrades = new List<string>();
         /// <summary>The skill upgrades taken from elite rooms, "Quick Shot: Double Tap", in order (work order 017).</summary>
         public readonly List<string> SkillUpgrades = new List<string>();
@@ -223,6 +228,8 @@ namespace Roguelike.Rules
         /// </summary>
         public bool HasMeta;
         public string MetaEquipped = "";
+        /// <summary>Work order 060: her pistols' parts fitted ("Laser Sight, Bull Barrel", or "stock"); null when the run had no attachments on.</summary>
+        public string MetaWeapon;
         public int MetaEarned;
         public readonly List<KeyValuePair<string, int>> MetaFrom = new List<KeyValuePair<string, int>>();
         public readonly List<string> MetaFeats = new List<string>();
@@ -453,6 +460,17 @@ namespace Roguelike.Rules
             if (spans.Count > 0) stats.FirstHitToDazeMean = (float)spans.Average();
         }
 
+        /// <summary>
+        /// What a floor reward's skill came with (work order 057): its tier and an epic's change from the reward_take's extras
+        /// ("epic, Overcharge", "rare"); "" for a common and for a log without them.
+        /// </summary>
+        static string TakenWith(SessionEvent e)
+        {
+            string tier = e.ExtraValue("tier"), with = e.ExtraValue("with");
+            if (string.IsNullOrEmpty(tier) || tier == UpgradeTiers.Word(UpgradeTier.Common)) return "";
+            return tier + (string.IsNullOrEmpty(with) ? "" : ", " + with);
+        }
+
         /// <summary>The runs (work order 012): a row per run started, filled from its floors, rewards, chests and end.</summary>
         static void ComputeRuns(List<SessionEvent> events, SessionStats stats)
         {
@@ -479,6 +497,7 @@ namespace Roguelike.Rules
                         break;
                     case SessionEventTypes.RewardTake:
                         run.Skills.Add(e.Name ?? "?");
+                        run.SkillsWith.Add(TakenWith(e)); // work order 057
                         break;
                     case SessionEventTypes.ChestOpen:
                         run.Upgrades.Add(e.Name ?? "?");
@@ -514,6 +533,7 @@ namespace Roguelike.Rules
                     case SessionEventTypes.MetaLoadout:
                         run.HasMeta = true;
                         run.MetaEquipped = string.IsNullOrEmpty(e.Name) ? "" : e.Name.Replace(" | ", ", ");
+                        run.MetaWeapon = e.ExtraValue("weapon")?.Replace(" | ", ", "); // work order 060: only when the attachments were on
                         break;
                     case SessionEventTypes.MetaEarn:
                     {
@@ -757,6 +777,7 @@ namespace Roguelike.Rules
                 Misses = events.Count(e => e.Type == SessionEventTypes.ShotFired && e.Hit != true),
             };
             FillDamageAndUse(shot, events, spans, s.TotalDamage);
+            ShotUseByInterval(shot, all, spans, kit.ShotTime); // work order 055: against her real interval, when the log has it
             s.Rows.Add(shot);
             var dash = new ActionRow
             {
@@ -903,6 +924,51 @@ namespace Roguelike.Rules
             row.CooldownUse = allowed > 0 ? row.Started / (float)allowed : float.NaN;
         }
 
+        /// <summary>
+        /// The basic shot's cooldown use against her real interval (the fourth review of 2026-11-21, work order 055): the
+        /// feel's 0.225 s is not hers with the stats on (a run starts 15 % slower, attack speed shortens it), so with
+        /// <see cref="SessionEventTypes.ShotInterval"/> in the log each span allows a start at its beginning and one more
+        /// each interval after, the interval as it was at each moment. An old log without it is read as before.
+        /// </summary>
+        static void ShotUseByInterval(ActionRow shot, List<SessionEvent> all, List<KeyValuePair<double, double>> spans, float feelTime)
+        {
+            List<SessionEvent> changes = all.Where(e => e.Type == SessionEventTypes.ShotInterval && IntervalOf(e) > 0f).ToList();
+            if (changes.Count == 0 || spans.Count == 0) return;
+            float At(double t)
+            {
+                float now = feelTime > 0f ? feelTime : IntervalOf(changes[0]);
+                foreach (SessionEvent c in changes)
+                {
+                    if (c.T > t) break;
+                    now = IntervalOf(c);
+                }
+                return now;
+            }
+            double allowed = 0d;
+            foreach (KeyValuePair<double, double> span in spans)
+            {
+                double from = span.Key, starts = 0d;
+                float interval = At(from);
+                foreach (SessionEvent c in changes)
+                {
+                    if (c.T <= span.Key || c.T >= span.Value) continue;
+                    starts += (c.T - from) / interval;
+                    from = c.T;
+                    interval = IntervalOf(c);
+                }
+                starts += Math.Max(0d, span.Value - from) / interval;
+                allowed += 1 + Math.Floor(starts + 1e-4);
+            }
+            shot.Cooldown = At(spans[0].Key);
+            shot.CooldownUse = allowed > 0d ? shot.Started / (float)allowed : float.NaN;
+        }
+
+        static float IntervalOf(SessionEvent e)
+        {
+            string s = e?.ExtraValue("seconds");
+            return s != null && float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) ? v : 0f;
+        }
+
         static bool IsStart(SessionEvent e) =>
             e.Type == SessionEventTypes.SkillStart || e.Type == SessionEventTypes.ShotStart || e.Type == SessionEventTypes.DashStart;
 
@@ -967,7 +1033,8 @@ namespace Roguelike.Rules
                   .Append("   ended: ").Append(run.Ended).AppendLine();
                 sb.Append("  time per floor   ").AppendLine(run.FloorSeconds.Count == 0 ? "-"
                     : string.Join("   ", run.FloorSeconds.Select(p => p.Key + ": " + Duration(p.Value))));
-                sb.Append("  skills taken     ").AppendLine(run.Skills.Count == 0 ? "-" : string.Join(", ", run.Skills));
+                sb.Append("  skills taken     ").AppendLine(run.Skills.Count == 0 ? "-"
+                    : string.Join(", ", run.Skills.Select((s, i) => SkillTiers.Named(s, i < run.SkillsWith.Count ? run.SkillsWith[i] : "")))); // work order 057: with their tiers
                 sb.Append("  upgrades taken   ").AppendLine(run.Upgrades.Count == 0 ? "-" : string.Join(", ", run.Upgrades));
                 // Work order 017: the elite rooms, and the skill upgrades in the order taken.
                 sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
@@ -988,6 +1055,7 @@ namespace Roguelike.Rules
                 // Work order 029: one line, only when the run started with what lasts between runs switched on.
                 if (run.HasMeta)
                     sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)
+                      .Append(run.MetaWeapon != null ? ";  weapon " + run.MetaWeapon : "") // work order 060
                       .Append(";  earned ").Append(run.MetaEarned)
                       .Append(run.MetaFrom.Count == 0 ? "" : " (" + string.Join(", ", run.MetaFrom.Select(p => p.Key + " " + p.Value)) + ")")
                       .Append(";  new feats ").AppendLine(run.MetaFeats.Count == 0 ? "-" : string.Join(", ", run.MetaFeats));

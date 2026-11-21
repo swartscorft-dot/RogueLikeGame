@@ -28,7 +28,7 @@ namespace Roguelike
     /// </summary>
     public sealed class InterfaceStyle : MonoBehaviour
     {
-        static readonly InterfaceValues s_Shared = new InterfaceValues();
+        static InterfaceValues s_Shared = new InterfaceValues(); // made anew with each Play session (ResetStatics; work order 055)
 
         /// <summary>The one running now, or null.</summary>
         public static InterfaceStyle Current { get; private set; }
@@ -52,13 +52,28 @@ namespace Roguelike
         static void ResetStatics()
         {
             Current = null;
+            // The fourth review of 2026-11-21 (work order 055): with domain reload off the values, and the textures made in
+            // code, lasted from one Play session to the next; the values are made anew, the textures destroyed.
+            s_Shared = new InterfaceValues();
             s_Heavy = s_Light = null;
             s_FontsTried = false;
-            s_Icons.Clear();
-            s_Missing.Clear();
+            ForgetIcons(immediately: true);
             s_Styles.Clear();
+            Gone(s_Pips);
+            Gone(s_Halftone); // work order 063
+            s_Halftone = null;
+            Gone(s_ButtonNormal);
+            Gone(s_ButtonHover);
+            Gone(s_ButtonActive);
             s_Pips = null;
             s_Buttons = null;
+            s_ButtonNormal = s_ButtonHover = s_ButtonActive = null;
+        }
+
+        /// <summary>A texture made in code, destroyed at once (between Play sessions nothing draws it any more).</summary>
+        static void Gone(Object o)
+        {
+            if (o != null) DestroyImmediate(o);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -165,33 +180,73 @@ namespace Roguelike
 
         static readonly Dictionary<string, Texture2D> s_Icons = new Dictionary<string, Texture2D>();
         static readonly HashSet<string> s_Missing = new HashSet<string>();
+        // The fourth review of 2026-11-21 (work order 055): every icon on disk is decoded at once, when a run starts or the
+        // skill bar wakes (LoadIcons), not in the frame one is first drawn; by its file's name.
+        static readonly Dictionary<string, Texture2D> s_IconFiles = new Dictionary<string, Texture2D>();
+        static bool s_IconsLoaded;
 
         /// <summary>The icon of a skill (or "Dash", "Focus"), a white mask to tint; null when it has none (key and name instead).</summary>
         public static Texture2D Icon(string skillName)
         {
             if (string.IsNullOrEmpty(skillName) || s_Missing.Contains(skillName)) return null;
             if (s_Icons.TryGetValue(skillName, out Texture2D icon) && icon != null) return icon;
-            icon = LoadIcon(InterfaceRules.IconName(skillName));
+            LoadIcons(); // already done but in a test that forgot them
+            s_IconFiles.TryGetValue(InterfaceRules.IconName(skillName), out icon);
             if (icon == null) s_Missing.Add(skillName); // a missing one is remembered as missing, not looked for again
             else s_Icons[skillName] = icon;
             return icon;
         }
 
-        /// <summary>The icons asked for that loaded, and those that did not. For tests.</summary>
+        /// <summary>
+        /// Decodes every icon in the icons' folder, once (work order 055): from the skill bar's waking and a run's start, so no
+        /// frame of play decodes one. Returns how many there are.
+        /// </summary>
+        public static int LoadIcons()
+        {
+            if (s_IconsLoaded) return s_IconFiles.Count;
+            s_IconsLoaded = true;
+            string folder = V.IconFolder.TrimEnd('/');
+            foreach (TextAsset bytes in Resources.LoadAll<TextAsset>(folder))
+            {
+                if (bytes == null) continue;
+                // The name is read BEFORE the mask is made: MakeMask unloads the asset when it is done, and in a built player an
+                // unloaded asset's name throws (in the Editor it does not, so no test saw it). Found by the first run of a built
+                // player after work order 055, 2026-11-21: the skill bar's waking stopped there and no icon was ever loaded.
+                string name = bytes.name;
+                if (s_IconFiles.ContainsKey(name)) continue;
+                Texture2D mask = MakeMask(bytes);
+                if (mask != null) s_IconFiles[name] = mask;
+            }
+            return s_IconFiles.Count;
+        }
+
+        /// <summary>The icons decoded and held now. For tests.</summary>
         public static int IconsLoaded
         {
             get
             {
                 int n = 0;
-                foreach (Texture2D t in s_Icons.Values) if (t != null) n++;
+                foreach (Texture2D t in s_IconFiles.Values) if (t != null) n++;
                 return n;
             }
         }
 
+        /// <summary>How many icons have been decoded since the game started (work order 055: equipping a skill decodes none). For tests.</summary>
+        public static int IconsDecoded { get; private set; }
+
         /// <summary>Forgets the icons made, so they are loaded again (for tests that take one away).</summary>
-        public static void ForgetIcons()
+        public static void ForgetIcons() => ForgetIcons(immediately: false);
+
+        static void ForgetIcons(bool immediately)
         {
-            foreach (Texture2D t in s_Icons.Values) if (t != null) Destroy(t);
+            foreach (Texture2D t in s_IconFiles.Values)
+                if (t != null)
+                {
+                    if (immediately) DestroyImmediate(t);
+                    else Destroy(t);
+                }
+            s_IconFiles.Clear();
+            s_IconsLoaded = false;
             s_Icons.Clear();
             s_Missing.Clear();
         }
@@ -200,11 +255,11 @@ namespace Roguelike
         /// An icon's PNG bytes from Resources, decoded once, made a white mask whose alpha is the picture's brightness,
         /// averaged down to <see cref="InterfaceValues.IconMaskSize"/> square. Null when it is not there or cannot be read.
         /// </summary>
-        static Texture2D LoadIcon(string name)
+        static Texture2D MakeMask(TextAsset bytes)
         {
-            if (name.Length == 0) return null;
-            var bytes = Resources.Load<TextAsset>(V.IconFolder + name);
             if (bytes == null) return null;
+            string name = bytes.name;
+            IconsDecoded++;
             var source = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             try
             {
@@ -331,6 +386,20 @@ namespace Roguelike
             GUI.matrix = before;
         }
 
+        /// <summary>
+        /// The dark plate behind a slanted box (work order 063, item 4: "for flat"): under the same slant about
+        /// <paramref name="pivotY"/>, moved down and right by <paramref name="depth"/> and larger by <paramref name="outline"/>
+        /// on every side, in <see cref="InterfaceValues.DepthInk"/>; drawn before the box. Nothing when both are 0 (this
+        /// morning's flat box). A new helper: none of the others changed.
+        /// </summary>
+        public static void Plate(Rect r, float pivotY, float depth, float outline)
+        {
+            if (depth <= 0f && outline <= 0f) return;
+            depth = Mathf.Max(0f, depth);
+            outline = Mathf.Max(0f, outline);
+            Slanted(new Rect(r.x - outline + depth, r.y - outline + depth, r.width + 2f * outline, r.height + 2f * outline), pivotY, C(V.DepthInk));
+        }
+
         /// <summary>The shear: x moves right by <paramref name="slant"/> per unit above <paramref name="pivotY"/>.</summary>
         public static Matrix4x4 Shear(float pivotY, float slant)
         {
@@ -360,6 +429,14 @@ namespace Roguelike
         {
             s_Content.text = text ?? "";
             return style.CalcSize(s_Content);
+        }
+
+        /// <summary>The height a text takes in a style, wrapped at this width (work order 055: a card measures its words).</summary>
+        public static float MeasureHeight(string text, GUIStyle style, float width)
+        {
+            if (string.IsNullOrEmpty(text)) return 0f;
+            s_Content.text = text;
+            return style.CalcHeight(s_Content, width);
         }
 
         /// <summary>A thin teal rule, the screens' one line of accent.</summary>
@@ -427,6 +504,41 @@ namespace Roguelike
                 s_Pips.SetPixels32(px);
                 s_Pips.Apply();
                 return s_Pips;
+            }
+        }
+
+        static Texture2D s_Halftone;
+        /// <summary>The halftone patch's texture: this many cells of this many texels a side.</summary>
+        public const int HalftoneCells = 8, HalftoneCell = 8;
+
+        /// <summary>
+        /// A patch of halftone dots (work order 063, item 4: the pictures' small accent), large at its top left and shrinking
+        /// along the diagonal to nothing at its bottom right: white, to tint. Made once in code.
+        /// </summary>
+        public static Texture2D Halftone
+        {
+            get
+            {
+                if (s_Halftone != null) return s_Halftone;
+                int n = HalftoneCells * HalftoneCell;
+                s_Halftone = new Texture2D(n, n, TextureFormat.RGBA32, false)
+                {
+                    name = "KineticHalftone", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear,
+                };
+                var px = new Color32[n * n];
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        int cx = x / HalftoneCell, cy = (n - 1 - y) / HalftoneCell; // rows come from the bottom: cy 0 is the top row
+                        float t = (cx + cy) / (2f * (HalftoneCells - 1));      // 0 at the top left, 1 at the bottom right
+                        float radius = (1f - t) * HalftoneCell * 0.55f;
+                        float dx = x % HalftoneCell + 0.5f - HalftoneCell * 0.5f, dy = y % HalftoneCell + 0.5f - HalftoneCell * 0.5f;
+                        float a = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f);
+                        px[y * n + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                    }
+                s_Halftone.SetPixels32(px);
+                s_Halftone.Apply();
+                return s_Halftone;
             }
         }
 

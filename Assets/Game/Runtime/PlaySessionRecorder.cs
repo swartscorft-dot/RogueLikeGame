@@ -209,6 +209,7 @@ namespace Roguelike
                 bool empowered = _player.IsEmpowered;
                 if (!empowered && _wasEmpowered) Add(new SessionEvent(Now(), SessionEventTypes.EmpoweredEnd));
                 _wasEmpowered = empowered;
+                NoteShotInterval();
 
                 if (now >= _nextSample)
                 {
@@ -243,6 +244,7 @@ namespace Roguelike
         {
             _player = player;
             _health = player.GetComponent<PlayerHealth>();
+            _shotInterval = -1f; // work order 055: written again for her
             _wasFull = player.IsFocusFull;
             _wasEmpowered = player.IsEmpowered;
             _nextSample = Time.time;
@@ -935,8 +937,28 @@ namespace Roguelike
 
         static string Int(int v) => v.ToString(CultureInfo.InvariantCulture);
 
-        /// <summary>A run started, with this seed.</summary>
-        public void NoteRunStarted(string runSeed) => Note(SessionEventTypes.RunStart, runSeed);
+        /// <summary>A run started, with this seed; and her basic shot's interval in it (work order 055).</summary>
+        public void NoteRunStarted(string runSeed)
+        {
+            Note(SessionEventTypes.RunStart, runSeed);
+            NoteShotInterval();
+        }
+
+        float _shotInterval = -1f;
+
+        /// <summary>
+        /// Her basic shot's interval (<see cref="PlayerCharacter.BasicShotInterval"/>), written when it is not the one last
+        /// written: when she is found, at a run's start, and when her attack speed changes it (the fourth review of
+        /// 2026-11-21, work order 055: the summary measured the shot against the feel's 0.225 s).
+        /// </summary>
+        void NoteShotInterval()
+        {
+            if (!_recording || _player == null) return;
+            float interval = _player.BasicShotInterval;
+            if (Mathf.Abs(interval - _shotInterval) < 1e-5f) return;
+            _shotInterval = interval;
+            Note(SessionEventTypes.ShotInterval, null, "seconds", interval.ToString("0.#####", CultureInfo.InvariantCulture));
+        }
 
         /// <summary>She entered floor <paramref name="floor"/> of the run, of this seed.</summary>
         public void NoteFloorEntered(int floor, string seed) => Note(SessionEventTypes.FloorEnter, seed, "floor", Int(floor));
@@ -945,11 +967,19 @@ namespace Roguelike
         public void NoteFloorFinished(int floor, float seconds, int health) =>
             Note(SessionEventTypes.FloorFinish, null, "floor", Int(floor), "seconds", Text(seconds), "health", Int(health));
 
-        /// <summary>The floor reward offered: the skills, in the order shown.</summary>
-        public void NoteRewardOffered(int floor, IList<string> skills) =>
-            Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills));
+        /// <summary>The floor reward offered: the skills, in the order shown; work order 057: with <paramref name="tiers"/> given (the skill tiers on), each card's tier too.</summary>
+        public void NoteRewardOffered(int floor, IList<string> skills, IList<string> tiers = null)
+        {
+            if (tiers == null) Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills));
+            else Note(SessionEventTypes.RewardOffer, null, "floor", Int(floor), "offered", string.Join(" | ", skills), "tiers", string.Join(" | ", tiers));
+        }
 
-        public void NoteRewardTaken(int floor, string skill) => Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
+        /// <summary>A floor reward taken; work order 057: a rare or epic card's tier, and an epic's change by name ("" for a rare).</summary>
+        public void NoteRewardTaken(int floor, string skill, string tier = null, string with = null)
+        {
+            if (string.IsNullOrEmpty(tier) || tier == UpgradeTiers.Word(UpgradeTier.Common)) Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor));
+            else Note(SessionEventTypes.RewardTake, skill, "floor", Int(floor), "tier", tier, "with", with ?? "");
+        }
 
         /// <summary>Work order 023: she was healed as floor <paramref name="floor"/>'s reward was taken: what was given, and her health after.</summary>
         public void NoteFloorHeal(int floor, int healed, int health) =>
@@ -1018,9 +1048,16 @@ namespace Roguelike
 
         // ---------------- Between runs (work order 029; only with that trial switched on) ----------------
 
-        /// <summary>A run started with the rack switched on: the pieces equipped, the currency then, the budget and the points used.</summary>
-        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used) =>
-            Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
+        /// <summary>
+        /// A run started with the rack switched on: the pieces equipped, the currency then, the budget and the points used.
+        /// Work order 060: <paramref name="weapon"/>, her pistols' parts fitted joined by " | " (or "stock"), only when the
+        /// attachments are on; null, the event is as before.
+        /// </summary>
+        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used, string weapon = null)
+        {
+            if (weapon == null) Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
+            else Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used), "weapon", weapon);
+        }
 
         /// <summary>The run earned currency: how much, from what (floor, elite room, act boss), on which floor.</summary>
         public void NoteBetweenRunsEarned(int amount, string from, int floor) =>

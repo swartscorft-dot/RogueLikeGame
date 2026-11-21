@@ -195,7 +195,9 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ACleanPress_AndAPerfectRelease_AreCrits_PaidOnce()
         {
-            var kit = new KitValues();
+            // The clean tap's 1.5 of work order 050 (work order 064 raised the code's default to 1.75; its numbers are in
+            // FiringFeelRulesTests): the folding rule itself is what this pins.
+            var kit = new KitValues { CleanDamage = 1.5f };
             var v = new StatValues();
             SkillDefinition tap = SkillDefaults.Create().Single(s => s.Name == "Triple Tap");
             SkillDefinition shot = SkillDefaults.Create().Single(s => s.Name == "Long Shot");
@@ -252,7 +254,7 @@ namespace Roguelike.Rules.Tests
         // ---------------- An offer ----------------
 
         [Test]
-        public void AnOffer_NeverShowsAStatTwice_ShowsTwo_AndNothingUseless()
+        public void AnOffer_NeverShowsAStatTwice_ShowsThree_AndNothingUseless() // work order 065: three, not two
         {
             var values = new RunValues();
             var tiers = new int[3];
@@ -264,7 +266,7 @@ namespace Roguelike.Rules.Tests
                 for (int pick = 0; pick < 8; pick++)
                 {
                     List<Upgrade> offer = ChestUpgrades.Offer(seed, 1 + pick / 2, 2 + pick % 2, Four, values, m, full, pick == 0 && seed % 5 == 0 ? 1 : 0);
-                    Assert.That(offer.Count, Is.EqualTo(pick == 0 && seed % 5 == 0 ? 3 : 2), "seed " + seed);
+                    Assert.That(offer.Count, Is.EqualTo(pick == 0 && seed % 5 == 0 ? 4 : 3), "seed " + seed); // work order 065: three a chest
                     Assert.That(offer.Select(u => u.Stat).Distinct().Count(), Is.EqualTo(offer.Count), "no stat twice, seed " + seed);
                     foreach (Upgrade u in offer)
                     {
@@ -281,7 +283,7 @@ namespace Roguelike.Rules.Tests
                     m.Take(offer[pick % offer.Count]);
                 }
             }
-            Assert.That(kinds.Count, Is.EqualTo(16), "every row comes up");
+            Assert.That(kinds.Count, Is.EqualTo(22), "every row comes up, work order 065's six too");
             Assert.That(tiers.All(t => t > 0), Is.True, "every tier comes up");
         }
 
@@ -318,8 +320,12 @@ namespace Roguelike.Rules.Tests
                 {
                     UpgradeDefinition row = values.TieredUpgrades.Single(r => r.Kind == u.Kind);
                     float scale = row.MinTier == UpgradeTier.Epic ? 1f : u.Tier == UpgradeTier.Epic ? 3f : u.Tier == UpgradeTier.Rare ? 2f : 1f;
-                    Assert.That(u.Amount, Is.EqualTo(row.Amount * scale).Within(1e-5f), u.Short);
-                    Assert.That(u.Heal, Is.EqualTo((int)Math.Round(row.Heal * scale)), u.Short);
+                    // Work order 065: a row with steps of its own (the six new kinds) takes them; the others scale as before.
+                    bool own = row.RareAmount > 0f || row.EpicAmount > 0f;
+                    float step = !own || u.Tier == UpgradeTier.Common ? row.Amount * scale : u.Tier == UpgradeTier.Epic ? row.EpicAmount : row.RareAmount;
+                    Assert.That(u.Amount, Is.EqualTo(step).Within(1e-5f), u.Short);
+                    Assert.That(TieredOffers.StepOf(row, u.Tier, values.Stats), Is.EqualTo(u.Amount), u.Short);
+                    Assert.That(u.Heal, Is.EqualTo((int)Math.Round(row.Heal * (own ? step / row.Amount : scale))), u.Short);
                 }
             }
             // The first guesses of a common step.
@@ -454,7 +460,7 @@ namespace Roguelike.Rules.Tests
             m.Take(Step(UpgradeKind.FlatDamage, 6f));
             m.Take(Step(UpgradeKind.Cooldown, 0.05f, skill: "Quick Shot"));
             List<string> lines = m.Stats.Lines(0.225f, 10f, 100);
-            Assert.That(lines.Count, Is.EqualTo(11));
+            Assert.That(lines.Count, Is.EqualTo(16), "work order 065: five more lines (Cooldowns' is in its own line)");
             Assert.That(lines[0], Is.EqualTo("Damage  +6 a shot, skills by weight  (+0)"));
             Assert.That(lines[1], Is.EqualTo("Attack speed  3.8 shots/s  (3.8)"));
             Assert.That(lines[2], Is.EqualTo("Crit chance  5 %  (5 %)"));

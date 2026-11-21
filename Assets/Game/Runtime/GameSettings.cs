@@ -25,11 +25,13 @@ namespace Roguelike
         public const string DashKey = "Roguelike.Settings.DashDirection";
         public const string VolumeKey = "Roguelike.Settings.Volume";
         public const string DamageNumbersKey = "Roguelike.Settings.DamageNumbers";
+        public const string CameraKickKey = "Roguelike.Settings.CameraKick"; // work order 064: 1 on (the default), 0 off
 
         static bool s_loaded;
         static int s_dash = SettingsRules.NoOverride;
         static int s_volume = SettingsRules.DefaultVolumeStep;
         static int s_numbers = FeedbackRules.NoOverride;
+        static bool s_kick = true;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -38,6 +40,7 @@ namespace Roguelike
             s_dash = SettingsRules.NoOverride;
             s_volume = SettingsRules.DefaultVolumeStep;
             s_numbers = FeedbackRules.NoOverride;
+            s_kick = true;
         }
 
         public static bool IsLoaded => s_loaded;
@@ -53,6 +56,7 @@ namespace Roguelike
             if (s_dash != SettingsRules.DashTowardCursor && s_dash != SettingsRules.DashTowardMovement) s_dash = SettingsRules.NoOverride;
             s_volume = SettingsRules.VolumeStep(PlayerPrefs.GetInt(VolumeKey, SettingsRules.DefaultVolumeStep));
             s_numbers = FeedbackRules.StoredNumbers(PlayerPrefs.GetInt(DamageNumbersKey, FeedbackRules.NoOverride));
+            s_kick = PlayerPrefs.GetInt(CameraKickKey, 1) != 0;
             s_loaded = true;
             AudioListener.volume = SettingsRules.Volume(s_volume);
         }
@@ -91,6 +95,21 @@ namespace Roguelike
 
         /// <summary>Are damage numbers shown? The override if there is one, else <paramref name="fallback"/>.</summary>
         public static bool DamageNumbers(bool fallback) => FeedbackRules.ShowsDamageNumbers(s_numbers, fallback);
+
+        /// <summary>
+        /// The camera's kick when a shot goes off (work order 064: "trøkk"), on unless turned off in the pause menu: some people
+        /// are made ill by a camera that moves.
+        /// </summary>
+        public static bool CameraKick => s_kick;
+
+        /// <summary>Turns the camera's kick on or off and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void SetCameraKick(bool on, bool keep = true)
+        {
+            s_kick = on;
+            if (!keep) return;
+            PlayerPrefs.SetInt(CameraKickKey, on ? 1 : 0);
+            PlayerPrefs.Save();
+        }
 
         /// <summary>Turns damage numbers on or off and keeps it.</summary>
         public static void SetDamageNumbers(bool on)

@@ -21,7 +21,27 @@ namespace Roguelike.Rules
         public float CleanFrom = 0.10f;        // s after the window opened that the clean part begins
         public float CleanTo = 0.30f;          // s after it opened that it ends; a press after it, in the window, is a plain shot, late
         public bool RecastOnRealTime = true;   // a hit stop does not hold the recast window: it runs on real seconds, slowed with a slow-down, never sped up (work order 038, Kristian's answer of 2026-11-20); off, as before
-        public float CleanDamage = 1.5f;       // a clean tap deals this times the damage (not a clean spend: that has its bonus per mark)
+        // Work order 064 (Kristian, 2026-11-21: "det må også belønes mer for å treffe høyre klik"): 1.75, up from 1.5. The skill
+        // settings asset (Skills.asset, Kit) still holds 1.5, and the game reads the asset: the producer sets it there.
+        public float CleanDamage = 1.75f;      // a clean tap deals this times the damage (not a clean spend: that has its bonus per mark)
+
+        // Work order 064 (Kristian, 2026-11-21): a Triple Tap chain whose every recast press fell in its clean part (a full clean
+        // chain) ends with more on its clean last tap: the thing worth learning. First guesses; the asset holds neither, so these
+        // defaults are what the game reads. 1 and 0 give the chain as it was.
+        public float FullChainScale = 2f;      // the clean last tap of a full clean chain deals this times a clean tap
+        public int FullChainMarks = 1;         // and adds this many marks more than a clean tap's
+
+        // Work order 064 (Kristian, 2026-11-21: "F føles ikke like smooth lenger ... syntes skuddet bør gå av kjappere"; the
+        // producer's numbers of the same day). Backstep's shot after its hop (a chain that opens with a move): in his log of
+        // 12:12 his second press came a median 0.066 s after the hop ended, against 0.135 s the evening before, and 14 of 20
+        // fell before the clean part's 0.10 s. The clean part of the window after an opening move moves early by the same
+        // 0.20 s width, as work order 040 moved the first one; a press that waited from the hop is still never clean. The
+        // asset holds none of these, so these defaults are what the game reads. Each below 0 gives the morning's.
+        public float OpeningMoveCleanFrom = 0.03f;  // s after the hop's end that the clean part begins; below 0, CleanFrom (0.10)
+        public float OpeningMoveCleanTo = 0.23f;    // s after it that the clean part ends; below 0, CleanTo (0.30)
+        public float OpeningMoveShotStartup = 0.08f; // s from the second press to the shot; below 0, the skill's Startup (0.2)
+        public float OpeningMoveCooldownBuffer = 0.25f; // s: a first press this long or less before the cooldown ends waits and goes; 0: refused, as before
+        public bool OpeningMoveCutsRecovery = true; // the hop is the escape: it starts in another skill's free recovery at once; off, it waits it out
     }
 
     /// <summary>
@@ -119,6 +139,30 @@ namespace Roguelike.Rules
 
         /// <summary>True when a clean press of this skill is a clean tap: it has one and no clean spend takes its place.</summary>
         public static bool IsCleanTap(SkillDefinition skill, bool clean) => clean && !HasCleanSpend(skill);
+
+        /// <summary>
+        /// THE one place a clean tap's bonus enters its damage (work order 064; order 065's chest stat "clean press" multiplies
+        /// it here): <see cref="KitValues.CleanDamage"/>, times <see cref="KitValues.FullChainScale"/> for the clean last tap of a
+        /// full clean chain (<paramref name="fullChain"/>). With the stats on, the caller folds it (CritRules.Folded): the sure
+        /// crit is dealt after. A clean spend's bonus is not here: it is its bonus per mark (<see cref="BonusPerMark"/>).
+        /// </summary>
+        public static float CleanTapScale(KitValues kit, bool fullChain)
+        {
+            kit = kit ?? new KitValues();
+            float scale = Math.Max(0f, kit.CleanDamage);
+            return fullChain ? scale * Math.Max(0f, kit.FullChainScale) : scale;
+        }
+
+        /// <summary>The marks a clean tap adds: the skill's clean tap marks, and for the last tap of a full clean chain <see cref="KitValues.FullChainMarks"/> more (work order 064).</summary>
+        public static int CleanTapMarks(SkillDefinition skill, KitValues kit, bool fullChain) =>
+            skill == null ? 0 : skill.CleanTapMarks + (fullChain && skill.CleanTapMarks > 0 ? Math.Max(0, (kit ?? new KitValues()).FullChainMarks) : 0);
+
+        /// <summary>
+        /// True when a clean last press ends a full clean chain (work order 064): a clean tap (not a clean spend), a chain of
+        /// three or more presses, and every press after the first in the clean part of its window.
+        /// </summary>
+        public static bool IsFullCleanChain(SkillDefinition skill, bool clean, int presses, bool allInRhythm) =>
+            IsCleanTap(skill, clean) && skill != null && skill.CleanTapMarks > 0 && presses >= 3 && allInRhythm;
     }
 
     /// <summary>

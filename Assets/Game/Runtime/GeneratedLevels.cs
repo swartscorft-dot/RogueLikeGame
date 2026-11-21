@@ -33,7 +33,7 @@ namespace Roguelike
     ///
     /// Chests (work order 012): standing within <see cref="RunValues.ChestReach"/> of a treasure room's chest she has
     /// not opened, a prompt shows over it and the interact key (E, <see cref="InputBindings.Interact"/>) opens it, once:
-    /// two upgrades (<see cref="ChestUpgrades"/>), picked the same way. What is taken goes into the run's
+    /// two upgrades (<see cref="ChestUpgrades"/>; three since work order 065, with the stats and tiers on), picked the same way. What is taken goes into the run's
     /// <see cref="RunModifiers"/>, put on the character for the run and cleared when a run starts or ends.
     ///
     /// The elite room (work order 017, decision 0008 as amended 2026-11-20, Kristian: "one hard room in the middle of every
@@ -232,6 +232,7 @@ namespace Roguelike
             }
             if (_level != null) Destroy(_level.gameObject);
             if (_spawnRoot != null) Destroy(_spawnRoot.gameObject);
+            ForgetDevBox(); // work order 055: its texture made in code
             if (Current == this) Current = null;
         }
 
@@ -407,6 +408,7 @@ namespace Roguelike
         {
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
+            InterfaceStyle.LoadIcons(); // work order 055: every icon decoded now, none in a frame of play
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
@@ -489,7 +491,9 @@ namespace Roguelike
         string StatsLine()
         {
             FeelValues f = _player != null ? _player.Feel : new FeelValues();
-            return Modifiers.Stats.OneLine(f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery, _health != null ? _health.MaxHealth : 100);
+            // Work order 060: from her pistols' interval before her attack speed (the feel's with no part fitted).
+            float baseInterval = _player != null ? _player.BasicShotBaseInterval : f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery;
+            return Modifiers.Stats.OneLine(baseInterval, _health != null ? _health.MaxHealth : 100);
         }
 
         string RoomWords() =>
@@ -563,7 +567,8 @@ namespace Roguelike
                 else if (!EliteRewardFirst()) EnterFloor(Floor + 1); // nothing left to offer; an elite's drop lying first (work order 047)
                 return;
             }
-            PlaySessionRecorder.Current?.NoteRewardOffered(Floor, _offeredSkills.Select(s => player.Skills[s].Name).ToList());
+            DrawSkillTiers(player, 0); // work order 057: each card's tier, with the switch on (GeneratedLevelsSkillTiers.cs)
+            NoteRewardOffer(player);
             OpenChoice(ChoiceKind.FloorReward);
         }
 
@@ -581,8 +586,7 @@ namespace Roguelike
             player.EquipSkill(slot);
             string name = player.Skills[slot].Name;
             _skillsTaken.Add(name);
-            Record?.TakeSkill(name);
-            PlaySessionRecorder.Current?.NoteRewardTaken(Floor, name);
+            TookRewardTier(index, name); // work order 057: a rare or epic card's step and change taken with it; the record and the recorder told
             // A breath between floors (work order 023): a share of her maximum back as the reward is taken.
             if (_health != null)
             {
@@ -642,7 +646,7 @@ namespace Roguelike
         public bool OpenChest() => OpenChest(ChestInReach());
 
         /// <summary>
-        /// Opens this chest, once, in a run: its two upgrades are offered and the game pauses. False for a chest already
+        /// Opens this chest, once, in a run: its upgrades are offered (three, work order 065; two with the stats off) and the game pauses. False for a chest already
         /// opened, outside a run, or while another choice is up.
         /// </summary>
         public bool OpenChest(GeneratedLevel.PlacedProp chest)
@@ -664,13 +668,14 @@ namespace Roguelike
             return true;
         }
 
-        /// <summary>Takes offered upgrade <paramref name="index"/> (0 or 1) into the run's upgrades; the game goes on. False with no chest open.</summary>
+        /// <summary>Takes offered upgrade <paramref name="index"/> (0 to 2; 3 with Deep Chests) into the run's upgrades; the game goes on. False with no chest open.</summary>
         public bool PickUpgrade(int index)
         {
             if (Choice != ChoiceKind.Chest || index < 0 || index >= _offeredUpgrades.Count) return false;
             CardPicked(index); // work order 045
             Upgrade u = _offeredUpgrades[index];
             Modifiers.Take(u);
+            FindPlayer()?.RefreshDashCharges(); // work order 065: a second dash is held at once
             Record?.TakeUpgrade(u.Short);
             if (_health != null)
             {
@@ -773,6 +778,7 @@ namespace Roguelike
             if (Choice == ChoiceKind.Chest && _openChest != null) _chestsOpened.Remove(_openChest.Room.Order);
             Choice = ChoiceKind.None;
             _offeredSkills.Clear();
+            _offeredSkillTiers.Clear(); // work order 057
             _offeredUpgrades.Clear();
             _offeredSkillUpgrades.Clear();
             _openChest = null;
@@ -945,7 +951,9 @@ namespace Roguelike
                 bool alive = false;
                 for (int i = 0; i < list.Count && !alive; i++) alive = list[i] != null && !list[i].IsDead;
                 if (alive) continue;
-                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues));
+                // Work order 065: her Mending's health more from every cleared room (0 off).
+                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues) + Modifiers.Stats.Mending);
+                BetweenRunsRoomCleared(room); // work order 060: an ordinary room's Echoes, only with the attachments on
                 PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
                 PlaceholderSounds.Current?.AskFor(SoundMoment.CombatRoomCleared); // work order 048: the way on opens
                 if (healed > 0) TimingFeedback.Current?.ShowHeal(healed);
@@ -977,7 +985,7 @@ namespace Roguelike
                                        AliveIn(layout.ExitRoom), layout.Version)).Append('\n');
             if (InRun)
             {
-                _text.Append("skills taken: ").Append(_skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken));
+                _text.Append("skills taken: ").Append(Record != null ? Record.SkillsText : _skillsTaken.Count == 0 ? "none" : string.Join(", ", _skillsTaken)); // work order 057: with their tiers
                 string heal = Record != null ? Record.FloorHealText : "";
                 if (heal.Length > 0) _text.Append("   (").Append(heal).Append(')'); // work order 023
                 _text.Append('\n');
@@ -1027,7 +1035,7 @@ namespace Roguelike
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, DevBoxStyle());
             }
-            if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge
+            if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge; 065: the pop-up in the middle
             else if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
             else if (Notice.Length > 0 && kinetic) DrawNoticeKinetic();
             else if (Notice.Length > 0)
@@ -1073,6 +1081,11 @@ namespace Roguelike
         void DrawChoice(float viewWidth)
         {
             if (_choiceStyle == null) _choiceStyle = new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.UpperLeft, wordWrap = true, padding = new RectOffset(10, 10, 8, 8) };
+            if (OfferPopUp)
+            {
+                DrawPlainPopUp(viewWidth); // work order 065: the pop-up's words in plain boxes, side by side in the middle
+                return;
+            }
             if (Choice == ChoiceKind.FocusChoice)
             {
                 DrawFocusChoice(viewWidth); // work order 025
@@ -1082,7 +1095,7 @@ namespace Roguelike
             bool reward = Choice == ChoiceKind.FloorReward;
             bool skillUpgrade = Choice == ChoiceKind.SkillUpgrade; // work order 017
             int count = reward ? _offeredSkills.Count : skillUpgrade ? _offeredSkillUpgrades.Count : _offeredUpgrades.Count;
-            float rowHeight = reward || skillUpgrade ? 74f : 44f, width = 520f;
+            float width = 520f, rowHeight = reward ? RewardRowHeight(width - 20f, _choiceStyle) : skillUpgrade ? 74f : 44f; // work order 057: a tiered card's longer text
             float height = 40f + count * (rowHeight + 6f) + 24f;
             float left = (viewWidth - width) * 0.5f, top = (SkillBar.LayoutHeight - height) * 0.5f;
             string title = reward
@@ -1095,14 +1108,7 @@ namespace Roguelike
             for (int i = 0; i < count; i++)
             {
                 string text;
-                if (reward)
-                {
-                    int slot = _offeredSkills[i];
-                    SkillDefinition s = player.Skills[slot];
-                    text = string.Format(s_Inv, "{0}   {1}   key {2}   cooldown {3:0.#} s   {4}\n{5}", i + 1, s.Name,
-                                         bindings != null ? bindings.SkillLabel(player.FirstFreeKey) : "?", // the key it will go on (work order 015)
-                                         s.Cooldown, SkillDefaults.MarkRole(s), SkillDefaults.Line(s.Name));
-                }
+                if (reward) text = RewardChoiceText(i); // today's text; work order 057: a rare or epic card's tier in it (GeneratedLevelsSkillTiers.cs)
                 else if (skillUpgrade)
                 {
                     // The skill's name and key, the upgrade's name, its kind and its line (work order 017).
@@ -1119,6 +1125,7 @@ namespace Roguelike
                 var card = new Rect(left + 10f, top + 32f + i * (rowHeight + 6f), width - 20f, rowHeight);
                 bool picked = GUI.Button(card, text, _choiceStyle);
                 if (!reward && !skillUpgrade && _offeredUpgrades[i].Tiered) TierEdge(card, _offeredUpgrades[i].Tier); // work order 050
+                else if (reward && OfferedTierAt(i) is SkillTierOffer tier && tier.Tiered) TierEdge(card, tier.Tier); // work order 057
                 if (picked)
                 {
                     if (reward) PickReward(i);
