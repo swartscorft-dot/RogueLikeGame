@@ -223,7 +223,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.KitRoot.GetComponentsInChildren<Transform>(true).All(t => t.gameObject.layer == CryptKit.Layer), "every piece on Ignore Raycast");
             Assert.That((Physics.DefaultRaycastLayers & (1 << CryptKit.Layer)) == 0, "which the default raycasts leave out");
             Assert.That(CryptKit.Layer, Is.Not.EqualTo(level.WallLayer), "and no cover stands on");
-            Assert.That(level.GetComponentsInChildren<Collider>(true).Length, Is.EqualTo(level.Floors + level.Walls + level.Props.Count), "floors, walls and props have colliders, nothing else");
+            // Changed deliberately (work order 052): and the large props that block walking.
+            Assert.That(level.GetComponentsInChildren<Collider>(true).Length, Is.EqualTo(level.Floors + level.Walls + level.Props.Count + level.LargeProps.Count(p => !PropSize.Of(p.Prop.Model).Walkable)),
+                        "floors, walls and props have colliders, nothing else");
 
             // The boxes are as they were and do not show.
             foreach (GameObject box in level.WallBoxes)
@@ -356,7 +358,7 @@ namespace Roguelike.PlayModeTests
                 Color c = f.GetComponent<Renderer>().sharedMaterial.color;
                 Assert.That(tints.Any(t => Mathf.Abs(t.r - c.r) + Mathf.Abs(t.g - c.g) + Mathf.Abs(t.b - c.b) < 1e-3f), "a grey-box tint: " + f.name);
             }
-            Assert.That(level.GetComponentsInChildren<Collider>(true).Length, Is.EqualTo(level.Floors + level.Walls + level.Props.Count));
+            Assert.That(level.GetComponentsInChildren<Collider>(true).Length, Is.EqualTo(level.Floors + level.Walls + level.Props.Count + level.LargeProps.Count(p => !PropSize.Of(p.Prop.Model).Walkable))); // changed deliberately (work order 052)
         }
 
         [UnityTest]

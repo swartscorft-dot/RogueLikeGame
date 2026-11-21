@@ -178,6 +178,17 @@ namespace Roguelike.Rules
         public int LargePropTurn;
         /// <summary>The wall the empty place is at: the far wall, else a side wall.</summary>
         public int LargePropSide;
+        /// <summary>
+        /// Work order 052 (<see cref="LevelValues.LargeProps"/>): the large props of the room's composition, props of the floor
+        /// that it builds with the others (RoomMoodLargeProps.cs).
+        /// </summary>
+        public readonly List<LevelProp> LargeProps = new List<LevelProp>();
+        /// <summary>Props of the description a large prop stands in place of (the throne's pair, the shrine's basin): not built.</summary>
+        public readonly List<LevelProp> Replaced = new List<LevelProp>();
+        /// <summary>Props of the description standing on the dais model: drawn <see cref="PropSize.DaisShows"/> higher, their colliders where they were.</summary>
+        public readonly List<LevelProp> Raised = new List<LevelProp>();
+        /// <summary>Why the theme's large prop is not there, when it is not; null when it is.</summary>
+        public string LargeLeftOut;
     }
 
     /// <summary>
@@ -202,7 +213,7 @@ namespace Roguelike.Rules
     /// candles along the altar's sides; the ossuary's piles banked against its far wall with bones and skulls at their feet;
     /// the archive's shelves with candles at their ends. Each with its <see cref="MoodRoom.LargePropPlace"/>.
     /// </summary>
-    public sealed class RoomMoodPlan
+    public sealed partial class RoomMoodPlan
     {
         public const string Stage = "room mood";
 
@@ -258,6 +269,7 @@ namespace Roguelike.Rules
             MoodValues mv = values.Mood ?? new MoodValues();
             var plan = new RoomMoodPlan();
             LevelRandom rng = LevelRandom.Stream(layout.Seed, Stage, layout.Floor);
+            CryptKitPlan kit = null; // work order 052: where the kit's niches and lanterns are, for the large props at a wall
             foreach (LevelRoom room in layout.Rooms)
             {
                 var mr = new MoodRoom { Room = room };
@@ -275,6 +287,8 @@ namespace Roguelike.Rules
                     foreach (int s in new[] { -1, 1 })
                         AddCandles(layout, room, mr, new LevelPoint(c.X + along.X * 1.25 * s, c.Y + along.Y * 1.25 * s), rng);
                 }
+                // Work order 052: the large props, last, drawing nothing from the stream.
+                if (mv.Compose && values.LargeProps && values.Props) PlaceLarge(layout, room, mr, values, ref kit);
                 plan.Rooms.Add(mr);
             }
             return plan;
@@ -650,6 +664,9 @@ namespace Roguelike.Rules
                 foreach (MoodSource s in r.Sources) sb.Append("  source ").Append(s.Kind).Append(' ').Append(s.At).Append(s.Flame ? " flame" : "").Append('\n');
                 foreach (CompositionPiece c in r.Pieces) sb.Append("  piece ").Append(c.Kind).Append(' ').Append(c.At).Append(' ').Append(N(c.Width)).Append('x').Append(N(c.Depth)).Append(" turned ").Append(c.Turn).Append('\n');
                 foreach (WearPiece w in r.Wear) sb.Append("  wear ").Append(w.Kind).Append(' ').Append(w.At).Append(' ').Append(N(w.Size)).Append('\n');
+                foreach (LevelProp p in r.LargeProps) sb.Append("  large ").Append(p).Append('\n'); // work order 052
+                foreach (LevelProp p in r.Replaced) sb.Append("  replaced ").Append(p).Append('\n');
+                foreach (LevelProp p in r.Raised) sb.Append("  raised ").Append(p).Append('\n');
             }
             return sb.ToString();
         }

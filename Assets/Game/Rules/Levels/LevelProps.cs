@@ -5,12 +5,15 @@ namespace Roguelike.Rules
 {
     /// <summary>
     /// The prop models of the first biome, the Crypt (work order 009). Work order 028 (Kristian, 2026-11-19 and 2026-11-20:
-    /// "more of the crypt") added the seven after Urns; the eleven before them keep their numbers.
+    /// "more of the crypt") added the seven after Urns; the eleven before them keep their numbers. Work order 052 added the
+    /// eight large props after Basin, modelled for the rooms' compositions (the concept pictures; Kristian's choice of
+    /// 2026-11-20, "build toward them"): only the rooms' mood puts them down (<see cref="RoomMoodPlan"/>), never the props stage.
     /// </summary>
     public enum PropModel
     {
         Altar, BonePile, Brazier, Chest, GraveMarker, Pillar, PillarBroken, Rubble, Sarcophagus, Statue, Urns,
         Coffin, SkullPile, Candelabra, BoneThrone, Bookshelf, Cage, Basin,
+        KnightStatue, GreatAltar, Dais, Banner, GreatBrazier, CoinHeap, BoneWall, CandleCluster,
     }
 
     /// <summary>The shape of a prop's footprint on the ground.</summary>
@@ -61,6 +64,28 @@ namespace Roguelike.Rules
         public bool WallPiece;
         /// <summary>It has an "_emission" map beside its texture, which glows in the game's cyan (work order 028).</summary>
         public bool Emission;
+        /// <summary>
+        /// One of work order 052's eight large props: put down only by the rooms' compositions (<see cref="RoomMoodPlan"/>,
+        /// behind <see cref="LevelValues.LargeProps"/>), never by the props stage, so no theme's recipe names it.
+        /// </summary>
+        public bool Large;
+        /// <summary>
+        /// Walked over or under (work order 052: the dais, sunk to a low platform; the banner on its wall): no collider at all,
+        /// so not in the NavMesh. It is slender too: it stops no shot and carries no shelter.
+        /// </summary>
+        public bool Walkable;
+        /// <summary>Its emission map glows in its own colours, not in the game's cyan (work order 052: the candles' flames, the coins' gold).</summary>
+        public bool OwnGlow;
+        /// <summary>
+        /// Metres its model's pivot stands over the ground (work order 052): the banner hangs from its top at
+        /// <see cref="BannerTop"/>; the dais is sunk so that <see cref="DaisShows"/> of it shows. 0 for the rest.
+        /// </summary>
+        public double ModelUp;
+        /// <summary>
+        /// Its model's pivot is at the middle of its back, not of its footprint (work order 052: the banner and the bone wall,
+        /// whose backs go against a wall): the model is drawn half its depth back from its footprint's middle.
+        /// </summary>
+        public bool PivotAtBack;
 
         public string Name => "Crypt_" + Model + "_01";
         /// <summary>Where it is under a Resources folder: the model, and its texture with "_base_color" after it.</summary>
@@ -86,6 +111,23 @@ namespace Roguelike.Rules
             Emission = emission;
             return this;
         }
+
+        /// <summary>Work order 052: a large prop, and how it is drawn and walked.</summary>
+        PropSize Large052(bool walkable = false, bool ownGlow = false, double modelUp = 0, bool pivotAtBack = false)
+        {
+            Large = true;
+            Walkable = walkable;
+            if (walkable) Slender = true;
+            OwnGlow = ownGlow;
+            ModelUp = modelUp;
+            PivotAtBack = pivotAtBack;
+            return this;
+        }
+
+        /// <summary>Metres of the dais model (0.6 m high, too high to step onto) that show over the floor: it is sunk to a low platform walked over (work order 052).</summary>
+        public const double DaisShows = 0.15;
+        /// <summary>Metres over the floor where a banner's top (the back of its brackets) hangs on the wall: just under the kit wall's 3 m top (work order 052).</summary>
+        public const double BannerTop = 2.9;
 
         /// <summary>
         /// The eleven, by <see cref="PropModel"/>. Heights are the ones the models were made to (Unity's bounds agree to
@@ -116,6 +158,18 @@ namespace Roguelike.Rules
             Box(PropModel.Bookshelf, 2.05, 0.7, 2.17, 'k', atWall: true).With(frontMinusZ: true, wallPiece: true, emission: true), // 2.000 x 0.696; front -Z
             Box(PropModel.Cage, 1.25, 1.25, 2.0, 'q', atWall: true).With(emission: true),                // 1.214 x 1.219
             Round(PropModel.Basin, 0.75, 1.07, 'o').With(emission: true),                                // 1.396 x 1.400
+            // Work order 052, the eight large props (their bounds as the import reads them, Blender's table in brackets): the
+            // knight and the great altar face +Z (the sword's glowing line lies at +0.22 m; of the altar's glowing points below
+            // 1.3 m, 12 face +Z and 7 -Z); the dais is sunk to a low platform; the banner hangs from its top on a wall, its
+            // face +Z; the bone wall's flat back goes against a wall, its face +Z.
+            Box(PropModel.KnightStatue, 1.4, 1.4, 3.0, 'K', atWall: true).With(front: true, emission: true).Large052(),                 // 1.382 x 1.396
+            Box(PropModel.GreatAltar, 3.0, 1.55, 1.82, 'T').With(front: true, emission: true).Large052(),                              // 3.000 x 1.501
+            Box(PropModel.Dais, 4.0, 4.0, 0.6, '_', atWall: true).With(emission: true).Large052(walkable: true, modelUp: DaisShows - 0.6), // 3.982 x 4.000
+            Box(PropModel.Banner, 1.5, 0.25, 2.5, 'b', atWall: true).With(front: true, wallPiece: true).Large052(walkable: true, modelUp: BannerTop, pivotAtBack: true), // 1.478 x 0.225
+            Round(PropModel.GreatBrazier, 0.65, 1.5, '@').With(emission: true).Large052(),                                             // 1.243 x 1.230
+            Box(PropModel.CoinHeap, 2.0, 1.85, 0.63, 'c', anyAngle: true).With(emission: true).Large052(ownGlow: true),                // 2.000 x 1.843
+            Box(PropModel.BoneWall, 3.0, 0.5, 2.5, 'W', atWall: true).With(front: true, wallPiece: true, emission: true).Large052(pivotAtBack: true), // 3.000 x 0.500
+            Round(PropModel.CandleCluster, 0.35, 1.0, ',', anyAngle: true, atWall: true).With(emission: true).Large052(ownGlow: true),              // 0.637 x 0.654
         };
 
         public static PropSize Of(PropModel model) => Crypt[(int)model];

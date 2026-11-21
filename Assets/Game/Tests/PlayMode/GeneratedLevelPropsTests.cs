@@ -76,7 +76,8 @@ namespace Roguelike.PlayModeTests
             GeneratedLevel level = Build();
             yield return null;
             LevelLayout layout = level.Layout;
-            List<LevelProp> described = layout.Rooms.SelectMany(r => r.Props).ToList();
+            // Changed deliberately (work order 052): but those a large prop stands in place of (the throne's pair, a shrine's basin).
+            List<LevelProp> described = layout.Rooms.SelectMany(r => r.Props).Where(p => !level.Replaced.Contains(p)).ToList();
             Assert.That(described.Count, Is.GreaterThan(10));
             Assert.That(level.Props.Count, Is.EqualTo(described.Count), "a prop built for each of the description");
             Assert.That(level.LowestPropCollider, Is.GreaterThan(0.75f), "over the agent's step");
@@ -122,7 +123,8 @@ namespace Roguelike.PlayModeTests
                 Assert.That(r, Is.Not.Null, "the model is there: " + what);
                 Assert.That(r.sharedMaterial.shader.name, Is.EqualTo(PropFactory.ShaderName), what);
                 Assert.That(r.sharedMaterial.GetTexture("_BaseMap"), Is.Not.Null, "its painted texture: " + what);
-                Assert.That(r.bounds.min.y, Is.EqualTo(0f).Within(0.03f), "standing on the floor: " + what);
+                // Changed deliberately (work order 052): one that stands on the dais model stands on its top.
+                Assert.That(r.bounds.min.y, Is.EqualTo(level.Raised.Contains(p) ? (float)PropSize.DaisShows : 0f).Within(0.03f), "standing on the floor: " + what);
 
                 // No NavMesh where it stands.
                 Assert.That(NavMesh.SamplePosition(level.ToWorld(p.Position), out _, 0.3f, NavMesh.AllAreas), Is.False, "no floor to walk under " + what);
@@ -261,12 +263,14 @@ namespace Roguelike.PlayModeTests
                 double reach = p.Shape == PropShape.Circle ? p.Radius : 0.5 * System.Math.Sqrt(p.Width * p.Width + p.Depth * p.Depth);
                 LevelPoint start = default;
                 bool found = false;
+                // Changed deliberately (work order 052): clear of the room's large props that block walking too.
+                List<LevelProp> large = level.LargeProps.Where(l => l.Room == placed.Room && !PropSize.Of(l.Prop.Model).Walkable).Select(l => l.Prop).ToList();
                 for (int k = 0; k < 16 && !found; k++)
                 {
                     double a = k * System.Math.PI / 8;
                     start = new LevelPoint(p.Position.X + System.Math.Sin(a) * (reach + 1.0), p.Position.Y + System.Math.Cos(a) * (reach + 1.0));
                     found = LevelGeometry.DistanceToWalls(start, placed.Room.Rect, layout.CellSize) > 0.3
-                            && placed.Room.Props.All(o => o == p || ColliderOf(o, level.LowestPropCollider).DistanceTo(start, p.Position) > 0.05);
+                            && placed.Room.Props.Concat(large).All(o => o == p || level.Replaced.Contains(o) || ColliderOf(o, level.LowestPropCollider).DistanceTo(start, p.Position) > 0.05);
                 }
                 Assert.That(found, "a clear place beside " + p);
                 Vector3 centre = level.ToWorld(p.Position) + Vector3.up * sight;

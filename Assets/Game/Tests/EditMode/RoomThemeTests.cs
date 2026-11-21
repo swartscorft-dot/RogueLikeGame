@@ -298,6 +298,7 @@ namespace Roguelike.Rules.Tests
         {
             var olds = new HashSet<PropModel>((PropModel[])Enum.GetValues(typeof(PropModel)));
             olds.ExceptWith(new[] { PropModel.Coffin, PropModel.SkullPile, PropModel.Candelabra, PropModel.BoneThrone, PropModel.Bookshelf, PropModel.Cage, PropModel.Basin });
+            olds.RemoveWhere(m => PropSize.Of(m).Large); // changed deliberately (work order 052): the eight large props, which the props stage never puts down
             Assert.That(olds.Count, Is.EqualTo(11));
             for (ulong s = 0; s < 100; s++)
                 for (int floor = 1; floor <= 5; floor += 4)

@@ -185,6 +185,15 @@ namespace Roguelike.Rules.Tests
                 { PropModel.Statue, PropHeightClass.Tall },       // 2.6
                 { PropModel.BoneThrone, PropHeightClass.Tall },   // 2.6
                 { PropModel.Pillar, PropHeightClass.Tall },       // 3.0
+                // Work order 052, the eight large props
+                { PropModel.CoinHeap, PropHeightClass.Low },      // 0.63
+                { PropModel.CandleCluster, PropHeightClass.Low }, // 1.0
+                { PropModel.GreatBrazier, PropHeightClass.Tall }, // 1.5, chosen: from above a wide bowl of coals at its top, a mass as wide as its footprint
+                { PropModel.GreatAltar, PropHeightClass.Tall },   // 1.82, past the tall line: from above its slab and basin are the whole of it
+                { PropModel.BoneWall, PropHeightClass.Tall },     // 2.5
+                { PropModel.KnightStatue, PropHeightClass.Tall }, // 3.0
+                { PropModel.Dais, PropHeightClass.Slender },      // 0.6, sunk to 0.15 and walked over: neither
+                { PropModel.Banner, PropHeightClass.Slender },    // 2.5, hung on a wall and walked under: neither
             };
             PropModel[] all = Enum.GetValues(typeof(PropModel)).Cast<PropModel>().ToArray();
             Assert.That(expected.Keys, Is.EquivalentTo(all), "every prop of the table is named here");
@@ -192,7 +201,7 @@ namespace Roguelike.Rules.Tests
             {
                 Assert.That(PropSort.Of(m), Is.EqualTo(expected[m]), m + " at " + PropSize.Of(m).Height + " m");
                 double h = PropSize.Of(m).Height;
-                if (h <= PropSort.LowMost + 1e-3) Assert.That(PropSort.Of(m), Is.EqualTo(PropHeightClass.Low), m + ": at most the low line");
+                if (h <= PropSort.LowMost + 1e-3 && !PropSize.Of(m).Slender) Assert.That(PropSort.Of(m), Is.EqualTo(PropHeightClass.Low), m + ": at most the low line"); // work order 052: the dais is walked over
                 if (h >= PropSort.TallLeast - 1e-3 && !PropSize.Of(m).Slender) Assert.That(PropSort.Of(m), Is.EqualTo(PropHeightClass.Tall), m + ": at least the tall line");
             }
             Assert.That(all.Where(m => PropSort.LooksLow(m)), Is.EquivalentTo(new[] { PropModel.Altar, PropModel.GraveMarker, PropModel.PillarBroken }),

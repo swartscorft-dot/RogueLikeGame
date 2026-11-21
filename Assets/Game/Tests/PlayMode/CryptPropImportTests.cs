@@ -165,6 +165,7 @@ namespace Roguelike.PlayModeTests
             var faults = new List<string>();
             foreach (PropSize size in PropSize.Crypt)
             {
+                if (size.Large) continue; // changed deliberately (work order 052): the eight large props hang, sink or stand at their backs; LargePropsTests has them
                 string name = size.Name;
                 GameObject source = Resources.Load<GameObject>(size.ResourcePath);
                 if (source == null)

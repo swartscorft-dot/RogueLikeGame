@@ -107,7 +107,8 @@ namespace Roguelike.PlayModeTests
                     LevelLayout layout = level.Layout;
                     string where = "seed " + layout.SeedText + " floor " + floor;
                     PropValues pv = level.Values.PropRules;
-                    List<LevelProp> described = layout.Rooms.SelectMany(r => r.Props).ToList();
+                    // Changed deliberately (work order 052): but those a large prop stands in place of (the throne's pair, a shrine's basin).
+                    List<LevelProp> described = layout.Rooms.SelectMany(r => r.Props).Where(p => !level.Replaced.Contains(p)).ToList();
                     Assert.That(level.Props.Count, Is.EqualTo(described.Count), where + ": a prop built for each of the plan");
                     Assert.That(layout.Rooms.Where(r => r.Kind != RoomKind.Entrance).All(r => r.Theme != RoomTheme.None), where + ": every room but the entrance has a theme");
                     foreach (LevelRoom r in layout.Rooms) themes.Add(r.Theme);
@@ -126,7 +127,8 @@ namespace Roguelike.PlayModeTests
                         Assert.That(placed.Object.GetComponentsInChildren<Collider>().Length, Is.EqualTo(1), "one collider: " + what);
                         Renderer renderer = placed.Object.GetComponentInChildren<Renderer>();
                         Assert.That(renderer, Is.Not.Null, "the model is there: " + what);
-                        Assert.That(renderer.bounds.min.y, Is.EqualTo(0f).Within(0.03f), "standing on the floor: " + what);
+                        // Changed deliberately (work order 052): one that stands on the dais model stands on its top.
+                        Assert.That(renderer.bounds.min.y, Is.EqualTo(level.Raised.Contains(p) ? (float)PropSize.DaisShows : 0f).Within(0.03f), "standing on the floor: " + what);
 
                         PropSize size = PropSize.Of(p.Model);
                         Assert.That(Glows(renderer), Is.EqualTo(size.Emission), "glows when it has an emission map: " + what);
@@ -188,7 +190,8 @@ namespace Roguelike.PlayModeTests
                 var a0 = new LevelPoint(p.Position.X - dir.X * (reach + 0.6), p.Position.Y - dir.Y * (reach + 0.6));
                 var a1 = new LevelPoint(p.Position.X + dir.X * (reach + 0.6), p.Position.Y + dir.Y * (reach + 0.6));
                 if (LevelGeometry.DistanceToWalls(a0, placed.Room.Rect, level.Layout.CellSize) < 0.4 || LevelGeometry.DistanceToWalls(a1, placed.Room.Rect, level.Layout.CellSize) < 0.4) continue;
-                if (!placed.Room.Props.All(o => o == p || o.Footprint.DistanceTo(a0, a1) > 0.1)) continue;
+                // Changed deliberately (work order 052): clear of the room's large props too.
+                if (!placed.Room.Props.Concat(level.LargeProps.Where(l => l.Room == placed.Room).Select(l => l.Prop)).All(o => o == p || o.Footprint.DistanceTo(a0, a1) > 0.1)) continue;
                 from = level.ToWorld(a0);
                 to = level.ToWorld(a1);
                 return true;

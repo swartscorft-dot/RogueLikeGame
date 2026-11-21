@@ -427,8 +427,11 @@ namespace Roguelike.PlayModeTests
                     (NavMeshPathStatus status, float length) now = after[pair.Key];
                     Assert.That(now.status, Is.EqualTo(pair.Value.status), "floor " + floor + " room:doors " + pair.Key);
                     Assert.That(now.status, Is.EqualTo(NavMeshPathStatus.PathComplete), "a whole path, floor " + floor + " room:doors " + pair.Key);
-                    // An ossuary's piles stand elsewhere with the master on (on purpose): its paths are whole, their lengths may differ.
-                    if (!pair.Key.EndsWith("ossuary", StringComparison.Ordinal))
+                    // An ossuary's piles stand elsewhere with the master on (on purpose): its paths are whole, their lengths may differ;
+                    // changed deliberately (work order 052): so a room's with a large prop that blocks walking.
+                    int order = int.Parse(pair.Key.Substring(0, pair.Key.IndexOf(':')));
+                    bool large = on.LargeProps.Any(p => p.Room.Order == order && !PropSize.Of(p.Prop.Model).Walkable);
+                    if (!pair.Key.EndsWith("ossuary", StringComparison.Ordinal) && !large)
                         Assert.That(now.length, Is.EqualTo(pair.Value.length).Within(0.3f), "as long as it was, floor " + floor + " room:doors " + pair.Key);
                     compared++;
                 }
