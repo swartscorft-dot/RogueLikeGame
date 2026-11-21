@@ -594,9 +594,20 @@ namespace Roguelike.PlayModeTests
             yield return For(0.3f);
             Assert.That(boss.IsAwake, Is.False, "asleep while she is elsewhere");
 
-            // She steps into its room, far from it.
+            // She steps into its room, far from it: onto the middle of its open cell nearest the south-west corner of its
+            // rectangle. Work order 056 (the first Unity run of the night's combination, 2026-11-21): this put her 2.5 m in
+            // from that corner, in the corner cell itself, which work order 051 may carve (an octagon's, a cross's: this
+            // seed's exit room is an octagon), and a carved cell is in no room, as it is behind the walls.
             double cs = level.Layout.CellSize;
-            Vector3 inside = level.ToWorld(new LevelPoint(exit.Rect.X * cs + 2.5, exit.Rect.Y * cs + 2.5));
+            int ix = -1, iy = -1;
+            for (int d = 0; d < exit.Rect.Width + exit.Rect.Height && ix < 0; d++)
+                for (int i = 0; i <= d && ix < 0; i++)
+                {
+                    int cx = exit.Rect.X + i, cy = exit.Rect.Y + d - i;
+                    if (exit.Rect.Contains(cx, cy) && level.Layout.RoomAtCell(cx, cy) == exit) { ix = cx; iy = cy; }
+                }
+            Assert.That(ix, Is.GreaterThanOrEqualTo(0), "an open cell in its room");
+            Vector3 inside = level.ToWorld(new LevelPoint((ix + 0.5) * cs, (iy + 0.5) * cs));
             Assume.That(Flat(inside, boss.transform.position), Is.GreaterThan(boss.Tuning.Enemy.AggroRange));
             _player.Teleport(inside);
             yield return Until(() => boss.IsAwake, 1f);
@@ -632,6 +643,69 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return null;
             Assert.That(boss == null, "gone with the floor");
+        }
+
+        /// <summary>
+        /// Work order 056 (the first Unity run of the night's combination, 2026-11-21): on floor 5 with the rooms carved (work
+        /// order 051, a gate inside every door in), she walks into the exit room through its door and its gate with the move
+        /// keys, as a player does, from 4 m before the door to 5 m past it: she is in its room from the step she is past the
+        /// door, still far from the boss, and it wakes. The floor's other enemies are switched off, so none stops her.
+        /// </summary>
+        [UnityTest, Timeout(180000)]
+        public IEnumerator InFloor5_WithTheShapes_SheWalksInThroughTheDoorAndItsGate_IsInItsRoom_AndItWakes(
+            [Values(42UL, 0x12345678UL, 7UL, 20261121UL)] ulong seed)
+        {
+            _practiceEnemy.enabled = true;
+            GeneratedLevel level = _levels.Build(seed, 5);
+            yield return null;
+            Assert.That(level.Layout.Shapes, Is.True, "the rooms are carved");
+            var boss = level.Boss as EnemyBoss;
+            Assert.That(boss, Is.Not.Null, "the act boss");
+            foreach (Enemy e in level.Enemies.ToList())
+                if (e != boss) e.gameObject.SetActive(false);
+            LevelRoom exit = level.Layout.ExitRoom;
+            LevelDoor door = LevelGeometry.EntryDoor(level.Layout, exit);
+            Assert.That(door, Is.Not.Null, "its door in");
+            Assert.That(RoomShapes.HasGate(exit, door), Is.True, "a gate inside its door");
+            door.Opening(level.Layout.CellSize, out LevelPoint a, out LevelPoint b);
+            Vector3 wa = level.ToWorld(a), wb = level.ToWorld(b);
+            Vector3 middle = (wa + wb) * 0.5f;
+            Vector3 along = (wb - wa).normalized;
+            Vector3 into = new Vector3(-along.z, 0f, along.x);
+            if (Vector3.Dot(level.Middle(exit) - middle, into) < 0f) into = -into;
+
+            _player.Teleport(middle - into * 4f);
+            yield return For(0.3f);
+            Assert.That(level.RoomAt(_player.Position), Is.Not.EqualTo(exit), "before the door, not yet in its room");
+            Assert.That(boss.IsAwake, Is.False, "asleep while she is outside its room");
+
+            float until = Time.time + 8f, realUntil = Time.realtimeSinceStartup + 60f;
+            float reached = float.MinValue, firstInRoom = float.MinValue, farWhenIn = -1f;
+            while (Time.time < until && Time.realtimeSinceStartup < realUntil && reached < 5f)
+            {
+                _player.Steer(into);
+                yield return null;
+                reached = Mathf.Max(reached, Vector3.Dot(_player.Position - middle, into));
+                if (firstInRoom == float.MinValue && level.RoomAt(_player.Position) == exit)
+                {
+                    firstInRoom = Vector3.Dot(_player.Position - middle, into);
+                    farWhenIn = Flat(_player.Position, boss.transform.position);
+                }
+            }
+            _player.Stop();
+            yield return null;
+            yield return null;
+            Debug.Log($"[056] seed {LevelSeed.ToText(seed)} floor 5: exit room {exit.Shape}, in its room {firstInRoom:0.00} m past the door, "
+                      + $"{farWhenIn:0.0} m from the boss; she got {reached:0.00} m in; awake {boss.IsAwake}");
+            Assert.That(reached, Is.GreaterThanOrEqualTo(5f), "she walked in through the door and its gate");
+            Assert.That(firstInRoom, Is.GreaterThan(-0.5f).And.LessThan((float)level.Layout.CellSize), "in its room once past the door, in its gate's slot");
+            Assert.That(level.RoomAt(_player.Position), Is.EqualTo(exit), "she is in its room");
+            Assert.That(_levels.CurrentRoom, Is.EqualTo(exit), "the floor knows she is in its room");
+            Assert.That(farWhenIn, Is.GreaterThan(boss.Tuning.Enemy.AggroRange), "far from it as she came in: the room wakes it, not its reach");
+            Assert.That(boss.IsAwake, Is.True, "she entered its room: it wakes");
+            Assert.That(boss.GetComponent<BossHealthBar>().Showing, Is.True);
+            _levels.BackToPracticeRoom();
+            yield return null;
         }
     }
 }

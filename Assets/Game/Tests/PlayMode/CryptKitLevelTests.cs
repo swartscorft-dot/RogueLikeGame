@@ -165,6 +165,17 @@ namespace Roguelike.PlayModeTests
             List<GeneratedLevel.KitPiece> arches = level.KitPieces.Where(p => p.Kind == CryptPiece.Arch).ToList();
             int wanted = 0;
             foreach (LevelDoor d in layout.Doors)
+            {
+                // An arch is full height: its two ends are a full piece's ends, a pier's points. Work order 056 (the first
+                // Unity run of the night's combination, 2026-11-21): before work order 051 a full wall box always went on
+                // along the line past a door's end, so the boxes alone found them; now the cells either side of that line
+                // past it may both be carved (a gate's and the next room's corner), no box goes on, only low faces meet the
+                // arch there (seed 2222223C floor 1, door 1-2 on line x = 32, its end at (32, 21)).
+                if (d.Vertical || layout.RoomAtCell(d.From, d.Line) == null)
+                {
+                    fullEnds.Add(d.Vertical ? (d.Line, d.From) : (d.From, d.Line));
+                    fullEnds.Add(d.Vertical ? (d.Line, d.From + d.Width) : (d.From + d.Width, d.Line));
+                }
                 for (int cell = d.From; cell < d.From + d.Width; cell++)
                 {
                     LevelPoint middle = d.Vertical ? new LevelPoint(d.Line * cs, (cell + 0.5) * cs) : new LevelPoint((cell + 0.5) * cs, d.Line * cs);
@@ -177,11 +188,12 @@ namespace Roguelike.PlayModeTests
                     Assert.That(near, Is.EqualTo(full ? 1 : 0));
                     if (full) wanted++;
                 }
+            }
             Assert.That(arches.Count, Is.EqualTo(wanted));
             _archesSeen += arches.Count;
             _lowDoorsSeen += layout.Doors.Count(d => !d.Vertical);
 
-            // Piers and posts: on grid points, one a point; a pier where a full box ends or meets, a post where only low ones do.
+            // Piers and posts: on grid points, one a point; a pier where a full box or an arch ends or meets, a post where only low ones do.
             var points = new Dictionary<(int, int), GeneratedLevel.KitPiece>();
             foreach (GeneratedLevel.KitPiece p in level.KitPieces.Where(p => p.Kind == CryptPiece.Pier || p.Kind == CryptPiece.Post))
             {
