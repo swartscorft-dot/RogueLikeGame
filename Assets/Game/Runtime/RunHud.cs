@@ -25,7 +25,9 @@ namespace Roguelike
     ///
     /// The developer's text: F1 shows or hides the debug readout at the top left and the old status box at the top right
     /// (under the run box when both show). Hidden by default in a floor, shown by default in the practice room; F1
-    /// changes the one for where she is, and each is kept for the session.
+    /// changes the one for where she is, and each is kept for the session. Work order 066: F1, F6 and F7 are developer
+    /// keys (<see cref="DeveloperKeys"/>); while they are off (a built player started without "-dev") the developer's text
+    /// never shows, F1 does nothing, and no line here names F6 or F7.
     ///
     /// The pause menu: Esc pauses (not while a choice is up, when Esc does nothing) and Esc again resumes. Its lines,
     /// picked with a click or the arrow keys and Enter: Resume; New run (F5's new seed; "Start a run" in the practice
@@ -95,8 +97,16 @@ namespace Roguelike
         public string RunBoxText => string.Join("\n", _runBox);
         /// <summary>The line over the skill bar in the practice room, or empty.</summary>
         public string PromptText { get; private set; } = "";
-        /// <summary>The developer's text (the debug readout and the old status box) is shown now.</summary>
-        public bool DevTextShown => InFloor ? _devInFloor : _devInPractice;
+        /// <summary>
+        /// The developer's text (the debug readout and the old status box) is shown now. Never while the developer's keys
+        /// are off (work order 066), also in the practice room where it shows by default.
+        /// </summary>
+        public bool DevTextShown => DeveloperKeys.On && (InFloor ? _devInFloor : _devInPractice);
+        /// <summary>
+        /// A test's keyboard, read in place of the real one while <see cref="PlayerInputDriver.ReadRealDevices"/> is false
+        /// (work order 066: the developer's keys pressed in a test); null, as in every other test, reads none.
+        /// </summary>
+        public Keyboard TestKeyboard { get; set; }
         /// <summary>The end screen's lines while one is up (title first), else empty.</summary>
         public IReadOnlyList<string> EndScreenLines => _endLines;
         public string EndScreenText => string.Join("\n", _endLines);
@@ -289,6 +299,7 @@ namespace Roguelike
         /// <summary>The F1 key: shows or hides the developer's text for where she is (a floor, or the practice room).</summary>
         public void ToggleDevText()
         {
+            if (!DeveloperKeys.On) return; // work order 066: F1 is a developer key; off, it changes nothing
             Find();
             if (InFloor) _devInFloor = !_devInFloor;
             else _devInPractice = !_devInPractice;
@@ -308,8 +319,9 @@ namespace Roguelike
         void Update()
         {
             Find();
-            if (_levels == null || !PlayerInputDriver.ReadRealDevices || !(Keyboard.current is Keyboard keyboard)) return;
-            if (keyboard[DevTextKey].wasPressedThisFrame) ToggleDevText();
+            Keyboard keys = PlayerInputDriver.ReadRealDevices ? Keyboard.current : TestKeyboard; // work order 066: or a test's
+            if (_levels == null || !(keys is Keyboard keyboard)) return;
+            if (DeveloperKeys.On && keyboard[DevTextKey].wasPressedThisFrame) ToggleDevText(); // work order 066: a developer key
             if (keyboard[PauseKey].wasPressedThisFrame)
             {
                 Escape();
@@ -426,8 +438,9 @@ namespace Roguelike
             {
                 case MenuLine.Resume: return "Resume   (Esc)";
                 case MenuLine.Restart: return (_levels != null && _levels.InRun ? "New run" : "Start a run") + "   (" + GeneratedLevels.NewLevelKey + ")";
-                case MenuLine.SameRun: return "Same run again   (" + GeneratedLevels.SameLevelKey + ")";
-                case MenuLine.Leave: return "Leave to the practice room   (" + GeneratedLevels.PracticeRoomKey + ")";
+                // Work order 066: F6 and F7 named only while the developer's keys are on; the lines work either way.
+                case MenuLine.SameRun: return DeveloperKeys.On ? s_SameRunLine : "Same run again";
+                case MenuLine.Leave: return DeveloperKeys.On ? s_LeaveLine : "Leave to the practice room";
                 case MenuLine.Quit: return "Quit";
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
@@ -476,6 +489,17 @@ namespace Roguelike
         }
 
         static readonly string s_StartPrompt = GeneratedLevels.NewLevelKey + "  start a run";
+        static readonly string s_SameRunLine = "Same run again   (" + GeneratedLevels.SameLevelKey + ")";
+        static readonly string s_LeaveLine = "Leave to the practice room   (" + GeneratedLevels.PracticeRoomKey + ")";
+        static readonly string s_EndSameRun = GeneratedLevels.SameLevelKey + "  same run";
+        static readonly string s_EndPractice = GeneratedLevels.PracticeRoomKey + " / Esc  practice";
+
+        /// <summary>
+        /// The end screen's second and third buttons (work order 066): "F6  same run" and "F7 / Esc  practice" while the
+        /// developer's keys are on, as before; "Same run" (a click) and "Esc  practice" while they are off.
+        /// </summary>
+        public static string EndSameRunButton => DeveloperKeys.On ? s_EndSameRun : "Same run";
+        public static string EndPracticeButton => DeveloperKeys.On ? s_EndPractice : "Esc  practice";
 
         List<string> _pauseKeys, _pauseStats;
         bool _pauseWasUp, _pauseLinesStale;
@@ -663,8 +687,8 @@ namespace Roguelike
             y += 12f;
             float bw = (w - 60f - 20f) / 3f;
             if (GUI.Button(new Rect(r.x + 30f, y, bw, 34f), "Enter  new run", _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.NewRun);
-            else if (GUI.Button(new Rect(r.x + 40f + bw, y, bw, 34f), GeneratedLevels.SameLevelKey + "  same run", _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.SameRun);
-            else if (GUI.Button(new Rect(r.x + 50f + 2f * bw, y, bw, 34f), GeneratedLevels.PracticeRoomKey + " / Esc  practice", _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.PracticeRoom);
+            else if (GUI.Button(new Rect(r.x + 40f + bw, y, bw, 34f), EndSameRunButton, _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.SameRun); // work order 066
+            else if (GUI.Button(new Rect(r.x + 50f + 2f * bw, y, bw, 34f), EndPracticeButton, _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.PracticeRoom);
         }
 
         void DrawPause(float viewWidth)

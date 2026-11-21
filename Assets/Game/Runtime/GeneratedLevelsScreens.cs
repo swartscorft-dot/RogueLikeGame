@@ -41,8 +41,12 @@ namespace Roguelike
         /// <summary>Enemies still alive in the room she is in; 0 outside a room.</summary>
         public int EnemiesLeftInRoom => AliveIn(CurrentRoom);
 
-        /// <summary>The developer's box at the top right (the old status text): drawn or not, and its top. The HUD sets them (F1).</summary>
-        public bool ShowDevBox { get; set; } = true;
+        /// <summary>
+        /// The developer's box at the top right (the old status text): drawn or not, and its top. The HUD sets them (F1).
+        /// Never drawn while the developer's keys are off (work order 066), whatever the HUD set.
+        /// </summary>
+        public bool ShowDevBox { get => _showDevBox && DeveloperKeys.On; set => _showDevBox = value; }
+        bool _showDevBox = true;
         public float DevBoxTop { get; set; } = 10f;
 
         float _endedAt;

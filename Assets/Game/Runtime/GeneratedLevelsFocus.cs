@@ -128,7 +128,7 @@ namespace Roguelike
                 }
                 DrawGaugeSketch(mode, new Rect(row.xMax - gaugeWidth - 12f, row.y + 10f, gaugeWidth, gaugeHeight));
             }
-            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), "The game is paused.   F7 leaves the run.");
+            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), PausedFooter); // work order 066: F7 named only while it works
         }
 
         /// <summary>

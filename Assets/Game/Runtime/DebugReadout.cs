@@ -16,6 +16,7 @@ namespace Roguelike
 
         void OnGUI()
         {
+            if (!DeveloperKeys.On) return; // work order 066: the developer's text, never shown while his keys are off
             if (_player == null) _player = FindAnyObjectByType<PlayerCharacter>();
             if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 12, alignment = TextAnchor.UpperLeft };
 
