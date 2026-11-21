@@ -34,6 +34,14 @@ namespace Roguelike.Rules
         public int MostBudget = 8;             // never more, whatever is done
 
         public MetaPiece[] Pieces = MetaPieces.Create();
+
+        // Work order 060 (decision 0014, the producer's proposal of 2026-11-21, a draft he has not ruled on; Kristian's idea of
+        // 2026-11-20: "attachments til våpen"): her pistols' parts, on this currency, save and screen (WeaponAttachments.cs).
+        /// <summary>The attachments' switch: off by default. The pause menu's "Weapon attachments (trial)" line overrides it; it works only with <see cref="Enabled"/>'s trial on.</summary>
+        public bool Attachments = false;
+        /// <summary>Echoes for each ordinary combat room cleared (not the elite room, which keeps its own), only while the attachments are on (work order 060).</summary>
+        public int PerRoom = 3;
+        public WeaponAttachment[] Parts = WeaponAttachments.Create();
     }
 
     /// <summary>A piece changes a rule of the run, or is a raw stat step (0009: a few, large and capped).</summary>
@@ -202,6 +210,9 @@ namespace Roguelike.Rules
         public readonly List<string> Equipped = new List<string>();
         public readonly List<string> Feats = new List<string>();
         public string StruckOut = "";
+        /// <summary>Her pistols' parts bought, and those fitted, one a slot (work order 060). Kept while the attachments are off, never applied then.</summary>
+        public readonly List<string> AttachmentsOwned = new List<string>();
+        public readonly List<string> AttachmentsFitted = new List<string>();
 
         public bool Owns(string id) => Owned.Contains(id);
         public bool IsEquipped(string id) => Equipped.Contains(id);
@@ -213,6 +224,8 @@ namespace Roguelike.Rules
             c.Owned.AddRange(Owned);
             c.Equipped.AddRange(Equipped);
             c.Feats.AddRange(Feats);
+            c.AttachmentsOwned.AddRange(AttachmentsOwned); // work order 060
+            c.AttachmentsFitted.AddRange(AttachmentsFitted);
             return c;
         }
     }
@@ -238,7 +251,10 @@ namespace Roguelike.Rules
         public int FromFloors(MetaValues v) => FloorsCleared * v.PerFloor;
         public int FromElites(MetaValues v) => ElitesCleared * v.PerElite;
         public int FromBoss(MetaValues v) => BossKilled ? v.PerBoss : 0;
-        public int Total(MetaValues v) => FromFloors(v) + FromElites(v) + FromBoss(v);
+        /// <summary>Ordinary combat rooms cleared, counted only while the attachments are on (work order 060): 0 otherwise, so every total is 029's.</summary>
+        public int RoomsCleared;
+        public int FromRooms(MetaValues v) => RoomsCleared * v.PerRoom;
+        public int Total(MetaValues v) => FromFloors(v) + FromElites(v) + FromBoss(v) + FromRooms(v);
     }
 
     /// <summary>
@@ -385,6 +401,7 @@ namespace Roguelike.Rules
             s.EarnedInAll = Math.Max(0, s.EarnedInAll);
             s.Runs = Math.Max(0, s.Runs);
             if (s.StruckOut == null) s.StruckOut = "";
+            WeaponRack.Tidy(s, v); // work order 060: her pistols' parts, the one place a save's are tidied
         }
 
         static void Distinct(List<string> list, Func<string, bool> keep)

@@ -1048,9 +1048,16 @@ namespace Roguelike
 
         // ---------------- Between runs (work order 029; only with that trial switched on) ----------------
 
-        /// <summary>A run started with the rack switched on: the pieces equipped, the currency then, the budget and the points used.</summary>
-        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used) =>
-            Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
+        /// <summary>
+        /// A run started with the rack switched on: the pieces equipped, the currency then, the budget and the points used.
+        /// Work order 060: <paramref name="weapon"/>, her pistols' parts fitted joined by " | " (or "stock"), only when the
+        /// attachments are on; null, the event is as before.
+        /// </summary>
+        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used, string weapon = null)
+        {
+            if (weapon == null) Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
+            else Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used), "weapon", weapon);
+        }
 
         /// <summary>The run earned currency: how much, from what (floor, elite room, act boss), on which floor.</summary>
         public void NoteBetweenRunsEarned(int amount, string from, int floor) =>

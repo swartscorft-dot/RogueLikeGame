@@ -228,6 +228,8 @@ namespace Roguelike.Rules
         /// </summary>
         public bool HasMeta;
         public string MetaEquipped = "";
+        /// <summary>Work order 060: her pistols' parts fitted ("Laser Sight, Bull Barrel", or "stock"); null when the run had no attachments on.</summary>
+        public string MetaWeapon;
         public int MetaEarned;
         public readonly List<KeyValuePair<string, int>> MetaFrom = new List<KeyValuePair<string, int>>();
         public readonly List<string> MetaFeats = new List<string>();
@@ -531,6 +533,7 @@ namespace Roguelike.Rules
                     case SessionEventTypes.MetaLoadout:
                         run.HasMeta = true;
                         run.MetaEquipped = string.IsNullOrEmpty(e.Name) ? "" : e.Name.Replace(" | ", ", ");
+                        run.MetaWeapon = e.ExtraValue("weapon")?.Replace(" | ", ", "); // work order 060: only when the attachments were on
                         break;
                     case SessionEventTypes.MetaEarn:
                     {
@@ -1052,6 +1055,7 @@ namespace Roguelike.Rules
                 // Work order 029: one line, only when the run started with what lasts between runs switched on.
                 if (run.HasMeta)
                     sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)
+                      .Append(run.MetaWeapon != null ? ";  weapon " + run.MetaWeapon : "") // work order 060
                       .Append(";  earned ").Append(run.MetaEarned)
                       .Append(run.MetaFrom.Count == 0 ? "" : " (" + string.Join(", ", run.MetaFrom.Select(p => p.Key + " " + p.Value)) + ")")
                       .Append(";  new feats ").AppendLine(run.MetaFeats.Count == 0 ? "-" : string.Join(", ", run.MetaFeats));

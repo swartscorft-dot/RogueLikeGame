@@ -400,10 +400,18 @@ namespace Roguelike.Rules
         /// </summary>
         public RunMetaEffects Meta { get; } = new RunMetaEffects();
 
+        /// <summary>
+        /// Her pistols' parts fitted for this run, their part of the loadout (work order 060, decision 0014): empty unless the
+        /// attachments are switched on, and empty every one of its methods gives back the stock gun's numbers. A second weapon's
+        /// parts would have their own effects beside this.
+        /// </summary>
+        public AttachmentEffects Weapon { get; } = new AttachmentEffects();
+
         public void Clear()
         {
             _taken.Clear();
             Meta.Clear();
+            Weapon.Clear(); // work order 060
         }
 
         float Sum(UpgradeKind kind, string skill = null)

@@ -49,8 +49,11 @@ namespace Roguelike
         public const Key PauseKey = Key.Escape;
         public const Key DevTextKey = Key.F1;
 
-        /// <summary>The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch, last.</summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns }
+        /// <summary>
+        /// The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch. Attachments (work
+        /// order 060): her pistols' parts' switch, last (RunHudWeapon.cs).
+        /// </summary>
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, Attachments }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -236,6 +239,7 @@ namespace Roguelike
                     break;
                 case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
+                case MenuLine.Attachments: ChangeSetting(line, 1); break; // work order 060
             }
             return true;
         }
@@ -265,6 +269,11 @@ namespace Roguelike
             if (line == MenuLine.BetweenRuns)
             {
                 BetweenRunsSwitch.Set(!BetweenRunsOn); // either way it flips (work order 029)
+                return true;
+            }
+            if (line == MenuLine.Attachments)
+            {
+                FlipAttachments(); // work order 060 (RunHudWeapon.cs): on turns the trial on too
                 return true;
             }
             return false;
@@ -383,6 +392,7 @@ namespace Roguelike
             }
             if (_levels != null && _levels.Paused) BuildMenu();
             BuildBetweenRunsLines(); // work order 029
+            BuildWeaponLines(); // work order 060: nothing with the attachments off
         }
 
         void BuildMenu()
@@ -397,6 +407,7 @@ namespace Roguelike
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
+            _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
 
@@ -413,6 +424,7 @@ namespace Roguelike
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
+                case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }
@@ -486,9 +498,10 @@ namespace Roguelike
         public List<string> StatLines()
         {
             RunModifiers m = _player != null ? _player.Modifiers : null;
-            if (m == null || !m.StatsAndTiers || _levels == null || !_levels.InRun) return new List<string>();
+            if (m == null || !m.StatsAndTiers || _levels == null || !_levels.InRun) return WithWeaponLine(new List<string>(), m); // work order 060
             FeelValues f = _player.Feel;
-            return m.Stats.Lines(f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery, f.BasicShotRange, _health != null ? _health.MaxHealth : 100);
+            // Work order 060: her start as her pistols' parts make it (the feel's with none), and a line naming them.
+            return WithWeaponLine(m.Stats.Lines(_player.BasicShotBaseInterval, m.Weapon.Reach(f.BasicShotRange), _health != null ? _health.MaxHealth : 100), m);
         }
 
         // ---------------- Drawing ----------------
@@ -651,9 +664,17 @@ namespace Roguelike
             PauseLines(); // work order 055: made when it opens and when a setting changes
             List<string> keys = _pauseKeys;
             List<string> stats = _pauseStats; // work order 050
-            const float w = 560f, rowH = 34f, gap = 6f;
+            const float w = 560f;
+            float rowH = 34f, gap = 6f;
             int keyRows = (keys.Count + 1) / 2, statRows = (stats.Count + 1) / 2;
             float h = 64f + _menu.Count * (rowH + gap) + 18f + keyRows * 17f + 20f + (statRows > 0 ? 24f + statRows * 17f : 0f);
+            // Work order 060: with the attachments' line the menu of a run outgrew the view; the lines close up only then.
+            if (h > SkillBar.LayoutHeight - 20f)
+            {
+                h -= _menu.Count * 7f;
+                rowH = 30f;
+                gap = 3f;
+            }
             var r = new Rect((viewWidth - w) * 0.5f, Mathf.Max(10f, (SkillBar.LayoutHeight - h) * 0.5f), w, h);
             Panel(r, s_Accent, r.y + 52f);
             GUI.Label(new Rect(r.x, r.y + 10f, w, 40f), "Paused", _pauseTitle);
@@ -663,7 +684,8 @@ namespace Roguelike
                 MenuLine line = _menu[i];
                 var row = new Rect(r.x + 30f, y, w - 60f, rowH);
                 if (i == Selected) Frame(new Rect(row.x - 3f, row.y - 3f, row.width + 6f, row.height + 6f), s_Accent);
-                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns;
+                bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns
+                               || line == MenuLine.Attachments; // work order 060
                 if (setting)
                 {
                     const float arrow = 36f;
