@@ -332,6 +332,12 @@ namespace Roguelike.Rules
         // DoorWidth 1. Off: every floor is version 15's, field for field, but for the version.
         public bool Passages = true;
         public PassageValues PassageRules = new PassageValues();
+        // More rooms drawn by hand (work order 072; Kristian, the evening of 2026-11-21, asked what more to build, ticked "Flere
+        // rom-maler": eleven repeat quickly over five floors of eight combat rooms): on, the library's second set of templates
+        // (RoomTemplateLibrary, the ones Since 17: rings, islands, halls, alcoves, arenas and more, and larger elite and exit
+        // rooms) is drawn beside the first eleven, by the same weights and rules. Read only with Templates on. Off: every floor
+        // is version 16's, field for field, but for the version.
+        public bool MoreTemplates = true;
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();

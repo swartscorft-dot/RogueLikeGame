@@ -241,12 +241,317 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 16 makes with its defaults (work order 059, Kristian's choice of
-        // 2026-11-21, "Ganger mellom rommene": the rooms of the row apart, a passage P one cell wide between every two,
-        // LevelValues.Passages; the rooms hold the enemies and, on the same attempt, the templates of version 15's floor of the
-        // seed, whose maps are kept below as GoldenPassagesOff, and stand elsewhere). A change that changes them must raise
-        // LevelGenerator.Version and paste the new maps here, on purpose.
+        // These maps are what the generator of version 17 makes with its defaults (work order 072, Kristian's "Flere rom-maler"
+        // of the evening of 2026-11-21: the library's second set of templates drawn beside the first eleven,
+        // LevelValues.MoreTemplates; the rooms hold the same enemies as version 16's floor of the seed, whose maps are kept below
+        // as GoldenMoreTemplatesOff, and from the first room that draws another template on stand elsewhere). A change that
+        // changes them must raise LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
+        {
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 17  17 rooms  57 enemies  116 x 136 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner-long, C4 pillared-hall, L8 knights-apse, C10 alcoves, C14 corner, X16 throne-arcade
+                                              +-+-+-+-+
+                                              |X16Y H |
+                                            +-+       +-+
+                                            |#         #|
+                                          +-+     p     +-+
+                                          |          p    |
+                                          +               +
+                                          |               |
+                                          +               +
+                                          |           B   |
+    +-+-+                                 +   +-+   +-+   +
+    |E0 |                                 |   | |   | |   |
++-+-+  *+     +-+-+-+-+-+-+-+             +-+ +-+   +-+ +-+
+|       |     |C2  ki      k|               |#         #|
++   @   +-+-+-+          : u+               +-+-+   +-+-+
+|        P              B   |                   |   |
++-+     +-+-+-+             +                   + +-+
+  |    *|     |      %      |                   |P|
+  +-+-+-+     +-+           +                   + +
+                |           |                   | |
+                +-+-+       +                   + +-+-+-+
+                    |       |                   |C14    |
+                    +  p   u+                   +       +
+                    |       |                   |    h  |
+                    +      k+                 +-+   #  i+
+                    |    h  |                 |#     oiA|
+                    +       +               +-+         +
+                    |       |               |          B|
+                    + +-+-+-+   +-+-+-+   +-+           +
+                    |P|         |T12  |   |          #  |
+                  +-+ +         + i$i +-+-+ #    #    p +
+                  |   |         |      P                |
+                  + +-+         +     +-+-+             +
+                  | |           |     |   |             |
+          +-+-+-+-+ +-+-+       +-+ +-+   +-+-+-+-+-+-+-+
+          |C4           |         |P|
+          + b           +         + +
+          |             |         | |
+          + +-+   # +-+ + +-+-+ +-+ + +-+-+
+          | | |#    | | | |C10| |h  | |i  |
+          + +-+ p   +-+ + +   + +   + +   +
+          |          #  | |   | |   | |   |
+          + +-+     +-+ + +   +-+   +-+ :k+
+          | | |     | | | | %             |
+          + +-+     +-+ + +           p   +
+          |   #         | |    p          |
+          + +-+   # +-+ + +            B i+
+          | | |  p o| | | |              k|
+          + +-+    *+-+h+ +               +
+          |         A*  | |              u|
+          +-+-+-+ +-+-+-+ +-+-+-+ +-+-+-+-+
+                |P|             |P|
+                + +             + +
+                | |             | |
+                + +       +-+-+-+ +-+
+                | |       |L8 !     |
+              +-+ +-+     +   +-+   +-+
+              |T6   |     |   | |  h  |
+              +k    +-+-+-+   +-+     +-+
+              |k     P        =         |
+              +  $  +-+-+-+         =   +
+              |    u|     | #  B     e  |
+              +-+-+-+     +             +
+                          |   [   # [  !|
+                          + p +-+     +-+
+                          |   | |     |
+                          +&p +-+   +-+
+                          |         |
+                          +-+-+-+-+-+
+",
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 17  17 rooms  94 enemies  100 x 132 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 shrine, T12 archive, C14 archive, X16 throne room  templates C2 colonnade, C4 two-islands, L8 knights-apse, C10 dais, C14 corner-long, X16 throne-arcade
+        +-+-+     +-+-+-+-+-+-+
+        |E0*|     |C2    ui   |
+    +-+-+   +-+-+ +   +-+ +-+B+-+
+    |        P  | |   | | | |   |
+    +   @   +-+ +-+   +-+ +-+   +
+    |       | |        : g      |
+    +-+    *+ +-+-+           c +
+      |     |     |             |
+      +-+-+-+     +             +
+                  |i   %    H   |
+                  +kp +-+ +-+ p +
+                  |   | | | |   |
+                  +   +-+ +-+ +-+
+                  |   b       |
+                  +-+-+-+ +-+-+
+                        |P|
+                        + +-+-+
+                        |     |
+                        +-+-+ +
+                            | |
+                  +-+-+-+-+-+ +-+-+-+
+                  |C4 B             |
+                  +                 +
+                  |    #        #   |
+                  +c+-+-+     +-+-+ +
+                  | |   |     |   | |
+                  + +   +     +   + +
+                  | |   |  p  |   | |
+    +-+-+-+-+     + +-+-+  #  +-+-+ +
+    |X16Y*  |     | # c  p    o   # |
+  +-+       +-+   +             H   +
+  |#     H   #|   |          iAi    |
++-+         c +-+ +-+-+-+-+ +-+-+-+-+
+| c   c         |         |P|
++               +         + +     +-+-+-+-+-+
+|     p   p     |         | |     |L8       |
++       G       +       +-+ +-+   +   +-+   +-+
+|  p           B|       |T6   |   |   | |  H  |
++   +-+   +-+   +       +     +-+-+  [+-+=    +-+
+|b  | |   | |   |       |      P           # p  |
++-+ +-+   +-+ +-+       +  $  +-+-+     B       +
+  |#         #|         |ku   |   |   #     b   |
+  +-+-+   +-+-+         +-+-+-+   +&          e +
+      |   |                       |             |
+      +-+ +                       +!  +-+g c= +-+
+        |P|                       | p | |     |
+        + +                       +   +-+ # +-+
+        | |                       |!        |
+      +-+ +-+-+                   +-+-+-+ +-+
+      |C14    |                         |P|
+      +   c   +                         + +
+      |     b |                         | |
+      + H     +                   +-+-+-+ +-+-+-+-+
+      |       |                   |C10            |
+      +       +                   +           B   +
+      |k      |                   | g             |
+      +i B    +-+-+               +-+ #       # +-+
+      |         % |                 |           |
+      +           +-+   +-+-+-+   +-+           +-+
+      |    p        |   |T12  |   |  p            |
+      +k     g p    +-+-+     +-+-+   +-+   +-+   +
+      |k             P    $    P      | |b  | | p |
+      +             +-+-+     +-+-+  #+-+ # +-+   +
+      |u     :      |   |  u  |   |     c  H    # |
+      +-+-+-+-+-+-+-+   +-+-+-+   +   +-+o  +-+   +
+                                  |   | |iAi| |   |
+                                  +-+-+ +-+-+ +-+-+
+",
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 17  17 rooms  58 enemies  96 x 148 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 shrine, T12 vault, C14 archive, X16 throne room  templates C2 corner, C4 pillared-hall, L8 gallery, C10 ring, X16 throne-nave
+                                +-+-+-+-+
+                                |X16*   |
+                            +-+-+       +-+-+
+                            | #         h # |
+                            + +-+       +-+ +
+                            | | |      b| | |
+                            + +-+       +-+ +
+                            |B              |
+                            +       p       +
+                            |               |
+                            + +-+       +-+ +
+                            | | |       | | |
+                            + +-+       +-+ +
+                            |               |
+                            + # p         # +
+                            |               |
+                            +-+-+-+-+-+ +-+-+
+                                      |P|
+                                      + +-+
+                                      |   |
+                                      +-+ +
+                                        | |
+                                      +-+ +-+-+
+                                      |C14  u |
+                                    +-+  p    +-+
+                                    |  H        |
+                                    +k          +
+                                    |           |
+                                    +       p : +
+                                    |          b|
+                                    +k       %+-+
+                                    |i        |
+                                    +-+-+ +-+-+
+                                        |P|
+                                        + +
+                                        | |
+                                        + +
+                                        | |
+                  +-+-+-+-+-+-+-+-+   +-+ +-+
+                  |C10            |   |T12  |
+    +-+-+-+       +         h     +-+-+   i +
+    |L8~^^|       |        #       P      $k|
++-+-+     +-+-+   +    #    +-+-+ +-+-+   i +
+|       e     |   |       p |   |i|   |     |
++  h        p +-+-+         +   +A+   +-+-+-+
+|     :        P       #    |   |i|
++-+-+     +-+-+-+-+         +-+-+ +     +-+-+
+    |     |       |   # p  #      |     |E0 |
++-+-+     +-+-+   +          B    +   +-+   +
+|             |   |               |   |     |
++             +   +-+-+-+-+-+-+-+-+   +   @ +-+
+|    p        |                       |       |
++-+-+   b +-+-+                       +       +
+    |     |                           | *    *|
++-+-+     +-+-+                       +-+-+ +-+
+|             |                           |P|
++             +                           + +
+|   u         |                           | |
++-+-+-+ +-+-+-+                           + +-+-+
+      |P|                                 |C2  k|
+      + +     +-+-+-+-+-+-+-+-+         +-+     +
+      | |     |C4h           &|         |       |
+      + +     + +-+ +-+ +-+   +         +       +
+      | |     | | | | | | |  #|         |       |
+    +-+ +-+   + +-+[+-+=+-+   +   +-+-+-+       +
+    |T6   |   |               |   |        %    |
+    +     +-+-+  b           #+   + p           +
+    | $    P       p          |   |   :   b    u|
+    +u    +-+-+          p    +-+-+     p       +
+    |k    |   |                P     h          |
+    +-+-+-+   + +-+[+-+=+-+[  +-+-+             +
+              | | | | | | |   |   |             |
+              + +-+ +-+ +-+  #+   +-+-+-+-+-+-+-+
+              |         !  !  |
+              +-+-+-+-+-+-+-+-+
+",
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 17  17 rooms  96 enemies  144 x 152 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 ossuary, T12 vault, C14 archive, X16 throne room  templates C2 twin, C4 pillared-hall, L8 pit, C10 broken-ring, X16 throne-nave
+                                                            +-+-+-+-+
+                                                            |X16Y*  |
+                                                        +-+-+       +-+-+
+                                                        | #       c   c |
+                                                        + +-+ H     +-+ +
+                                                        | | |       | | |
+                                                        + +-+       +-+ +
+                                                        |     p         |
+                                                        +       G b p   +
+                                                        |  B            |
+                                                        + +-+ g  p  +-+ +
+                                                        | | |       | | |
+                                                        + +-+       +-+ +
+                                                        |               |
+                                                        + #           # +
+                                                        |               |
+                                                        +-+-+ +-+-+-+-+-+
+                                                            |P|
+                                                            + +
+                                                            | |
+                                                  +-+-+-+-+-+ +
+                                                  |C14    %   |
+                                                  +           +-+
+                                                  |    p   c    |
+                                        +-+-+-+   +      B      +
+                                        |T12  |   |           H |
+      +-+-+                             + i$i +-+-+       p     +
+      |E0 |                             |      P             c  |
+    +-+   +                             +     +-+-+    :    +-+-+
+    |     |                             |     |   |       ui|
+    +   @ +-+                           +-+ +-+   +-+-+-+-+-+
+    |       |                             |P|
+    +       +                             + +
+    |*    * |                             | |
+    +-+ +-+-+                             + +
+      |P|                                 | |
+      + +                           +-+-+-+ +-+-+-+
+      | |                           |CH0~     ^ c^|
++-+-+-+ +-+-+-+                     + +-+-+ +-+-+ +
+|C2           |                     | |   | |   | |
++             +                     + + +-+ +-+ +b+
+|    %   :    |                     |u| |     | | |
++u            +                     + +-+ ^ p +-+ +
+|             |                     |             |
++-+-+       +-+                     + +-+ B   +-+ +
+    |       |                       |g| |     | | |
+    +     +-+                       + + +-+ +-+ + +
+    | B   |                         | |   | |   | |
++-+-+     +-+-+                     + +-+-+ +-+-+ +
+|k           k|                     |             |
++          p  +                     +  :        p +
+|  H          |                     |q            |
++     p     c +                     +-+-+ +-+-+-+-+
+|   c         |                         |P|
++-+-+ +-+-+-+-+                       +-+ +
+    |P|                               |   |
+    + +                               + +-+
+    | |                               | |
++-+-+ +-+-+-+-+                     +-+ +-+
+|C4           |                     |L8   |
++             +                   +-+  #  +-+
+|   #     #   |                   |  g    [ |
++ +-+    g+-+ +                 +-+ +-+ +-+ +-+
+| | |     | | |                 |!  | | | |  !|
++ +-+     +-+ +                 +   +-+ +-+   +
+|             |                 |       # [c  |
++b+-+#    +-+ +     +-+-+-+     +   =         +
+| | |     | | |     |T6   |     |         p   |
++ +-+     +-+ +-+-+-+     +-+-+-+      e      +
+|  B   p    H  P        $  P         p    =H  |
++ +-+    #+-+ +-+-+-+     +-+-+-+   +-+ +-+  &+
+| | | o   | |c|     |u    |     |   | | | |   |
++ +-+ *   +-+ +     +-+-+-+     +-+ +-+ +-+ +-+
+|    *A p     |                   | =       |
++-+-+-+-+-+-+-+                   +-+   # +-+
+                                    |B b  |
+                                    +-+-+-+
+",
+        };
+
+        // Work order 072 (version 17): with the second set off (LevelValues.MoreTemplates false) the floor is version 16's, so the
+        // maps are, but for the version number. These are what the generator of version 16 made with its defaults (work order
+        // 059, Kristian's choice of 2026-11-21, "Ganger mellom rommene": the rooms of the row apart, a passage P one cell wide
+        // between every two, LevelValues.Passages; the rooms hold the enemies and, on the same attempt, the templates of version
+        // 15's floor of the seed, whose maps are kept below as GoldenPassagesOff, and stand elsewhere).
+        static readonly Dictionary<string, string> GoldenMoreTemplatesOff = new Dictionary<string, string>
         {
             ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 16  17 rooms  57 enemies  176 x 68 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 shrine, T12 archive, C14 archive, X16 throne room  templates C2 nave-apse, C4 corner-long, L8 knights-apse, C10 colonnade, C14 nave, X16 throne-nave
     +-+-+-+-+
@@ -2199,7 +2504,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(16), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(17), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor));
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN " + key + "\n" + map);
@@ -2207,8 +2512,24 @@ namespace Roguelike.Rules.Tests
             Assert.That(map, Is.EqualTo(Golden[key].Replace("\r\n", "\n")), "map of seed " + key + "\n" + map);
         }
 
+        // Work order 072 (version 17): with the second set of templates off the floor is version 16's, so the maps are, but for
+        // the version number.
+        [TestCase("WALKTHRU", 1)]
+        [TestCase("WALKTHRU", 5)]
+        [TestCase("RUNNER42", 1)]
+        [TestCase("RUNNER42", 5)]
+        public void GoldenSeeds_WithTheSecondSetOff_KeepVersion16sMaps(string seedText, int floor)
+        {
+            Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { MoreTemplates = false });
+            Assert.That(level.Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "none of the second set");
+            string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 16 ");
+            string key = seedText + "/" + floor;
+            Assert.That(map, Is.EqualTo(GoldenMoreTemplatesOff[key].Replace("\r\n", "\n")), "map of seed " + key + " with the second set off\n" + map);
+        }
+
         // Work order 059 (version 16): with the passages off the floor is version 15's, so the maps are, but for the version
-        // number.
+        // number. Work order 072: and the second set of templates off, as version 15 had none of it.
         [TestCase("WALKTHRU", 1)]
         [TestCase("WALKTHRU", 5)]
         [TestCase("RUNNER42", 1)]
@@ -2216,7 +2537,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithThePassagesOff_KeepVersion15sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Passages = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Passages = false, MoreTemplates = false });
             Assert.That(level.Rooms.All(r => r.Kind != RoomKind.Passage), "no passage");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 15 ");
             string key = seedText + "/" + floor;
@@ -2232,7 +2553,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheTemplatesOff_KeepVersion14sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Templates = false, Passages = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Templates = false, Passages = false, MoreTemplates = false });
             Assert.That(level.Rooms.All(r => r.Template == null), "no template");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 14 ");
             string key = seedText + "/" + floor;
@@ -2248,7 +2569,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheCastersOff_KeepVersion13sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = false, Templates = false, Passages = false }); // work order 058: version 13 had no templates
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = false, Templates = false, Passages = false, MoreTemplates = false }); // work order 058: version 13 had no templates
             Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 13 ");
             string key = seedText + "/" + floor;
@@ -2264,7 +2585,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheShapesOff_KeepVersion12sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false });
             Assert.That(level.Rooms.All(r => r.SolidCount == 0), "no carved cell");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 12 ");
             string key = seedText + "/" + floor;
@@ -2282,7 +2603,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithFourCombatRooms_KeepVersion11sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            var four = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false };
+            var four = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false };
             four.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, four);
             Assert.That(level.Rooms.Count(r => r.Kind == RoomKind.Combat), Is.EqualTo(4));
@@ -2298,7 +2619,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithFourCombatRoomsAndNoMood_KeepVersion10sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            var bare = new LevelValues { RoomMood = false, Shapes = false, Casters = false, Templates = false, Passages = false }; // work order 054: version 10 had the casters off
+            var bare = new LevelValues { RoomMood = false, Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false }; // work order 054: version 10 had the casters off
             bare.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, bare);
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 10 ");
@@ -2314,7 +2635,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheLineOff_KeepVersion9sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false }); // work order 044: version 9 had no mood; 054: and the casters off; 058: no templates
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false }); // work order 044: version 9 had no mood; 054: and the casters off; 058: no templates
             Assert.That(level.InALine, Is.False);
             Assert.That(level.Version, Is.EqualTo(LevelGenerator.Version));
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
@@ -2332,7 +2653,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithThemesOff_KeepMainsVersion7Maps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Themes = false, InALine = false, Casters = false, Templates = false, Passages = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Themes = false, InALine = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false });
             Assert.That(level.Rooms.All(r => r.Theme == RoomTheme.None), "no room has a theme");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 7 ");
             string key = seedText + "/" + floor;
@@ -2346,7 +2667,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithCastersOn_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false, RoomMood = false, Templates = false, Passages = false }); // work order 044: version 9 had no mood
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false, RoomMood = false, Templates = false, Passages = false, MoreTemplates = false }); // work order 044: version 9 had no mood
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN CASTERS " + key + "\n" + map);

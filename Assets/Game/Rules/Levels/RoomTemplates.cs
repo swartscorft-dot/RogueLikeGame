@@ -49,6 +49,11 @@ namespace Roguelike.Rules
         public readonly bool FarNotSouth;
         public readonly string Grid;
         public readonly int Width, Height;
+        /// <summary>
+        /// The generator's version that brought it into the library (work order 072): 15 for the first eleven (work order 058),
+        /// 17 for the more of work order 072, drawn only with <see cref="LevelValues.MoreTemplates"/> on.
+        /// </summary>
+        public int Since { get; internal set; } = 15;
         readonly char[] _cells;
         readonly List<(int ax, int ay)> _drawn = new List<(int, int)>();
 
