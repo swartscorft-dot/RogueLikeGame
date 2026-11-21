@@ -40,8 +40,13 @@ namespace Roguelike.Rules
         public float OpeningMoveCleanFrom = 0.03f;  // s after the hop's end that the clean part begins; below 0, CleanFrom (0.10)
         public float OpeningMoveCleanTo = 0.23f;    // s after it that the clean part ends; below 0, CleanTo (0.30)
         public float OpeningMoveShotStartup = 0.08f; // s from the second press to the shot; below 0, the skill's Startup (0.2)
-        public float OpeningMoveCooldownBuffer = 0.25f; // s: a first press this long or less before the cooldown ends waits and goes; 0: refused, as before
+        // (OpeningMoveCooldownBuffer, Backstep's own 0.25 s, became CooldownBuffer below in work order 066.)
         public bool OpeningMoveCutsRecovery = true; // the hop is the escape: it starts in another skill's free recovery at once; off, it waits it out
+
+        // Work order 066 (Kristian, 2026-11-21, asked whether work order 064's buffer for Backstep should hold for every skill:
+        // "Ja, alle ferdigheter"). One value for all skills, Backstep's 0.25 s of work order 064 (CooldownBufferRules). The
+        // asset holds none of it, so this default is what the game reads.
+        public float CooldownBuffer = 0.25f;  // s: a press of any skill this long or less before its cooldown ends waits and goes; 0: refused, as this morning
     }
 
     /// <summary>

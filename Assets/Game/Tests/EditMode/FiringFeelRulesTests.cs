@@ -86,7 +86,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(kit.OpeningMoveShotStartup, Is.EqualTo(0.08f), "the shot 0.08 s after the second press, down from 0.2");
             Assert.That(step.Startup, Is.EqualTo(0.2f), "the hop itself unchanged");
             Assert.That(step.RecastWindow, Is.EqualTo(0.6f), "the window unchanged");
-            Assert.That(kit.OpeningMoveCooldownBuffer, Is.EqualTo(0.25f));
+            Assert.That(kit.CooldownBuffer, Is.EqualTo(0.25f));
             Assert.That(kit.OpeningMoveCutsRecovery, Is.True);
             var cast = new SkillCast();
             cast.Start(step, 0f, kit.OpeningMoveShotStartup);

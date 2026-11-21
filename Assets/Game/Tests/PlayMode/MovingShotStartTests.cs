@@ -125,14 +125,28 @@ namespace Roguelike.PlayModeTests
 
         // ---------------- Helpers ----------------
 
-        /// <summary>Every frame: the speed limit is what the curve gives, and she is no faster than it.</summary>
+        /// <summary>
+        /// Every frame: the speed limit is what the curve gives, and she is no faster than the limit she moved under.
+        ///
+        /// Work order 066 (item 3, "Farts-rykket ved skudd"): her speed read in a frame (<see cref="PlayerCharacter.Speed"/>,
+        /// the NavMeshAgent's velocity) is the speed of the agent's last step, the one that brought her to this frame; that
+        /// step ran at the start of this frame on the velocity set in the frame before, under the limit set then. The limit
+        /// read in this frame is the one set for the next step. Before, each frame's speed was held against the curve at the
+        /// frame's own time, a frame later than the limit she moved under: on a falling curve that is the curve's fall over
+        /// one frame (0.013 m/s at the 0.45 ms frames of a test run, inside the 0.05 allowed), and on the one long frame of a
+        /// run alone, when her first shot of the process goes off and its effects are made for the first time (9.7 ms in
+        /// the probe of 2026-11-21: 4.34 read against 4.06), far more. Measured with a probe of every frame: no step was ever
+        /// faster than the limit set before it, and nothing at the shot sets her speed. So each frame's speed is now held
+        /// against the curve of the frame before (the click's frame against its own: she ran under the full speed then).
+        /// </summary>
         void CheckEveryFrame(List<Frame> frames, string table)
         {
             for (int i = 0; i < frames.Count; i++)
             {
                 float allowed = _feel.RunSpeed * frames[i].Curve;
+                float movedUnder = _feel.RunSpeed * frames[i > 0 ? i - 1 : 0].Curve; // the limit of the step that brought her here
                 Assert.That(frames[i].Limit, Is.EqualTo(allowed).Within(0.01f), $"frame {i}: the speed limit is what the curve gives\n" + table);
-                Assert.That(frames[i].Speed, Is.LessThanOrEqualTo(allowed + 0.05f), $"frame {i}: she is no faster than the curve allows\n" + table);
+                Assert.That(frames[i].Speed, Is.LessThanOrEqualTo(movedUnder + 0.05f), $"frame {i}: she is no faster than the curve allows\n" + table);
             }
         }
 
