@@ -192,6 +192,8 @@ namespace Roguelike.Rules
             RoomShape before = RoomShape.None;
             foreach (LevelRoom room in level.Rooms)
             {
+                // Work order 059: a passage keeps its path; clearing its cells would wipe it. It takes no shape and draws nothing.
+                if (room.Kind == RoomKind.Passage) continue;
                 room.ClearSolid();
                 room.Shape = RoomShape.None;
                 room.ShapeRedraws = 0;
@@ -297,8 +299,16 @@ namespace Roguelike.Rules
             foreach ((int x, int y) in GateCells(level, room)) room.SetSolid(x, y, true);
         }
 
-        /// <summary>The cells <see cref="Gate"/> marks solid (work order 058 factored them out, for the validator's check of a stamped template).</summary>
-        public static List<(int x, int y)> GateCells(LevelLayout level, LevelRoom room)
+        /// <summary>
+        /// The cells <see cref="Gate"/> marks solid (work order 058 factored them out, for the validator's check of a stamped
+        /// template). Work order 059: none on a floor with passages (<see cref="LevelLayout.Passages"/>): the passage is the
+        /// threshold, and the room opens straight from its mouth.
+        /// </summary>
+        public static List<(int x, int y)> GateCells(LevelLayout level, LevelRoom room) =>
+            level.Passages ? new List<(int x, int y)>() : CellsBesideTheDoorIn(level, room);
+
+        /// <summary>The cells a gate stands on just inside the door in, whether or not the floor has gates (work order 059: what a passage's mouth leaves open).</summary>
+        public static List<(int x, int y)> CellsBesideTheDoorIn(LevelLayout level, LevelRoom room)
         {
             var cells = new List<(int x, int y)>();
             LevelDoor entry = LevelGeometry.EntryDoor(level, room);
@@ -329,6 +339,10 @@ namespace Roguelike.Rules
                     if (!InnerCell(room, d, i, out int x, out int y, out int dx, out int dy)) continue;
                     for (int k = 0; k < deep; k++) kept.Add((x + dx * k, y + dy * k));
                 }
+            // Work order 059: on a floor with passages the cells beside the door in stay open too, so no shape makes the gate that
+            // the passage stands in place of (a notch at both corners of a wall five cells long would).
+            if (level.Passages)
+                foreach ((int x, int y) in CellsBesideTheDoorIn(level, room)) kept.Add((x, y));
             return kept;
         }
 
@@ -514,10 +528,13 @@ namespace Roguelike.Rules
         /// (a dead-end slot one cell, 3.5 m between the walls' faces, wide: nothing to be stuck in, no line that cannot be
         /// side-stepped); no two solid cells touching only at a corner with open cells on the other diagonal (no thin corner a
         /// shot could slip through); and on a carved floor (<see cref="LevelLayout.Shapes"/>) a room with a shape has its gate
-        /// (<see cref="Gate"/>).
+        /// (<see cref="Gate"/>). Work order 059: nothing for a passage (its rules are <see cref="Passages.Faults"/>); on a floor
+        /// with passages no room has a gate (the cells either side of its door in are never both solid), and a template room's
+        /// open-area rule leaves out the cells beside its door in that its gate would have taken.
         /// </summary>
         public static int Faults(LevelLayout level, LevelRoom room, LevelValues values, List<string> faults)
         {
+            if (room.Kind == RoomKind.Passage) return 0; // work order 059: a passage's rules are Passages.Faults
             bool shaped = level.Shapes && room.Shape != RoomShape.None;
             if (room.SolidCount == 0 && !shaped) return 0;
             ShapeValues v = values?.ShapeRules ?? new ShapeValues();
@@ -534,7 +551,10 @@ namespace Roguelike.Rules
             float share = room.Shape == RoomShape.Template ? RoomTemplates.ShareOf(room, values) : ShareOf(room, v);
             if (room.SolidCount > share * w * h + 1e-9)
                 Add($"has {room.SolidCount} of its {w * h} cells solid, more than {share:P0}");
-            string area = RoomTemplates.AreaFault(room, values); // work order 058: a combat or elite template room's open floor
+            // Work order 058: a combat or elite template room's open floor. Work order 059: on a floor with passages the cells its
+            // gate would take beside the door in stay open, the mouth of the passage, and are not counted as its floor.
+            int mouth = level.Passages && room.Shape == RoomShape.Template ? CellsBesideTheDoorIn(level, room).Count(c => room.IsOpen(c.x, c.y)) : 0;
+            string area = RoomTemplates.AreaFault(room, values, mouth);
             if (area != null) Add(area);
 
             // One area.
@@ -612,11 +632,16 @@ namespace Roguelike.Rules
                     }
                 }
 
-            // The gate.
-            if (shaped)
+            // The gate; work order 059: none on a floor with passages, where the room opens straight from the passage's mouth.
+            if (shaped && !level.Passages)
             {
                 LevelDoor entry = LevelGeometry.EntryDoor(level, room);
                 if (entry != null && !HasGate(room, entry)) Add($"has no gate inside door {entry.RoomA}-{entry.RoomB}");
+            }
+            else if (level.Passages)
+            {
+                LevelDoor entry = LevelGeometry.EntryDoor(level, room);
+                if (entry != null && HasGate(room, entry)) Add($"has a gate inside door {entry.RoomA}-{entry.RoomB}, where a passage comes in");
             }
             return count;
         }

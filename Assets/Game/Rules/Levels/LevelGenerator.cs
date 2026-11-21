@@ -110,6 +110,19 @@ namespace Roguelike.Rules
     /// untouched: every room holds the same seed's groups, room for room); from the first templated room on, the rooms stand
     /// elsewhere, with other sizes, places and doors. With it off every floor is version 14's, field for field, but for the
     /// version.
+    /// Version 16 (work order 059; Kristian, 2026-11-20: "bedre bruk av mappet ... litt dungen crawler følelse trenger vi, ikke
+    /// inn i store kontorlandskap med monstre i", and on 2026-11-21 he chose "Ganger mellom rommene"; the research report d's
+    /// proposal C, its first order): with <see cref="LevelValues.Passages"/> on (the default, read on a floor in a line with
+    /// doors a cell wide) the rooms of the row stand apart (<see cref="TryLineApart"/>): each is put a drawn gap of
+    /// <see cref="PassageValues.Fewest"/> to <see cref="PassageValues.Most"/> cells off the side of the room before it, by the
+    /// chain's rules otherwise (the way on, the templates' sizes and marks, taking rooms back), on a grid of
+    /// <see cref="PassageValues.GridCells"/>, and no two rooms touch. Then on a stream of their own ("passages") a passage one
+    /// cell wide is drawn into each gap, from a door in the one room's wall (an O of its template) to a door in the next's (an
+    /// I), straight or with a jog sideways in its middle (<see cref="Passages"/>); it is a room of its own kind in the row,
+    /// E P C P C ... P X, its rectangle's cells off its path solid, holding nothing. A room entered from a passage has no gate:
+    /// the passage is the threshold. The enemies are what they were (<see cref="FightsOf"/> is untouched: every room holds the
+    /// same seed's groups, room for room); the rooms stand elsewhere, with other places, doors, points, themes and props. With
+    /// it off every floor is version 15's, field for field, but for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -133,7 +146,9 @@ namespace Roguelike.Rules
         // 13's).
         // 15: work order 058, rooms drawn by hand (LevelValues.Templates, on: the library's templates, joined at their door
         // marks, on the stream "templates"; off, every floor is version 14's).
-        public const int Version = 15;
+        // 16: work order 059, passages between the rooms (LevelValues.Passages, on: the rooms of the row apart, a passage one
+        // cell wide between every two, on the stream "passages"; off, every floor is version 15's).
+        public const int Version = 16;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -172,7 +187,8 @@ namespace Roguelike.Rules
                     Floor = floor, InALine = values.InALine,
                 };
                 LevelRandom layout = LevelRandom.Stream(seed, LayoutStage, attempt);
-                if (!(values.InALine ? TryLine(level, layout, values) : TryLayout(level, layout, values))) continue;
+                if (!(values.InALine ? values.Passages && values.DoorWidth == 1 ? TryLineApart(level, layout, values) : TryLine(level, layout, values) // work order 059
+                                     : TryLayout(level, layout, values))) continue;
 
                 if (values.Shapes && level.InALine) RoomShapes.Carve(level, LevelRandom.Stream(seed, ShapesStage, attempt), values); // work order 051
                 LevelRandom contents = LevelRandom.Stream(seed, ContentsStage, attempt);
@@ -788,7 +804,7 @@ namespace Roguelike.Rules
     }
 
     /// <summary>Measures shared by the generator and the validator.</summary>
-    public static class LevelGeometry
+    public static partial class LevelGeometry
     {
         /// <summary>
         /// Whether two rooms meet along a side, and where: the wall line, whether it runs north and south (vertical),

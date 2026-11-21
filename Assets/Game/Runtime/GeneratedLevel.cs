@@ -218,6 +218,7 @@ namespace Roguelike
                 [RoomKind.Combat] = Tinted(baseMaterial, CombatTint, "LevelFloor_Combat"),
                 [RoomKind.Treasure] = Tinted(baseMaterial, RewardTint, "LevelFloor_Treasure"),
                 [RoomKind.Exit] = Tinted(baseMaterial, BossTint, "LevelFloor_Exit"),
+                [RoomKind.Passage] = Tinted(baseMaterial, CombatTint, "LevelFloor_Passage"), // work order 059: the combat rooms' floor
             };
             Material elite = null;
             float cs = Layout.CellSize;

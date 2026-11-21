@@ -397,7 +397,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_hud.EndScreenLines[0], Is.EqualTo("You died"));
             Assert.That(_hud.EndScreenLines[1], Is.EqualTo("Floor 1 of 5,  Treasure room"));
             Assert.That(_levels.Record.Floor, Is.EqualTo(1));
-            Assert.That(_levels.Record.Room, Is.EqualTo(chest.Room.Order));
+            Assert.That(_levels.Record.Room, Is.EqualTo(LevelGeometry.RoomNumber(_levels.Level.Layout, chest.Room))); // work order 059: counted without the passages
             Assert.That(_levels.Record.Outcome, Is.EqualTo(RunOutcome.Died));
             StringAssert.Contains("Enemies killed  2", _hud.EndScreenText);
             StringAssert.Contains("Skills taken  none", _hud.EndScreenText);

@@ -23,7 +23,8 @@ namespace Roguelike.Rules
     /// itself: a cell walled round with nothing inside is solid. The room's label stands in its first open cell from the
     /// north-west.
     /// Work order 058: after the themes, the legend of the rooms stamped from a template (<see cref="RoomTemplates.Legend"/>),
-    /// none when no room is.
+    /// none when no room is. Work order 059: a passage is a strip one cell wide between two rooms, labelled P alone in its first
+    /// open cell from the north-west.
     /// </summary>
     public static class LevelMap
     {
@@ -70,7 +71,8 @@ namespace Roguelike.Rules
             double cs = level.CellSize;
             foreach (LevelRoom room in level.Rooms)
             {
-                string label = room.Letter + room.Order.ToString(CultureInfo.InvariantCulture);
+                // Work order 059: a passage, a cell wide, shows its letter alone, so it does not run over its walls.
+                string label = room.Kind == RoomKind.Passage ? "P" : room.Letter + room.Order.ToString(CultureInfo.InvariantCulture);
                 // In its north-west corner; work order 051: the first open cell of its northernmost row with one, west first.
                 int lx = room.Rect.X, ly = room.Rect.Top - 1;
                 for (int y = room.Rect.Top - 1, found = 0; y >= room.Rect.Y && found == 0; y--)

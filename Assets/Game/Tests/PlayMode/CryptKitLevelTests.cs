@@ -287,7 +287,7 @@ namespace Roguelike.PlayModeTests
             GeneratedLevel level = Build(42UL, 1);
             yield return null;
             LevelLayout layout = level.Layout;
-            Assert.That(layout.Rooms.Select(r => r.Kind).Distinct().Count(), Is.EqualTo(4), "every kind of room on this floor");
+            Assert.That(layout.Rooms.Select(r => r.Kind).Distinct().Count(), Is.EqualTo(5), "every kind of room on this floor (work order 059: the passages too, on the combat rooms' floor)");
             var block = new MaterialPropertyBlock();
             for (int i = 0; i < layout.Rooms.Count; i++)
             {

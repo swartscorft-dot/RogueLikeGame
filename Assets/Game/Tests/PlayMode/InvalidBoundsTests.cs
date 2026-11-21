@@ -284,7 +284,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(parts.Fog.isPlaying && parts.Fog.gameObject.activeInHierarchy, "her room's fog");
             Assert.That(parts.Fog.particleCount, Is.GreaterThan(0), "prewarmed: there when she enters");
             Assert.That(parts.Embers.All(e => e.isPlaying && e.gameObject.activeInHierarchy), "her room's embers");
-            Assert.That(mood.Rooms.Where(r => r.Order > room.Order + 1).All(r => r.Fog == null || (!r.Fog.isPlaying && r.Fog.gameObject.activeInHierarchy)), "the far rooms' fog made, not playing");
+            // Work order 059: the next room is past the passage ahead (RoomMood.Next); the far rooms are those beyond it.
+            Assert.That(mood.Rooms.Where(r => r.Order > Math.Max(room.Order + 1, mood.Next)).All(r => r.Fog == null || (!r.Fog.isPlaying && r.Fog.gameObject.activeInHierarchy)), "the far rooms' fog made, not playing");
         }
 
         // ---------------- The proofs (minutes long) ----------------

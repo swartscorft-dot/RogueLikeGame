@@ -25,6 +25,11 @@ namespace Roguelike
     /// is made the first time a doorway is lit (never on the entrance, whose door on leads to a combat room), so the lantern
     /// lights' budget (<see cref="CryptKitLights"/>: at most two a room, only her room's on) is joined by one light at most
     /// (<see cref="DoorSignValues.LightsMost"/>). Nothing has a collider; nothing is allocated in a frame.
+    ///
+    /// Work order 059: a door's sign is that of the room it leads to, a passage passed through
+    /// (<see cref="DoorSignRules.SignedRoom"/>, <see cref="Sign.For"/>), so a passage to a treasure room shows the chest at both
+    /// its ends: over its mouth, lit while she is in the room before, and over its far end, lit while she is in the passage.
+    /// Both go dim once that room is done. With no passages every sign is what it was.
     /// </summary>
     public sealed class DoorSigns : MonoBehaviour
     {
@@ -35,6 +40,8 @@ namespace Roguelike
             public DoorSign Kind;
             /// <summary>The room it leads on to and the room it is the way on from, by their place in the run.</summary>
             public int Beyond, Before;
+            /// <summary>Work order 059: the room whose sign it shows and whose being done dims it, a passage passed through (<see cref="Beyond"/> on a floor without).</summary>
+            public int For;
             public GameObject Object;
             public MeshFilter Filter;
             public MeshRenderer Renderer;
@@ -106,7 +113,9 @@ namespace Roguelike
             {
                 int beyond = DoorSignRules.Beyond(door), before = DoorSignRules.Before(door);
                 if (beyond < 0 || beyond >= layout.Rooms.Count || before < 0) continue;
-                DoorSign kind = DoorSignRules.SignOf(layout.Rooms[beyond], layout.Floor, values.FloorsPerAct);
+                int signed = DoorSignRules.SignedRoom(layout, door); // work order 059: past a passage
+                if (signed < 0 || signed >= layout.Rooms.Count) continue;
+                DoorSign kind = DoorSignRules.SignOf(layout.Rooms[signed], layout.Floor, values.FloorsPerAct);
                 if (kind == DoorSign.None) continue;
 
                 door.Opening(cs, out LevelPoint a, out LevelPoint b);
@@ -118,7 +127,7 @@ namespace Roguelike
                 Color colour = CryptKit.Picked(DoorSignRules.ColourOf(kind, _v));
                 var sign = new Sign
                 {
-                    Door = door, Kind = kind, Beyond = beyond, Before = before, Colour = colour,
+                    Door = door, Kind = kind, Beyond = beyond, Before = before, For = signed, Colour = colour,
                     LightAt = at + into * _v.LightOut + Vector3.up * _v.LightHeight,
                 };
                 if (!meshes.TryGetValue((kind, true), out sign.LitMesh)) meshes[(kind, true)] = sign.LitMesh = MakeMesh(kind, true);
@@ -220,8 +229,8 @@ namespace Roguelike
             for (int i = 0; i < _signs.Count; i++)
             {
                 Sign s = _signs[i];
-                LevelRoom beyond = _level.Layout.Rooms[s.Beyond];
-                bool done = DoorSignRules.Done(beyond.Kind, opened != null && opened.Contains(s.Beyond), Cleared(s.Beyond));
+                LevelRoom signed = _level.Layout.Rooms[s.For]; // work order 059: the room its sign is of, a passage passed through
+                bool done = DoorSignRules.Done(signed.Kind, opened != null && opened.Contains(s.For), Cleared(s.For));
                 bool lit = DoorSignRules.Lit(s.Kind, s.Door, Here, done);
                 s.BeyondDone = done;
                 if (lit != s.Lit || s.Filter.sharedMesh != (lit ? s.LitMesh : s.DimMesh))

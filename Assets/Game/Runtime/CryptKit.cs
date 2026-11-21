@@ -196,7 +196,7 @@ namespace Roguelike
         {
             Rgb tint = elite ? values.EliteFloorTint
                 : kind == RoomKind.Entrance ? values.EntranceFloorTint
-                : kind == RoomKind.Combat ? values.CombatFloorTint
+                : kind == RoomKind.Combat || kind == RoomKind.Passage ? values.CombatFloorTint // work order 059: a passage the combat rooms' floor
                 : kind == RoomKind.Treasure ? values.TreasureFloorTint
                 : values.ExitFloorTint;
             Texture2D texture = Resources.Load<Texture2D>(FloorTexturePath(kind));

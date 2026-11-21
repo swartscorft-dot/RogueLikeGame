@@ -845,7 +845,7 @@ namespace Roguelike.PlayModeTests
                 float cs = level.Layout.CellSize;
                 foreach (LevelRoom r in level.Layout.Rooms)
                 {
-                    if (r.SolidCount == 0 || room != null) continue;
+                    if (r.SolidCount == 0 || room != null || r.Kind == RoomKind.Passage) continue; // work order 059: a carved room's block, not a passage's walls
                     foreach ((int x, int y) in r.SolidList)
                     {
                         // An open cell of the room beside the block, two cells deep, on the floor's NavMesh.

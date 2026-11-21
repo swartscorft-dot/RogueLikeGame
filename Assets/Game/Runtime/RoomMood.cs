@@ -111,11 +111,35 @@ namespace Roguelike
         /// <summary>The object everything is under.</summary>
         public GameObject Root => _root;
         public IReadOnlyList<RoomParts> Rooms => _rooms;
+
+        /// <summary>A room's parts by its place in the run, or null (work order 059: a passage has none, so the list is not by order).</summary>
+        public RoomParts Of(int order)
+        {
+            for (int i = 0; i < _rooms.Count; i++)
+                if (_rooms[i].Order == order) return _rooms[i];
+            return null;
+        }
         public Light HerLight => _herLight;
         public ParticleSystem Dust => _dust;
         public AudioSource Tone => _tone;
         /// <summary>The room she was in at the last tick, by its place in the run; -1 for none.</summary>
         public int Here { get; private set; } = -1;
+        /// <summary>
+        /// Work order 059: the next room of the row after the one she is in that is not a passage, by its place in the run (-1 for
+        /// none): its air and flicker are on with hers. In a room, the room past the passage ahead; in a passage, the room it
+        /// leads to. On a floor without passages, the room after hers. Worked out when she changes room.
+        /// </summary>
+        public int Next { get; private set; } = -1;
+
+        /// <summary>The first room after <paramref name="here"/> in the run that is not a passage; -1 for none (no allocation).</summary>
+        int NextRoomAfter(int here)
+        {
+            if (here < 0 || _level == null || _level.Layout == null) return -1;
+            List<LevelRoom> rooms = _level.Layout.Rooms;
+            for (int k = here + 1; k < rooms.Count; k++)
+                if (rooms[k].Kind != RoomKind.Passage) return k;
+            return -1;
+        }
         /// <summary>Enemy renderers drawn with the light floor.</summary>
         public int FlooredRenderers => _floored.Count;
         public bool Built => _built;
@@ -827,7 +851,8 @@ namespace Roguelike
 
         /// <summary>
         /// Looks at where she is and at the numbers, and keeps every layer as they say: the darkness, her light, the real
-        /// lights of her room, the air of her room and the next, the flicker, the tone's volume. Allocates nothing (but when a
+        /// lights of her room, the air of her room and the next (work order 059: the next that is not a passage, <see cref="Next"/>),
+        /// the flicker, the tone's volume. Allocates nothing (but when a
         /// switch or a number that shapes the mood changed: then it builds it again). For tests too.
         /// </summary>
         public void Tick()
@@ -894,11 +919,12 @@ namespace Roguelike
             if (here != Here)
             {
                 Here = here;
+                Next = NextRoomAfter(here); // work order 059: past a passage
                 for (int i = 0; i < _rooms.Count; i++)
                 {
                     RoomParts p = _rooms[i];
                     for (int k = 0; k < p.Lights.Count; k++) p.Lights[k].enabled = p.Order == here;
-                    bool air = here >= 0 && (p.Order == here || p.Order == here + 1);
+                    bool air = here >= 0 && (p.Order == here || p.Order == Next);
                     if (air == p.AirOn) continue;
                     p.AirOn = air;
                     if (p.Fog != null)
@@ -919,7 +945,7 @@ namespace Roguelike
             for (int i = 0; i < _rooms.Count; i++)
             {
                 RoomParts p = _rooms[i];
-                if (here < 0 || (p.Order != here && p.Order != here + 1)) continue;
+                if (here < 0 || (p.Order != here && p.Order != Next)) continue;
                 for (int s = 0; s < p.Sources.Count; s++)
                 {
                     MoodSource src = p.Sources[s];

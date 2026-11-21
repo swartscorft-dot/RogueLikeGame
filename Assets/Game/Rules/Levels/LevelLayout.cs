@@ -9,9 +9,12 @@ namespace Roguelike.Rules
     /// The kinds of room of a floor (decision 0008, 2026-11-19; work order 012 renamed them from Start, Reward and Boss):
     /// the entrance, the combat rooms, the treasure rooms (small rooms, a chest in each: off the sides of combat rooms
     /// until work order 041, in the row of rooms since) and the exit room (the floor's hardest fight; on the act's last
-    /// floor it holds the act boss).
+    /// floor it holds the act boss). Work order 059 (Kristian's words of 2026-11-20, "bedre bruk av mappet ... litt dungen
+    /// crawler følelse", and his choice of 2026-11-21, "Ganger mellom rommene"; the research report d's proposal C): a passage,
+    /// one cell wide, between two rooms of the row that stand apart (<see cref="Passages"/>), at the end so the numbers of the
+    /// others stay.
     /// </summary>
-    public enum RoomKind { Entrance, Combat, Treasure, Exit }
+    public enum RoomKind { Entrance, Combat, Treasure, Exit, Passage }
 
     /// <summary>A rectangle of whole cells: X and Y are its lowest cell (west and south), Width and Height its size.</summary>
     public struct CellRect : IEquatable<CellRect>
@@ -147,9 +150,9 @@ namespace Roguelike.Rules
         /// <summary>The letter for its kind on a map; L for the elite room (work order 017).</summary>
         public char Letter => Elite ? 'L' : KindLetter(Kind);
 
-        /// <summary>E entrance, C combat, T treasure, X exit (work order 012; S, C, R and B before). The elite room, a combat room, is L.</summary>
+        /// <summary>E entrance, C combat, T treasure, X exit (work order 012; S, C, R and B before), P a passage (work order 059). The elite room, a combat room, is L.</summary>
         public static char KindLetter(RoomKind kind) =>
-            kind == RoomKind.Entrance ? 'E' : kind == RoomKind.Combat ? 'C' : kind == RoomKind.Treasure ? 'T' : 'X';
+            kind == RoomKind.Entrance ? 'E' : kind == RoomKind.Combat ? 'C' : kind == RoomKind.Treasure ? 'T' : kind == RoomKind.Passage ? 'P' : 'X';
 
         public LevelPoint Middle(double cellSize) =>
             new LevelPoint((Rect.X + Rect.Width * 0.5) * cellSize, (Rect.Y + Rect.Height * 0.5) * cellSize);
@@ -315,6 +318,12 @@ namespace Roguelike.Rules
         public bool Shapes;
         /// <summary>The rooms were drawn with the templates on (work order 058, <see cref="LevelValues.Templates"/>): some have a <see cref="LevelRoom.Template"/>.</summary>
         public bool Templates;
+        /// <summary>
+        /// The rooms of the row stand apart, a passage between every two (work order 059, <see cref="LevelValues.Passages"/>,
+        /// <see cref="Rules.Passages"/>): the rooms in the order of the run are E P C P C ... P X. False: each room against the
+        /// one before it, as before.
+        /// </summary>
+        public bool Passages;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
 
@@ -410,7 +419,7 @@ namespace Roguelike.Rules
             var sb = new StringBuilder();
             sb.AppendFormat(CultureInfo.InvariantCulture, "seed {0} ({1}) floor {6} version {2} grid {3} cell {4:R} attempt {5}{7}\n",
                             Seed, SeedText, Version, GridCells, CellSize, Attempt, Floor,
-                            (Shapes ? " carved" : "") + (Templates ? " templated" : "") + (InALine ? " in a line" : "")); // work orders 051, 058 and 041
+                            (Shapes ? " carved" : "") + (Templates ? " templated" : "") + (InALine ? " in a line" : "") + (Passages ? " with passages" : "")); // work orders 051, 058, 041 and 059
             foreach (LevelRoom r in Rooms)
             {
                 sb.Append(r.Order).Append(' ').Append(r.Kind).Append(r.Elite ? " elite" : "").Append(' ').Append(r.Rect);

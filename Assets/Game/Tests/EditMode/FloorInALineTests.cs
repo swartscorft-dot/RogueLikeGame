@@ -78,7 +78,7 @@ namespace Roguelike.Rules.Tests
         {
             // Work order 051: the rooms' carved outlines off, so this measures the line against the side rooms as it did; what the
             // shapes cost is measured on its own (RoomShapesTests.Generation_CostsAtMostHalfAsMuchAgain_ByTheMedian).
-            var on = new LevelValues { Shapes = false };
+            var on = new LevelValues { Shapes = false, Passages = false }; // work order 059: the rooms touching, as the row of 041 was measured
             var off = new LevelValues { InALine = false };
             Assert.That(on.InALine, Is.True, "on by default");
             LevelGenerator.Generate(424242UL, floor, on); // the first calls pay for compiling the code
@@ -229,7 +229,7 @@ namespace Roguelike.Rules.Tests
         {
             // Work order 044: the rooms' mood off too, as version 9 had none: with it on, an ossuary's piles are banked at its
             // far wall (pinned in RoomMoodPlanTests), and every other field of every floor is the same either way.
-            var off = new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false }; // work order 054: version 9 had the casters off; 058: nor templates
+            var off = new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false }; // work order 054: version 9 had the casters off; 058: nor templates; 059: nor passages
             var print = new Print();
             ulong described = 14695981039346656037UL;
             for (ulong s = 0; s < 1000; s++)
@@ -285,7 +285,7 @@ namespace Roguelike.Rules.Tests
         public void Validator_ReportsATreasureRoomOutOfItsPlaceOnTheRow()
         {
             LevelLayout level = Line();
-            LevelRoom t = level.Rooms.First(r => r.Kind == RoomKind.Treasure), c = level.Rooms[1];
+            LevelRoom t = level.Rooms.First(r => r.Kind == RoomKind.Treasure), c = level.Rooms.First(r => r.Kind == RoomKind.Combat); // work order 059: past the first passage
             Assume.That(c.Kind, Is.EqualTo(RoomKind.Combat));
             t.Kind = RoomKind.Combat;
             c.Kind = RoomKind.Treasure;
@@ -310,9 +310,11 @@ namespace Roguelike.Rules.Tests
             LevelLayout level = Line();
             Assert.That(LevelValidator.Validate(level), Is.Empty);
             string map = LevelMap.Draw(level);
-            foreach (LevelRoom r in level.Rooms) Assert.That(map, Does.Contain(r.Letter + r.Order.ToString(s_Inv)), map);
+            // Work order 059: a passage's label is its letter alone.
+            foreach (LevelRoom r in level.Rooms) Assert.That(map, Does.Contain(r.Kind == RoomKind.Passage ? "P" : r.Letter + r.Order.ToString(s_Inv)), map);
             Assert.That(map, Does.Contain("version " + LevelGenerator.Version + " "));
-            Assert.That(level.Describe(), Does.Contain(" in a line\n"));
+            Assert.That(level.Describe(), Does.Contain(" in a line with passages\n"));
+            Assert.That(LevelGenerator.Generate(42UL, new LevelValues { Passages = false }).Describe(), Does.Contain(" in a line\n"));
             Assert.That(LevelGenerator.Generate(42UL, new LevelValues { InALine = false }).Describe(), Does.Not.Contain("in a line"));
         }
 
@@ -428,7 +430,8 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheMap_SeesOneStepAheadAlongTheRow_AndFitsTheFloorInItsCorner()
         {
-            LevelLayout level = Line();
+            // Work order 059: the rooms touching; past a passage, PassagesTests.TheMapsRoomBefore_PassesOverAPassage_AndTheRoomNumbersSkipThem.
+            LevelLayout level = LevelGenerator.Generate(42UL, new LevelValues { Passages = false });
             for (int i = 0; i < level.Rooms.Count; i++) Assert.That(FloorMapRules.Before(level, level.Rooms[i]), Is.EqualTo(i - 1), "room " + i);
             // With side rooms, a treasure room is seen from its combat room.
             LevelLayout sides = LevelGenerator.Generate(42UL, new LevelValues { InALine = false });

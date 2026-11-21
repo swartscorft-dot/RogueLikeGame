@@ -124,7 +124,8 @@ namespace Roguelike.PlayModeTests
                     // Changed deliberately (work order 052): but those a large prop stands in place of (the throne's pair, a shrine's basin).
                     List<LevelProp> described = layout.Rooms.SelectMany(r => r.Props).Where(p => !level.Replaced.Contains(p)).ToList();
                     Assert.That(level.Props.Count, Is.EqualTo(described.Count), where + ": a prop built for each of the plan");
-                    Assert.That(layout.Rooms.Where(r => r.Kind != RoomKind.Entrance).All(r => r.Theme != RoomTheme.None), where + ": every room but the entrance has a theme");
+                    Assert.That(layout.Rooms.Where(r => r.Kind != RoomKind.Entrance && r.Kind != RoomKind.Passage).All(r => r.Theme != RoomTheme.None), where + ": every room but the entrance has a theme (work order 059: a passage has none)");
+                    Assert.That(layout.Rooms.Where(r => r.Kind == RoomKind.Passage).All(r => r.Theme == RoomTheme.None && r.Props.Count == 0), where + ": a passage holds nothing");
                     foreach (LevelRoom r in layout.Rooms) themes.Add(r.Theme);
 
                     for (int i = 0; i < described.Count; i++)

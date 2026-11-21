@@ -363,6 +363,7 @@ namespace Roguelike.Rules.Tests
             room.EnemyGroups[i] = new EnemyGroup(EnemyKind.Caster);
             Assert.That(LevelValidator.Validate(level, on).Any(f => f.Contains("casters, floor 1 at most 0")), string.Join("\n", LevelValidator.Validate(level, on)));
 
+            on = new LevelValues { Casters = true, Passages = false }; // work order 059: the rooms of version 15 on this seed hold two such enemies near each other
             LevelLayout four = LevelGenerator.Generate(42UL, 4, on);
             Assume.That(LevelValidator.Validate(four, on), Is.Empty);
             // Two enemies standing alone in a room of floor 4 made casters, the nearest two such: nearer than 8 m, a fault.

@@ -189,7 +189,8 @@ namespace Roguelike.Rules
         /// <summary>
         /// A room in words: the treasure rooms "Treasure room", the exit room "Exit room", the entrance "Entrance", and
         /// any other "Room 3 of 6", numbered by its place in the floor from 1 (the entrance is room 1); the elite room
-        /// "Elite room, 4 of 8" (work order 017).
+        /// "Elite room, 4 of 8" (work order 017). Work order 059: a passage "Passage"; the numbers count the rooms that are not
+        /// passages (<see cref="LevelGeometry.RoomNumber"/>, <see cref="LevelGeometry.RoomCount"/>, given by the run).
         /// </summary>
         public static string Room(RoomKind kind, int order, int rooms, bool elite = false)
         {
@@ -199,6 +200,7 @@ namespace Roguelike.Rules
                 case RoomKind.Treasure: return "Treasure room";
                 case RoomKind.Exit: return "Exit room";
                 case RoomKind.Entrance: return "Entrance";
+                case RoomKind.Passage: return "Passage"; // work order 059: a passage between two rooms has no number
                 default: return string.Format(s_Inv, "Room {0} of {1}", order + 1, rooms);
             }
         }

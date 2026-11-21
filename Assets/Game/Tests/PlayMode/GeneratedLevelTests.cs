@@ -106,6 +106,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator SheCanWalk_FromTheStart_ToEveryRoom_ButNotThroughAWall()
         {
+            // Work order 059: the rooms touching, so a wall cell beside a door has open floor on both sides (beside a passage's
+            // door lies its solid cells); the way through every passage is PassagesPlayTests'.
+            GeneratedLevels.Ensure().Values = new LevelValues { Passages = false };
             GeneratedLevel level = Build();
             yield return null;
             LevelLayout layout = level.Layout;

@@ -124,6 +124,11 @@ namespace Roguelike.Rules.Tests
 
                 foreach (LevelRoom r in level.Rooms)
                 {
+                    if (r.Kind == RoomKind.Passage) // work order 059: a passage between two rooms has no theme and holds nothing
+                    {
+                        if (r.Theme != RoomTheme.None || r.Props.Count > 0) Assert.Fail(where + " " + r.Letter + r.Order + ": a passage with a theme or props");
+                        continue;
+                    }
                     if ((r.Theme == RoomTheme.None) != (r.Kind == RoomKind.Entrance)) Assert.Fail(where + " " + r.Letter + r.Order + ": a theme for every room but the entrance");
                     if (r.Theme == RoomTheme.None) continue;
                     ThemeRecipe recipe = values.ThemeRules.Of(r.Theme, r.Kind);

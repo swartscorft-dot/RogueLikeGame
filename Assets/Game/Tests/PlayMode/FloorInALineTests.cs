@@ -73,7 +73,9 @@ namespace Roguelike.PlayModeTests
 
         GeneratedLevel StartRun(Action<LevelValues> change = null)
         {
-            _levels.Values = new LevelValues();
+            // Work order 059: the rooms touching, as the row's doors, signs and map were built for them (each sign on the door
+            // into its room, one room ahead on the map); past a passage, PassagesPlayTests.
+            _levels.Values = new LevelValues { Passages = false };
             change?.Invoke(_levels.Values);
             GeneratedLevel level = _levels.StartRun(RunSeed);
             Assert.That(level, Is.Not.Null);
@@ -314,7 +316,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheLights_StayInsideTheBudget_OnFloor5()
         {
-            _levels.Values = new LevelValues();
+            _levels.Values = new LevelValues { Passages = false }; // work order 059: as StartRun
             _levels.Values.Crypt.LanternLights = true;
             GeneratedLevel level = _levels.Build(0x5EED5UL, 5);
             yield return Frames(2);
@@ -337,7 +339,7 @@ namespace Roguelike.PlayModeTests
             Debug.Log("LIGHTBUDGET floor 5: " + made + " lights made (" + lanterns + " lanterns'), at most " + mostOn + " on at once, the budget " + budget);
 
             // With the lanterns' lights off (the default) the doorway's is the only one.
-            _levels.Values = new LevelValues();
+            _levels.Values = new LevelValues { Passages = false };
             GeneratedLevel plain = _levels.Build(0x5EED5UL, 5);
             yield return Frames(2);
             foreach (LevelRoom room in plain.Layout.Rooms)

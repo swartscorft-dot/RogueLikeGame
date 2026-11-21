@@ -46,6 +46,14 @@ namespace Roguelike.Rules
     /// template's turned size in place of the plan's, its kind the template's, its door in beside an I and its door out beside
     /// an O, a stamped one's solid cells its template's # and ? cells and its gate, every # solid; no two neighbouring combat
     /// rooms of the row of one family, and no template twice on a floor.
+    /// Since work order 059 a floor with passages (<see cref="LevelLayout.Passages"/>, as the values say): the main path is the
+    /// row with a passage between every two rooms, and the passages are one fewer than the rooms; a passage's size is its own
+    /// rule, and its rules are <see cref="Passages.Faults"/> (two doors at the ends of one path a cell wide, its depth, at most
+    /// two bends, none next to a room, no straight run too long, touching only its two rooms, holding nothing); a door that
+    /// joins a passage is on its room's wall with that wall running on a cell either side of it and no other door there
+    /// (<see cref="Passages.DoorFault"/>), in place of the wall on both sides of the stretch the two share; no two rooms that
+    /// are not passages touch; a passage keeps no lane; and the walk over cells from her start reaches every open cell of the
+    /// floor (<see cref="Passages.WalkFault"/>).
     /// </summary>
     public static class LevelValidator
     {
@@ -58,6 +66,10 @@ namespace Roguelike.Rules
             // Work order 041: the values say which rules a floor keeps, and the floor says which it was made by.
             if (level != null && level.InALine != values.InALine)
                 faults.Add(level.InALine ? "the floor is in a line and the values' InALine is off" : "the floor has side rooms and the values' InALine is on");
+            // Work order 059: and whether its rooms stand apart with passages between them.
+            bool passages = values.Passages && values.InALine && values.DoorWidth == 1;
+            if (level != null && level.InALine == values.InALine && level.Passages != passages)
+                faults.Add(level.Passages ? "the floor has passages and the values' Passages is off" : "the floor has no passages and the values' Passages is on");
             return faults;
         }
 
@@ -92,6 +104,7 @@ namespace Roguelike.Rules
                 if (c.X < 0 || c.Y < 0 || c.Right > level.GridCells || c.Top > level.GridCells)
                     faults.Add($"{Name(r)} {c} is outside the grid of {level.GridCells}");
                 RoomSizeRange size = plan.SizeOf(r.Kind);
+                if (r.Kind == RoomKind.Passage) continue; // work order 059: a passage's size is its own rule (Passages.Faults)
                 if (r.Template == null && (!size.Allows(c.Width) || !size.Allows(c.Height))) // work order 058: a template room's size is its template's, below
                     faults.Add($"{Name(r)} is {c.Width}x{c.Height}, not {size.Min} to {size.Max} on a side for a {r.Kind} room");
             }
@@ -110,6 +123,7 @@ namespace Roguelike.Rules
             Count(RoomKind.Combat, combatRooms);
             Count(RoomKind.Treasure, plan.TreasureRooms);
             Count(RoomKind.Exit, 1);
+            Count(RoomKind.Passage, level.Passages ? Math.Max(0, rooms.Count(r => r.Kind != RoomKind.Passage) - 1) : 0); // work order 059: one fewer than the rooms
 
             // The doors.
             bool Known(int order) => order >= 0 && order < rooms.Count;
@@ -132,8 +146,15 @@ namespace Roguelike.Rules
                     faults.Add($"{label}: the two rooms do not share that wall ({(d.Vertical ? "vertical" : "horizontal")} line {d.Line})");
                     continue;
                 }
+                bool passageEnd = rooms[d.RoomA].Kind == RoomKind.Passage || rooms[d.RoomB].Kind == RoomKind.Passage; // work order 059
                 if (d.Width < 1 || d.From < lo || d.From + d.Width > hi)
                     faults.Add($"{label} at {d.From}+{d.Width} is not on the stretch the rooms share ({lo} to {hi})");
+                else if (passageEnd)
+                {
+                    // Work order 059: the stretch is the passage's own end; the room's wall runs on a cell either side instead.
+                    string end = Passages.DoorFault(level, d);
+                    if (end != null) faults.Add($"{label} at {d.From}+{d.Width} {end}");
+                }
                 else if (d.From - 1 < lo || d.From + d.Width + 1 > hi)
                     faults.Add($"{label} at {d.From}+{d.Width} has no wall on both sides (shared stretch {lo} to {hi})");
             }
@@ -164,6 +185,8 @@ namespace Roguelike.Rules
             if (level.InALine) wantedPath.AddRange(plan.LineBetween()); // work order 041: the row, the treasure rooms on it
             else wantedPath.AddRange(Enumerable.Repeat(RoomKind.Combat, plan.CombatRooms));
             wantedPath.Add(RoomKind.Exit);
+            if (level.Passages) // work order 059: a passage between every two rooms of the row
+                for (int i = wantedPath.Count - 1; i > 0; i--) wantedPath.Insert(i, RoomKind.Passage);
             if (!path.Select(r => r.Kind).SequenceEqual(wantedPath))
                 faults.Add("the main path runs " + string.Join(" ", path.Select(Name)) + ", not "
                            + (level.InALine ? string.Join(" ", wantedPath.Select(LevelRoom.KindLetter)) + " (the row of work order 041)"
@@ -271,6 +294,14 @@ namespace Roguelike.Rules
                 foreach (string fault in broken) faults.Add(Name(r) + " " + fault);
             }
             RoomTemplates.Check(level, faults); // work order 058: the template rooms' size, kind, door marks, stamp and families
+            if (level.Passages)
+            {
+                // Work order 059: every passage's rules, no two rooms touching, and the walk over cells reaching every open cell.
+                Passages.Faults(level, values, faults);
+                string walk = Passages.WalkFault(level);
+                if (walk != null) faults.Add(walk);
+            }
+            else if (rooms.Any(r => r.Kind == RoomKind.Passage)) faults.Add("the floor holds a passage and is not marked as one with passages");
 
             // The props (work order 009).
             PropValues pv = values.PropRules;
@@ -318,6 +349,7 @@ namespace Roguelike.Rules
                     double share = PropRules.WalkableShare(level, r, pv);
                     if (share < pv.MinWalkable - Slack) faults.Add($"{Name(r)} keeps {share:P0} of its floor walkable, less than {pv.MinWalkable:P0}");
                 }
+                if (r.Kind == RoomKind.Passage) continue; // work order 059: a passage keeps no lane (its middle may be a solid cell) and holds no props (Passages.Faults)
                 var lane = new PropRules.Lane(level, r, pv);
                 foreach (LevelProp p in r.Props) lane.Block(p.Footprint);
                 if (!lane.Clear())

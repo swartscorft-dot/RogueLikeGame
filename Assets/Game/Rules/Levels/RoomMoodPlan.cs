@@ -219,6 +219,14 @@ namespace Roguelike.Rules
 
         public readonly List<MoodRoom> Rooms = new List<MoodRoom>();
 
+        /// <summary>The plan of a room by its place in the run, or null (work order 059: a passage has none, so the list is not by order).</summary>
+        public MoodRoom Of(int order)
+        {
+            for (int i = 0; i < Rooms.Count; i++)
+                if (Rooms[i].Room != null && Rooms[i].Room.Order == order) return Rooms[i];
+            return null;
+        }
+
         static double Unit(LevelRandom rng) => (rng.NextBits() >> 11) * (1.0 / (1UL << 53));
         static double Between(LevelRandom rng, double a, double b) => a + (b - a) * Unit(rng);
 
@@ -272,6 +280,9 @@ namespace Roguelike.Rules
             CryptKitPlan kit = null; // work order 052: where the kit's niches and lanterns are, for the large props at a wall
             foreach (LevelRoom room in layout.Rooms)
             {
+                // Work order 059: a passage has no mood of its own (no composition, wear, sources or fog, no draw from the
+                // stream): its rectangle's middle may be a solid cell, and a pool of light there would glow on the void.
+                if (room.Kind == RoomKind.Passage) continue;
                 var mr = new MoodRoom { Room = room };
                 LevelDoor entry = LevelGeometry.EntryDoor(layout, room);
                 int wayIn = entry != null ? LevelGeometry.WallOf(room.Rect, entry) : -1;

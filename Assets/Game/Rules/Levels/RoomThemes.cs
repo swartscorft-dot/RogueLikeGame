@@ -115,6 +115,12 @@ namespace Roguelike.Rules
                 double u = Unit(rng);
                 LevelDoor door = level.DoorsOf(room.Order).FirstOrDefault();
                 LevelRoom parent = door != null && door.Other(room.Order) >= 0 && door.Other(room.Order) < level.Rooms.Count ? level.Rooms[door.Other(room.Order)] : null;
+                // Work order 059: on a floor with passages the room before it is past its passage.
+                if (parent != null && parent.Kind == RoomKind.Passage)
+                {
+                    int before = Passages.RoomBefore(level, room);
+                    parent = before >= 0 && before < level.Rooms.Count ? level.Rooms[before] : null;
+                }
                 bool vault = u < tv.VaultShare || (parent != null && parent.Theme == RoomTheme.Archive);
                 RoomTheme theme = vault ? RoomTheme.Vault : RoomTheme.Archive;
                 if (tv.Of(theme, RoomKind.Treasure) == null) theme = vault ? RoomTheme.Archive : RoomTheme.Vault;

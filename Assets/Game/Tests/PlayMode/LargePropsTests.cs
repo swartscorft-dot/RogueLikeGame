@@ -261,7 +261,7 @@ namespace Roguelike.PlayModeTests
                         Assert.That(NavMesh.SamplePosition(level.ToWorld(onTop), out NavMeshHit hit, 0.3f, NavMesh.AllAreas), "NavMesh on the dais: " + what);
                         Assert.That(hit.position.y, Is.EqualTo(0f).Within(0.1f), "at the floor's height: " + what);
                         // What it carries is drawn on its top, its collider where it was.
-                        MoodRoom mr = level.LargePropsPlan.Rooms[placed.Room.Order];
+                        MoodRoom mr = level.LargePropsPlan.Of(placed.Room.Order); // work order 059: by order, a passage having no plan
                         foreach (LevelProp carried in mr.Raised)
                         {
                             GeneratedLevel.PlacedProp c = level.Props.First(x => x.Prop == carried);
@@ -340,7 +340,7 @@ namespace Roguelike.PlayModeTests
             yield return Frames(2);
             GeneratedLevel.PlacedProp chest = _levels.Chests().First(c => c.Room.Order == found.Order);
             LevelProp dais = level.LargeProps.First(p => p.Room.Order == found.Order && p.Prop.Model == PropModel.Dais).Prop;
-            Assert.That(level.LargePropsPlan.Rooms[found.Order].Raised, Does.Contain(chest.Prop), "the chest stands on the dais");
+            Assert.That(level.LargePropsPlan.Of(found.Order).Raised, Does.Contain(chest.Prop), "the chest stands on the dais");
 
             // She walks up to its front over the dais: from there it is in reach and opens.
             LevelPoint f = chest.Prop.Front;
@@ -377,7 +377,12 @@ namespace Roguelike.PlayModeTests
             int large = 0, mostOn = 0;
             foreach (LevelRoom room in level.Layout.Rooms)
             {
-                RoomMood.RoomParts parts = mood.Rooms[room.Order];
+                RoomMood.RoomParts parts = mood.Of(room.Order); // work order 059: a passage has no parts of its own
+                if (parts == null)
+                {
+                    Assert.That(room.Kind, Is.EqualTo(RoomKind.Passage));
+                    continue;
+                }
                 foreach (GeneratedLevel.PlacedProp p in level.LargeProps.Where(p => p.Room == room))
                 {
                     if (p.Prop.Model == PropModel.Dais) continue; // its middle is the chest's, whose gold it carries

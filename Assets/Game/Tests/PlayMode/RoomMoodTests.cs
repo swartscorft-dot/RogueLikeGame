@@ -69,7 +69,9 @@ namespace Roguelike.PlayModeTests
 
         GeneratedLevel Build(int floor = 5, Action<LevelValues> change = null, ulong seed = Seed)
         {
-            _levels.Values = new LevelValues();
+            // Work order 059: the rooms touching, as the mood was built for them (her room and the next one in the run); the mood
+            // across a passage is PassagesPlayTests.InAPassage_TheAirAheadIsOn_AndBehindOff_InARoom_TheRoomPastThePassage.
+            _levels.Values = new LevelValues { Passages = false };
             change?.Invoke(_levels.Values);
             GeneratedLevel level = _levels.Build(seed, floor);
             Assert.That(level, Is.Not.Null);

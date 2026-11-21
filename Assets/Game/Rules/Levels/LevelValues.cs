@@ -325,6 +325,13 @@ namespace Roguelike.Rules
         // every floor is version 14's, field for field, but for the version.
         public bool Templates = true;
         public TemplateValues TemplateRules = new TemplateValues();
+        // Passages between the rooms (work order 059; Kristian, 2026-11-20: "bedre bruk av mappet ... litt dungen crawler følelse
+        // trenger vi, ikke inn i store kontorlandskap med monstre i", and on 2026-11-21 he chose "Ganger mellom rommene"; the
+        // research report d's proposal C): on, the rooms of the row stand apart, and a passage one cell wide joins each to the
+        // next (Passages, PassageRules; the generator's own stream "passages"). Read only on a floor in a line (InALine) with
+        // DoorWidth 1. Off: every floor is version 15's, field for field, but for the version.
+        public bool Passages = true;
+        public PassageValues PassageRules = new PassageValues();
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();

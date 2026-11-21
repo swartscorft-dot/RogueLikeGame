@@ -75,6 +75,7 @@ namespace Roguelike.Rules
         /// <summary>One step plainer: a shape gives way to the gate alone, the gate to the plain rectangle; false when it is plain already.</summary>
         static bool Plainer(LevelLayout level, LevelRoom room)
         {
+            if (room.Kind == RoomKind.Passage) return false; // work order 059: its solid cells are its walls; clearing them would wipe its path
             if (room.Shape != RoomShape.Plain && room.Shape != RoomShape.None)
             {
                 // Its solid cells but the gate's go: the gate is drawn again on the bare rectangle by the shapes' own rule.

@@ -326,12 +326,61 @@ namespace Roguelike.Rules
             return list;
         }
 
-        /// <summary>The join check (work order 058): some place on the shared stretch where the earlier room's O meets the later one's I (see <see cref="JoinPlaces"/>).</summary>
-        public static bool CanJoin(CellRect earlier, TemplatePlacement earlierTemplate, CellRect later, TemplatePlacement laterTemplate, int width)
+        /// <summary>
+        /// The join check (work order 058): some place on the shared stretch where the earlier room's O meets the later one's I
+        /// (see <see cref="JoinPlaces"/>). Work order 059 widened it to rooms that stand apart: with <paramref name="gap"/> above
+        /// 0 the later room stands that many cells off the earlier one's side (<paramref name="side"/>, the earlier room's wall
+        /// toward it), and the two must hold a passage's two ends: a door place of the earlier room's O cells on that wall and one
+        /// of the later room's I cells on the wall across, on the stretch where they face each other (<see cref="DoorPlaces"/>),
+        /// that a passage of that depth can join (<see cref="Passages.Joinable"/>: the same place when it may run straight, one
+        /// to <see cref="PassageValues.JogMost"/> apart when it may jog).
+        /// </summary>
+        public static bool CanJoin(CellRect earlier, TemplatePlacement earlierTemplate, CellRect later, TemplatePlacement laterTemplate, int width,
+                                   int gap = 0, int side = -1, PassageValues passages = null)
         {
+            if (gap > 0)
+            {
+                if (!Passages.Facing(earlier, later, side, out int lo, out int hi)) return false;
+                return Passages.Joinable(DoorPlaces(earlier, earlierTemplate, side, lo, hi, 'O', width),
+                                         DoorPlaces(later, laterTemplate, LevelGenerator.Opposite(side), lo, hi, 'I', width), gap, passages);
+            }
             if (earlierTemplate == null && laterTemplate == null)
                 return LevelGeometry.SharedWall(earlier, later, out _, out _, out int lo, out int hi) && hi - lo >= width + 2;
             return JoinPlaces(earlier, earlierTemplate, later, laterTemplate, width).Count > 0;
+        }
+
+        /// <summary>
+        /// The places a door may open in one room's wall (work order 059, the join of work order 058 widened for the passages):
+        /// each From on the stretch [<paramref name="lo"/>, <paramref name="hi"/>) of its wall <paramref name="side"/> with a
+        /// wall cell either side of the opening (as <c>LevelGenerator.DoorBetween</c> keeps), where every cell of the opening
+        /// inside the room is <paramref name="mark"/> of its template (<see cref="DoorOnMark"/>; any cell of a room without one).
+        /// In increasing order.
+        /// </summary>
+        public static List<int> DoorPlaces(CellRect room, TemplatePlacement template, int side, int lo, int hi, char mark, int width)
+        {
+            var list = new List<int>();
+            for (int from = lo + 1; from <= hi - 1 - width; from++)
+                if (DoorOnMark(room, template, side, from, width, mark)) list.Add(from);
+            return list;
+        }
+
+        /// <summary>Every cell of an opening at <paramref name="from"/> in the room's wall of this side, on the room's side, is the mark of its template; true without a template (work order 059).</summary>
+        public static bool DoorOnMark(CellRect room, TemplatePlacement template, int side, int from, int width, char mark)
+        {
+            if (template == null) return true;
+            for (int k = 0; k < width; k++)
+            {
+                int c = from + k, x, y;
+                switch (side)
+                {
+                    case LevelGenerator.North: x = c; y = room.Top - 1; break;
+                    case LevelGenerator.South: x = c; y = room.Y; break;
+                    case LevelGenerator.East: x = room.Right - 1; y = c; break;
+                    default: x = room.X; y = c; break;
+                }
+                if (template.MarkAt(x - room.X, y - room.Y) != mark) return false;
+            }
+            return true;
         }
 
         /// <summary>A door between a room and the next drawn among the places the join allows (the same draw as <c>DoorBetween</c>'s); null when there is none.</summary>
@@ -390,13 +439,14 @@ namespace Roguelike.Rules
         /// <summary>
         /// The open-area rule of a combat or elite template room (work order 058), or null: it keeps between the plan's smallest
         /// and largest combat room's cells open (<see cref="LevelPlan.CombatSize"/>, 25 to 49), so it plays no smaller and no
-        /// larger than the combat rooms of before.
+        /// larger than the combat rooms of before. Work order 059: <paramref name="mouth"/> open cells not counted, the cells beside
+        /// the door in that a gate takes on a floor without passages and a passage's mouth leaves open on a floor with them.
         /// </summary>
-        public static string AreaFault(LevelRoom room, LevelValues values)
+        public static string AreaFault(LevelRoom room, LevelValues values, int mouth = 0)
         {
             if (room.Shape != RoomShape.Template || room.Kind == RoomKind.Exit) return null;
             RoomSizeRange size = (values?.Plan ?? new LevelPlan()).CombatSize;
-            int open = room.Rect.Width * room.Rect.Height - room.SolidCount, fewest = size.Min * size.Min, most = size.Max * size.Max;
+            int open = room.Rect.Width * room.Rect.Height - room.SolidCount - Math.Max(0, mouth), fewest = size.Min * size.Min, most = size.Max * size.Max;
             return open < fewest || open > most ? $"keeps {open} open cells, and a template room {fewest} to {most}" : null;
         }
 

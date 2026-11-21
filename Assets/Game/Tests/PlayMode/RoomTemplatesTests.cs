@@ -187,19 +187,19 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator SwitchOff_TheFloorsObjects_AreVersion14s()
         {
-            GeneratedLevel off = Build(42UL, 1, v => v.Templates = false);
+            GeneratedLevel off = Build(42UL, 1, v => { v.Templates = false; v.Passages = false; }); // work order 059: version 14 had no passages
             yield return Frames(2);
             Assert.That(off.Layout.Templates, Is.False);
             Assert.That(off.Layout.Rooms.All(r => r.Template == null && r.Shape != RoomShape.Template), "no template");
             // The floor's objects (floors, walls, the kit's pieces), name for name and place for place, as a floor built from the
             // same seed's layout with the templates off (version 14's, EditMode's RoomTemplatesTests) gives them.
-            LevelLayout plain = LevelGenerator.Generate(off.Layout.Seed, 1, new LevelValues { Templates = false });
+            LevelLayout plain = LevelGenerator.Generate(off.Layout.Seed, 1, new LevelValues { Templates = false, Passages = false });
             Assert.That(plain.Describe(), Is.EqualTo(off.Layout.Describe()), "the same floor");
             Assert.That(plain.Describe(), Does.Not.Contain("template"));
             string Objects(GeneratedLevel l) => string.Join(";", l.FloorBoxes.Concat(l.WallBoxes).Concat(l.KitPieces.Select(p => p.Object))
                 .Select(g => g.name + " " + g.transform.position.ToString("F3") + " " + g.transform.localScale.ToString("F3")));
             string first = Objects(off);
-            GeneratedLevel again = GeneratedLevel.Build(plain, new LevelValues { Templates = false, RoomMood = false }, null, null);
+            GeneratedLevel again = GeneratedLevel.Build(plain, new LevelValues { Templates = false, Passages = false, RoomMood = false }, null, null);
             yield return null;
             Assert.That(Objects(again), Is.EqualTo(first), "the same objects");
             Assert.That(again.KitPlan.Describe(), Is.EqualTo(off.KitPlan.Describe()));

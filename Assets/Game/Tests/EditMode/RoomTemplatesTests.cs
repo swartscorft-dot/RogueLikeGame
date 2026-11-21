@@ -449,7 +449,7 @@ namespace Roguelike.Rules.Tests
                         if (both && room.Theme != RoomTheme.ThroneRoom && !altarOnA)
                         {
                             mood = mood ?? RoomMoodPlan.Make(level, on);
-                            MoodRoom mr = mood.Rooms[room.Order];
+                            MoodRoom mr = mood.Rooms.First(m => m.Room == room); // work order 059: a passage has no plan, so the plan is not by order
                             aLargeRooms++;
                             if (mr.LargePropPlace.HasValue && At(mr.LargePropPlace.Value) == 'A') aLargeHeld++;
                         }
@@ -515,7 +515,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_TwoThousandFloors_AreVersion14s_FieldForField()
         {
-            var off = new LevelValues { Templates = false };
+            var off = new LevelValues { Templates = false, Passages = false }; // work order 059: version 14 had no passages
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {

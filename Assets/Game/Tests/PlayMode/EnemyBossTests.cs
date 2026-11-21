@@ -656,6 +656,7 @@ namespace Roguelike.PlayModeTests
             [Values(42UL, 0x12345678UL, 7UL, 20261121UL)] ulong seed)
         {
             _practiceEnemy.enabled = true;
+            _levels.Values = new LevelValues { Passages = false }; // work order 059: a gate stands only where rooms touch; a passage's mouth has none
             GeneratedLevel level = _levels.Build(seed, 5);
             yield return null;
             Assert.That(level.Layout.Shapes, Is.True, "the rooms are carved");

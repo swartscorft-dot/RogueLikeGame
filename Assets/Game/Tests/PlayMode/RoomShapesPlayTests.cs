@@ -350,7 +350,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator SwitchOff_TheFloorsObjects_AreVersion12s()
         {
-            GeneratedLevel off = Build(1, v => v.Shapes = false);
+            GeneratedLevel off = Build(1, v => { v.Shapes = false; v.Passages = false; }); // work order 059: version 12 had no passages
             yield return Frames(2);
             Assert.That(off.Layout.Shapes, Is.False);
             Assert.That(off.Layout.Rooms.All(r => r.SolidCount == 0), "no carved cell");
@@ -369,12 +369,12 @@ namespace Roguelike.PlayModeTests
             // The floor's objects (floors, walls, the kit's pieces; the props apart, as the large props of work order 052 stand in
             // place of some with the mood on), name for name and place for place, as a floor built from the same seed's layout of
             // version 12 (the generator with the shapes off is version 12's, EditMode's RoomShapesTests) gives them.
-            LevelLayout plain = LevelGenerator.Generate(off.Layout.Seed, 1, new LevelValues { Shapes = false });
+            LevelLayout plain = LevelGenerator.Generate(off.Layout.Seed, 1, new LevelValues { Shapes = false, Passages = false });
             Assert.That(plain.Describe(), Is.EqualTo(off.Layout.Describe()), "the same floor");
             string Objects(GeneratedLevel l) => string.Join(";", l.FloorBoxes.Concat(l.WallBoxes).Concat(l.KitPieces.Select(p => p.Object))
                 .Select(g => g.name + " " + g.transform.position.ToString("F3") + " " + g.transform.localScale.ToString("F3")));
             string first = Objects(off);
-            GeneratedLevel again = GeneratedLevel.Build(plain, new LevelValues { Shapes = false, RoomMood = false }, null, null);
+            GeneratedLevel again = GeneratedLevel.Build(plain, new LevelValues { Shapes = false, Passages = false, RoomMood = false }, null, null);
             yield return null;
             Assert.That(Objects(again), Is.EqualTo(first), "the same objects");
             Assert.That(again.KitPlan.Describe(), Is.EqualTo(off.KitPlan.Describe()));

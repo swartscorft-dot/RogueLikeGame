@@ -67,6 +67,18 @@ namespace Roguelike.Rules
         /// <summary>The room a door leads on to: the later of its two in the run.</summary>
         public static int Beyond(LevelDoor door) => Math.Max(door.RoomA, door.RoomB);
 
+        /// <summary>
+        /// The room whose sign a door shows (work order 059): the room it leads on to (<see cref="Beyond"/>), or, when that is a
+        /// passage, the room after the passage. So a passage to a treasure room shows the chest at both its ends. -1 for none.
+        /// </summary>
+        public static int SignedRoom(LevelLayout level, LevelDoor door)
+        {
+            int beyond = Beyond(door);
+            if (level == null || beyond < 0 || beyond >= level.Rooms.Count) return -1;
+            LevelRoom room = level.Rooms[beyond];
+            return room.Kind == RoomKind.Passage ? Passages.RoomAfter(level, room, door) : beyond;
+        }
+
         /// <summary>The room a door is the way on from: the earlier of its two.</summary>
         public static int Before(LevelDoor door) => Math.Min(door.RoomA, door.RoomB);
 
@@ -218,12 +230,12 @@ namespace Roguelike.Rules
     /// </summary>
     public static class FloorMapRules
     {
-        /// <summary>The room she comes into this one from (the other room of its door in), by its place in the run; -1 for none.</summary>
-        public static int Before(LevelLayout level, LevelRoom room)
-        {
-            LevelDoor entry = LevelGeometry.EntryDoor(level, room);
-            return entry == null ? -1 : entry.Other(room.Order);
-        }
+        /// <summary>
+        /// The room she comes into this one from (the other room of its door in), by its place in the run; -1 for none. Work
+        /// order 059: for a room that is not a passage, the room before its passage, so once she has entered a room, the passage
+        /// and the room after it show one step ahead; a passage's is the room before it.
+        /// </summary>
+        public static int Before(LevelLayout level, LevelRoom room) => Passages.RoomBefore(level, room);
 
         /// <summary>How a room shows: here, entered, one step ahead of a room entered, or not at all.</summary>
         public static MapShown Shown(bool isHere, bool entered, bool beforeEntered) =>

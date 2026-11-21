@@ -923,7 +923,7 @@ namespace Roguelike
             if (room == null || room == CurrentRoom) return;
             CurrentRoom = room;
             _entered.Add(room.Order);
-            if (InRun) Record?.EnterRoom(room.Order, room.Kind, room.Elite);
+            if (InRun) Record?.EnterRoom(LevelGeometry.RoomNumber(_level.Layout, room), room.Kind, room.Elite); // work order 059: counted without the passages
             PlaySessionRecorder.Current?.NoteRoomEntered(room.Order, room.Kind.ToString().ToLowerInvariant(), RoomThemes.Word(room.Theme)); // work order 028: and its theme
             if (room.Elite && !EliteRoomEntered)
             {
