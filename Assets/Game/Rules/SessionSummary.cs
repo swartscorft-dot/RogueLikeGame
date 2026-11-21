@@ -198,6 +198,13 @@ namespace Roguelike.Rules
         public bool HasDuck;
         /// <summary>True when she was stunned or pulled in the session (work order 035): the summary then gives its line.</summary>
         public bool HasHeld;
+
+        // The bombers (work order 073), whole session: their blasts, those that hurt her, and what they did to the others.
+        public int BomberBlasts;
+        public int BomberBlastsOnHer;
+        public int BlastEnemiesHurt;
+        /// <summary>Enemies killed by a bomber's blast.</summary>
+        public int BlastKills;
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -385,7 +392,43 @@ namespace Roguelike.Rules
             stats.Session.CoverSeconds = (float)Overlap(stats.CoverSpans, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) });
             stats.InFights.CoverSeconds = (float)Overlap(stats.CoverSpans, stats.FightSpans);
             stats.Kit = ComputeKit(events, start, kit);
+            ComputeBombers(events, stats); // work order 073
             return stats;
+        }
+
+        /// <summary>
+        /// The bombers (work order 073), whole session: their blasts (bomber_blast), those that hurt her (an enemy_strike of a
+        /// bomber's Blast that landed), the enemies the blasts hurt and those they killed.
+        /// </summary>
+        static void ComputeBombers(List<SessionEvent> events, SessionStats stats)
+        {
+            const string Bomber = "bomber";
+            int Number(SessionEvent e, string key) =>
+                int.TryParse(e.ExtraValue(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) ? n : 0;
+            foreach (SessionEvent e in events)
+            {
+                if (e.Type == SessionEventTypes.BomberBlast)
+                {
+                    stats.BomberBlasts++;
+                    stats.BlastEnemiesHurt += Number(e, "enemies");
+                    stats.BlastKills += Number(e, "killed");
+                }
+                else if (e.Type == SessionEventTypes.EnemyStrike && e.Name == BomberValues.Blast && e.Result == SessionWords.Landed
+                         && e.Enemy != null && e.Enemy.EndsWith(Bomber, StringComparison.Ordinal))
+                    stats.BomberBlastsOnHer++;
+            }
+        }
+
+        /// <summary>The bombers' lines (work order 073), only in a log that has a blast in it.</summary>
+        static void WriteBombers(StringBuilder sb, SessionStats stats)
+        {
+            if (stats.BomberBlasts <= 0) return;
+            sb.AppendLine();
+            var t = new Table("Bombers, whole session", "");
+            t.Add("Blasts / that hurt her", stats.BomberBlasts + " / " + stats.BomberBlastsOnHer);
+            t.Add("Enemies hurt by a blast", Int(stats.BlastEnemiesHurt));
+            t.Add("Enemies killed by a blast", Int(stats.BlastKills));
+            t.Write(sb);
         }
 
         /// <summary>
@@ -1191,6 +1234,7 @@ namespace Roguelike.Rules
                        + (stats.GuardDamage > 0 ? Percent(stats.GuardDamageWhileDazed / (float)stats.GuardDamage) : "-") + ")");
                 gd.Write(sb);
             }
+            WriteBombers(sb, stats); // work order 073
             return sb.ToString();
         }
 

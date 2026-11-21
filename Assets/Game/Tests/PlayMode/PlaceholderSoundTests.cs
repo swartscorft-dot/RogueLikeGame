@@ -652,6 +652,9 @@ namespace Roguelike.PlayModeTests
                 // (its cast is AttackStarted, each burst Struck, the counter's daze Dazed).
                 { EnemyReportKind.CirclePlaced, null }, { EnemyReportKind.CircleOffGround, null },
                 { EnemyReportKind.CircleFaded, null }, { EnemyReportKind.Countered, null },
+                // Work order 073, added on purpose: the bomber's blast on the others has no sound of its own (its fuse is
+                // AttackStarted, its blast on her Struck).
+                { EnemyReportKind.Blasted, null },
             };
             foreach (EnemyReportKind kind in Enum.GetValues(typeof(EnemyReportKind)))
             {

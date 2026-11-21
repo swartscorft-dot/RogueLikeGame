@@ -91,6 +91,12 @@ namespace Roguelike
         /// no binding of <see cref="InputBindings"/> uses and no Editor shortcut takes while the Game view has the keys.
         /// </summary>
         public const Key CasterKey = Key.C;
+        /// <summary>
+        /// Work order 073: a bomber in the practice room. No F-key is free since work order 034: B, the bomber's own letter,
+        /// which no binding of <see cref="InputBindings"/> uses and no Editor shortcut takes while the Game view has the keys.
+        /// A developer's key (work order 066, <see cref="DeveloperKeys"/>).
+        /// </summary>
+        public const Key BomberKey = Key.B;
         /// <summary>Metres from her that a spawned enemy (or a pack's middle) stands.</summary>
         public const float SpawnDistance = 12f;
 
@@ -851,6 +857,7 @@ namespace Roguelike
                 else if (dev && keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
                 else if (dev && keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
                 else if (dev && keyboard[CasterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Caster);
+                else if (dev && keyboard[BomberKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Bomber); // work order 073
                 else if (dev && keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
                 else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
                 else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);
@@ -1032,7 +1039,7 @@ namespace Roguelike
             {
                 string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
                             + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
-                            + "\n" + CasterKey + " caster" // work order 034: its own line, the line above being full
+                            + "\n" + CasterKey + " caster   " + BomberKey + " bomber" // work order 034: its own line, the line above being full; 073: the bomber
                             + "\n" + PracticeFocusLine() // work order 025
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, DevBoxStyle());
