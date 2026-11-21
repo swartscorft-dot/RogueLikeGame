@@ -178,8 +178,9 @@ namespace Roguelike.PlayModeTests
             int chainsBefore = _player.FullCleanChains;
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            // The second press: in its window's clean part (the same place as the last's), or at once.
-            if (fullClean) yield return Until(() => _player.RecastSinceOpened >= (kit.CleanFrom + kit.CleanTo) * 0.5f, 2f);
+            // The second press: in its window's clean part, or at once. Work order 069: its own clean part (0.12 to 0.30 s), read
+            // from the game as the last's is (until then the kit's CleanFrom and CleanTo, the same place as the last's).
+            if (fullClean) yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);

@@ -82,6 +82,7 @@ namespace Roguelike.PlayModeTests
             _made.Clear();
             _levels = null;
             InterfaceStyle.Shared.Kinetic = true;
+            InterfaceStyle.Shared.BladeWithCombo = false; // work order 068
             Time.timeScale = 1f;
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
@@ -195,8 +196,8 @@ namespace Roguelike.PlayModeTests
             _bar.Tick();
             KineticSlot second = _bar.SlotOf(_player.KeyOfSkill(slot));
             Assert.That(second.Recast, Is.True, "the second press's window lights the box");
-            Assert.That(second.CleanShare, Is.Zero, "with no band: the second press cannot be clean");
-            Assert.That(second.CleanLit, Is.False);
+            Assert.That(second.CleanShare, Is.GreaterThan(0f), "work order 069: the second press's own band (until then none: it could not be clean)");
+            Assert.That(second.CleanLit, Is.False, "not lit the instant its window opens: its clean part comes 0.12 s in");
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.RecastCleanTo, Is.GreaterThan(_player.RecastCleanFrom), "the last press can be clean");
@@ -213,14 +214,31 @@ namespace Roguelike.PlayModeTests
             float at = moment(from, to, window);
             yield return Until(() => _player.RecastSinceOpened >= at || !_player.IsRecastWindowOpen, 2f);
             _bar.Tick();
+            _cast.Tick();
             float since = _player.RecastSinceOpened;
             bool lit = _bar.SlotOf(key).CleanLit;
+            ComboAgrees(lit, from, to);
             int before = _recasts.Count;
             _player.PressSkill(slot, _a.transform.position);
             done(since, lit, _recasts.Count > before ? _recasts.Last() : (PlayerReport?)null);
             _bar.Tick();
             Assert.That(_bar.SlotOf(key).Recast, Is.False, "the press made: the box returns at once");
             Assert.That(_bar.SlotOf(key).Box.size, Is.EqualTo(_bar.SlotOf(key).Home.size), "to its size");
+        }
+
+        /// <summary>
+        /// Work order 068: the combo bar in the same frame as the box: the open zone is the press waited for, its clean part the
+        /// judge's (<paramref name="from"/> to <paramref name="to"/>), and it is lit exactly as the box is (and so as the judge says).
+        /// </summary>
+        void ComboAgrees(bool lit, float from, float to)
+        {
+            if (!_player.IsRecastWindowOpen) return; // run out: nothing open to agree on
+            Assert.That(_cast.ComboShown, Is.True, "the combo bar up while a window is open");
+            int open = _player.RecastShots;
+            Assert.That(_cast.ComboOpen, Is.EqualTo(open), "its open zone is the press waited for");
+            Assert.That(_cast.ComboClean(open).From, Is.EqualTo(from).Within(1e-5f), "its clean part the judge's");
+            Assert.That(_cast.ComboClean(open).To, Is.EqualTo(to).Within(1e-5f));
+            Assert.That(_cast.ComboLit, Is.EqualTo(lit), "lit exactly as the box, at " + _player.RecastSinceOpened);
         }
 
         static float Before(float from, float to, float window) => from * 0.5f;
@@ -592,10 +610,64 @@ namespace Roguelike.PlayModeTests
             }
         }
 
+        // ---------------- Work order 068: the combo bar, the whole chain on one line ----------------
+
+        [UnityTest]
+        public IEnumerator TheComboBar_ShowsTheWholeChainFromTheFirstShot_TheComingPressesAhead_AHitFlashes_AMissGoesGrey()
+        {
+            int slot = Slot("Triple Tap");
+            yield return UntilFree();
+            _player.StartFresh();
+            _player.Teleport(NearA);
+            yield return null;
+            Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the first press");
+            yield return null;
+            _cast.Tick();
+            Assert.That(_cast.ComboShown, Is.True, "up from the first press");
+            Assert.That(_cast.ComboKind, Is.EqualTo(CastBarKind.Recast));
+            Assert.That(_cast.ComboPresses, Is.EqualTo(_player.RecastCount), "every press of the chain on one line");
+            Assert.That(_cast.ComboOpen, Is.EqualTo(-1), "no window open yet: the first shot's startup");
+            for (int i = 1; i < _cast.ComboPresses; i++)
+            {
+                Assert.That(_cast.ComboZoneTo(i), Is.GreaterThan(_cast.ComboZoneFrom(i)), "press " + (i + 1) + "'s window drawn ahead of time");
+                Assert.That(_cast.ComboCleanTo(i), Is.GreaterThan(_cast.ComboCleanFrom(i)), "and its clean part");
+                Assert.That(_cast.ComboState(i), Is.EqualTo(ComboZoneState.Coming));
+                if (i > 1) Assert.That(_cast.ComboCleanFrom(i), Is.GreaterThan(_cast.ComboCleanTo(i - 1)), "after the one before, in order");
+            }
+            Assert.That(_cast.ComboBlade, Is.LessThan(_cast.ComboZoneFrom(1)), "the blade sweeping toward them");
+
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            _cast.Tick();
+            Assert.That(_cast.ComboOpen, Is.EqualTo(1), "the second press's window open");
+            Assert.That(_cast.ComboState(1), Is.EqualTo(ComboZoneState.Open));
+            Assert.That(_cast.ComboWindow(1), Is.EqualTo(_player.RecastWindowSeconds).Within(1e-5f), "its window the character's");
+            Assert.That(_cast.ComboState(2), Is.EqualTo(ComboZoneState.Coming), "the third still ahead");
+            Assert.That(() => { for (int i = 0; i < 300; i++) _cast.Tick(); }, NotAllocating, "nothing allocated while the line is up");
+
+            // The second press in its clean part: hit.
+            yield return Until(() => { _cast.Tick(); return _cast.ComboLit || !_player.IsRecastWindowOpen; }, 1.5f);
+            Assume.That(_cast.ComboLit, Is.True, "the second press's clean part reached");
+            Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
+            _cast.Tick();
+            Assert.That(_cast.ComboState(1), Is.EqualTo(ComboZoneState.Hit), "pressed in its clean part: a hit");
+
+            // The last window left to run out: missed, grey, and the bar stays a moment showing it.
+            yield return Until(() => _player.IsRecastWindowOpen, 2f);
+            yield return Until(() => !_player.IsRecastWindowOpen, 2f);
+            yield return null;
+            _cast.Tick();
+            Assert.That(_cast.ComboState(2), Is.EqualTo(ComboZoneState.Missed), "run out: grey");
+            Assert.That(_cast.ComboShown, Is.True, "it lingers to show it");
+            yield return ForRealTime(InterfaceStyle.V.ComboLinger + InterfaceStyle.V.ComboFade + 0.1f);
+            _cast.Tick();
+            Assert.That(_cast.ComboShown, Is.False, "and goes");
+        }
+
         [UnityTest]
         public IEnumerator TheBlade_FollowsHerThroughBackstepsHop_AndItsProgressIsTheWindows()
         {
             int slot = Slot("Backstep");
+            InterfaceStyle.Shared.BladeWithCombo = true; // work order 068: the blade over her head only beside the combo bar when asked for
             yield return UntilFree();
             _player.StartFresh();
             _player.Teleport(NearA);
@@ -657,6 +729,7 @@ namespace Roguelike.PlayModeTests
             _cast.Tick();
             float since = _player.RecastSinceOpened;
             bool box = _bar.SlotOf(key).CleanLit, blade = _cast.Lit, marker = _cast.View.MarkerInZone;
+            ComboAgrees(blade, _player.RecastCleanFrom, _player.RecastCleanTo); // work order 068: and the combo bar, with Wide window taken too
             int before = _recasts.Count;
             _player.PressSkill(slot, _a.transform.position);
             done(since, box, blade, marker, _recasts.Count > before ? _recasts.Last() : (PlayerReport?)null);
@@ -712,27 +785,28 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator WithWideWindowTaken_TripleTapsWiderPart_IsShownAndJudgedAlike_JustOutsideTheOldPartCleanAndFurtherNot()
         {
-            // With no stat, today's part (0.10 to 0.30 s): a press at 0.075 s is early.
+            // With no stat, today's part of the last press (work order 069: 0.42 to 0.66 s; until then 0.10 to 0.30 s): a press at
+            // 0.39 s is early.
             yield return TripleTapLastWindowOpen();
-            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.10f).Within(1e-5f), "today's part");
-            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.30f).Within(1e-5f));
-            yield return PressAndAgree("Triple Tap", 0.075f, false, 0.10f, 0.30f, "no stat, at 0.075 s");
-            // Taken at its cap: 0.05 to 0.35 s, 0.05 s more at either edge.
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f), "today's part");
+            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f));
+            yield return PressAndAgree("Triple Tap", 0.39f, false, 0.42f, 0.66f, "no stat, at 0.39 s");
+            // Taken at its cap: 0.36 to 0.72 s, 0.06 s more at either edge, inside its 0.80 s window.
             TakeWideWindow();
-            float[] at = { 0.075f, 0.025f, 0.325f, 0.375f };
+            float[] at = { 0.39f, 0.33f, 0.69f, 0.75f };
             bool[] clean = { true, false, true, false };
             string[] what = { "just before the old part", "further before", "just after the old part", "further after" };
             for (int i = 0; i < at.Length; i++)
             {
                 yield return TripleTapLastWindowOpen();
-                Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.05f).Within(1e-5f));
-                Assert.That(_player.RecastCleanTo, Is.EqualTo(0.35f).Within(1e-5f));
+                Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.36f).Within(1e-5f));
+                Assert.That(_player.RecastCleanTo, Is.EqualTo(0.72f).Within(1e-5f));
                 _bar.Tick();
                 KineticSlot s = _bar.SlotOf(_player.KeyOfSkill(Slot("Triple Tap")));
                 float window = _player.RecastWindowSeconds;
-                Assert.That(s.Band.xMin, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.05f / window).Within(1f), "the box's band at the wider part's shares");
-                Assert.That(s.Band.xMax, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.35f / window).Within(1f));
-                yield return PressAndAgree("Triple Tap", at[i], clean[i], 0.05f, 0.35f, what[i]);
+                Assert.That(s.Band.xMin, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.36f / window).Within(1f), "the box's band at the wider part's shares");
+                Assert.That(s.Band.xMax, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.72f / window).Within(1f));
+                yield return PressAndAgree("Triple Tap", at[i], clean[i], 0.36f, 0.72f, what[i]);
             }
         }
 

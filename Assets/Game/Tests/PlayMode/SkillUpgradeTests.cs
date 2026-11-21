@@ -361,8 +361,11 @@ namespace Roguelike.PlayModeTests
             {
                 yield return Until(() => _player.IsRecastWindowOpen, 2f);
                 Assert.That(_player.IsRecastWindowOpen, Is.True, "a window for press " + press);
-                if (press < 4) Assert.That(_player.RecastCleanShare, Is.EqualTo(0f), "press " + press + " is not the clean one");
-                else Assert.That(_player.RecastCleanShare, Is.GreaterThan(0f), "the fourth is the clean one");
+                // Work order 069: every press has its own clean part; the presses before the fourth are quick, the fourth waits the
+                // beat (until then only the fourth had one).
+                Assert.That(_player.RecastCleanShare, Is.GreaterThan(0f), "press " + press + ": its own clean part");
+                Assert.That(_player.RecastCleanFrom, Is.EqualTo(press < 4 ? _player.Kit.QuickPressCleanFrom : _player.Kit.LastPressCleanFrom).Within(1e-5f),
+                            press < 4 ? "press " + press + " is a quick one" : "the fourth is the last: the beat");
                 Assert.That(_player.PressSkill(t, _a.transform.position), Is.EqualTo(IntentResult.Started));
             }
             yield return Until(() => _damage.Count >= 4, 2f);

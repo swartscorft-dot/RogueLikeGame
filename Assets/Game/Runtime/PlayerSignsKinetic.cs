@@ -67,7 +67,7 @@ namespace Roguelike
                 if (alpha > 0.001f && p.z > 0f)
                 {
                     float rise = look.WordRise * 1.5f * Mathf.Clamp01(WordAge / life);
-                    float x = p.x / scale, y = (Screen.height - p.y) / scale - rise;
+                    float x = p.x / scale, y = (InterfaceStyle.ScreenHeight - p.y) / scale - rise;
                     int size = Mathf.Max(8, Mathf.RoundToInt(v.WordSize * FeedbackRules.PopScale(WordAge, look.Pop, look.PopSeconds)));
                     GUIStyle style = InterfaceStyle.Text(true, size, TextAnchor.MiddleCenter);
                     Vector2 m = InterfaceStyle.Measure(WordText, style);

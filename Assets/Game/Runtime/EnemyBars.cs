@@ -155,8 +155,8 @@ namespace Roguelike
             if (cam == null) return;
             if (_player == null) _player = FindAnyObjectByType<PlayerCharacter>();
             int cap = _player != null ? _player.Kit.MaxMarks : s_DefaultKit.MaxMarks;
-            float scale = Screen.height / Mathf.Max(1f, Values.LayoutHeight);
-            float width = Screen.width, height = Screen.height;
+            float scale = InterfaceStyle.ScreenHeight / Mathf.Max(1f, Values.LayoutHeight);
+            float width = InterfaceStyle.ScreenWidth, height = InterfaceStyle.ScreenHeight;
             float now = Time.time;
             IReadOnlyList<Enemy> all = Enemy.All;
             for (int i = 0; i < all.Count; i++)
@@ -224,7 +224,7 @@ namespace Roguelike
         {
             if (Count == 0 || Event.current.type != EventType.Repaint) return;
             if (_texture == null) _texture = MakeTexture();
-            GUI.depth = 10; // under the HUD's boxes and the choices
+            GUI.depth = InterfaceDepth.EnemyBars; // under the HUD's boxes and the choices (work order 068: the depths in one place)
             if (Kinetic)
             {
                 DrawKinetic(); // work order 045
@@ -232,7 +232,7 @@ namespace Roguelike
             }
             Color before = GUI.color;
             var solid = new Rect(0.5f / PipTexels, 0f, (PipLitTexels - 1f) / PipTexels, 1f);
-            float scale = Screen.height / Mathf.Max(1f, Values.LayoutHeight);
+            float scale = InterfaceStyle.ScreenHeight / Mathf.Max(1f, Values.LayoutHeight);
             float eliteEdge = Values.EliteEdge * scale;
             for (int i = 0; i < Count; i++)
             {

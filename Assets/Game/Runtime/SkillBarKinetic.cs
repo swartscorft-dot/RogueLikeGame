@@ -168,6 +168,7 @@ namespace Roguelike
             if (!Kinetic)
             {
                 StrokesShown = false;
+                PlateShown = false; // work order 068
                 SlotCount = 0;
                 _trackedFrame = -1; // its boxes are not drawn: what comes off cooldown now shows nothing later
                 return;
@@ -176,7 +177,7 @@ namespace Roguelike
             if (_driver == null) _driver = Player.GetComponent<PlayerInputDriver>();
             InterfaceValues v = InterfaceStyle.V;
             float scale = Mathf.Max(1e-4f, InterfaceStyle.Scale);
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
             Sizes(v);
             InputBindings bindings = _driver != null ? _driver.ActiveBindings : null;
             IReadOnlyList<SkillDefinition> skills = Player.Skills;
@@ -314,6 +315,8 @@ namespace Roguelike
             _stateNumber = Player.IsPrimed ? InterfaceStyle.Cooldown(Player.PrimeRemaining)
                          : _stateWord.Length > 0 ? InterfaceStyle.Cooldown(Player.EmpoweredRemaining) : "";
 
+            TickPlate(v); // work order 068: the plate at the top left (SkillBarPlate.cs)
+
             Camera cam = Camera.main;
             StrokesShown = false;
             if (cam != null)
@@ -321,7 +324,7 @@ namespace Roguelike
                 Vector3 feet = cam.WorldToScreenPoint(Player.Position);
                 if (feet.z > 0f)
                 {
-                    float fx = feet.x / scale, fy = (Screen.height - feet.y) / scale;
+                    float fx = feet.x / scale, fy = (InterfaceStyle.ScreenHeight - feet.y) / scale;
                     // Work order 063 item 3 (and its follow-up): her point stands about a metre over her soles. The lowest
                     // her boots show is the floor under her, reached toward the camera by BootReach; the strokes' top stands
                     // the gap in metres of the camera's picture under that, made pixels this frame.
@@ -330,12 +333,12 @@ namespace Roguelike
                     toward = toward.sqrMagnitude > 1e-6f ? toward.normalized : Vector3.zero;
                     BootsPoint = Player.Position + Vector3.down * Mathf.Max(0f, v.SoleDrop) + toward * Mathf.Max(0f, v.BootReach);
                     Vector3 boots = cam.WorldToScreenPoint(BootsPoint);
-                    BootsUnder = (Screen.height - boots.y) / scale - fy;
+                    BootsUnder = (InterfaceStyle.ScreenHeight - boots.y) / scale - fy;
                     float downY = fy;
                     if (v.UnderFeetMetres > 0f)
                     {
                         Vector3 down = cam.WorldToScreenPoint(BootsPoint - cam.transform.up * v.UnderFeetMetres);
-                        downY = (Screen.height - down.y) / scale;
+                        downY = (InterfaceStyle.ScreenHeight - down.y) / scale;
                     }
                     float under = InterfaceRules.UnderFeetGap(fy, downY, v);
                     StrokesUnder = under;
@@ -464,6 +467,7 @@ namespace Roguelike
                 if (_slots[key].Recast) DrawSlot(_slots[key], v); // a lit box over its neighbours
             DrawEnds(v);
             if (StrokesShown) DrawStrokes(v);
+            if (PlateShown) DrawTopPlate(v); // work order 068: her health and focus at the top left, as in the concept
 
             GUI.color = before;
             GUI.matrix = matrixBefore;
@@ -515,7 +519,10 @@ namespace Roguelike
             }
             bool cooling = s.Look == SlotLook.Cooling;
             Color ink = s.Look == SlotLook.Live ? InterfaceStyle.C(v.Teal) : cooling ? InterfaceStyle.C(v.Grey, v.CoolingIconAlpha) : InterfaceStyle.C(v.White);
-            InterfaceStyle.Slanted(face, pivot, InterfaceStyle.C(v.Back));
+            // Work order 068 (the concept's strip): each box in the heavy black outline, its face near black.
+            bool heavy = v.StripOutline > 0f;
+            if (heavy) InterfaceStyle.HeavyPlate(box, pivot, v.Slant, v.StripOutline * _fight, 0f);
+            InterfaceStyle.Slanted(face, pivot, heavy ? InterfaceStyle.C(v.Black, 0.86f) : InterfaceStyle.C(v.Back));
             CellEdge(face, pivot, v);
             if (s.Look == SlotLook.Live && !s.Recast) InterfaceStyle.SlantedFrame(new Rect(face.x - 1f, face.y - 1f, face.width + 2f, face.height + 2f), pivot, InterfaceStyle.C(v.Teal, 0.9f), 1.5f * _fight);
             Rect faceShown = Shifted(face, pivot, v);
@@ -526,7 +533,8 @@ namespace Roguelike
             }
             else if (s.Icon != null)
             {
-                float size = Mathf.Min(_iconSize, faceShown.height - 4f);
+                // Work order 068: the icon fills its box, as in the concept (063's: 34 pixels at the strip's scale).
+                float size = v.IconFill > 0f ? Mathf.Min(faceShown.height * v.IconFill, faceShown.width * 0.9f) : Mathf.Min(_iconSize, faceShown.height - 4f);
                 GUI.color = ink;
                 GUI.DrawTexture(new Rect(faceShown.center.x - size * 0.5f, faceShown.center.y - size * 0.5f, size, size), s.Icon);
             }
@@ -666,8 +674,9 @@ namespace Roguelike
         void DrawStrokes(InterfaceValues v)
         {
             Rect h = HealthStroke, f = FocusStroke;
-            // Work order 063, item 4: each on its dark plate, offset, a hard outline round it.
-            float depth = v.Depth * _fight, outline = v.Outline * _fight;
+            // Work order 063, item 4: each on its dark plate, offset, a hard outline round it; work order 068: the concept's
+            // heavier black outline, in the plate's language.
+            float depth = v.Depth * _fight, outline = Mathf.Max(v.Outline, v.HeavyOutline * 0.5f) * _fight;
             InterfaceStyle.Plate(h, h.center.y, depth, outline);
             InterfaceStyle.Plate(f, f.center.y, depth, outline);
             // Health: red on a dark back, white where it was just lost, fading.
@@ -682,11 +691,19 @@ namespace Roguelike
                 float g = v.GlowSize * _fight;
                 InterfaceStyle.SlantedFrame(new Rect(f.x - g, f.y - g, f.width + 2f * g, f.height + 2f * g), InterfaceStyle.C(v.Teal, 0.55f), g);
             }
-            PlayerSigns.DrawFocusSignKinetic(f); // work order 037: the gauge's part of a full focus, pulsing
-            // The one number: her health.
-            InterfaceStyle.Label(HealthNumberBox, HealthNumber, InterfaceStyle.Text(true, _numberFont, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White), true);
+            if (HitFlash > 0f) // work order 068: a hit she takes shows on the strokes as on the plate
+            {
+                InterfaceStyle.Slanted(h, InterfaceStyle.C(v.White, 0.7f * HitFlash));
+                InterfaceStyle.Slanted(f, InterfaceStyle.C(v.White, 0.5f * HitFlash));
+            }
+            // Work order 068: with the plate on, the gauge's sign, the number and the state's words are on the plate; the strokes say nothing.
+            bool plate = PlateShown;
+            if (!plate) PlayerSigns.DrawFocusSignKinetic(f); // work order 037: the gauge's part of a full focus, pulsing
+            // The one number: her health (work order 068: off by default, it is on the plate).
+            if (v.StrokeNumber || !plate)
+                InterfaceStyle.Label(HealthNumberBox, HealthNumber, InterfaceStyle.Text(true, _numberFont, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White), true);
             // A window or a priming running: its word and seconds, small, under focus.
-            if (_stateWord.Length > 0)
+            if (_stateWord.Length > 0 && !plate)
             {
                 GUIStyle small = InterfaceStyle.Text(true, _stateFont, TextAnchor.UpperLeft);
                 var r = new Rect(f.x, f.yMax + 2f, f.width, _stateFont * 1.3f);

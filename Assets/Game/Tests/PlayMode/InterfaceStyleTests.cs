@@ -79,6 +79,7 @@ namespace Roguelike.PlayModeTests
         public void CleanUp()
         {
             InterfaceStyle.Shared.Kinetic = true;
+            InterfaceStyle.Shared.BladeWithCombo = false; // work order 068
             if (_health != null) _health.Untouchable = false;
             if (_skillBar != null) _skillBar.enabled = true;
             foreach (MonoBehaviour m in new MonoBehaviour[] { _signs, _feedback, _map, _bars, _cast, _hud, _levels })
@@ -187,6 +188,12 @@ namespace Roguelike.PlayModeTests
             yield return Charging(_dummy.transform.position);
             Assert.That(_cast.Showing, Is.True);
             Assert.That(_cast.Kinetic, Is.True);
+            // Work order 068: the combo bar at the bottom middle is the one place the charge is read; the blade over her head
+            // only with both asked for (BladeWithCombo), as here.
+            Assert.That(_cast.ComboShown, Is.True, "the combo bar at the bottom middle");
+            Assert.That(_cast.BladeDrawn, Is.False, "no blade over her head beside it by default");
+            InterfaceStyle.Shared.BladeWithCombo = true;
+            _cast.Tick();
             Assert.That(_cast.BladeDrawn, Is.True, "the blade over her head");
             Assert.That(_cast.CentreBarDrawn, Is.False, "the bar under the middle is not drawn");
             feet = Feet();
@@ -366,7 +373,7 @@ namespace Roguelike.PlayModeTests
             _health.Untouchable = true;
             yield return Charging(elite.transform.position);
             TickAll();
-            Assume.That(_cast.BladeDrawn && _map.Shown && _bars.Count > 0 && _skillBar.StrokesShown, Is.True, "everything up");
+            Assume.That(_cast.ComboShown && _map.Shown && _bars.Count > 0 && _skillBar.StrokesShown && _skillBar.PlateShown, Is.True, "everything up (work order 068: the combo bar and the plate)");
             Assume.That(_feedback.Numbers.Count + _feedback.Words.Count, Is.GreaterThan(0), "a number up");
             EachPieceAllocatesNothing("a fight");
             Assert.That(() => { for (int i = 0; i < 300; i++) TickAll(); }, NotAllocating, "a fight's frame allocates nothing");

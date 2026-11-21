@@ -21,6 +21,7 @@ namespace Roguelike.Rules.Tests
             FightScale = 1f, StripScale = 1f, StripLift = 0f, CooldownGrow = 1f, UnderFeetMetres = 0f, RecastGrow = 1f, BladeScale = 1f, RunBoxScale = 1f,
             Depth = 0f, Outline = 0f, StripPlate = false, Slash = 0f, Halftone = 0f, CellEdge = 0f, ReadyFlash = false,
             CoolingShade = new Rgba(0f, 0f, 0f, 0f), CoolingIconAlpha = 1f,
+            StrokeShrink = 1f, StripKeyGrow = 1f, // work order 068 made the strokes two thirds as wide and the keys larger; 1 is as before
         };
 
         // ---------------- 4. Less flat ----------------

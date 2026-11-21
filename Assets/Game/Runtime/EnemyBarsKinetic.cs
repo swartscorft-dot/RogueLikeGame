@@ -19,7 +19,7 @@ namespace Roguelike
         {
             InterfaceValues v = InterfaceStyle.V;
             Color before = GUI.color;
-            float scale = Screen.height / Mathf.Max(1f, Values.LayoutHeight);
+            float scale = InterfaceStyle.ScreenHeight / Mathf.Max(1f, Values.LayoutHeight);
             float eliteEdge = Values.EliteEdge * scale;
             Color back = InterfaceStyle.C(v.Back, 1.15f), health = InterfaceStyle.C(v.Red), gold = InterfaceStyle.C(v.Gold);
             Color stagger = InterfaceStyle.C(v.Stagger), dazed = InterfaceStyle.C(v.Dazed);
@@ -29,7 +29,8 @@ namespace Roguelike
             bool grows = Mathf.Abs(k - 1f) > 1e-4f;
             // The bars are small: their plate half the strip's depth, its outline as the strip's, in real pixels of this view.
             float depth = Mathf.Max(0f, v.Depth) * 0.5f * scale * Values.LayoutHeight / Mathf.Max(1f, v.LayoutHeight);
-            float outline = Mathf.Max(0f, v.Outline) * scale * Values.LayoutHeight / Mathf.Max(1f, v.LayoutHeight);
+            // Work order 068: the concept's heavier black outline (EnemyOutline, of the bars' own layout).
+            float outline = Mathf.Max(Mathf.Max(0f, v.Outline) * Values.LayoutHeight / Mathf.Max(1f, v.LayoutHeight), v.EnemyOutline) * scale;
             Color plate = InterfaceStyle.C(v.DepthInk);
             for (int i = 0; i < Count; i++)
             {
