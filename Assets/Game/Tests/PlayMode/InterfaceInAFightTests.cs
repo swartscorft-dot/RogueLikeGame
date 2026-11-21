@@ -123,12 +123,38 @@ namespace Roguelike.PlayModeTests
             return new Vector2(feet.x / s, (Screen.height - feet.y) / s);
         }
 
-        /// <summary>The strokes' gap this frame's camera gives: 0.35 m down its picture at her feet, in layout pixels.</summary>
-        float Under()
+        /// <summary>The floor under her: the named sole drop under her point.</summary>
+        float Floor() => _player.Position.y - InterfaceStyle.V.SoleDrop;
+
+        /// <summary>Her lowest foot or toe bone's height under her point, in metres (the bones are animated where nothing is drawn).</summary>
+        float LowestBoneDrop() => _player.Position.y - _player.GetComponentsInChildren<Transform>()
+            .Where(t => t.name.ToLowerInvariant().Contains("foot") || t.name.ToLowerInvariant().Contains("toe")).Min(t => t.position.y);
+
+        /// <summary>
+        /// The strokes' gap this frame's camera gives (work order 063's follow-up): 0.30 m down its picture under the lowest
+        /// her boots show (the floor under her, reached BootReach toward the camera), in layout pixels under her point.
+        /// </summary>
+        float Under(float floor)
         {
             Camera cam = Camera.main;
-            Vector3 down = cam.WorldToScreenPoint(_player.Position - cam.transform.up * InterfaceStyle.V.UnderFeetMetres);
+            Vector3 toward = -cam.transform.forward;
+            toward.y = 0f;
+            Vector3 boots = new Vector3(_player.Position.x, floor, _player.Position.z) + toward.normalized * InterfaceStyle.V.BootReach;
+            Vector3 down = cam.WorldToScreenPoint(boots - cam.transform.up * InterfaceStyle.V.UnderFeetMetres);
             return (Screen.height - down.y) / InterfaceStyle.Scale - Feet().y;
+        }
+
+        /// <summary>The lowest of her foot and toe bones (the toes' ends too) on the screen, in layout pixels under her point.</summary>
+        float LowestBoot()
+        {
+            float feetY = Feet().y, low = float.NegativeInfinity;
+            foreach (Transform t in _player.GetComponentsInChildren<Transform>())
+            {
+                string n = t.name.ToLowerInvariant();
+                if (!n.Contains("foot") && !n.Contains("toe")) continue;
+                low = Mathf.Max(low, (Screen.height - Camera.main.WorldToScreenPoint(t.position).y) / InterfaceStyle.Scale - feetY);
+            }
+            return low;
         }
 
         /// <summary>Quick Shot pressed toward the dummy (on its cooldown after).</summary>
@@ -330,38 +356,27 @@ namespace Roguelike.PlayModeTests
         // ---------------- 3. The strokes under her feet ----------------
 
         [UnityTest]
-        public IEnumerator TheStrokes_AreUnderHerFeetByTheGap_AsThisFramesCameraShowsHer_AfterAMove()
+        public IEnumerator TheStrokes_AreUnderHerBootsByTheGap_AsThisFramesCameraShowsHer_AfterAMove()
         {
             Vector2 feet = default;
-            float under = 0f, lowest = 0f;
+            float under = 0f, boots = 0f, floor = 0f;
             Rect h = default, f = default;
             float gap = 0f;
             bool shown = false;
             int looked = 0;
-            Renderer[] hers = _player.GetComponentsInChildren<Renderer>().Where(r => !(r is LineRenderer) && r.GetComponent<CombatFx>() == null).ToArray();
             var end = new GameObject("LooksAtTheFramesEnd").AddComponent<LooksAtTheFramesEnd>();
             _made.Add(end.gameObject);
             end.Look = () =>
             {
                 looked++;
                 feet = Feet();
-                under = Under();
+                floor = Floor();
+                under = Under(floor);
                 shown = _bar.StrokesShown;
                 h = _bar.HealthStroke;
                 f = _bar.FocusStroke;
                 gap = _bar.StrokesUnder;
-                // For the report: how far down the screen the lowest corner of her drawn bounds reaches under her feet.
-                lowest = float.NegativeInfinity;
-                foreach (Renderer r in hers)
-                {
-                    Bounds b = r.bounds;
-                    for (int c = 0; c < 8; c++)
-                    {
-                        var corner = new Vector3((c & 1) == 0 ? b.min.x : b.max.x, (c & 2) == 0 ? b.min.y : b.max.y, (c & 4) == 0 ? b.min.z : b.max.z);
-                        Vector3 p = Camera.main.WorldToScreenPoint(corner);
-                        lowest = Mathf.Max(lowest, (Screen.height - p.y) / InterfaceStyle.Scale - feet.y);
-                    }
-                }
+                boots = _bar.BootsUnder;
                 end.Look = null;
             };
             _player.Teleport(new Vector3(-6f, 0f, -3f));
@@ -369,14 +384,51 @@ namespace Roguelike.PlayModeTests
             Assert.That(looked, Is.EqualTo(1));
             Assert.That(shown, Is.True);
             InterfaceValues v = InterfaceStyle.V;
-            Debug.Log($"[063] the strokes' gap under her feet: {gap:0.0} layout px (this morning {v.UnderFeet}); the lowest corner of her drawn bounds {lowest:0.0} px under her feet's point");
-            Assert.That(gap, Is.EqualTo(under).Within(0.05f), "the gap of 0.35 m, made pixels this frame");
-            Assert.That(h.y - feet.y, Is.EqualTo(under).Within(0.5f), "the strokes' top that far under her feet as this frame's camera shows them");
+            float bones = LowestBoneDrop();
+            Debug.Log($"[063] her lowest foot or toe bone {bones:0.000} m under her point (SoleDrop {v.SoleDrop}); the lowest her boots show (as reckoned) {boots:0.0} layout px under it; the strokes' top {gap:0.0} px under it (this morning {v.UnderFeet}, after item 3 25.2)");
+            Assert.That(bones, Is.EqualTo(v.SoleDrop).Within(0.1f), "the named sole drop is where her bones put her soles");
+            Assert.That(gap, Is.EqualTo(under).Within(0.1f), "the gap of 0.30 m under the lowest her boots show, made pixels this frame");
+            Assert.That(h.y - feet.y, Is.EqualTo(under).Within(0.5f), "the strokes' top that far under her point as this frame's camera shows it");
             Assert.That((h.xMin + f.xMax) * 0.5f, Is.EqualTo(feet.x).Within(0.5f), "centred on her");
-            Assert.That(under, Is.EqualTo(25.2f).Within(1.5f), "about 25 layout pixels with the game's camera: lower than this morning's 16");
+            Assert.That(gap, Is.GreaterThan(boots + 15f), "under her boots by a clear gap");
             Assert.That(h.height, Is.EqualTo(v.StrokeHeight * InterfaceRules.Fight(v)).Within(1e-3f), "grown with the master scale");
         }
 
+        [UnityTest]
+        public IEnumerator TheStrokesTop_IsUnderHerBodysLowestDrawnPoint_ByTheGap_FacingFourWays_AndClearWhileSheRunsDown()
+        {
+            // At this run's resolution (the layout pixels are those of a view 1080 high at any resolution: 1920 by 1080 and
+            // 1280 by 720 give the same numbers; InterfaceLargerTests works them out for both).
+            _player.Teleport(new Vector3(-6f, 0f, -3f));
+            yield return null;
+            InterfaceValues v = InterfaceStyle.V;
+            Camera cam = Camera.main;
+            float perMetre = (Screen.height - cam.WorldToScreenPoint(_player.Position - cam.transform.up).y) / InterfaceStyle.Scale - Feet().y;
+            float gapPx = v.UnderFeetMetres * perMetre;
+            for (int i = 0; i < 4; i++)
+            {
+                _player.transform.rotation = Quaternion.Euler(0f, i * 90f, 0f);
+                yield return null;
+                yield return null;
+                _bar.Tick();
+                float low = LowestBoot(), top = _bar.HealthStroke.y - Feet().y;
+                Debug.Log($"[063] facing {i * 90}: her lowest boot {low:0.0} px under her point, the strokes' top {top:0.0}: {top - low:0.0} px under the boot (the gap {gapPx:0.0})");
+                Assert.That(top - low, Is.GreaterThanOrEqualTo(gapPx * 0.9f), "facing " + (i * 90) + ": the strokes' top under her lowest boot by the gap");
+            }
+            // Running down the screen, her stride reaches furthest toward the camera: the strokes stay under every boot.
+            _player.Steer(Vector3.back);
+            float worst = float.PositiveInfinity;
+            float stop = Time.realtimeSinceStartup + 1f;
+            while (Time.realtimeSinceStartup < stop)
+            {
+                yield return null;
+                _bar.Tick();
+                worst = Mathf.Min(worst, _bar.HealthStroke.y - Feet().y - LowestBoot());
+            }
+            _player.Stop();
+            Debug.Log($"[063] running toward the camera: the strokes' top at least {worst:0.0} px under her lowest boot");
+            Assert.That(worst, Is.GreaterThan(5f), "never on a boot while she runs toward the camera");
+        }
         [UnityTest]
         public IEnumerator AtThisResolution_TheStripIsOnScreen_ClearOfTheStrokesTheRunBoxAndTheMap()
         {

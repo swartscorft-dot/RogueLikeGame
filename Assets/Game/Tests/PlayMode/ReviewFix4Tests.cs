@@ -329,8 +329,8 @@ namespace Roguelike.PlayModeTests
             {
                 looked++;
                 feet = Feet();
-                // Work order 063: the strokes' gap, 0.35 m down the camera's picture at her feet, as this frame's camera shows it.
-                Vector3 down = Camera.main.WorldToScreenPoint(_player.Position - Camera.main.transform.up * InterfaceStyle.V.UnderFeetMetres);
+                // Work order 063: the strokes' gap, 0.30 m down the camera's picture under the lowest her boots show, as this frame's camera shows it.
+                Vector3 down = Camera.main.WorldToScreenPoint(bar.BootsPoint - Camera.main.transform.up * InterfaceStyle.V.UnderFeetMetres);
                 under = (Screen.height - down.y) / InterfaceStyle.Scale - feet.y;
                 headX = Camera.main.WorldToScreenPoint(_player.Position + Vector3.up * (float)herTop.GetValue(cast)).x / InterfaceStyle.Scale;
                 shown = bar.StrokesShown;

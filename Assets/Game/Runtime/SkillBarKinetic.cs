@@ -82,8 +82,15 @@ namespace Roguelike
         public bool StrokesShown { get; private set; }
         public Rect HealthStroke { get; private set; }
         public Rect FocusStroke { get; private set; }
-        /// <summary>The strokes' gap under her feet's point this frame, in layout pixels (work order 063).</summary>
+        /// <summary>The strokes' gap under her point (the character's position) this frame, in layout pixels (work order 063).</summary>
         public float StrokesUnder { get; private set; }
+        /// <summary>
+        /// The lowest her boots show, as the strokes reckon it (the floor under her, <see cref="InterfaceValues.BootReach"/>
+        /// toward the camera, <see cref="InterfaceValues.SoleDrop"/> under her point): the world point, and how far under her
+        /// point it is on the screen in layout pixels (work order 063's follow-up).
+        /// </summary>
+        public Vector3 BootsPoint { get; private set; }
+        public float BootsUnder { get; private set; }
         /// <summary>The health number's box beside the strokes (layout pixels).</summary>
         public Rect HealthNumberBox { get; private set; }
         public float HealthShare { get; private set; }
@@ -315,11 +322,19 @@ namespace Roguelike
                 if (feet.z > 0f)
                 {
                     float fx = feet.x / scale, fy = (Screen.height - feet.y) / scale;
-                    // Work order 063 item 3: the gap in metres in the camera's picture at her depth, made pixels this frame.
+                    // Work order 063 item 3 (and its follow-up): her point stands about a metre over her soles. The lowest
+                    // her boots show is the floor under her, reached toward the camera by BootReach; the strokes' top stands
+                    // the gap in metres of the camera's picture under that, made pixels this frame.
+                    Vector3 toward = -cam.transform.forward;
+                    toward.y = 0f;
+                    toward = toward.sqrMagnitude > 1e-6f ? toward.normalized : Vector3.zero;
+                    BootsPoint = Player.Position + Vector3.down * Mathf.Max(0f, v.SoleDrop) + toward * Mathf.Max(0f, v.BootReach);
+                    Vector3 boots = cam.WorldToScreenPoint(BootsPoint);
+                    BootsUnder = (Screen.height - boots.y) / scale - fy;
                     float downY = fy;
                     if (v.UnderFeetMetres > 0f)
                     {
-                        Vector3 down = cam.WorldToScreenPoint(Player.Position - cam.transform.up * v.UnderFeetMetres);
+                        Vector3 down = cam.WorldToScreenPoint(BootsPoint - cam.transform.up * v.UnderFeetMetres);
                         downY = (Screen.height - down.y) / scale;
                     }
                     float under = InterfaceRules.UnderFeetGap(fy, downY, v);

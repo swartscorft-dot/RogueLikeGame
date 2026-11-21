@@ -69,7 +69,9 @@ namespace Roguelike.Rules.Tests
             Assert.That(v.FightScale, Is.EqualTo(1.25f), "the master scale");
             Assert.That(InterfaceRules.Strip(v), Is.EqualTo(1.6f).Within(1e-4f), "the strip's boxes 1.6 times this morning's");
             Assert.That(v.StripLift, Is.EqualTo(0.09f), "9 % of the height over the bottom");
-            Assert.That(v.UnderFeetMetres, Is.EqualTo(0.35f), "0.35 m under her feet");
+            Assert.That(v.UnderFeetMetres, Is.EqualTo(0.30f), "0.30 m under the lowest her boots show");
+            Assert.That(v.BootReach, Is.EqualTo(0.45f), "her boots reach 0.45 m toward the camera at most");
+            Assert.That(v.SoleDrop, Is.EqualTo(SoleDrop), "her soles 1.05 m under her point, as measured");
             Assert.That(v.ReadyFlash, Is.True);
             Assert.That(v.ReadyFlashSeconds, Is.EqualTo(0.25f));
             Assert.That(v.BladeScale, Is.EqualTo(1.5f), "the blade 1.5 times on top of the master scale (item 2b)");
@@ -139,11 +141,9 @@ namespace Roguelike.Rules.Tests
         {
             InterfaceValues v = V;
             float width = LayoutWidth(w, h);
-            // Her feet at the view's middle (the camera looks at her), and the gap of 0.35 m with the game's camera.
-            var feel = new FeelValues();
-            float perMetre = v.LayoutHeight / (2f * feel.CameraDistance * (float)Math.Tan(feel.FieldOfView * 0.5 * Math.PI / 180.0));
-            float under = InterfaceRules.UnderFeetGap(540f, 540f + v.UnderFeetMetres * perMetre, v);
-            Assert.That(under, Is.EqualTo(25.2f).Within(0.2f), "0.35 m is about 25 layout pixels (this morning 16)");
+            // Her point at the view's middle (the camera looks at her; it stands about 0.9 m over the floor, so a little
+            // higher in truth), the strokes under her boots by the gap.
+            float under = StrokesUnderHerPoint(h, v, out _);
             UiBox stroke = InterfaceRules.HealthStroke(width * 0.5f, 540f, under, v);
             UiBox number = InterfaceRules.HealthNumber(width * 0.5f, 540f, under, v);
             float stateWords = stroke.Bottom + 2f + InterfaceRules.Size(v.StateWordSize, InterfaceRules.Fight(v)) * 1.3f;
@@ -151,6 +151,41 @@ namespace Roguelike.Rules.Tests
             Assert.That(Math.Max(number.Bottom, stateWords), Is.LessThan(whole.Y - 100f), "the strokes, their number and words well over the strip");
             Assert.That(InterfaceRules.Blade(width * 0.5f, 450f, v).Y, Is.GreaterThan(0f));
             Assert.That(whole.Y, Is.GreaterThan(v.LayoutHeight * 0.75f), "the strip in the bottom quarter: clear of the run box and the map at the top right");
+        }
+
+        /// <summary>Her soles under her point (measured 2026-11-21 in the ControlRoom: 1.05 m; bones 1.01 to 1.05, the body's lowest vertex 1.09).</summary>
+        const float SoleDrop = 1.05f;
+
+        /// <summary>
+        /// The strokes' top under her point in layout pixels for a screen <paramref name="screenHeight"/> high, with the game's
+        /// camera, near the view's middle (a pinhole: a metre in the picture at her depth is the height over twice the
+        /// distance times the half angle's tangent; a metre down is that times the cosine of the pitch, a metre toward the
+        /// camera on the floor that times its sine). And the lowest her boots show as the strokes reckon it.
+        /// </summary>
+        static float StrokesUnderHerPoint(float screenHeight, InterfaceValues v, out float boots)
+        {
+            var feel = new FeelValues();
+            double pitch = feel.CameraPitch * Math.PI / 180.0;
+            float screenPerMetre = screenHeight / (2f * feel.CameraDistance * (float)Math.Tan(feel.FieldOfView * 0.5 * Math.PI / 180.0));
+            float perMetre = screenPerMetre / (screenHeight / v.LayoutHeight); // in layout pixels
+            boots = (float)(SoleDrop * Math.Cos(pitch) + v.BootReach * Math.Sin(pitch)) * perMetre;
+            return InterfaceRules.UnderFeetGap(0f, boots + v.UnderFeetMetres * perMetre, v);
+        }
+
+        [TestCase(1920f, 1080f)]
+        [TestCase(1280f, 720f)]
+        public void TheStrokesTop_IsUnderHerBodysLowestDrawnPoint_ByTheGap(float w, float h)
+        {
+            InterfaceValues v = V;
+            float under = StrokesUnderHerPoint(h, v, out float boots);
+            Assert.That(boots, Is.EqualTo(69.9f).Within(1f), "the lowest her boots show, as reckoned: about 70 layout px under her point");
+            Assert.That(under, Is.EqualTo(91.5f).Within(1f), "the strokes' top about 91 px under her point (this morning 16, after item 3 25.2)");
+            Assert.That(under - boots, Is.EqualTo(21.6f).Within(0.3f), "0.30 m in the picture under the boots");
+            // Her body's lowest drawn points measured 2026-11-21 (layout px under her point): standing, facing four ways, at
+            // most 69.8 (a vertex of a boot) and 67.5 (a toe bone); running toward the camera, 74.5 (a toe bone).
+            Assert.That(under - 69.8f, Is.GreaterThanOrEqualTo(21.6f * 0.95f), "standing: under her lowest drawn point by the gap");
+            Assert.That(under - 74.5f, Is.GreaterThan(10f), "running toward the camera: still clear of her boots");
+            Assert.That(InterfaceRules.UnderFeetGap(0f, 50f, new InterfaceValues { UnderFeetMetres = 0f, FightScale = 1f }), Is.EqualTo(16f), "0 m: this morning's 16 px");
         }
 
         [Test]
