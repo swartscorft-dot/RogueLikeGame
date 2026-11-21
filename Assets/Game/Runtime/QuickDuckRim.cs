@@ -79,6 +79,21 @@ namespace Roguelike
             if (_go != null && _go.activeSelf) _go.SetActive(false);
         }
 
+        /// <summary>
+        /// Destroys its object and its mesh, from her teardown (the third review of 2026-11-20, work order 047): the scene
+        /// took the object, but nothing took the mesh, so one was left per Play session with domain reload off.
+        /// </summary>
+        public void Dispose()
+        {
+            On = null;
+            if (_go != null) UnityEngine.Object.Destroy(_go);
+            if (_mesh != null) UnityEngine.Object.Destroy(_mesh);
+            _go = null;
+            _filter = null;
+            _renderer = null;
+            _mesh = null;
+        }
+
         void Make()
         {
             _go = new GameObject("QuickDuckRim");

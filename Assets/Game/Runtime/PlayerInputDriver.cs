@@ -102,6 +102,7 @@ namespace Roguelike
         int _skillsHeldBefore;
         int _waitForUp;          // skill keys that must be seen up before they count again (work order 026)
         bool _shootWaitsForUp;   // and the shoot button
+        Vector2 _moveBefore;     // the move keys of the last frame read, to tell a key going down (work order 047)
         int _holdsSeen;
         InputBindings _fallback;
 
@@ -152,6 +153,7 @@ namespace Roguelike
                 // No input this frame: no key is down, so none waits any more (work order 026).
                 _waitForUp = 0;
                 _shootWaitsForUp = false;
+                _moveBefore = Vector2.zero;
                 return;
             }
             InputFrame input = read.Value;
@@ -186,7 +188,9 @@ namespace Roguelike
             }
 
             // Movement first, so a shot this frame knows whether she is moving; the cover key with it.
-            _player.Steer(ScreenToGround(input.Move));
+            // With whether a move key went down: a quick duck ends on a key going down, not on one let go (work order 047).
+            _player.Steer(ScreenToGround(input.Move), Rules.QuickDuckRules.MoveKeyWentDown(_moveBefore.x, _moveBefore.y, input.Move.x, input.Move.y));
+            _moveBefore = input.Move;
             _player.HoldCover(input.CoverHeld);
             _player.AimAt(cursor);
             if (input.IdentityPressed) _player.ActivateIdentity();

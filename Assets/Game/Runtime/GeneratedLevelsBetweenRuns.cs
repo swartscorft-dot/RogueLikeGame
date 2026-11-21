@@ -38,8 +38,12 @@ namespace Roguelike
     {
         /// <summary>The save's file name, under <see cref="Application.persistentDataPath"/>.</summary>
         public const string BetweenRunsFileName = "between-runs.json";
-        /// <summary>Second Look's key on the floor reward's offer: draw the skills again.</summary>
-        public const Key RedrawKey = Key.Tab;
+        /// <summary>
+        /// Second Look's key on the floor reward's offer: draw the skills again. X, bound to nothing and no developer key; Tab
+        /// was the map's key too, and spent the redraw when pressed to look at the map (the third review of 2026-11-20, work
+        /// order 047).
+        /// </summary>
+        public const Key RedrawKey = Key.X;
 
         /// <summary>The numbers of what lasts between runs, and the switch (work order 029).</summary>
         public MetaValues MetaValues = new MetaValues();

@@ -2,9 +2,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using Roguelike.Rules;
 using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
@@ -628,6 +632,598 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.RunSeed, Is.EqualTo(seed), "the same run");
             Assert.That(_levels.Floor, Is.EqualTo(1), "from floor 1");
             Assert.That(_levels.Level.Layout.Describe(), Is.EqualTo(described));
+        }
+    }
+
+    /// <summary>
+    /// The faults the third pair of reviews of 2026-11-20 found (work order 047), in the ControlRoom scene through the
+    /// intents: the clean signs while a press would wait; a skill pressed early in a quick duck; a move key let go in a
+    /// duck; a projectile in the frame it was loosed, whichever Update runs first; a leap and a Shield bash over a long
+    /// frame; an elite room's drop at a floor with nothing to offer and at the act's end; Second Look's key and the guard;
+    /// a bow's flash after its floor and run; the duck rim's mesh; the small bars after the camera; the pause menu's cover
+    /// line; the cover key held through a teleport; the turns' values; the caster's circles.
+    ///
+    /// The practice brute is switched off (the template the enemies here are made from). Props are built as a level
+    /// builds them. A frame without a window is about 0.3 ms: the waits count frames or real time, or game time only
+    /// where the game runs; a long frame is made with <see cref="Time.captureDeltaTime"/>, never assumed.
+    /// </summary>
+    public class ReviewFix3Tests
+    {
+        const ulong RunSeed = 0x0470A047UL;
+        const int MostFrames = 600;
+        static readonly Vector3 Practice = new Vector3(-8f, 0f, -8f); // open ground in the practice room, away from her start
+        static readonly Vector3 NearA = new Vector3(2f, 0f, 1f);      // Dummy_A (4, 3) is 2.8 m away here
+        static readonly Vector3 Stand = new Vector3(8f, 0f, -6f);
+        static readonly Vector3 EnemyAt = new Vector3(8f, 0f, 4f);
+
+        PlayerCharacter _player;
+        PlayerHealth _health;
+        PlayerInputDriver _driver;
+        GeneratedLevels _levels;
+        EnemyBrute _practiceEnemy;
+        RunHud _hud;
+        FeelValues _feel;
+        bool _takeCoverWas, _quickDuckWas;
+        Keyboard _keyboard;
+        ActsFirstInFrame _first;
+        ActsLastInFrame _last;
+        readonly List<Object> _made = new List<Object>();
+        readonly List<(PlayerReport Report, int Frame, float Time)> _reports = new List<(PlayerReport, int, float)>();
+        readonly List<ThingsThatFly.Shown> _shown = new List<ThingsThatFly.Shown>();
+
+        [UnitySetUp]
+        public IEnumerator LoadScene()
+        {
+            Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
+            PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
+            yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
+            yield return null;
+            _player = Object.FindAnyObjectByType<PlayerCharacter>();
+            Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
+            _driver = _player.GetComponent<PlayerInputDriver>();
+            _driver.InputSource = () => null;
+            _health = _player.GetComponent<PlayerHealth>();
+            _health.MaxHealth = 100000; // nothing here is about her health
+            _health.RestoreFull();
+            _feel = _player.Feel;
+            _takeCoverWas = _feel.TakeCover;
+            _quickDuckWas = _feel.QuickDuck;
+            _feel.TakeCover = true;
+            _feel.QuickDuck = true;
+            _practiceEnemy = Object.FindAnyObjectByType<EnemyBrute>();
+            Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy, to copy");
+            _practiceEnemy.enabled = false;
+            _levels = GeneratedLevels.Ensure();
+            _reports.Clear();
+            _player.Reported += r => _reports.Add((r, Time.frameCount, Time.time));
+            _player.Teleport(Practice);
+            yield return null;
+        }
+
+        [TearDown]
+        public void CleanUp()
+        {
+            Time.captureDeltaTime = 0f;
+            if (_feel != null)
+            {
+                _feel.TakeCover = _takeCoverWas; // the feel values live in an asset
+                _feel.QuickDuck = _quickDuckWas;
+            }
+            if (_keyboard != null) InputSystem.RemoveDevice(_keyboard);
+            _keyboard = null;
+            if (_first != null) Object.Destroy(_first.gameObject);
+            if (_last != null) Object.Destroy(_last.gameObject);
+            foreach (Object o in _made) if (o != null) Object.Destroy(o);
+            _made.Clear();
+            if (_hud != null) Object.Destroy(_hud.gameObject);
+            _hud = null;
+            if (_health != null) _health.Untouchable = false;
+            if (_levels != null) Object.Destroy(_levels.gameObject);
+            _levels = null;
+            Time.timeScale = 1f;
+            PlayerInputDriver.HeldByChoice = false;
+            PlayerInputDriver.HeldByScreen = false;
+            PlayerInputDriver.ReadRealDevices = true;
+        }
+
+        // ---------------- Helpers ----------------
+
+        static IEnumerator Frames(Func<bool> condition)
+        {
+            for (int i = 0; i < MostFrames && !condition(); i++) yield return null;
+        }
+
+        static IEnumerator Until(Func<bool> condition, float timeoutSeconds)
+        {
+            float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+            while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        static IEnumerator GameTime(float seconds)
+        {
+            float end = Time.time + seconds;
+            float deadline = Time.realtimeSinceStartup + seconds + 10f;
+            while (Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+        static float FlatDistance(Vector3 a, Vector3 b) => Flat(a - b).magnitude;
+        Vector2 ScreenMiddle => new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+
+        int Slot(string name)
+        {
+            for (int i = 0; i < _player.Skills.Count; i++)
+                if (_player.Skills[i].Name == name) return i;
+            Assert.Fail("no skill " + name);
+            return -1;
+        }
+
+        /// <summary>The slot of the first plain skill she has that is ready (as QuickDuckTests picks it).</summary>
+        int FirstReadySkill()
+        {
+            for (int slot = 0; slot < _player.Skills.Count; slot++)
+                if (_player.IsEquipped(slot) && _player.SkillCooldownRemaining(slot) <= 0f && _player.Skills[slot].Input == SkillInput.Normal
+                    && _player.Skills[slot].RecastCount <= 1 && _player.Skills[slot].MoveDistance == 0f)
+                    return slot;
+            Assert.Fail("no plain skill ready");
+            return -1;
+        }
+
+        /// <summary>A low prop (a sarcophagus) as a level builds it, its near face <paramref name="face"/> m from <paramref name="her"/> along <paramref name="way"/>.</summary>
+        GameObject LowProp(Vector3 her, Vector3 way, float face = 0.5f)
+        {
+            const PropModel model = PropModel.Sarcophagus;
+            PropSize size = PropSize.Of(model);
+            float half = size.Shape == PropShape.Circle ? (float)size.Radius : (float)size.Depth * 0.5f;
+            Vector3 at = Flat(her) + way * (face + half);
+            int rotation = (Mathf.RoundToInt(Quaternion.LookRotation(-way).eulerAngles.y / 90f) * 90) % 360;
+            var values = new PropValues();
+            LevelProp prop = LevelProp.Make(model, new LevelPoint(at.x, at.z), rotation, PropPlace.Floor);
+            GameObject go = PropFactory.Make(prop, at, null, LayerMask.NameToLayer("Default"), null, "TestProp_" + model, 1f);
+            if (prop.IsCover(values)) go.AddComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, values);
+            if (!prop.Slender) go.AddComponent<Shelter>();
+            _made.Add(go);
+            Physics.SyncTransforms();
+            return go;
+        }
+
+        /// <summary>One melee enemy made where it stands, from the practice enemy, awake once provoked; it does not walk.</summary>
+        T Make<T>(EnemyKind kind, Vector3 at) where T : MeleeEnemy
+        {
+            if (NavMesh.SamplePosition(at, out NavMeshHit hit, 2f, NavMesh.AllAreas)) at = hit.position;
+            Enemy e = EnemyFactory.Make(kind, at, null, _practiceEnemy, "Melee_" + kind);
+            Assert.That(e, Is.Not.Null, kind + " made");
+            _made.Add(e.gameObject);
+            if (e is EnemyBrute brute)
+            {
+                brute.FloorValues = new LevelValues().FloorBruteValues(brute.Settings != null ? brute.Settings.Values : null);
+                brute.enabled = true;
+            }
+            e.Values.MoveSpeed = 0f;
+            return (T)e;
+        }
+
+        bool ShownNumber(ThingsThatFly fly, int number, out ThingsThatFly.Shown shown)
+        {
+            fly.ListFlying(_shown);
+            foreach (ThingsThatFly.Shown s in _shown)
+                if (s.Number == number)
+                {
+                    shown = s;
+                    return true;
+                }
+            shown = default;
+            return false;
+        }
+
+        void UseKeyboard()
+        {
+            _keyboard = InputSystem.AddDevice<Keyboard>();
+            _levels.TestKeyboard = _keyboard;
+        }
+
+        void Keys(params Key[] down) => InputSystem.QueueStateEvent(_keyboard, new KeyboardState(down));
+
+        IEnumerator Press(params Key[] down)
+        {
+            Keys(down);
+            yield return Frames(() => down.All(k => _keyboard[k].isPressed) && (down.Length > 0 || !_keyboard.anyKey.isPressed));
+        }
+
+        /// <summary>Floor 1's reward and the focus choice taken through the intents: she is on floor 2.</summary>
+        IEnumerator OnToTheNextFloor()
+        {
+            int floor = _levels.Floor;
+            _levels.FinishFloorForTests();
+            yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
+            Assert.That(_levels.PickReward(0), Is.True, "floor " + floor + "'s reward");
+            if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) Assert.That(_levels.PickFocusChoice(0), Is.True);
+            yield return null;
+            Assert.That(_levels.Floor, Is.EqualTo(floor + 1));
+        }
+
+        /// <summary>Kills the elite room's enemies: its drop lies.</summary>
+        IEnumerator KillTheEliteRoom()
+        {
+            List<Enemy> alive = _levels.Level.EliteRoomEnemies.Where(e => e != null && !e.IsDead).ToList();
+            Assume.That(alive.Count, Is.GreaterThan(0), "an elite room on floor " + _levels.Floor);
+            foreach (Enemy e in alive) e.Body.TakeHit(100000000);
+            yield return Frames(() => _levels.EliteDrop != null || _levels.Choice != GeneratedLevels.ChoiceKind.None);
+            Assert.That(_levels.EliteDrop, Is.Not.Null, "the elite's drop lies");
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.None));
+        }
+
+        // ---------------- 1. The signs while a press would wait ----------------
+
+        [UnityTest]
+        public IEnumerator TheCleanSigns_SayNotCleanWhileStunned_ForAPressThenWaitsAndIsJudgedAsOneThatWaited()
+        {
+            int slot = Slot("Triple Tap");
+            SkillDefinition skill = _player.Skills[slot];
+            Vector3 aim = GameObject.Find("Dummy_A").transform.position;
+            _player.Teleport(NearA);
+            yield return null;
+            Assert.That(_player.PressSkill(slot, aim), Is.EqualTo(IntentResult.Started), "the first press");
+            for (int press = 2; press < skill.RecastCount; press++)
+            {
+                yield return Until(() => _player.IsRecastWindowOpen, 2f);
+                Assert.That(_player.PressSkill(slot, aim), Is.EqualTo(IntentResult.Started), "press " + press);
+            }
+            yield return Until(() => _player.IsRecastWindowOpen && _player.RecastShots == skill.RecastCount - 1
+                                     && _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 3f);
+            Assume.That(_player.RecastPressWouldBeClean, Is.True, "free, in the middle of the clean part: a press would be clean");
+
+            Assert.That(_player.Stun(0.05f, "test"), Is.True);
+            Assert.That(_player.RecastPressWouldBeClean, Is.False, "stunned, a press waits, and one that waited is never clean");
+            float stunnedAt = Time.time;
+            Assert.That(_player.PressSkill(slot, aim), Is.EqualTo(IntentResult.Buffered), "the press waits");
+            yield return Until(() => !_player.IsStunned, 2f);
+            yield return null;
+            Assert.That(_reports.Any(r => r.Report.Kind == PlayerReportKind.RecastPressed && r.Time >= stunnedAt && r.Report.Clean), Is.False,
+                        "and it was not clean: the sign told the truth");
+        }
+
+        // ---------------- 2. A skill pressed early in a quick duck ----------------
+
+        [UnityTest]
+        public IEnumerator ASkill_PressedEarlyInAQuickDuck_GoesOffAsSheRises()
+        {
+            LowProp(Practice, Vector3.right);
+            yield return null;
+            int slot = FirstReadySkill();
+            Assume.That(_feel.DuckSeconds - 0.1f, Is.GreaterThan(_feel.InputBuffer + 0.05f), "a press 0.1 s in is older than the buffer when she rises");
+            Assert.That(_player.TapCover(), Is.EqualTo(DuckTap.Ducked));
+            float down = _player.DuckDownAt;
+            yield return GameTime(0.1f);
+            Assume.That(_player.IsQuickDucking, Is.True);
+            Assume.That(Time.time - down, Is.LessThan(_feel.DuckSeconds - _feel.InputBuffer - 0.05f), "early in the duck");
+            float pressedAt = Time.time;
+            Assert.That(_player.PressSkill(slot, Practice + Vector3.left * 5f), Is.EqualTo(IntentResult.Buffered), "no skill while down: it waits");
+            _player.ReleaseSkill(slot);
+            yield return Until(() => !_player.IsQuickDucking, 2f);
+            yield return null;
+            yield return null;
+            Assert.That(_reports.Any(r => r.Report.Kind == PlayerReportKind.BufferDropped && r.Time >= pressedAt), Is.False, "it is not dropped");
+            Assert.That(_reports.Any(r => r.Report.Kind == PlayerReportKind.SkillStarted && r.Report.Slot == slot && r.Time >= pressedAt), Is.True,
+                        "it goes off as she rises, as a click does");
+        }
+
+        // ---------------- 3. A move key let go in a duck ----------------
+
+        [UnityTest]
+        public IEnumerator LettingGoOfOneOfTwoMoveKeys_DoesNotEndADuck_PressingOneAgainDoes()
+        {
+            LowProp(Practice, Vector3.forward);
+            yield return null;
+            Vector2 move = new Vector2(1f, 1f); // W and D
+            bool cover = false;
+            _driver.InputSource = () => new InputFrame { CursorScreen = ScreenMiddle, Move = move, CoverHeld = cover };
+            yield return null;
+            yield return null;
+            cover = true; // the tap, W and D held
+            yield return Frames(() => _player.IsQuickDucking);
+            Assert.That(_player.IsQuickDucking, Is.True, "ducked by the key");
+            move = new Vector2(0f, 1f); // D let go, W still down
+            for (int i = 0; i < 6; i++) yield return null;
+            Assume.That(Time.time, Is.LessThan(_player.DuckUpAt), "before she would rise by herself");
+            Assert.That(_player.IsQuickDucking, Is.True, "a key let go is no new press: still down");
+            move = new Vector2(1f, 1f); // D down again
+            yield return Frames(() => !_player.IsQuickDucking);
+            Assert.That(_player.IsQuickDucking, Is.False, "a key going down ends it");
+            Assert.That(_reports.Last(r => r.Report.Kind == PlayerReportKind.DuckEnded).Report.DuckEnd, Is.EqualTo(DuckEnd.Moved));
+        }
+
+        // ---------------- 4. A projectile in the frame it was loosed ----------------
+
+        [UnityTest]
+        public IEnumerator AProjectile_DoesNotFlyInTheFrameItWasLoosed_WhicheverUpdateRunsFirst()
+        {
+            var shooter = (EnemyShooter)_levels.SpawnPractice(EnemyKind.Shooter).Single();
+            shooter.Values.MoveSpeed = 0f;
+            ThingsThatFly fly = ThingsThatFly.Ensure();
+            fly.Values.On = true;
+            _first = new GameObject("ActsFirstInFrame").AddComponent<ActsFirstInFrame>();
+            _last = new GameObject("ActsLastInFrame").AddComponent<ActsLastInFrame>();
+            yield return null;
+            EnemyAttackDefinition arrow = shooter.Tuning.Arrows[0];
+            foreach (bool beforeThePool in new[] { true, false })
+            {
+                int number = 0;
+                Action loose = () =>
+                {
+                    // Away from her, so that it meets nothing for a while.
+                    GroundPoint me = new GroundPoint(shooter.transform.position.x, shooter.transform.position.z);
+                    GroundPoint away = me - _player.GroundPosition;
+                    number = fly.Fire(shooter, arrow, ProjectileRules.Arrow(shooter.Tuning, me, away));
+                };
+                if (beforeThePool) _first.Act = loose;
+                else _last.Act = loose;
+                yield return null; // the frame it is loosed in
+                string order = beforeThePool ? "loosed before the pool's Update" : "loosed after it";
+                Assert.That(number, Is.GreaterThan(0), order);
+                Assert.That(ShownNumber(fly, number, out ThingsThatFly.Shown s), Is.True, order);
+                Assert.That(s.Flown, Is.EqualTo(0f), order + ": it waits at the bow in the frame it was loosed");
+                yield return null;
+                Assert.That(ShownNumber(fly, number, out s), Is.True, order);
+                Assert.That(s.Flown, Is.GreaterThan(0f), order + ": and flies from the next");
+            }
+            _levels.ClearSpawned();
+        }
+
+        // ---------------- 5. A leap and a Shield bash over a long frame ----------------
+
+        IEnumerator StrikesWhereItArrives(MeleeEnemy e, string attack, float standOff)
+        {
+            EnemyAttackDefinition a = MeleeAttacks.Find(e.AttacksNow, attack);
+            yield return null;
+            _player.Teleport(Flat(e.transform.position) + Vector3.back * standOff);
+            yield return null;
+            e.Provoke();
+            yield return Until(() => e.State == EnemyState.Windup && e.Attack != null && e.Attack.Name == attack, 6f);
+            Assert.That(e.Attack != null && e.Attack.Name == attack, Is.True, e.Kind + " winds up " + attack);
+            Vector3 from = e.transform.position;
+            int strikes = e.Strikes, landed = e.StrikesLanded, hp = _health.Current;
+            try
+            {
+                // Frames of 0.31 s (not 0.3, whose sums fall on the windups' ends): one frame carries the windup across the move's start, the next past the strike.
+                Time.captureDeltaTime = 0.31f;
+                yield return Until(() => e.Strikes > strikes, 5f);
+            }
+            finally
+            {
+                Time.captureDeltaTime = 0f;
+            }
+            Assert.That(e.Strikes, Is.EqualTo(strikes + 1), "it struck");
+            Assert.That(FlatDistance(e.transform.position, from), Is.GreaterThan(standOff - 2.5f), "it arrived before the strike was tested");
+            Assert.That(e.StrikesLanded, Is.EqualTo(landed + 1), "and the strike landed on her, standing where it went");
+            Assert.That(hp - _health.Current, Is.GreaterThanOrEqualTo(a.Damage));
+        }
+
+        [UnityTest]
+        public IEnumerator AShieldBash_OverLongFrames_StrikesWhereItsLungeArrives()
+        {
+            var brute = Make<EnemyBrute>(EnemyKind.Brute, EnemyAt);
+            yield return StrikesWhereItArrives(brute, MeleeAttacks.ShieldBash, 4.5f);
+            Assert.That(_player.IsStunned, Is.True, "and stunned her");
+        }
+
+        [UnityTest]
+        public IEnumerator ALeap_WithItsFlagOn_OverLongFrames_BitesWhereItLands()
+        {
+            var swarmer = Make<EnemySwarmer>(EnemyKind.Swarmer, EnemyAt);
+            swarmer.Tuning.Leaps = true; // the Leap as 035 built it, kept behind its flag (work order 039)
+            yield return StrikesWhereItArrives(swarmer, MeleeAttacks.Leap, 5.5f);
+        }
+
+        // ---------------- 6. An elite room's drop when the floor goes on by itself ----------------
+
+        [UnityTest]
+        public IEnumerator TheElitesDrop_LeftLying_ComesFirst_WhenTheFloorHasNothingToOffer_ThenTheNextFloor()
+        {
+            _levels.StartRun(RunSeed);
+            yield return null;
+            _health.Untouchable = true;
+            yield return OnToTheNextFloor(); // floor 2: no focus choice is due any more
+            for (int slot = 0; slot < _player.Skills.Count; slot++) _player.EquipSkill(slot); // nothing left to offer
+            yield return KillTheEliteRoom();
+            foreach (Enemy e in _levels.Level.ExitEnemies.Where(x => x != null && !x.IsDead)) e.Body.TakeHit(100000000);
+            yield return Frames(() => _levels.Choice != GeneratedLevels.ChoiceKind.None || _levels.Floor != 2);
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade first: it would go with the floor");
+            Assert.That(_levels.Floor, Is.EqualTo(2), "still on floor 2");
+            Assert.That(_levels.PickSkillUpgrade(0), Is.True);
+            Assert.That(_levels.SkillUpgrades.Count, Is.EqualTo(1), "nothing was lost");
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.None));
+            Assert.That(_levels.Floor, Is.EqualTo(3), "then the floor goes on, as it would have");
+        }
+
+        [UnityTest]
+        public IEnumerator TheElitesDrop_LeftLying_ComesFirst_AtTheActsEnd_ThenTheActIsCleared()
+        {
+            _levels.StartRun(RunSeed);
+            yield return null;
+            _health.Untouchable = true;
+            for (int floor = 1; floor < _levels.Values.FloorsPerAct; floor++) yield return OnToTheNextFloor();
+            yield return KillTheEliteRoom();
+            _levels.FinishFloorForTests();
+            yield return Frames(() => _levels.Choice != GeneratedLevels.ChoiceKind.None || _levels.ActCleared);
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade first: it would be left lying");
+            Assert.That(_levels.ActCleared, Is.False, "the act's end waits for it");
+            Assert.That(_levels.PickSkillUpgrade(0), Is.True);
+            Assert.That(_levels.ActCleared, Is.True, "then the act is cleared");
+            Assert.That(_levels.Ending, Is.EqualTo(GeneratedLevels.EndKind.ActCleared));
+            Assert.That(_levels.Drops.Count, Is.Zero, "nothing left lying");
+        }
+
+        // ---------------- 8. Second Look's key ----------------
+
+        [UnityTest]
+        public IEnumerator SecondLook_HasAKeyOfItsOwn_NotTheMaps_AndWaitsForTheGuard()
+        {
+            Assert.That(GeneratedLevels.RedrawKey, Is.Not.EqualTo(FloorMap.LargeKey), "a key of its own");
+            _levels.StartRun(RunSeed);
+            yield return null;
+            _levels.Modifiers.Meta.RedrawsLeft = 1; // Second Look, as the trial's piece gives it
+            UseKeyboard();
+            _levels.FinishFloorForTests();
+            yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
+            Assert.That(_levels.CanRedraw, Is.True);
+
+            yield return Press(GeneratedLevels.RedrawKey);
+            Assume.That(Time.unscaledTime, Is.LessThan(_levels.ChoiceLiveFrom), "inside the guard");
+            Assert.That(_levels.Modifiers.Meta.RedrawsLeft, Is.EqualTo(1), "a press inside the guard draws nothing");
+            yield return Press();
+            yield return Until(() => _levels.ChoiceLive, 3f);
+            yield return Press(FloorMap.LargeKey);
+            yield return Press();
+            Assert.That(_levels.Modifiers.Meta.RedrawsLeft, Is.EqualTo(1), "the map's key spends nothing");
+            Keys(GeneratedLevels.RedrawKey);
+            yield return Frames(() => _levels.Modifiers.Meta.RedrawsLeft == 0);
+            Assert.That(_levels.Modifiers.Meta.RedrawsLeft, Is.EqualTo(0), "its own key after the guard draws again");
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "the offer is still up");
+        }
+
+        // ---------------- 9. A bow's flash after its floor and run ----------------
+
+        [UnityTest]
+        public IEnumerator ABowsFlash_GoesWithItsRun_AndWithItsFloor()
+        {
+            ThingsThatFly fly = ThingsThatFly.Ensure();
+            _levels.StartRun(RunSeed);
+            yield return null;
+            fly.FlashAt(_player.Position + Vector3.forward * 3f);
+            Assert.That(fly.FlashesLive, Is.EqualTo(1));
+            _levels.BackToPracticeRoom();
+            yield return null;
+            Assert.That(fly.FlashesLive, Is.EqualTo(0), "gone with the run");
+
+            _levels.StartRun(RunSeed);
+            yield return null;
+            fly.FlashAt(_player.Position + Vector3.forward * 3f);
+            Assert.That(fly.FlashesLive, Is.EqualTo(1));
+            yield return OnToTheNextFloor(); // the choice holds the game: the flash does not age
+            Assert.That(fly.FlashesLive, Is.EqualTo(0), "gone with the floor");
+        }
+
+        // ---------------- 10. The duck rim's mesh ----------------
+
+        [UnityTest]
+        public IEnumerator TheDuckRim_ItsObjectAndMesh_GoWithHer()
+        {
+            LowProp(Practice, Vector3.right);
+            yield return null;
+            yield return null;
+            Assert.That(_player.DuckRimOn, Is.Not.Null, "the rim shows");
+            GameObject rim = _player.DuckRim.Object;
+            Mesh mesh = rim.GetComponent<MeshFilter>().sharedMesh;
+            Assert.That(mesh, Is.Not.Null);
+            yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single); // she goes with her scene
+            yield return null;
+            Assert.That(rim == null, Is.True, "its object is gone");
+            Assert.That(mesh == null, Is.True, "and its mesh");
+            _player = null;
+        }
+
+        // ---------------- 11. The small bars after the camera ----------------
+
+        [Test]
+        public void TheSmallBars_WorkOutTheirPlaces_AfterTheCameraHasMoved()
+        {
+            int Order(Type t) => t.GetCustomAttribute<DefaultExecutionOrder>()?.order ?? 0;
+            Assert.That(Order(typeof(EnemyBars)), Is.GreaterThan(Order(typeof(CameraRig))), "the bars' LateUpdate runs after the camera's");
+        }
+
+        // ---------------- 12. The pause menu's cover line ----------------
+
+        [UnityTest]
+        public IEnumerator ThePauseMenusKeyList_SaysTheCoverKeyIsATap_WithTheQuickDuck()
+        {
+            _hud = RunHud.Ensure();
+            yield return null;
+            string CoverKeyLine() => _hud.KeyLines().Single(l => l.StartsWith("Cover"));
+            Assert.That(CoverKeyLine(), Does.Contain("tap to duck by a low prop").And.Not.Contain("(hold)"));
+            _feel.QuickDuck = false;
+            Assert.That(CoverKeyLine(), Does.Contain("(hold)"), "with it off, held as before");
+        }
+
+        // ---------------- 13. The cover key held through a teleport ----------------
+
+        [UnityTest]
+        public IEnumerator TheCoverKey_HeldThroughAFloorChange_GivesNoDuckOnArrival()
+        {
+            Vector3 beside = Practice + Vector3.back * 6f;
+            LowProp(beside, Vector3.right);
+            _player.HoldCover(true); // held, with nothing in reach
+            yield return null;
+            Assume.That(_player.IsQuickDucking, Is.False);
+            _player.Teleport(beside); // as a new floor puts her at its start
+            yield return null;
+            _player.HoldCover(true); // the next frame, the key as it is
+            yield return null;
+            Assert.That(_player.IsQuickDucking, Is.False, "a key held all along is no tap");
+            Assert.That(_player.DucksTaken, Is.EqualTo(0));
+            _player.HoldCover(false);
+            _player.HoldCover(true);
+            Assert.That(_player.IsQuickDucking, Is.True, "pressed again there, it ducks");
+        }
+
+        // ---------------- 14. To check ----------------
+
+        [Test]
+        public void TheTurnsValuesAndFloor_AreResetWithTheOtherStatics()
+        {
+            const BindingFlags Statics = BindingFlags.NonPublic | BindingFlags.Static;
+            MethodInfo reset = typeof(Enemy).GetMethod("ResetStatics", Statics);
+            FieldInfo all = typeof(Enemy).GetField("s_All", Statics), nextId = typeof(Enemy).GetField("s_NextId", Statics);
+            FieldInfo appeared = typeof(Enemy).GetField("Appeared", Statics);
+            Assert.That(reset, Is.Not.Null);
+            var enemies = ((IEnumerable<Enemy>)all.GetValue(null)).ToList();
+            object id = nextId.GetValue(null), listeners = appeared.GetValue(null);
+            var drawer = Enemy.StrikeDrawer;
+            var drawerAt = Enemy.StrikeAtDrawer;
+            TurnValues values = Enemy.Turns.Values;
+            int floor = Enemy.Turns.Floor;
+            try
+            {
+                Enemy.Turns.Values = new TurnValues { On = false, Shared = true };
+                Enemy.Turns.Floor = 4;
+                reset.Invoke(null, null); // as a new Play session begins, with domain reload off
+                var fresh = new TurnValues();
+                Assert.That(Enemy.Turns.Values.On, Is.EqualTo(fresh.On), "the turns' values as they start");
+                Assert.That(Enemy.Turns.Values.Shared, Is.EqualTo(fresh.Shared));
+                Assert.That(Enemy.Turns.Floor, Is.EqualTo(1), "and its floor");
+            }
+            finally
+            {
+                var list = (List<Enemy>)all.GetValue(null);
+                list.Clear();
+                list.AddRange(enemies);
+                nextId.SetValue(null, id);
+                appeared.SetValue(null, listeners);
+                Enemy.StrikeDrawer = drawer;
+                Enemy.StrikeAtDrawer = drawerAt;
+                Enemy.Turns.Values = values;
+                Enemy.Turns.Floor = floor;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator TheCastersCircles_AreNotKeptForever()
+        {
+            var caster = (EnemyCaster)_levels.SpawnPractice(EnemyKind.Caster).Single();
+            caster.Values.MoveSpeed = 0f;
+            yield return null;
+            MethodInfo place = typeof(EnemyCaster).GetMethod("Place", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.That(place, Is.Not.Null);
+            EnemyAttackDefinition spikes = caster.Tuning.Enemy.Attacks.First(a => a.Name == CasterValues.BoneSpikes);
+            Vector3 at = Flat(caster.transform.position); // its own feet: walkable, and 12 m from her
+            for (int i = 0; i < 100; i++) place.Invoke(caster, new object[] { spikes, 1, at, Time.time, 0f, false });
+            yield return Frames(() => caster.Circles.All(c => !c.IsPending));
+            Assume.That(caster.Circles.All(c => !c.IsPending), Is.True, "all burst");
+            place.Invoke(caster, new object[] { spikes, 1, at, Time.time, 0f, false });
+            Assert.That(caster.Circles.Count, Is.LessThanOrEqualTo(EnemyCaster.KeptCircles), "the burst ones are let go of in a long session");
+            Assert.That(caster.Circles.Last().IsPending, Is.True, "the new one is kept");
+            _levels.ClearSpawned();
         }
     }
 }

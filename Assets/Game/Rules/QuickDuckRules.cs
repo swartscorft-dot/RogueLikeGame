@@ -221,5 +221,13 @@ namespace Roguelike.Rules
             float a = heldAtTap.Length, b = heldNow.Length;
             return heldAtTap.Dot(heldNow) / (a * b) < 0.999f; // more than about 2.5 degrees off
         }
+
+        /// <summary>
+        /// Did a move key go down between two frames of the move keys (each axis -1, 0 or 1, the screen's x and y)? An axis
+        /// held now that was not held the same way before (the third review of 2026-11-20, work order 047): letting go of
+        /// one of two keys is no new press, and does not end a duck.
+        /// </summary>
+        public static bool MoveKeyWentDown(float beforeX, float beforeY, float nowX, float nowY) =>
+            (Math.Sign(nowX) != 0 && Math.Sign(nowX) != Math.Sign(beforeX)) || (Math.Sign(nowY) != 0 && Math.Sign(nowY) != Math.Sign(beforeY));
     }
 }

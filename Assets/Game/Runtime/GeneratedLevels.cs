@@ -498,8 +498,19 @@ namespace Roguelike
             float took = Time.time - _floorStartedAt;
             PlaySessionRecorder.Current?.NoteFloorFinished(Floor, took, _health != null ? _health.Current : 0);
             BetweenRunsFloorCleared(); // work order 029
+            FloorGoesOn();
+        }
+
+        /// <summary>
+        /// What follows a finished floor: the act cleared after the last, else the floor's reward. Where the floor would go on
+        /// by itself with the elite room's drop still lying, its upgrade comes first and this follows its pick (the third
+        /// review of 2026-11-20, work order 047; <see cref="EliteRewardFirst"/>).
+        /// </summary>
+        void FloorGoesOn()
+        {
             if (Floor >= Values.FloorsPerAct)
             {
+                if (EliteRewardFirst()) return; // work order 047: it would be left lying on the act's last floor
                 ActCleared = true;
                 _actTime = Time.time - _runStartedAt;
                 BetweenRunsActCleared(); // work order 029: the act boss
@@ -538,7 +549,7 @@ namespace Roguelike
             if (_offeredSkills.Count == 0)
             {
                 if (FocusChoiceDue) OfferFocusChoice(); // nothing left to offer, but the focus choice still comes (work order 025)
-                else EnterFloor(Floor + 1); // nothing left to offer
+                else if (!EliteRewardFirst()) EnterFloor(Floor + 1); // nothing left to offer; an elite's drop lying first (work order 047)
                 return;
             }
             PlaySessionRecorder.Current?.NoteRewardOffered(Floor, _offeredSkills.Select(s => player.Skills[s].Name).ToList());
@@ -800,7 +811,7 @@ namespace Roguelike
                         else PickUpgrade(pick);
                     }
                     else if (choiceKeys[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
-                    else if (choiceKeys[RedrawKey].wasPressedThisFrame) RedrawOffer(); // work order 029: Second Look, only when it can
+                    else if (choiceKeys[RedrawKey].wasPressedThisFrame && ChoiceKeyMayPick) RedrawOffer(); // work order 029: Second Look, only when it can; after the guard, as a pick (work order 047)
                 }
                 return;
             }

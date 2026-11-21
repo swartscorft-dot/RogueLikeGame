@@ -99,6 +99,7 @@ namespace Roguelike
         readonly ChoiceGuard _guard = new ChoiceGuard();
         bool _openingADrop;
         Owed _floorFollows;
+        GeneratedLevel _floorEndFollows; // the floor whose end follows the elite's pick (work order 047)
         GeneratedLevel _finishedForTestsOn;
         bool _floorFinishedForTests;
         bool _eliteFinishedForTests;
@@ -234,10 +235,35 @@ namespace Roguelike
         /// </summary>
         bool FloorRewardFollows()
         {
+            // Work order 047: the floor's end that waited for the elite's pick goes on now (EliteRewardFirst).
+            GeneratedLevel ends = _floorEndFollows;
+            _floorEndFollows = null;
+            if (ends != null && ends == _level && InRun)
+            {
+                CloseChoice();
+                FloorGoesOn();
+                return true;
+            }
             Owed owed = _floorFollows;
             _floorFollows = null;
             if (owed == null || owed.Level != _level || !InRun) return false;
             CloseChoice();
+            OpenOwed(owed);
+            return true;
+        }
+
+        /// <summary>
+        /// Where the floor would go on by itself with the elite room's drop still lying (a floor with nothing to offer and no
+        /// focus choice due, or the act's last floor; the third review of 2026-11-20, work order 047): its upgrade comes now,
+        /// with the guard, and the floor's end follows its pick (<see cref="FloorRewardFollows"/>). False when none lies.
+        /// </summary>
+        bool EliteRewardFirst()
+        {
+            if (!(EliteDrop is RewardDrop elite)) return false;
+            Owed owed = (Owed)elite.Owed;
+            RemoveDrop(elite);
+            _floorEndFollows = _level;
+            Debug.Log("Reward drop taken up as the floor ends: " + owed.Kind + " on floor " + Floor);
             OpenOwed(owed);
             return true;
         }

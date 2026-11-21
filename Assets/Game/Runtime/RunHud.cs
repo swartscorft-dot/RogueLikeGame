@@ -426,7 +426,7 @@ namespace Roguelike
             // Work order 025: the way the gauge works, once one is picked (the run's choice, or the practice room's).
             FocusMode focus = _player != null ? _player.FocusMode : FocusMode.Today;
             lines.Add("Focus  " + K(b.Focus) + (focus != FocusMode.Today ? "  (" + FocusModeRules.Name(focus) + ")" : ""));
-            lines.Add("Cover  " + K(b.TakeCover) + "  (hold)");
+            lines.Add("Cover  " + K(b.TakeCover) + (_player != null && _player.QuickDuckOn ? "  (tap to duck by a low prop)" : "  (hold)")); // work order 047, as the help line words it
             lines.Add("Interact  " + K(b.Interact));
             lines.Add("Map  " + K(FloorMap.LargeKey) + "  (hold)"); // work order 041: the small map, large while held
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;

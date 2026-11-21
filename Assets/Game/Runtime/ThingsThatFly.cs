@@ -165,6 +165,7 @@ namespace Roguelike
             public EnemyAttackDefinition Attack;
             public GeneratedLevel Level;
             public bool InRun;
+            public int Frame;          // the frame it was loosed: it does not step in that frame, as a flash is not aged in its own (work order 047)
             public bool Spares;        // the boss's wave whose Cleave hit her: it passes her
             public bool Told;          // its end is told: it only flies on to where it stops
             public float Age;
@@ -185,6 +186,8 @@ namespace Roguelike
             public bool Live;
             public float Age;
             public int Frame;           // the frame it began: it is not aged in that frame, so even a long one shows it
+            public GeneratedLevel Level; // the floor and the run it was shown on: it goes with them (work order 047)
+            public bool InRun;
             public Vector3 At;
             public float Yaw;
             public GameObject Go;
@@ -270,6 +273,7 @@ namespace Roguelike
             s.Attack = attack;
             s.Level = levels != null ? levels.Level : null;
             s.InRun = levels != null && levels.InRun;
+            s.Frame = Time.frameCount;
             s.Spares = sparesHer;
             s.Told = false;
             s.Age = 0f;
@@ -318,6 +322,9 @@ namespace Roguelike
             f.Live = true;
             f.Age = 0f;
             f.Frame = Time.frameCount;
+            GeneratedLevels levels = GeneratedLevels.Current;
+            f.Level = levels != null ? levels.Level : null;
+            f.InRun = levels != null && levels.InRun;
             f.At = new Vector3(ground.x, Values.ArrowHeight + 0.02f, ground.z);
             f.Yaw = (Flashed * 37) % 360;
             Flashed++;
@@ -368,9 +375,20 @@ namespace Roguelike
         void TickFlashes(float dt)
         {
             if (FlashesLive == 0) return;
+            GeneratedLevels levels = GeneratedLevels.Current;
+            GeneratedLevel level = levels != null ? levels.Level : null;
+            bool inRun = levels != null && levels.InRun;
             foreach (Flash f in _flashes)
             {
-                if (!f.Live || f.Frame == Time.frameCount) continue;
+                if (!f.Live) continue;
+                // Gone with the floor and the run it was shown on, as what flies is (the third review of 2026-11-20, work
+                // order 047): a choice or a pause holds its age, and it would show at the old floor's place.
+                if (!ReferenceEquals(f.Level, level) || (f.InRun && !inRun))
+                {
+                    Return(f);
+                    continue;
+                }
+                if (f.Frame == Time.frameCount) continue;
                 f.Age += dt;
                 if (f.Age >= Values.FlashSeconds) Return(f);
                 else DrawFlash(f);
@@ -482,6 +500,9 @@ namespace Roguelike
                     Return(s);
                     continue;
                 }
+                // Loosed this frame: it waits at the bow until the next, whichever Update ran first (the third review of
+                // 2026-11-20, work order 047), so it is never swept against her movement from before it existed.
+                if (s.Frame == Time.frameCount) continue;
                 Tick(s, dt, herFrom, herTo, cam);
             }
             _herLast = herTo;

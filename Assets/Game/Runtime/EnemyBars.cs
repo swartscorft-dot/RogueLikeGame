@@ -53,6 +53,9 @@ namespace Roguelike
     /// It installs itself when Play starts under the same rule as <see cref="GeneratedLevels"/> (never in a test run);
     /// tests make one with <see cref="Ensure"/>.
     /// </summary>
+    // After the camera's move in its LateUpdate (CameraRig, of no order), so the places are worked out from this frame's
+    // camera and the bars do not trail the enemies by a frame (the third review of 2026-11-20, work order 047).
+    [DefaultExecutionOrder(100)]
     public sealed class EnemyBars : MonoBehaviour
     {
         const int PipTexels = 7;       // the texture: 5 lit texels of pip and 2 clear of gap, repeated along a row

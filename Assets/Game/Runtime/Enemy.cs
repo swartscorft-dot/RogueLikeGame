@@ -80,6 +80,8 @@ namespace Roguelike
             s_NextId = 0;
             Appeared = null;
             Turns.Clear();
+            Turns.Values = new TurnValues(); // and its values and floor, which a test or a session may have changed (work order 047)
+            Turns.Floor = 1;
             StrikeDrawer = null;
             StrikeAtDrawer = null;
         }

@@ -282,6 +282,8 @@ namespace Roguelike
         Shelter _duckShelter;   // what she ducked beside
         CoverShape _duckShape;  // its footprint at the tap
         Vector3 _duckHeldAtTap; // the move keys held at the tap, until they are let go
+        bool _steeredByKeys;    // work order 047: the keys steered since the duck last looked, and whether one went down
+        bool _moveKeyWentDown;
         bool _peekShot;         // the basic shot going on is her first soon after a duck that stopped something
         Vector3 _duckStopAt;    // where the thing a duck stopped ended, told by what flies just before its end is told
         bool _duckStopAtKnown;
@@ -754,9 +756,14 @@ namespace Roguelike
         public float RecastWindowSeconds => _chain.Window;
         /// <summary>Seconds since the window for the next press opened, past its length once it has run out; -1 before it opens or with no chain.</summary>
         public float RecastSinceOpened => _chain.SinceOpened(Time.time);
-        /// <summary>True when a press of the chain's key now would be clean: judged exactly as that press itself would be.</summary>
+        /// <summary>
+        /// True when a press of the chain's key now would be clean: judged exactly as that press itself would be. Stunned,
+        /// pulled or down in a quick duck a press waits and is judged as one that waited (the third review of 2026-11-20,
+        /// work order 047), so the signs and the tick follow that.
+        /// </summary>
         public bool RecastPressWouldBeClean =>
-            _chain.Slot >= 0 && _chain.Slot < Skills.Count && !_chain.Expired(Time.time) && JudgeRecast(_chain.Slot, Time.time) == RecastPress.Clean;
+            _chain.Slot >= 0 && _chain.Slot < Skills.Count && !_chain.Expired(Time.time)
+            && JudgeRecast(_chain.Slot, Time.time, buffered: _held.IsHeld || _duck.IsDown) == RecastPress.Clean;
 
         /// <summary>
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
@@ -824,6 +831,9 @@ namespace Roguelike
             ApplyMovementFeel(Feel);
         }
 
+        // The quick duck's rim goes with her, its object and its mesh (the third review of 2026-11-20, work order 047).
+        void OnDestroy() => _rim.Dispose();
+
         // ---------------- Intent API ----------------
 
         /// <summary>
@@ -834,6 +844,19 @@ namespace Roguelike
         {
             Vector3 flat = Flat(direction);
             _moveInput = flat.sqrMagnitude > 1e-6f ? flat.normalized : Vector3.zero;
+        }
+
+        /// <summary>
+        /// The move keys as the input gives them (the third review of 2026-11-20, work order 047): <see cref="Steer(Vector3)"/>,
+        /// and whether a key went down this frame (<see cref="QuickDuckRules.MoveKeyWentDown"/>). A quick duck ends on a key
+        /// going down, never on one let go; steered by <see cref="Steer(Vector3)"/> alone (tests, tools), on a direction not
+        /// held at the tap, as before.
+        /// </summary>
+        public void Steer(Vector3 direction, bool keyWentDown)
+        {
+            Steer(direction);
+            _steeredByKeys = true;
+            _moveKeyWentDown |= keyWentDown;
         }
 
         /// <summary>
@@ -1202,7 +1225,8 @@ namespace Roguelike
             EndKeyMove();
             ClearKegs();
             if (_inCover) LeaveCover(CoverLeaving.Other);
-            _coverHeld = false;
+            // The cover key stays as it is held (the third review of 2026-11-20, work order 047): a key held through a new
+            // floor is no tap on arrival.
             _peekUntil = float.NegativeInfinity;
             EndDuck(DuckEnd.Other); // a quick duck ends, with no wait left and no reward (work order 043): death, a restart, a new floor
             _duck.Clear();
@@ -1703,13 +1727,17 @@ namespace Roguelike
             Cover.QuickDuckSort = _duckSort;
             if (_duck.IsDown)
             {
-                if (_moveInput == Vector3.zero) _duckHeldAtTap = Vector3.zero; // let go: the next key ends it
+                // Let go: the next key ends it. With the keys known and none gone down, what is held now was held at the tap
+                // (work order 047): letting go of one of two keys does not end it.
+                if (_moveInput == Vector3.zero || (_steeredByKeys && !_moveKeyWentDown)) _duckHeldAtTap = _moveInput;
                 if (!feel.TakeCover || !feel.QuickDuck || !DuckMayGoOn || _duckShelter == null || !_duckShelter.isActiveAndEnabled)
                     EndDuck(DuckEnd.Other);
                 else if (_duck.RisesBy(now)) EndDuck(DuckEnd.Rose);
                 else if (QuickDuckRules.MoveEnds(new GroundPoint(_duckHeldAtTap.x, _duckHeldAtTap.z), new GroundPoint(_moveInput.x, _moveInput.z)))
                     EndDuck(DuckEnd.Moved);
             }
+            _steeredByKeys = false; // looked at once a frame (work order 047)
+            _moveKeyWentDown = false;
             if (feel.TakeCover && feel.QuickDuck && _duck.Ready(now) && MayDuckNow && FindLowProp(feel, out Shelter at, out CoverShape shape))
                 _rim.Show(at, shape, ShotFxMaterial);
             else
@@ -1754,6 +1782,7 @@ namespace Roguelike
             _duckShelter = at;
             _duckShape = shape;
             _duckHeldAtTap = _moveInput;
+            _moveKeyWentDown = false; // a key that went down with the tap is held at it (work order 047)
             _duckStopAtKnown = false;
             _rim.Hide();
             Halt();
@@ -1889,7 +1918,10 @@ namespace Roguelike
             // A gate is set only by a free recovery, and a new skill, a dash or a teleport clears it.
             bool afterFreeRecovery = waiting.Kind == PressKind.Skill && feel.SkillRecoveryFree
                                      && _skillGateUntil != float.NegativeInfinity;
-            if (SkillGate.PressStillGood(waiting.At, now, feel.InputBuffer, afterFreeRecovery, _gateLetGoAt)) return true;
+            // A press made while she was down counts from the moment she rose (the third review of 2026-11-20, work order
+            // 047): kept through the duck, then the ordinary buffer from there, as a click waits and fires.
+            float pressedAt = waiting.At >= _duck.DownAt && waiting.At <= _duck.RoseAt ? _duck.RoseAt : waiting.At;
+            if (SkillGate.PressStillGood(pressedAt, now, feel.InputBuffer, afterFreeRecovery, _gateLetGoAt)) return true;
             _buffer.Clear(); // not good: dropped
             Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = waiting.Kind == PressKind.Skill ? waiting.Slot : -1 });
             return false;

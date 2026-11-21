@@ -249,6 +249,12 @@ namespace Roguelike.Rules
     public static class RecastClock
     {
         /// <summary>
+        /// The most real seconds one frame may add (the third review of 2026-11-20, work order 047): one very long frame
+        /// in a hit stop (a hitch) would otherwise add its whole length and eat the clean part.
+        /// </summary>
+        public const float MostPerFrame = 0.1f;
+
+        /// <summary>
         /// The seconds a frame adds to an open window beyond its game seconds. <paramref name="on"/>: the switch
         /// (<see cref="KitValues.RecastOnRealTime"/>); off, none, and the window is as it was. <paramref name="hitStopHolds"/>:
         /// a hit stop held this frame's game time; <paramref name="screenHolds"/>: a screen holds the game;
@@ -257,7 +263,7 @@ namespace Roguelike.Rules
         public static float HitStopSeconds(bool on, float gameSeconds, float realSeconds, bool hitStopHolds, bool screenHolds, float paceBefore)
         {
             if (!on || !hitStopHolds || screenHolds || gameSeconds > 0f || realSeconds <= 0f) return 0f;
-            return realSeconds * Math.Max(0f, Math.Min(1f, paceBefore));
+            return Math.Min(realSeconds, MostPerFrame) * Math.Max(0f, Math.Min(1f, paceBefore));
         }
     }
 }

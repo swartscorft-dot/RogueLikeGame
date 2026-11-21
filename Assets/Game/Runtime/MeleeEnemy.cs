@@ -188,8 +188,22 @@ namespace Roguelike
 
         // ---------------- The strikes that do more than hurt ----------------
 
+        /// <summary>
+        /// At the strike, before its hit is tested (the third review of 2026-11-20, work order 047): a hop or a lunge still
+        /// under way is carried to its end, and one a long frame skipped (it crossed both the move's start and the strike)
+        /// is made now, from where she stands, so the strike is tested where the move arrives. On the strike's frame the
+        /// brain is already in its recovery, and the move after it would have stopped where it was.
+        /// </summary>
+        void FinishMove(EnemyAttackDefinition attack)
+        {
+            if (attack == null || (attack.Move != MeleeMove.Leap && attack.Move != MeleeMove.Lunge)) return;
+            if (!_moveDone && !_moving) BeginMove(attack, Time.time, 0f);
+            if (_moving) RunMove(_moveEnd);
+        }
+
         protected override bool StrikesItself(EnemyAttackDefinition attack)
         {
+            FinishMove(attack); // work order 047: the strike is tested where its move arrives
             if (attack.Move == MeleeMove.Drag)
             {
                 Drag(attack);

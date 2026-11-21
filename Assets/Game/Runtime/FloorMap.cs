@@ -32,8 +32,7 @@ namespace Roguelike
     {
         /// <summary>
         /// Held, the map shows large (work order 041). Tab: bound to nothing in <see cref="InputBindings"/> and no developer
-        /// key; its one other use is the trial's Second Look on a floor reward's screen (<see cref="GeneratedLevels.RedrawKey"/>),
-        /// where the map is never drawn.
+        /// key; the trial's Second Look has a key of its own since work order 047 (<see cref="GeneratedLevels.RedrawKey"/>).
         /// </summary>
         public const Key LargeKey = Key.Tab;
 

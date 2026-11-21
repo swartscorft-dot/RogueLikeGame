@@ -116,13 +116,18 @@ namespace Roguelike.Rules
                                           CoverLine walls, float coverEntry = float.PositiveInfinity, bool ignoreHer = false)
         {
             var result = new ProjectileStep { Hit = ProjectileHit.None, Fraction = 1f, At = p.At };
-            float s = Math.Min(Math.Max(0f, p.Speed * dt), p.FlightLeft);
+            float full = Math.Max(0f, p.Speed * dt);
+            float s = Math.Min(full, p.FlightLeft);
             if (s <= 1e-6f)
             {
                 if (p.FlightLeft <= 1e-4f) result.Hit = ProjectileHit.FlightOver;
                 return result;
             }
             GroundPoint p0 = p.At, p1 = p.At + p.Dir * s;
+            // Its last partial step flies for only a share of the step: she is swept only that far through it, and a
+            // fraction told is of the whole step, as the caller takes it (the third review of 2026-11-20, work order 047).
+            float share = s < full ? s / full : 1f;
+            herTo = Lerp(herFrom, herTo, share);
 
             float tWall = float.PositiveInfinity;
             if (walls != null)
@@ -144,7 +149,7 @@ namespace Roguelike.Rules
                     p.At = p0 + p.Dir * (s * tMeet);
                     p.Flown += s * tMeet;
                     result.Hit = ProjectileHit.MetHer;
-                    result.Fraction = tMeet;
+                    result.Fraction = tMeet * share;
                     result.At = p.At;
                     return result;
                 }
@@ -154,7 +159,7 @@ namespace Roguelike.Rules
                 p.At = p0 + p.Dir * (s * tWall);
                 p.Flown += s * tWall;
                 result.Hit = ProjectileHit.Wall;
-                result.Fraction = tWall;
+                result.Fraction = tWall * share;
                 result.At = p.At;
                 return result;
             }
@@ -165,7 +170,7 @@ namespace Roguelike.Rules
                 p.At = p0 + p.Dir * (s * tCover);
                 p.Flown += s * tCover;
                 result.Hit = ProjectileHit.HerCover;
-                result.Fraction = tCover;
+                result.Fraction = tCover * share;
                 result.At = p.At;
                 return result;
             }

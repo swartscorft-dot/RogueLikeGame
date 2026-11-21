@@ -126,7 +126,7 @@ namespace Roguelike.Rules
         {
             new MetaPiece(SteadyStart, "Steady Start", R, 1, 40, MetaEffect.StartFocus, 0.5f, "A run starts with the focus gauge half full."),
             new MetaPiece(MarkedTarget, "Marked Target", R, 2, 60, MetaEffect.FirstMark, 1f, "A hit that marks an enemy with no marks gives two marks, not one."),
-            new MetaPiece(SecondLook, "Second Look", R, 1, 60, MetaEffect.Redraw, 1f, "Once a run, a floor reward's skills can be drawn again (Tab on the offer)."),
+            new MetaPiece(SecondLook, "Second Look", R, 1, 60, MetaEffect.Redraw, 1f, "Once a run, a floor reward's skills can be drawn again (X on the offer)."), // work order 047: Tab is the map's
             new MetaPiece(NotThatOne, "Not That One", R, 1, 80, MetaEffect.StrikeOut, 0f, "One pool skill, chosen here, is never offered in the run."),
             new MetaPiece(SpareStep, "Spare Step", R, 2, 120, MetaEffect.DashCharges, 2f, "The dash holds two charges; each takes a third longer to come back.") { Amount2 = 4f / 3f },
             new MetaPiece(DeepChests, "Deep Chests", R, 1, 60, MetaEffect.DeepChest, 1f, "The first chest of every floor offers three upgrades, not two."),

@@ -78,6 +78,9 @@ namespace Roguelike
         readonly CasterTactics _tactics = new CasterTactics();
         readonly List<Circle> _circles = new List<Circle>();
         readonly List<Circle> _rain = new List<Circle>();   // the circles of the Grave Rain being cast
+        /// <summary>Circles held before those burst or faded and gone are let go of: a long practice session keeps no more (work order 047).</summary>
+        public const int KeptCircles = 64;
+        static readonly System.Predicate<Circle> s_Gone = c => !c.IsPending && c.Line == null;
         LineRenderer _circleLook;
         MaterialPropertyBlock _block;
         EnemyAttackDefinition _cast;                         // the cast whose circles are still to be placed, else null
@@ -97,7 +100,10 @@ namespace Roguelike
         public int CastsBegun => _tactics.Casts;
         /// <summary>The name of the cast it begins next (work order 036: with things that fly on, an orb's).</summary>
         public string NextCast => _tactics.Next(Tuning, ThingsThatFly.On);
-        /// <summary>Every circle it has placed, in order, those burst and faded too.</summary>
+        /// <summary>
+        /// Every circle it has placed, in order, those burst and faded too; once <see cref="KeptCircles"/> are held, those
+        /// burst or faded and gone are let go of (work order 047).
+        /// </summary>
         public IReadOnlyList<Circle> Circles => _circles;
         /// <summary>Circles not placed because their place was off the walkable ground.</summary>
         public int CirclesOffGround { get; private set; }
@@ -300,6 +306,7 @@ namespace Roguelike
                 c.Line.widthMultiplier = TelegraphThin;
                 c.Line.enabled = true;
             }
+            if (_circles.Count >= KeptCircles) _circles.RemoveAll(s_Gone); // the third review of 2026-11-20 (work order 047): it never shrank
             _circles.Add(c);
             if (rain) _rain.Add(c);
             Report(EnemyReportKind.CirclePlaced, attack, count: number);
