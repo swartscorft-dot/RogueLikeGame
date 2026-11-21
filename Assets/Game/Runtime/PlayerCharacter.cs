@@ -933,7 +933,7 @@ namespace Roguelike
         /// </summary>
         public IntentResult DashToward(Vector3 point)
         {
-            _dash.MaxCharges = Modifiers != null ? Modifiers.Meta.DashCharges : 1; // work order 029: Spare Step
+            RefreshDashCharges(); // work order 029: Spare Step; work order 065: a second dash
             if (_dashing || !_dash.CanStart(Time.time))
                 return DashPressed(IntentResult.Rejected, _dashing ? 0f : _dash.CooldownRemaining(Time.time));
             if (_held.IsHeld) return DashPressed(BufferPress(PressKind.Dash, point), 0f); // stunned or pulled: it waits, as in a lock (work order 035)
@@ -1174,7 +1174,7 @@ namespace Roguelike
             FocusModeValues ways = FocusModeValues;
             // Work order 025: Hair Trigger spends one full part, with no window; Steady Hand a full gauge on a longer window.
             bool started = mode == FocusMode.HairTrigger ? _focus.TrySpendPart(Identity, FocusParts)
-                         : _focus.TryActivate(now, Identity, mode == FocusMode.SteadyHand ? ways.WindowSeconds : Identity.EmpoweredDuration);
+                         : _focus.TryActivate(now, Identity, (mode == FocusMode.SteadyHand ? ways.WindowSeconds : Identity.EmpoweredDuration) * LongFocusNow); // work order 065: Long focus
             IntentResult result = started ? IntentResult.Started : IntentResult.Rejected;
             Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result, FocusMode = mode });
             if (result == IntentResult.Started)
@@ -1186,7 +1186,7 @@ namespace Roguelike
                 for (int slot = 0; slot < cuts.Length; slot++) cuts[slot] = CooldownFor(slot).Cut(now, share);
                 float dashCut = _dash.CutCooldown(now, share);
                 Report(new PlayerReport { Kind = PlayerReportKind.CooldownsCut, Cuts = cuts, DashCut = dashCut });
-                if (mode == FocusMode.HairTrigger) _prime.Prime(now, ways.PrimeSeconds);
+                if (mode == FocusMode.HairTrigger) _prime.Prime(now, ways.PrimeSeconds * LongFocusNow); // work order 065: Long focus
             }
             return result;
         }
@@ -1271,9 +1271,15 @@ namespace Roguelike
             _backpedalCap.Reset();
             // Work order 029 (the rack between runs, only when it is switched on and a piece says so): Spare Step's dash
             // charges, and Steady Start's focus.
-            _dash.MaxCharges = Modifiers != null ? Modifiers.Meta.DashCharges : 1;
+            RefreshDashCharges();
             if (Modifiers != null && Modifiers.Meta.StartFocusShare > 0f) _focus.Add(Identity.MaxFocus * Modifiers.Meta.StartFocusShare, Identity, Time.time);
         }
+
+        /// <summary>
+        /// The dashes she holds, read again (work order 029's Spare Step; work order 065: her Second dash, <see cref="HerStats.DashCharges"/>):
+        /// at every press, when a run starts and when a chest's upgrade is taken. A change makes every charge ready.
+        /// </summary>
+        public void RefreshDashCharges() => _dash.MaxCharges = Modifiers != null ? Modifiers.Stats.DashCharges : 1;
 
         /// <summary>
         /// Ends a focus window that runs, and any priming, keeping the gauge's focus (the second reviews of 2026-11-20,
@@ -2349,7 +2355,7 @@ namespace Roguelike
             }
             if (hit == null) return ShotFired(false);
             bool empowered = IsEmpowered;
-            int applied = Deal(hit, Placeholders.BasicShotDamage + FlatFor(null), out float focus, peekStagger); // work order 050: her flat damage
+            int applied = Deal(hit, Placeholders.BasicShotDamage + FlatFor(null), out float focus, peekStagger, marked: hit.MarkCount > 0); // work order 050: her flat damage; 065: Marked prey
             if (applied <= 0) return ShotFired(false);
             ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);
@@ -2505,6 +2511,10 @@ namespace Roguelike
         bool StatsOn => Modifiers != null && Modifiers.StatsAndTiers;
         /// <summary>What her flat damage adds to a hit of this skill (null: the basic shot); 0 outside a run or with the switch off.</summary>
         int FlatFor(SkillDefinition skill) => StatsOn ? Modifiers.Stats.FlatFor(skill) : 0;
+        /// <summary>Work order 065: her Clean press, Marked prey and Long focus (<see cref="HerStats"/>); 1 outside a run or with the switch off.</summary>
+        float CleanPressNow => StatsOn ? Modifiers.Stats.CleanPress : 1f;
+        float MarkedPreyNow => StatsOn ? Modifiers.Stats.MarkedPrey : 1f;
+        float LongFocusNow => StatsOn ? Modifiers.Stats.LongFocus : 1f;
         /// <summary>The basic shot's recovery now: the feel's, or with the stats on shortened or lengthened by her attack speed.</summary>
         float BasicShotRecoveryNow(FeelValues f) =>
             Modifiers != null ? Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery) : f.BasicShotRecovery;
@@ -2525,10 +2535,12 @@ namespace Roguelike
         /// Work order 050: in a run with the stats on, the hit may crit (her crit chance, on the crits' stream), and one
         /// that is <paramref name="sureCrit"/> (a clean press, a perfect release) always does without a roll.
         /// </summary>
-        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false, bool foldedCrit = false)
+        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false, bool foldedCrit = false, bool marked = false)
         {
             IdentityValues identity = Identity;
             _dealtCrit = false;
+            // Work order 065: her Marked prey on a target that carried marks when the hit came (1 off).
+            if (marked && damage > 0 && StatsOn) damage = Mathf.RoundToInt(damage * MarkedPreyNow);
             if (StatsOn && damage > 0 && (sureCrit || CritRules.Rolls(_crits, Modifiers.Stats.CritChance)))
             {
                 _dealtCrit = true;
@@ -2591,12 +2603,15 @@ namespace Roguelike
             bool sureCrit = StatsOn && (perfect || _castClean);
             bool foldedCrit = sureCrit && !perfect && _castClean && MarkRules.HasCleanSpend(skill);
             if (StatsOn)
-                damage = perfect ? Mathf.RoundToInt((SkillRules.Damage(skill, 1f) + FlatFor(skill)) * Mathf.Max(0f, skill.PerfectScale) * CritRules.Folded(1f, Modifiers.StatValues))
+                damage = perfect ? Mathf.RoundToInt((SkillRules.Damage(skill, 1f) + FlatFor(skill)) * Mathf.Max(0f, skill.PerfectScale) * CritRules.Folded(1f, Modifiers.StatValues) * CleanPressNow) // work order 065
                                  : damage + FlatFor(skill);
             float stagger = perfect ? skill.Stagger * Mathf.Max(0f, skill.PerfectScale) : skill.Stagger;
             // A clean tap (decision 0005) hits harder by itself; a clean spend (Backstep, amended 2026-11-19) instead
             // takes the marks, as a spender does, for its own bonus per mark.
-            if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * (StatsOn ? CritRules.Folded(Kit.CleanDamage, Modifiers.StatValues) : Kit.CleanDamage));
+            // Work order 065: her Clean press (1 off) times whatever the clean bonus is, here where it enters the damage; a clean
+            // spend (Backstep's) has no bonus of its own here, so its hit takes the stat on its own.
+            if (MarkRules.IsCleanTap(skill, _castClean)) damage = Mathf.RoundToInt(damage * (StatsOn ? CritRules.Folded(Kit.CleanDamage, Modifiers.StatValues) * CleanPressNow : Kit.CleanDamage));
+            else if (StatsOn && _castClean && !perfect) damage = Mathf.RoundToInt(damage * CleanPressNow);
             if (perfect)
             {
                 PerfectReleases++;
@@ -2647,6 +2662,7 @@ namespace Roguelike
                 float bonus = skill.CloseRange > 0f ? bonusPerMark * skill.CloseMarkScale : bonusPerMark;
                 // A spender takes every mark off the target and deals its bonus per mark on this hit (decision 0005);
                 // Breaker Slug's bonus per mark is stagger, not damage (work order 015).
+                bool marked = d.MarkCount > 0; // work order 065: before a spender takes them
                 int taken = spends ? d.TakeMarks() : 0;
                 int had = taken; // the marks it really had: only these give focus (the second reviews of 2026-11-20, work order 033)
                 // Primed (work order 025): a spender counts a mark more than the target has, up to the cap.
@@ -2662,7 +2678,7 @@ namespace Roguelike
                                      && enemy.TryCounter(transform.position, skill.CounterHalfAngle, skill.CounterDaze);
                 if (counteredThis) countered = true;
                 bool wasDazed = d.IsDazed;
-                int applied = Deal(d, dealt, out float focus, hitStagger, sureCrit, foldedCrit); // work order 050: a clean press's or a perfect release's hit is a crit
+                int applied = Deal(d, dealt, out float focus, hitStagger, sureCrit, foldedCrit, marked); // work order 050: a clean press's or a perfect release's hit is a crit
                 if (!d.IsAlive) killed = true;
                 else if (!wasDazed && d.IsDazed) dazed = true;
                 if (spends)

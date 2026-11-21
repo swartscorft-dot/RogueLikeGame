@@ -33,7 +33,7 @@ namespace Roguelike
     ///
     /// Chests (work order 012): standing within <see cref="RunValues.ChestReach"/> of a treasure room's chest she has
     /// not opened, a prompt shows over it and the interact key (E, <see cref="InputBindings.Interact"/>) opens it, once:
-    /// two upgrades (<see cref="ChestUpgrades"/>), picked the same way. What is taken goes into the run's
+    /// two upgrades (<see cref="ChestUpgrades"/>; three since work order 065, with the stats and tiers on), picked the same way. What is taken goes into the run's
     /// <see cref="RunModifiers"/>, put on the character for the run and cleared when a run starts or ends.
     ///
     /// The elite room (work order 017, decision 0008 as amended 2026-11-20, Kristian: "one hard room in the middle of every
@@ -644,7 +644,7 @@ namespace Roguelike
         public bool OpenChest() => OpenChest(ChestInReach());
 
         /// <summary>
-        /// Opens this chest, once, in a run: its two upgrades are offered and the game pauses. False for a chest already
+        /// Opens this chest, once, in a run: its upgrades are offered (three, work order 065; two with the stats off) and the game pauses. False for a chest already
         /// opened, outside a run, or while another choice is up.
         /// </summary>
         public bool OpenChest(GeneratedLevel.PlacedProp chest)
@@ -666,13 +666,14 @@ namespace Roguelike
             return true;
         }
 
-        /// <summary>Takes offered upgrade <paramref name="index"/> (0 or 1) into the run's upgrades; the game goes on. False with no chest open.</summary>
+        /// <summary>Takes offered upgrade <paramref name="index"/> (0 to 2; 3 with Deep Chests) into the run's upgrades; the game goes on. False with no chest open.</summary>
         public bool PickUpgrade(int index)
         {
             if (Choice != ChoiceKind.Chest || index < 0 || index >= _offeredUpgrades.Count) return false;
             CardPicked(index); // work order 045
             Upgrade u = _offeredUpgrades[index];
             Modifiers.Take(u);
+            FindPlayer()?.RefreshDashCharges(); // work order 065: a second dash is held at once
             Record?.TakeUpgrade(u.Short);
             if (_health != null)
             {
@@ -948,7 +949,8 @@ namespace Roguelike
                 bool alive = false;
                 for (int i = 0; i < list.Count && !alive; i++) alive = list[i] != null && !list[i].IsDead;
                 if (alive) continue;
-                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues));
+                // Work order 065: her Mending's health more from every cleared room (0 off).
+                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues) + Modifiers.Stats.Mending);
                 PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
                 PlaceholderSounds.Current?.AskFor(SoundMoment.CombatRoomCleared); // work order 048: the way on opens
                 if (healed > 0) TimingFeedback.Current?.ShowHeal(healed);
@@ -1030,7 +1032,7 @@ namespace Roguelike
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
                 GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, DevBoxStyle());
             }
-            if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge
+            if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge; 065: the pop-up in the middle
             else if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment
             else if (Notice.Length > 0 && kinetic) DrawNoticeKinetic();
             else if (Notice.Length > 0)
@@ -1076,6 +1078,11 @@ namespace Roguelike
         void DrawChoice(float viewWidth)
         {
             if (_choiceStyle == null) _choiceStyle = new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.UpperLeft, wordWrap = true, padding = new RectOffset(10, 10, 8, 8) };
+            if (OfferPopUp)
+            {
+                DrawPlainPopUp(viewWidth); // work order 065: the pop-up's words in plain boxes, side by side in the middle
+                return;
+            }
             if (Choice == ChoiceKind.FocusChoice)
             {
                 DrawFocusChoice(viewWidth); // work order 025

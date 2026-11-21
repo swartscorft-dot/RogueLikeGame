@@ -270,6 +270,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheKineticCards_OfARareAndAnEpic_SayTheTier_InItsInk_AndFitTheirText_ACommonsIsTodays()
         {
+            _levels.Offers.PopUp = false; // work order 065: this morning's cards at the right edge, with this morning's words, pinned here
             _levels.RunValues.SkillTierNumbers.Odds = new[] { 100f, 0f, 0f }; // commons, but floor 1 raises the last
             ulong seed = 0x0E117E17UL;
             _levels.StartRun(seed);

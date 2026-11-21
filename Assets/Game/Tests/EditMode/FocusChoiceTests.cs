@@ -362,11 +362,11 @@ namespace Roguelike.Rules.Tests
             for (ulong run = 0; run < 400; run++)
             {
                 List<Upgrade> full = ChestUpgrades.Offer(run, 1, 3, equipped, v, null, atFullHealth: true);
-                Assert.That(full.Count, Is.EqualTo(2));
+                Assert.That(full.Count, Is.EqualTo(v.ChestOffers)); // work order 065: three with the stats on
                 Assert.That(full.Any(u => u.Kind == UpgradeKind.Mend), Is.False, "never at full health");
                 mendWhenHurt |= ChestUpgrades.Offer(run, 1, 3, equipped, v, null, atFullHealth: false).Any(u => u.Kind == UpgradeKind.Mend);
                 List<Upgrade> after3 = ChestUpgrades.Offer(run, 2, 4, equipped, v, three, false);
-                Assert.That(after3.Count, Is.EqualTo(2));
+                Assert.That(after3.Count, Is.EqualTo(v.ChestOffers));
                 Assert.That(after3.Any(u => u.Kind == UpgradeKind.LongerBarrel), Is.False, "three taken: no more");
                 barrelAtTwo |= ChestUpgrades.Offer(run, 2, 4, equipped, v, two, false).Any(u => u.Kind == UpgradeKind.LongerBarrel);
             }

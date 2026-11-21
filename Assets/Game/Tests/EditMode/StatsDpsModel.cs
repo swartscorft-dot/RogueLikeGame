@@ -39,6 +39,9 @@ namespace Roguelike.Rules.Tests
             double expected = 1.0 + p * cd; // a hit that may crit, on average
             double sure = 1.0 + cd;          // a crit
             double basicHit = (Placeholders.BasicShotDamage + stats.FlatFor(null)) * share * expected;
+            // Work order 065: a clean press and a perfect release times her Clean press, a hit on a marked target times her
+            // Marked prey (both 1 at her start and with the switch off).
+            double clean = stats.CleanPress, marked = stats.MarkedPrey;
 
             var r = new Dps { Basic = basicHit / interval };
 
@@ -74,7 +77,7 @@ namespace Roguelike.Rules.Tests
                 if (use < 0)
                 {
                     // A basic shot: it goes off after its startup.
-                    dealt += basicHit;
+                    dealt += basicHit * (MarksNow(t + feel.BasicShotStartup) > 0 ? marked : 1.0);
                     basicHits++;
                     if (basicHits % Math.Max(1, kit.BasicShotsPerMark) == 0) AddMarks(1, t + feel.BasicShotStartup, null);
                     t += interval;
@@ -90,8 +93,8 @@ namespace Roguelike.Rules.Tests
                     double shotAt = t + s.Startup + PressInWindow + s.Startup;
                     double hit = s.Damage + flat;
                     int taken = TakeMarks(shotAt);
-                    hit = hit * (1.0 + s.CleanMarkDamageBonus * taken);
-                    hit *= stats.On ? sure : 1.0;
+                    hit = hit * (1.0 + s.CleanMarkDamageBonus * taken) * (taken > 0 ? marked : 1.0);
+                    hit *= stats.On ? sure * clean : 1.0;
                     dealt += hit * share;
                     busy = s.Startup + PressInWindow + s.Startup + s.Recovery;
                 }
@@ -103,12 +106,12 @@ namespace Roguelike.Rules.Tests
                     {
                         if (shot > 1) at += PressInWindow;
                         double shotAt = at + s.Startup;
-                        bool clean = shot == s.RecastCount && s.CleanTapMarks > 0;
-                        double hit = s.Damage + flat;
-                        if (clean) hit *= stats.On ? CritRules.Folded(kit.CleanDamage, m.StatValues) * sure : kit.CleanDamage;
+                        bool cleanTap = shot == s.RecastCount && s.CleanTapMarks > 0;
+                        double hit = (s.Damage + flat) * (MarksNow(shotAt) > 0 ? marked : 1.0);
+                        if (cleanTap) hit *= stats.On ? CritRules.Folded(kit.CleanDamage, m.StatValues) * sure * clean : kit.CleanDamage;
                         else hit *= expected;
                         dealt += hit * share;
-                        AddMarks(clean ? s.CleanTapMarks : s.MarksAdded, shotAt, s.Name);
+                        AddMarks(cleanTap ? s.CleanTapMarks : s.MarksAdded, shotAt, s.Name);
                         at = shotAt;
                     }
                     busy = at - t + s.Recovery;
@@ -116,7 +119,7 @@ namespace Roguelike.Rules.Tests
                 else
                 {
                     double shotAt = t + s.Startup;
-                    double hit = s.Damage + flat;
+                    double hit = (s.Damage + flat) * (MarksNow(shotAt) > 0 ? marked : 1.0);
                     if (s.MarkDamageBonus > 0f) hit *= 1.0 + s.MarkDamageBonus * TakeMarks(shotAt);
                     dealt += hit * expected * share;
                     AddMarks(s.MarksAdded, shotAt, s.Name);

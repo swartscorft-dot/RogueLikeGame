@@ -39,6 +39,7 @@ namespace Roguelike
         /// </summary>
         public Rect CardTitleRect(int index)
         {
+            if (_cardsPopUp) return CardNameRect(index); // work order 065: the pop-up's name
             Rect r = CardRect(index);
             float tx = CardTextLeft(r), tw = CardTextWidth(InterfaceStyle.V);
             return CardText(index).Length == 0 ? new Rect(tx, r.y + 6f, tw, r.height - 12f) : new Rect(tx, r.y + 6f, tw, _cardsTitleHeight);
@@ -46,6 +47,9 @@ namespace Roguelike
 
         public Rect CardTextRect(int index)
         {
+            if (_cardsPopUp) // work order 065: from the pop-up's first part to its last
+                return CardPartCount(index) == 0 ? default
+                    : Rect.MinMaxRect(CardPartRect(index, 0).xMin, CardPartRect(index, 0).yMin, CardPartRect(index, 0).xMax, CardPartRect(index, CardPartCount(index) - 1).yMax);
             Rect r = CardRect(index);
             return new Rect(CardTextLeft(r), r.y + 6f + _cardsTitleHeight, CardTextWidth(InterfaceStyle.V), r.height - 12f - _cardsTitleHeight);
         }
@@ -59,7 +63,8 @@ namespace Roguelike
         {
             if (index < 0 || index >= _cardRects.Count) return false;
             Rect r = _cardRects[index];
-            return r.Contains(new Vector2(point.x - InterfaceStyle.V.Slant * (r.center.y - point.y), point.y));
+            float slant = _cardsPopUp ? Offers.Slant : InterfaceStyle.V.Slant; // work order 065: the pop-up's cards lean less
+            return r.Contains(new Vector2(point.x - slant * (r.center.y - point.y), point.y));
         }
 
         static float CardTextLeft(Rect r) => r.x + 12f + InterfaceStyle.V.NumeralSize * 1.25f + 6f;
@@ -93,7 +98,10 @@ namespace Roguelike
             KineticCards();
             _pickedTitle = CardTitle(index);
             _pickedRect = CardRect(index);
+            _pickedSlant = _cardsPopUp ? Offers.Slant : InterfaceStyle.V.Slant; // work order 065
         }
+
+        float _pickedSlant = 0.32f;
 
         /// <summary>
         /// The cards of the choice on screen, made again only when a choice opens or its offer changes (Second Look). Returns
@@ -107,11 +115,14 @@ namespace Roguelike
                 return 0;
             }
             InterfaceValues v = InterfaceStyle.V;
-            float viewWidth = Screen.width / Mathf.Max(1e-4f, InterfaceStyle.Scale);
+            float viewWidth = ViewWidthForTests > 0f ? ViewWidthForTests : Screen.width / Mathf.Max(1e-4f, InterfaceStyle.Scale); // work order 065: a test's view
             int count = Choice == ChoiceKind.FloorReward ? _offeredSkills.Count : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count
                       : Choice == ChoiceKind.FocusChoice ? FocusModeRules.Options.Length : _offeredUpgrades.Count;
-            if (SameCards(count) && Mathf.Approximately(_cardsWidth, viewWidth)) return count;
+            if (SameCards(count) && Mathf.Approximately(_cardsWidth, viewWidth) && _cardsPopUp == OfferPopUp) return count;
             ClearCards();
+            // Work order 065: the pop-up in the middle, its cards' words from OfferTexts (GeneratedLevelsOffers.cs); off, this morning's.
+            bool popUp = OfferPopUp;
+            OfferContext context = popUp ? OfferContextNow() : null;
             _cardsKind = Choice;
             _cardsLiveFrom = ChoiceLiveFrom;
             _cardsWidth = viewWidth;
@@ -168,11 +179,46 @@ namespace Roguelike
                         break;
                     }
                 }
+                if (popUp)
+                {
+                    OfferCard card = OfferCardFor(i, context, bindings);
+                    _offerCards.Add(card);
+                    title = card.Name;
+                    text = card.Body;
+                }
                 _cardTitles.Add(title);
                 _cardTexts.Add(text);
                 _cardInks.Add(ink);
                 _cardKeys.Add(InterfaceStyle.Number(i + 1));
             }
+            if (popUp)
+            {
+                _cardsPopUp = true;
+                LayOutPopUp(count, viewWidth); // work order 065: every part measured, the row in the middle
+            }
+            else
+            {
+                MeasureAtTheEdge(count, viewWidth, height, v);
+            }
+            _cardsCanRedraw = CanRedraw;
+            // The heading and the footer, the same words as the plain choice's.
+            heading = Choice == ChoiceKind.FloorReward
+                ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
+                : Choice == ChoiceKind.SkillUpgrade
+                ? string.Format(CultureInfo.InvariantCulture, "ELITE ROOM CLEARED   choose a skill upgrade (1-{0} or click)", count)
+                : Choice == ChoiceKind.FocusChoice
+                ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose how focus works for the rest of the run (1-{1} or click)", Floor, count)
+                : string.Format(CultureInfo.InvariantCulture, "CHEST   choose an upgrade (1-{0} or click)", count);
+            int gap = heading.IndexOf("   ", System.StringComparison.Ordinal);
+            _cardsHeading = gap > 0 ? heading.Substring(0, gap) : heading;
+            _cardsSub = gap > 0 ? heading.Substring(gap).Trim() : "";
+            _cardsFooter = "The game is paused.   F7 leaves the run." + (Choice == ChoiceKind.FocusChoice ? "" : RedrawWords());
+            return count;
+        }
+
+        /// <summary>This morning's cards at the right edge, measured and placed as work order 055 made them (the pop-up off).</summary>
+        void MeasureAtTheEdge(int count, float viewWidth, float height, InterfaceValues v)
+        {
             // The fourth review of 2026-11-21 (work order 055): every card's title and text measured once, at the width they
             // are drawn in, and the cards of the offer all as high as the longest needs, so nothing is cut off.
             float textWidth = CardTextWidth(v);
@@ -202,20 +248,6 @@ namespace Roguelike
                 UiBox b = InterfaceRules.Card(i, count, height, viewWidth, v);
                 _cardRects.Add(new Rect(b.X, b.Y, b.W, b.H));
             }
-            _cardsCanRedraw = CanRedraw;
-            // The heading and the footer, the same words as the plain choice's.
-            heading = Choice == ChoiceKind.FloorReward
-                ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
-                : Choice == ChoiceKind.SkillUpgrade
-                ? string.Format(CultureInfo.InvariantCulture, "ELITE ROOM CLEARED   choose a skill upgrade (1-{0} or click)", count)
-                : Choice == ChoiceKind.FocusChoice
-                ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose how focus works for the rest of the run (1-{1} or click)", Floor, count)
-                : string.Format(CultureInfo.InvariantCulture, "CHEST   choose an upgrade (1-{0} or click)", count);
-            int gap = heading.IndexOf("   ", System.StringComparison.Ordinal);
-            _cardsHeading = gap > 0 ? heading.Substring(0, gap) : heading;
-            _cardsSub = gap > 0 ? heading.Substring(gap).Trim() : "";
-            _cardsFooter = "The game is paused.   F7 leaves the run." + (Choice == ChoiceKind.FocusChoice ? "" : RedrawWords());
-            return count;
         }
 
         /// <summary>
@@ -269,6 +301,7 @@ namespace Roguelike
             _cardsKind = ChoiceKind.None;
             _cardsLiveFrom = float.NaN;
             _cardPressed = -1;
+            ClearPopUp(); // work order 065
         }
 
         // ---------------- Drawing ----------------
@@ -288,23 +321,29 @@ namespace Roguelike
             float viewWidth = InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
             float light = live ? 1f : Mathf.Lerp(v.CardDim, 0.85f, _guard.Share(now));
 
-            // The heading over the cards, right aligned to them, and the footer under them.
+            // The heading over the cards, right aligned to them, and the footer under them; work order 065: the pop-up's veil,
+            // heading and footer, centred.
             Rect first = _cardRects[0], last = _cardRects[count - 1];
-            float right = viewWidth - v.CardRight;
-            float headW = Mathf.Min(viewWidth * 0.6f, 760f);
-            InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 2.6f, headW, v.ChoiceTitleSize * 1.3f), _cardsHeading,
-                                 InterfaceStyle.Text(true, v.ChoiceTitleSize, TextAnchor.LowerRight), InterfaceStyle.C(v.White), true);
-            InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 1.3f, headW, v.ChoiceTitleSize * 1.1f), _cardsSub,
-                                 InterfaceStyle.Text(false, v.CardTextSize + 1, TextAnchor.UpperRight), InterfaceStyle.C(v.Teal), true);
-            InterfaceStyle.Label(new Rect(right - headW, last.yMax + 8f, headW, v.CardTextSize * 2.6f), _cardsFooter,
-                                 InterfaceStyle.Text(false, v.CardTextSize - 1, TextAnchor.UpperRight, true), InterfaceStyle.C(v.Grey), true);
+            if (_cardsPopUp) DrawPopUpFrame(viewWidth, light);
+            else
+            {
+                float right = viewWidth - v.CardRight;
+                float headW = Mathf.Min(viewWidth * 0.6f, 760f);
+                InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 2.6f, headW, v.ChoiceTitleSize * 1.3f), _cardsHeading,
+                                     InterfaceStyle.Text(true, v.ChoiceTitleSize, TextAnchor.LowerRight), InterfaceStyle.C(v.White), true);
+                InterfaceStyle.Label(new Rect(right - headW, first.y - v.ChoiceTitleSize * 1.3f, headW, v.ChoiceTitleSize * 1.1f), _cardsSub,
+                                     InterfaceStyle.Text(false, v.CardTextSize + 1, TextAnchor.UpperRight), InterfaceStyle.C(v.Teal), true);
+                InterfaceStyle.Label(new Rect(right - headW, last.yMax + 8f, headW, v.CardTextSize * 2.6f), _cardsFooter,
+                                     InterfaceStyle.Text(false, v.CardTextSize - 1, TextAnchor.UpperRight, true), InterfaceStyle.C(v.Grey), true);
+            }
 
             for (int i = 0; i < count; i++)
             {
                 Rect r = _cardRects[i];
                 // Work order 055: hover and the click on the card as it is seen, leaning (CardHit), a press and its release on it.
                 bool on = live && e != null && CardHit(i, e.mousePosition);
-                DrawCard(r, i, light, on, v);
+                if (_cardsPopUp) DrawPopUpCard(r, i, light, on); // work order 065
+                else DrawCard(r, i, light, on, v);
                 bool clicked = false;
                 if (on && e.button == 0 && e.type == EventType.MouseDown)
                 {
@@ -384,7 +423,7 @@ namespace Roguelike
             float a = 1f - (Time.unscaledTime - _pickedAt) / Mathf.Max(0.01f, v.PickFlashSeconds);
             Color colorBefore = GUI.color;
             InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
-            InterfaceStyle.Slanted(_pickedRect, InterfaceStyle.C(v.White, a));
+            Leaning(_pickedRect, _pickedRect.center.y, _pickedSlant, InterfaceStyle.C(v.White, a)); // work order 065: at the card's own slant
             InterfaceStyle.Label(Shift(_pickedRect, _pickedRect.center.y, v), _pickedTitle, InterfaceStyle.Text(true, v.CardTitleSize, TextAnchor.MiddleCenter, true), InterfaceStyle.C(v.Black, a));
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
