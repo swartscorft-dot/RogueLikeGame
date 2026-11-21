@@ -310,7 +310,9 @@ namespace Roguelike.Rules.Tests
             Assert.That(lines.Single(l => l.StartsWith("Focus time")), Is.EqualTo("Focus time  +50 %  (+0 %)"));
             Assert.That(lines.Single(l => l.StartsWith("Dashes")), Is.EqualTo("Dashes  2  (1)"));
             StringAssert.StartsWith("Cooldowns  every skill -20 %, Quick Shot -50 %", lines.Single(l => l.StartsWith("Cooldowns")));
-            StringAssert.EndsWith(", cd all -20%, clean +50%, marked +30%, room heal +15, focus time +50%, dashes 2", s.OneLine(0.225f, 100));
+            // Changed deliberately (work order 067): its two follow 065's six at the line's end, so the six are no longer its end.
+            StringAssert.Contains(", cd all -20%, clean +50%, marked +30%, room heal +15, focus time +50%, dashes 2, ", s.OneLine(0.225f, 100));
+            StringAssert.EndsWith(", wide window +0%, blast +0%", s.OneLine(0.225f, 100));
         }
 
         // ---------------- Three in a chest ----------------
@@ -360,7 +362,7 @@ namespace Roguelike.Rules.Tests
             });
             Assert.That(offers, Is.EqualTo(10000));
             Dictionary<UpgradeKind, int> then = Offers(Before065(), 1000, out int offersThen, out _);
-            Say("Kind: share of 10 000 offers that show it, this order (three a chest, 22 rows)  /  before it (two a chest, 16 rows)");
+            Say("Kind: share of 10 000 offers that show it, now (three a chest, 24 rows since work order 067)  /  before 065 (two a chest, 16 rows)");
             foreach (UpgradeKind kind in Enum.GetValues(typeof(UpgradeKind)).Cast<UpgradeKind>())
             {
                 double a = now.TryGetValue(kind, out int x) ? x / (double)offers : 0.0, b = then.TryGetValue(kind, out int y) ? y / (double)offersThen : 0.0;

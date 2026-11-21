@@ -163,7 +163,8 @@ namespace Roguelike
             public Vector3 Point;
             public int Slot; // which skill, for a skill press
             public float At; // when it was pressed
-            public bool ForCooldown; // work order 064: a first press of Backstep just before its cooldown ends, waiting for it
+            public bool ForCooldown; // work order 064: a first press of Backstep just before its cooldown ends, waiting for it; 066: of any skill
+            public float ReadyAt;    // work order 066: when its cooldown was to end, as it stood at the press
         }
 
         readonly FeelValues _fallbackFeel = new FeelValues();
@@ -466,10 +467,16 @@ namespace Roguelike
         {
             get
             {
-                IReadOnlyList<SkillDefinition> skills = SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills) : SettingsSkills;
+                // Work order 067: her stats' layer (Blast, Wide window) laid on in the run's view, after the upgrades: the one
+                // place a skill's area and perfect band are read as she has them. None outside a run or with the stats off.
+                SkillStatLayer layer = SkillLayerNow;
+                IReadOnlyList<SkillDefinition> skills = SkillUpgrades != null ? SkillUpgrades.View(SettingsSkills, layer)
+                                                       : layer.Any ? _layerOnly.View(SettingsSkills, layer) : SettingsSkills;
                 return IsSteadyHandWindow ? _steadyView.View(skills, FocusModeValues) : skills;
             }
         }
+        /// <summary>The view for her stats' layer when the run hands her no skill upgrades (tests that put only the modifiers on): none taken.</summary>
+        readonly RunSkillUpgrades _layerOnly = new RunSkillUpgrades();
 
         /// <summary>
         /// The skills of the settings, in their list order: the settings asset's, and after them, from the start values in
@@ -754,7 +761,15 @@ namespace Roguelike
         /// </summary>
         public CleanPart RecastCleanPart =>
             _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove)) : default; // work order 064: after a hop, its own
+                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : ChainCleanPart) : default; // work order 064: after a hop, its own
+
+        /// <summary>
+        /// The clean part of the running chain's window as the kit places it (work order 064: after a hop, its own), widened by
+        /// her Wide window (work order 067; 0 outside a run or with the stats off): the ONE place the judging
+        /// (<see cref="JudgeRecast"/>, a press's rhythm in <see cref="Recast"/>) and everything that shows it
+        /// (<see cref="RecastCleanPart"/>: the cast blade, the strip's box, the signs) read it.
+        /// </summary>
+        CleanPart ChainCleanPart => CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove, WideWindowNow);
         /// <summary>Seconds after the window opened that its clean part begins, and ends; both 0 when the next press cannot be clean.</summary>
         public float RecastCleanFrom => RecastCleanPart.From;
         public float RecastCleanTo => RecastCleanPart.To;
@@ -986,6 +1001,7 @@ namespace Roguelike
                 EndAction();
             }
             _easing = false; // a dash ends the slow of a shot on the move at once
+            DropCooldownPress(); // work order 066: a newer press replaces one waiting for its cooldown
             return DashPressed(StartDash(point) ? IntentResult.Started : IntentResult.Rejected, 0f);
         }
 
@@ -1045,6 +1061,7 @@ namespace Roguelike
             if (recast == RecastPress.Shot || recast == RecastPress.Clean)
             {
                 _shotCursor = point;
+                DropCooldownPress(); // work order 066: a newer press replaces one waiting for its cooldown
                 SkillPressed(slot, IntentResult.Started, 0f);
                 Recast(slot, point, recast == RecastPress.Clean, buffered: false);
                 return IntentResult.Started;
@@ -1058,13 +1075,14 @@ namespace Roguelike
             if (!CooldownFor(slot).IsReady(Time.time))
             {
                 // Work order 064: Backstep's first press just before its cooldown ends waits for it and goes (he had 12 refused
-                // on cooldown on 2026-11-21, 6 of them within 1.4 s of ready); earlier, refused as before.
+                // on cooldown on 2026-11-21, 6 of them within 1.4 s of ready); earlier, refused as before. Work order 066: every
+                // skill's (CooldownBufferRules, KitValues.CooldownBuffer). A skill with a charge left is ready and never here.
                 float left = CooldownFor(slot).Remaining(Time.time);
-                if (Skills[slot].OpeningMove && left <= Kit.OpeningMoveCooldownBuffer)
+                if (CooldownBufferRules.Waits(left, Kit.CooldownBuffer))
                 {
                     _shotCursor = point;
-                    _bufferedSkillReleased = false;
-                    _buffer.Store(new Press { Kind = PressKind.Skill, Point = point, Slot = slot, At = Time.time, ForCooldown = true }, Time.time);
+                    _bufferedSkillReleased = false; // a hold skill holds only if its key is still down when it starts (ReleaseSkill)
+                    _buffer.Store(new Press { Kind = PressKind.Skill, Point = point, Slot = slot, At = Time.time, ForCooldown = true, ReadyAt = Time.time + left }, Time.time);
                     return SkillPressed(slot, IntentResult.Buffered, left);
                 }
                 return SkillPressed(slot, IntentResult.Rejected, left);
@@ -1081,9 +1099,49 @@ namespace Roguelike
                 _bufferedSkillReleased = false;
                 return SkillPressed(slot, BufferPress(PressKind.Skill, point, slot), 0f);
             }
+            DropCooldownPress(); // work order 066: a newer press replaces one waiting for its cooldown
             SkillPressed(slot, IntentResult.Started, 0f);
             StartSkill(slot, point);
             return IntentResult.Started;
+        }
+
+        /// <summary>
+        /// Work order 066: drops a press waiting for its skill's cooldown, if one waits (a newer press that starts at once
+        /// replaces it; one that waits replaces it in the buffer itself). Any other buffered press stays.
+        /// </summary>
+        void DropCooldownPress()
+        {
+            if (!_buffer.TryPeek(out Press waiting) || !waiting.ForCooldown) return;
+            _buffer.Clear();
+            Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = waiting.Slot });
+        }
+
+        /// <summary>
+        /// Work order 066: every frame, a press waiting for its cooldown is dropped once she is dead, stunned or pulled, or a
+        /// choice, the pause menu or an end screen is up (<see cref="CooldownBufferRules.Kept"/>).
+        /// </summary>
+        void DropCooldownPressWhenHeldBack()
+        {
+            if (!_buffer.TryPeek(out Press waiting) || !waiting.ForCooldown) return;
+            if (_herHealth == null) _herHealth = GetComponent<PlayerHealth>();
+            if (CooldownBufferRules.Kept(_herHealth == null || _herHealth.IsAlive, _held.IsHeld,
+                                         PlayerInputDriver.HeldByChoice, PlayerInputDriver.HeldByScreen)) return;
+            DropCooldownPress();
+        }
+
+        /// <summary>
+        /// For tests (work order 066): the slot's skill on cooldown with <paramref name="left"/> seconds to go and every charge
+        /// spent; the charges after the first come back a whole cooldown apart, as after real uses.
+        /// </summary>
+        public void SpendCooldownForTests(int slot, float left)
+        {
+            if (slot < 0 || slot >= Skills.Count) return;
+            while (_cooldowns.Count <= slot) _cooldowns.Add(new Cooldown());
+            _cooldowns[slot] = new Cooldown();
+            Cooldown cooldown = CooldownFor(slot);
+            float now = Time.time;
+            cooldown.Start(now, left);
+            for (int i = 1; i < cooldown.MaxCharges; i++) cooldown.Start(now, CooldownOf(slot));
         }
 
         /// <summary>
@@ -1095,7 +1153,7 @@ namespace Roguelike
         RecastPress JudgeRecast(int slot, float now, bool buffered = false)
         {
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
-            RecastPress judged = _chain.Judge(slot, now, CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove), hasClean, buffered); // work order 064: after a hop, its own
+            RecastPress judged = _chain.Judge(slot, now, ChainCleanPart, hasClean, buffered); // work order 064: after a hop, its own; 067: widened
             return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
         }
 
@@ -1116,7 +1174,7 @@ namespace Roguelike
             // Work order 040: a press of the last shot after the clean part, in the window, was late (the word says so).
             bool late = !clean && _chain.Slot == slot && RecastCleanPart.IsAfter(_chain.SinceOpened(now));
             // Work order 064: whether this press fell in its window's clean part, the last press or not (a full clean chain).
-            bool inRhythm = clean || _chain.InCleanPart(slot, now, CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove), buffered);
+            bool inRhythm = clean || _chain.InCleanPart(slot, now, ChainCleanPart, buffered); // work order 067: the one clean part
             _chain.Recast(inRhythm);
             bool fullClean = MarkRules.IsFullCleanChain(Skills[slot], clean, _chain.Shots, _chain.AllInRhythm);
             float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
@@ -1188,7 +1246,9 @@ namespace Roguelike
             }
             if (recast == RecastPress.None && CooldownFor(press.Slot).IsReady(now))
             {
-                StartSkill(press.Slot, press.Point);
+                // Work order 066: a press that waited for its cooldown is aimed where the cursor is now, when it goes; a press
+                // that waited out a lock, at its own point, as before.
+                StartSkill(press.Slot, press.ForCooldown && _cursorKnown ? _shotCursor : press.Point);
                 return true;
             }
             Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = press.Slot });
@@ -1460,6 +1520,7 @@ namespace Roguelike
             FeelValues feel = Feel;
             float now = Time.time;
             ApplyMovementFeel(feel);
+            DropCooldownPressWhenHeldBack(); // work order 066
             ExpireChain(now);
             BurstKegsOnFuse(now);
             if (_prime.TakeLapsed(now))
@@ -1987,16 +2048,24 @@ namespace Roguelike
             if (_duck.IsDown) return false; // waits out a quick duck, and is judged when she rises as at the end of a lock (work order 043)
             if (waiting.Kind == PressKind.Skill && now < _skillGateUntil && !CutsRecovery(waiting.Slot)) return false; // waits out a free recovery (not Backstep's hop: work order 064)
             FeelValues feel = Feel;
-            // Work order 064: a press that waits for its cooldown waits while it is no older than the cooldown buffer, and once
-            // the cooldown has ended it goes, judged good for the ordinary buffer from there.
-            if (waiting.Kind == PressKind.Skill && waiting.ForCooldown && now - waiting.At <= Kit.OpeningMoveCooldownBuffer + feel.InputBuffer)
-                return CooldownFor(waiting.Slot).IsReady(now);
+            // Work order 064: a press that waits for its cooldown waits while it is no older than the cooldown buffer (and the
+            // ordinary buffer: a guard), and once the cooldown has ended it goes, judged good for the ordinary buffer from
+            // there. Work order 066: for every skill, and judged as a press made the moment the skill became ready.
+            bool waitedForCooldown = waiting.Kind == PressKind.Skill && waiting.ForCooldown;
+            if (waitedForCooldown && !CooldownFor(waiting.Slot).IsReady(now))
+            {
+                if (CooldownBufferRules.StillInTime(waiting.At, now, Kit.CooldownBuffer, feel.InputBuffer)) return false; // it waits
+                _buffer.Clear(); // a cooldown that did not end in time (none does: a guard)
+                Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = waiting.Slot });
+                return false;
+            }
             // A gate is set only by a free recovery, and a new skill, a dash or a teleport clears it.
             bool afterFreeRecovery = waiting.Kind == PressKind.Skill && feel.SkillRecoveryFree
                                      && _skillGateUntil != float.NegativeInfinity;
             // A press made while she was down counts from the moment she rose (the third review of 2026-11-20, work order
             // 047): kept through the duck, then the ordinary buffer from there, as a click waits and fires.
             float pressedAt = waiting.At >= _duck.DownAt && waiting.At <= _duck.RoseAt ? _duck.RoseAt : waiting.At;
+            if (waitedForCooldown) pressedAt = CooldownBufferRules.CountsFrom(pressedAt, waiting.ReadyAt); // work order 066
             if (SkillGate.PressStillGood(pressedAt, now, feel.InputBuffer, afterFreeRecovery, _gateLetGoAt)) return true;
             _buffer.Clear(); // not good: dropped
             Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = waiting.Kind == PressKind.Skill ? waiting.Slot : -1 });
@@ -2647,6 +2716,13 @@ namespace Roguelike
         float CleanPressNow => StatsOn ? Modifiers.Stats.CleanPress : 1f;
         float MarkedPreyNow => StatsOn ? Modifiers.Stats.MarkedPrey : 1f;
         float LongFocusNow => StatsOn ? Modifiers.Stats.LongFocus : 1f;
+        /// <summary>
+        /// Work order 067: her Wide window and Blast (<see cref="HerStats"/>); 0 outside a run or with the switch off. Wide window
+        /// widens the clean part (<see cref="ChainCleanPart"/>) and, with Blast, lies on her skills as she has them (<see cref="Skills"/>).
+        /// </summary>
+        public float WideWindowNow => StatsOn ? Modifiers.Stats.WideWindow : 0f;
+        public float BlastNow => StatsOn ? Modifiers.Stats.Blast : 0f;
+        SkillStatLayer SkillLayerNow => StatsOn ? Modifiers.Stats.SkillLayer : default;
         /// <summary>
         /// The basic shot's recovery now: the feel's, or with the stats on shortened or lengthened by her attack speed. Work
         /// order 060: her pistols' parts first (a barrel's longer recovery), and her attack speed works on that as on the feel's.

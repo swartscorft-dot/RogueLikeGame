@@ -124,9 +124,9 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.RecastSlot == -1, 2f); // the window runs out: the chain is over, the cooldown runs
             Time.timeScale = 4f; // the waits are in game time
             yield return Until(() => _player.SkillCooldownRemaining(Backstep) <= 0.5f, 6f);
-            Assume.That(_player.SkillCooldownRemaining(Backstep), Is.GreaterThan(kit.OpeningMoveCooldownBuffer + 0.02f));
+            Assume.That(_player.SkillCooldownRemaining(Backstep), Is.GreaterThan(kit.CooldownBuffer + 0.02f));
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Rejected), "0.5 s before: refused, as before");
-            yield return Until(() => _player.SkillCooldownRemaining(Backstep) <= kit.OpeningMoveCooldownBuffer * 0.6f, 4f);
+            yield return Until(() => _player.SkillCooldownRemaining(Backstep) <= kit.CooldownBuffer * 0.6f, 4f);
             float left = _player.SkillCooldownRemaining(Backstep);
             Assume.That(left, Is.GreaterThan(0f));
             float pressedAt = Time.time;
