@@ -340,7 +340,7 @@ namespace Roguelike
                 : Choice == ChoiceKind.FocusChoice
                 ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose how focus works for the rest of the run (1-{1} or click)", Floor, count)
                 : string.Format(CultureInfo.InvariantCulture, "CHEST   choose an upgrade (1-{0} or click)", count);
-            _plainFooter = "The game is paused.   F7 leaves the run." + (Choice == ChoiceKind.FocusChoice ? "" : RedrawWords());
+            _plainFooter = PausedFooter + (Choice == ChoiceKind.FocusChoice ? "" : RedrawWords());
             return count;
         }
 

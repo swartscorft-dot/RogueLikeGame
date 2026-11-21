@@ -212,7 +212,7 @@ namespace Roguelike
             int gap = heading.IndexOf("   ", System.StringComparison.Ordinal);
             _cardsHeading = gap > 0 ? heading.Substring(0, gap) : heading;
             _cardsSub = gap > 0 ? heading.Substring(gap).Trim() : "";
-            _cardsFooter = "The game is paused.   F7 leaves the run." + (Choice == ChoiceKind.FocusChoice ? "" : RedrawWords());
+            _cardsFooter = PausedFooter + (Choice == ChoiceKind.FocusChoice ? "" : RedrawWords());
             return count;
         }
 

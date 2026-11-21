@@ -831,7 +831,7 @@ namespace Roguelike
                         else if (Choice == ChoiceKind.FocusChoice) PickFocusChoice(pick); // work order 025: 1 or 2
                         else PickUpgrade(pick);
                     }
-                    else if (choiceKeys[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
+                    else if (DeveloperKeys.On && choiceKeys[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom(); // work order 066: a developer key
                     else if (choiceKeys[RedrawKey].wasPressedThisFrame && ChoiceKeyMayPick) RedrawOffer(); // work order 029: Second Look, only when it can; after the guard, as a pick (work order 047)
                 }
                 return;
@@ -840,16 +840,18 @@ namespace Roguelike
             if (InRun) Record?.SetTime(Time.time - _runStartedAt);
             if (ChoiceKeys is Keyboard keyboard)
             {
+                // Work order 066: F5 works in every build; F6, F7, F8 to F12 and C only while the developer's keys are on.
+                bool dev = DeveloperKeys.On;
                 if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
-                else if (keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
-                else if (keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
+                else if (dev && keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
+                else if (dev && keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
                 else if (Paused || Ending != EndKind.None || BetweenRunsUp) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029)
-                else if (keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
-                else if (keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
-                else if (keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
-                else if (keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
-                else if (keyboard[CasterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Caster);
-                else if (keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
+                else if (dev && keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
+                else if (dev && keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
+                else if (dev && keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
+                else if (dev && keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
+                else if (dev && keyboard[CasterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Caster);
+                else if (dev && keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
                 else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
                 else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);
                 else if (keyboard[TodaysFocusKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.Today);
@@ -995,7 +997,7 @@ namespace Roguelike
             }
             if (ActCleared) _text.Append(LastRunLine).Append('\n');
             else if (Cleared) _text.Append("FLOOR CLEARED   seed ").Append(layout.SeedText).Append('\n');
-            _text.Append("F5 new run   F6 same run   F7 practice room" + (InRun ? "   E open a chest" : ""));
+            _text.Append(DeveloperKeys.On ? "F5 new run   F6 same run   F7 practice room" : "F5 new run").Append(InRun ? "   E open a chest" : ""); // work order 066: F6 and F7 only while they work
             return _text.ToString();
         }
 
@@ -1134,7 +1136,13 @@ namespace Roguelike
                     return;
                 }
             }
-            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), "The game is paused.   F7 leaves the run." + RedrawWords());
+            GUI.Label(new Rect(left + 12f, top + height - 22f, width - 24f, 20f), PausedFooter + RedrawWords());
         }
+
+        /// <summary>
+        /// The first words of every choice's footer: "The game is paused.", and "F7 leaves the run." after it only while the
+        /// developer's keys are on (work order 066: F7 is one of them, and nothing on screen names a key that is dead).
+        /// </summary>
+        public static string PausedFooter => DeveloperKeys.On ? "The game is paused.   F7 leaves the run." : "The game is paused.";
     }
 }
