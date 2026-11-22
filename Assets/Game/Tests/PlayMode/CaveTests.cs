@@ -347,7 +347,8 @@ namespace Roguelike.PlayModeTests
                 {
                     Assert.That(r.GetComponent<Collider>(), Is.Null);
                     Assert.That(r.shadowCastingMode, Is.EqualTo(UnityEngine.Rendering.ShadowCastingMode.Off));
-                    Assert.That(r.bounds.max.y, Is.LessThanOrEqualTo(cave.WallTop + 0.05f), "a top no higher than the walls: " + r.name);
+                    // No higher than the walls, or over a walled-in carved cell than its own dark top and the facets' sinking.
+                    Assert.That(r.bounds.max.y, Is.LessThanOrEqualTo(Mathf.Max(cave.WallTop, level.Values.WallHeight) + v2.LidJitter + 0.05f), "a top no higher than the walls: " + r.name);
                 }
                 // Every rock face over a full wall the rule lets rise, none over a low wall.
                 int faces = level.KitPlan.Sections.Where(s => !s.Low && cave.Rise.RiseOf(s.Vertical, s.Line, s.Cell) >= cave.WallTop + v2.MinRise)

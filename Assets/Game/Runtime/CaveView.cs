@@ -614,7 +614,10 @@ namespace Roguelike
                 {
                     float top = rise.LidOf(x, y);
                     if (top <= 0f) continue;
-                    top += 0.02f; // over the carved cells' own dark tops and level with the walls' tops
+                    top += 0.02f; // level with the walls' tops
+                    // Over a carved cell walled in on every side, above its own dark top (at LevelValues.WallHeight) with every
+                    // sunk corner: the final pictures showed the tops still black where that top stood over the rock.
+                    if (rise.IsCapped(x, y)) top = Mathf.Max(top, _values.WallHeight + 0.02f) + v.LidJitter;
                     // Its rooms and passages: those within the reach, the nearest four.
                     near.Clear();
                     for (int dy = -reach; dy <= reach; dy++)
