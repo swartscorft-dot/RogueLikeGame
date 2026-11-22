@@ -112,6 +112,16 @@ namespace Roguelike
             if (GameSettings.CameraKick) _kicks.Add(now, flatDirection.x, flatDirection.z, FiringWeightRules.Kick(weight, Values));
         }
 
+        /// <summary>
+        /// A kick of the camera of its own size along a flat direction, with no light (work order 071: the moment focus is
+        /// spent). Under the same rules as a shot's: off with the switch or the pause menu's setting, never past the most.
+        /// </summary>
+        public void Push(Vector3 flatDirection, float metres)
+        {
+            if (!Values.On || !GameSettings.CameraKick || metres <= 0f) return;
+            _kicks.Add(Time.unscaledTime, flatDirection.x, flatDirection.z, metres);
+        }
+
         void LightUp(Vector3 at, float peak, float now)
         {
             int pick = -1;

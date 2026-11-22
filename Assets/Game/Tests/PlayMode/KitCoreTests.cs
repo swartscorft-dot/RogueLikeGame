@@ -275,10 +275,11 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            Assert.That(_player.RecastCleanShare, Is.EqualTo(0f), "the second press cannot be clean");
+            // Work order 069: the second press has its own clean part, 0.12 to 0.30 s of its 0.45 s window (until then none).
+            Assert.That(_player.RecastCleanShare, Is.EqualTo((kit.QuickPressCleanTo - kit.QuickPressCleanFrom) / kit.QuickPressWindow).Within(1e-5f), "the second press's own clean part");
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            Assert.That(_player.RecastCleanShare, Is.EqualTo(kit.CleanShare).Within(1e-5f), "the third can");
+            Assert.That(_player.RecastCleanShare, Is.EqualTo((kit.LastPressCleanTo - kit.LastPressCleanFrom) / kit.LastPressWindow).Within(1e-5f), "the third's: 0.42 to 0.66 s of 0.80 s (work order 069; until then a third of 0.6 s)");
             if (clean) yield return Until(() => _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 2f);
             Assume.That(_player.IsRecastWindowOpen, Is.True);
             Assert.That(_player.PressSkill(Triple, _a.transform.position), Is.EqualTo(IntentResult.Started), "the third press");

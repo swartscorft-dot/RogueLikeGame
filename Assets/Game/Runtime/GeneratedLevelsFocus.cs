@@ -118,7 +118,7 @@ namespace Roguelike
             for (int i = 0; i < count; i++)
             {
                 FocusMode mode = FocusModeRules.Options[i];
-                string[] lines = FocusModeRules.Lines(mode, FocusValues, todayCut);
+                string[] lines = FocusModeRules.Lines(mode, FocusValues, todayCut, _player != null ? _player.Identity : null); // work order 071: with the gains
                 string text = (i + 1).ToString(CultureInfo.InvariantCulture) + "   " + FocusModeRules.Name(mode).ToUpperInvariant() + "\n" + string.Join("\n", lines);
                 var row = new Rect(left + 10f, top + 32f + i * (rowHeight + 6f), width - 20f, rowHeight);
                 if (GUI.Button(row, text, _choiceStyle))

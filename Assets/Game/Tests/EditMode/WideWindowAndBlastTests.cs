@@ -377,7 +377,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(card.Name, Is.EqualTo("Wide window"));
             Assert.That(card.TierLine, Is.EqualTo("COMMON"));
             Assert.That(card.Sentence, Is.EqualTo("The clean part of a window and the perfect band are wider."));
-            Assert.That(card.Numbers, Is.EqualTo(new[] { "Backstep clean part  0.20 s" + A + "0.22 s", "Triple Tap clean part  0.20 s" + A + "0.22 s" }));
+            Assert.That(card.Numbers, Is.EqualTo(new[] { "Backstep clean part  0.20 s" + A + "0.22 s", "Triple Tap clean part  0.24 s" + A + "0.26 s" }), "Triple Tap's last press, a beat later and 0.24 s wide since work order 069 (0.20 s before)");
             OfferCard withShot = OfferTexts.ForUpgrade(Step(UpgradeKind.WideWindow, 0.10f), Her("Long Shot", "Quick Shot"));
             Assert.That(withShot.Numbers, Is.EqualTo(new[] { "Long Shot perfect band  0.20 s" + A + "0.22 s" }));
             OfferCard none = OfferTexts.ForUpgrade(Step(UpgradeKind.WideWindow, 0.10f), Her("Quick Shot", "Powder Keg"));
