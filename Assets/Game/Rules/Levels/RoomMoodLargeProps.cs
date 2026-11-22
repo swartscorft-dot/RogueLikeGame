@@ -273,8 +273,8 @@ namespace Roguelike.Rules
                 case RoomTheme.ThroneRoom: Throne(g); break;
                 case RoomTheme.TombHall: Knight(g); break;
                 case RoomTheme.Shrine: GreatAltar(g); break;
-                case RoomTheme.Vault: ChestDais(g, true); break;
-                case RoomTheme.Archive when room.Kind == RoomKind.Treasure: ChestDais(g, false); break;
+                case RoomTheme.Vault: ChestDais(g, true, !(values.Cave && values.CaveRules != null && values.CaveRules.NoGoldHeaps)); break;
+                case RoomTheme.Archive when room.Kind == RoomKind.Treasure: ChestDais(g, false, false); break;
                 case RoomTheme.Ossuary: BoneWalls(g, values, kit); break;
             }
             // The lane is built with the room's props as they stand once the theme's piece is down.
@@ -375,7 +375,12 @@ namespace Roguelike.Rules
 
         // ---------------- The vault and the treasure room's archive ----------------
 
-        static void ChestDais(Large g, bool vault)
+        /// <summary>
+        /// Work order 076 (Kristian, 2026-11-21: "chestrommet så blokker den gull-proppen. syntes den er litt unødvendig"):
+        /// <paramref name="heaps"/> false, the vault's two large coin heaps are not placed (<see cref="CaveValues.NoGoldHeaps"/>);
+        /// the code-made heaps on the dais and the spilled coins stay, as with no room for a large one.
+        /// </summary>
+        static void ChestDais(Large g, bool vault, bool heaps)
         {
             MoodRoom mr = g.Mr;
             LevelRoom room = g.Room;
@@ -404,7 +409,7 @@ namespace Roguelike.Rules
                 CompositionPiece code = mr.Pieces.FirstOrDefault(c => c.Kind == CompositionKind.Dais);
                 half = code != null ? code.Width * 0.5 : chest.Width * 0.5;
             }
-            if (!vault) return;
+            if (!vault || !heaps) return;
 
             // Two coin heaps beside the dais, a little behind the chest, in place of the code-made heaps.
             Axes(chest.Rotation, out LevelPoint ux, out LevelPoint uz);
