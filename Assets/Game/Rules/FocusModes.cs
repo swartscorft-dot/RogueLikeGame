@@ -11,11 +11,11 @@ namespace Roguelike.Rules
     /// </summary>
     public enum FocusMode
     {
-        /// <summary>A full gauge spent at once: cooldowns cut by 40 % and a window in which basic shots mark (6 s).</summary>
+        /// <summary>A full gauge spent at once: cooldowns cut by 40 % and a window in which basic shots mark (6 s), with the gains (work order 071).</summary>
         Today,
-        /// <summary>The high-tempo way: three parts, Z spends one; each cuts cooldowns a little and primes the next skill.</summary>
+        /// <summary>The high-tempo way: three parts, Z spends one; each cuts cooldowns a little, primes the next skill and gives the gains for 2 s.</summary>
         HairTrigger,
-        /// <summary>The big window: a full gauge, a longer window, and Triple Tap and Scatter Blast change shape in it.</summary>
+        /// <summary>The big window: a full gauge, a longer window with the gains, and Triple Tap and Scatter Blast change shape in it.</summary>
         SteadyHand,
     }
 
@@ -47,6 +47,12 @@ namespace Roguelike.Rules
         public float PrimeSeconds = 4f;         // a part primes the next skill she starts within this many seconds
         public float PrimedChargeShare = 0.5f;  // a primed Charge skill's release is perfect from this share of its charge
         public int PrimedExtraMarks = 1;        // a primed skill adds this many marks more (a spender counts this many more)
+        /// <summary>
+        /// Work order 071: s a spent part gives the gains for (<see cref="FocusGains"/>), added to what is left of the one
+        /// before: today's 6 s window over the three parts, so a full gauge spent part by part gives the same seconds. The run's
+        /// Long focus lengthens it as it does the priming. 0: a part gives no gains, as before the order.
+        /// </summary>
+        public float PartBoostSeconds = 2f;
 
         // Steady Hand.
         public float WindowSeconds = 10f;       // the window a full gauge opens (6 s today)
@@ -73,26 +79,30 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// Three lines of plain words on what the Z key does from now on, for the choice on screen. Steady Hand's cut is
-        /// today's (<see cref="IdentityValues.CooldownCut"/>), passed in.
+        /// today's (<see cref="IdentityValues.CooldownCut"/>), passed in. Work order 071: the lines say the gains too, from
+        /// <paramref name="id"/> (the start values when none is given).
         /// </summary>
-        public static string[] Lines(FocusMode mode, FocusModeValues v, float todayCut = 0.4f)
+        public static string[] Lines(FocusMode mode, FocusModeValues v, float todayCut = 0.4f, IdentityValues id = null)
         {
             v = v ?? new FocusModeValues();
+            id = id ?? new IdentityValues();
             if (mode == FocusMode.HairTrigger)
                 return new[]
                 {
                     string.Format(Inv, "The gauge is in {0} parts. Z spends one full part; you can hold all {0}.", v.Parts),
-                    string.Format(Inv, "Each part cuts every running cooldown by {0:0}% of what is left.", v.PartCooldownCut * 100f),
+                    v.PartBoostSeconds > 0f && FocusGains.Any(id)
+                        ? string.Format(Inv, "Each part cuts running cooldowns by {0:0}% of what is left and powers you up for {1:0.#} s.", v.PartCooldownCut * 100f, v.PartBoostSeconds)
+                        : string.Format(Inv, "Each part cuts every running cooldown by {0:0}% of what is left.", v.PartCooldownCut * 100f),
                     string.Format(Inv, "And primes the next skill you start within {0:0} s: its timing counts as right.", v.PrimeSeconds),
                 };
             if (mode == FocusMode.SteadyHand)
                 return new[]
                 {
                     string.Format(Inv, "Only a full gauge: Z cuts every running cooldown by {0:0}%, as today.", todayCut * 100f),
-                    string.Format(Inv, "For {0:0} s every basic shot that hits marks.", v.WindowSeconds),
+                    string.Format(Inv, FocusGains.Any(id) ? "For {0:0} s you are powered up and every basic shot that hits marks." : "For {0:0} s every basic shot that hits marks.", v.WindowSeconds),
                     string.Format(Inv, "In it {0} takes {1} more presses and {2} fires {3} times.", v.MoreTapsSkill, v.MoreTaps, v.TwiceSkill, v.TwiceTimes),
                 };
-            return new[] { "A full gauge: Z cuts every running cooldown.", "For a while every basic shot that hits marks.", "" };
+            return new[] { "A full gauge: Z cuts every running cooldown.", "For a while every basic shot that hits marks.", FocusGains.Any(id) ? FocusGains.Words(id) : "" };
         }
 
         static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
