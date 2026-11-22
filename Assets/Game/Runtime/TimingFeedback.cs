@@ -460,6 +460,7 @@ namespace Roguelike
             if (!Values.Tones) return;
             TonePlayed?.Invoke(tone);
             if (_sounds == null) return;
+            if (tone == FeedbackTone.Clean && PlaceholderSounds.CleanToneTaken) return; // work order 080: the press's own tick rang for it
             // A share of the basic shot's volume, as the shot itself is played (PlayerCharacter.PlaySound).
             float basic = 1f;
             if (_player != null && _player.ShotLooks != null && _player.ShotLooks.Basic != null)

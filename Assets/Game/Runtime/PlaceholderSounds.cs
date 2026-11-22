@@ -21,6 +21,8 @@ namespace Roguelike
         public bool Recorded;
         /// <summary>Work order 048: the bells it rings, the offer's two for an epic card (the second a little later); 1 for every other.</summary>
         public int Bells;
+        /// <summary>Work order 080: the variation it plays (from 1), or for a clean press's tick its step in the chain; 0 for none.</summary>
+        public int Variant;
     }
 
     /// <summary>
@@ -61,7 +63,7 @@ namespace Roguelike
     /// for it tells it); a crit of hers, unless the clean press's or the perfect release's own tone rang that frame
     /// (<see cref="TimingFeedback.TonePlayed"/>); and a choice coming up with a rare or an epic card, found by looking.
     /// </summary>
-    public sealed class PlaceholderSounds : MonoBehaviour
+    public sealed partial class PlaceholderSounds : MonoBehaviour
     {
         const int VoiceCount = 12;
         const uint PitchSeed = 21u;
@@ -179,6 +181,7 @@ namespace Roguelike
             _look = Look;
             _flush = Flush;
             _onTone = OnTone;
+            _weigh = WeighFrame; // work order 080
             MakeClips();
             // Its own voices, of the kind the shots use: plain 2D sounds, the listener's volume over them.
             var voices = new GameObject("PlaceholderVoices");
@@ -366,6 +369,7 @@ namespace Roguelike
             // Work order 036: the end of a thing that flew is no strike to hear: it was heard leaving, and her hurt is heard on her.
             // Work order 048: but one stopped by a wall, a pillar or a prop knocks, one knock for a fan; one her quick duck
             // stopped has the duck's own impact (PlayerCharacter), and no knock over it.
+            if (r.Kind == EnemyReportKind.Died && TookDeath(enemy)) return; // work order 080: her kill was heard as hers
             SoundMoment? moment = r.Flown ? MomentOfFlown(r.Outcome) : MomentOf(r.Kind);
             if (!moment.HasValue) return;
             if (moment.Value == SoundMoment.ProjectileStopped
@@ -395,6 +399,7 @@ namespace Roguelike
 
         void OnPlayer(PlayerReport r) => Safely(() =>
         {
+            if (Weigh(r)) return; // work order 080: her hit heard by its weight, in place of the tick and the crit's tick
             SoundMoment? moment = MomentOf(r);
             if (moment.HasValue) Ask(PlaceholderSoundRules.SoundFor(moment.Value));
             // Work order 048: a crit (only with the stats and tiers on; Deal rolls none otherwise) waits for the frame's end,
@@ -424,6 +429,7 @@ namespace Roguelike
         void Ask(PlaceholderSound? sound, float gain = 1f, bool lookedFor = false)
         {
             if (!sound.HasValue || !Values.On) return;
+            if (QuietedByRoomWon(sound.Value)) return; // work order 080
             bool paused = lookedFor ? _heldBefore && Held : Held;
             if (!PlaceholderSoundRules.MayStart(sound.Value, paused)) return;
             _crowd.Ask(sound.Value, gain);
@@ -442,6 +448,7 @@ namespace Roguelike
             Safely(_find);
             Safely(_look);
             AskForCrits();
+            Safely(_weigh); // work order 080: the frame's impacts and kills
             Safely(_flush);
             RingSecondBell();
             _bells = 0;
@@ -578,14 +585,15 @@ namespace Roguelike
                 SoundPlay play = plays[i];
                 AudioClip clip = _clips[(int)play.Sound];
                 float volume = Values.Volume(play.Sound) * Values.Master * basic * play.Gain;
-                float pitch = _pitch.Next(Values.PitchSpread);
+                float pitch = _pitch.Next(Values.PitchSpread) * play.Pitch; // work order 080: times its variation's or its step's
+                if (play.Exact) pitch = play.Pitch;
                 if (clip == null || volume <= 0f) continue;
                 // Work order 048: an epic offer's bell rings twice, the second a fourth up a moment later.
                 int bells = play.Sound == PlaceholderSound.RareOffer ? Math.Max(1, _bells) : 1;
                 Requested?.Invoke(new PlaceholderSoundRequest
                 {
                     Sound = play.Sound, Clip = clip, Volume = volume, Pitch = pitch, Asked = play.Asked,
-                    Frame = Time.frameCount, Recorded = _recorded[(int)play.Sound], Bells = bells,
+                    Frame = Time.frameCount, Recorded = _recorded[(int)play.Sound], Bells = bells, Variant = play.Variant,
                 });
                 if (_voices != null) _voices.Play(clip, volume, pitch, 0f);
                 if (bells > 1)

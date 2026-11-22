@@ -79,6 +79,7 @@ namespace Roguelike.PlayModeTests
             _fly = ThingsThatFly.Ensure();
             _fly.Values.On = true;
             _sounds = PlaceholderSounds.Ensure();
+            _sounds.Weight.On = false; // work order 080: these pin the morning's sounds, which its switch off gives back
             yield return null;
             _played.Clear();
             _voiced.Clear();
@@ -677,6 +678,7 @@ namespace Roguelike.PlayModeTests
                 return recorded.TryGetValue(path, out AudioClip c) ? c : null;
             };
             _sounds = PlaceholderSounds.Ensure();
+            _sounds.Weight.On = false; // work order 080: these pin the morning's sounds, which its switch off gives back
             yield return null;
             foreach (PlaceholderSound s in TheTen)
             {

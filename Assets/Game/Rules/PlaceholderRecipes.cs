@@ -180,6 +180,59 @@ namespace Roguelike.Rules
                         Sine(1047f, 0f, 0f, 0.5f, 1f, 0.003f, 0.17f, release: 0.06f),
                         Sine(2890f, 0f, 0f, 0.35f, 0.22f, 0.003f, 0.07f, release: 0.05f),
                         Sine(5650f, 0f, 0f, 0.2f, 0.07f, 0.002f, 0.035f, release: 0.04f));
+                // ---- Work order 080 (weight in a hit, a kill and a clean press), first guesses, made without hearing them ----
+                case PlaceholderSound.HitBasic:
+                    // A light dry thock, a little fuller than the morning's hit tick: a mid band of noise and a short falling sine.
+                    return Recipe(0.07f, 1.4f,
+                        Noise(0f, 0.06f, 0.8f, 0.0005f, 0.012f, low: 3500f, high: 600f),
+                        Sine(220f, 120f, 0f, 0.07f, 0.8f, 0.001f, 0.018f));
+                case PlaceholderSound.HitHeavy:
+                    // A deeper, thicker impact: a rough low sine falling, dull noise under it, a click on top.
+                    return Recipe(0.12f, 1.6f,
+                        Rough(Sine(130f, 55f, 0f, 0.12f, 1f, 0.001f, 0.035f, release: 0.02f), 2.2f),
+                        Noise(0f, 0.1f, 0.7f, 0.001f, 0.03f, low: 1200f, lowTo: 400f),
+                        Noise(0f, 0.02f, 0.35f, 0.0003f, 0.004f, high: 2500f));
+                case PlaceholderSound.HitCrit:
+                    // A hard, bright crack: a sharp band of noise, a high tone sliding down, and a thump under them.
+                    return Recipe(0.1f, 1.7f,
+                        Noise(0f, 0.08f, 1f, 0.0003f, 0.012f, low: 9000f, high: 1500f),
+                        Sine(2600f, 1800f, 0f, 0.08f, 0.5f, 0.0005f, 0.02f),
+                        Sine(160f, 70f, 0f, 0.1f, 0.8f, 0.001f, 0.025f));
+                case PlaceholderSound.HitCleanEdge:
+                    // A bright glassy edge to sit over an impact: E7 with a quiet partial over it and a breath of hiss.
+                    return Recipe(0.08f, 0f,
+                        Sine(2637f, 0f, 0f, 0.08f, 1f, 0.0005f, 0.025f, release: 0.01f),
+                        Sine(3951f, 0f, 0f, 0.06f, 0.4f, 0.0005f, 0.015f, release: 0.01f),
+                        Noise(0f, 0.02f, 0.2f, 0.0003f, 0.004f, high: 6000f));
+                case PlaceholderSound.Kill:
+                    // A punchy pop and a short crumble, nothing like the hit's: a rough sine dropping fast, then wobbling noise.
+                    return Recipe(0.2f, 1.5f,
+                        Rough(Sine(260f, 60f, 0f, 0.18f, 1f, 0.001f, 0.05f, release: 0.02f), 2f),
+                        Wobble(Noise(0.02f, 0.17f, 0.6f, 0.004f, 0.05f, low: 2500f, lowTo: 600f, release: 0.03f), 35f, 0.7f));
+                case PlaceholderSound.RoomWon:
+                    // The room is won: the kill's pop, longer, opening into a bright rising pair, G5 then C6 held over its octave.
+                    return Recipe(0.45f, 1.2f,
+                        Rough(Sine(220f, 70f, 0f, 0.2f, 1f, 0.001f, 0.06f, release: 0.03f), 1.8f),
+                        Note(784f, 0.08f, 0.16f, 0.07f),
+                        Note(1047f, 0.18f, 0.27f, 0.12f, release: 0.06f),
+                        Sine(2093f, 0f, 0.18f, 0.24f, 0.25f, 0.003f, 0.08f, release: 0.06f));
+                case PlaceholderSound.CleanTick:
+                    // A short pitched tick, G6 with its octave: the game plays it a step higher for each clean press in a row.
+                    return Recipe(0.05f, 0f,
+                        Sine(1568f, 0f, 0f, 0.05f, 1f, 0.0005f, 0.012f, release: 0.006f),
+                        Sine(3136f, 0f, 0f, 0.04f, 0.25f, 0.0005f, 0.008f, release: 0.006f),
+                        Noise(0f, 0.01f, 0.15f, 0.0003f, 0.002f, high: 5000f));
+                case PlaceholderSound.ChainTop:
+                    // A clear top note to end a chain clean all through: C7 ringing, a fifth over it, an octave under it.
+                    return Recipe(0.3f, 0f,
+                        Sine(2093f, 0f, 0f, 0.3f, 1f, 0.002f, 0.1f, release: 0.04f),
+                        Sine(3136f, 0f, 0f, 0.22f, 0.3f, 0.002f, 0.06f, release: 0.04f),
+                        Sine(1047f, 0f, 0f, 0.25f, 0.45f, 0.002f, 0.08f, release: 0.04f));
+                case PlaceholderSound.OffTick:
+                    // A dull tick for a press off its clean part (heard only with its switch on): low noise and a low blip.
+                    return Recipe(0.04f, 1.2f,
+                        Noise(0f, 0.03f, 0.7f, 0.0005f, 0.008f, low: 900f),
+                        Sine(300f, 200f, 0f, 0.04f, 0.6f, 0.001f, 0.01f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,
