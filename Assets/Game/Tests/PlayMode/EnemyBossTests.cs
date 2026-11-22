@@ -598,13 +598,17 @@ namespace Roguelike.PlayModeTests
             // rectangle. Work order 056 (the first Unity run of the night's combination, 2026-11-21): this put her 2.5 m in
             // from that corner, in the corner cell itself, which work order 051 may carve (an octagon's, a cross's: this
             // seed's exit room is an octagon), and a carved cell is in no room, as it is behind the walls.
+            // Work order 070 (a room is a fight): the room wakes, the boss with it, once she is past the room's point, 5 m in
+            // from the door she came by (the room's door nearest her): the nearest such cell to that corner.
             double cs = level.Layout.CellSize;
             int ix = -1, iy = -1;
             for (int d = 0; d < exit.Rect.Width + exit.Rect.Height && ix < 0; d++)
                 for (int i = 0; i <= d && ix < 0; i++)
                 {
                     int cx = exit.Rect.X + i, cy = exit.Rect.Y + d - i;
-                    if (exit.Rect.Contains(cx, cy) && level.Layout.RoomAtCell(cx, cy) == exit) { ix = cx; iy = cy; }
+                    var at = new LevelPoint((cx + 0.5) * cs, (cy + 0.5) * cs);
+                    if (exit.Rect.Contains(cx, cy) && level.Layout.RoomAtCell(cx, cy) == exit
+                        && RoomFightRules.PastThePoint(level.Layout, exit, RoomFightRules.DoorSheCameBy(level.Layout, exit, at), at, level.Values.Fights)) { ix = cx; iy = cy; }
                 }
             Assert.That(ix, Is.GreaterThanOrEqualTo(0), "an open cell in its room");
             Vector3 inside = level.ToWorld(new LevelPoint((ix + 0.5) * cs, (iy + 0.5) * cs));

@@ -31,10 +31,13 @@ namespace Roguelike.Rules.Tests
         {
             Assert.That(RoomTemplateLibrary.Errors, Is.Empty, "every grid reads");
             IReadOnlyList<RoomTemplate> all = RoomTemplateLibrary.All;
-            Assert.That(all.Count, Is.EqualTo(11), "seven combat, two elite, two exit");
-            Assert.That(all.Count(t => t.For == RoomTemplateFor.Combat), Is.EqualTo(7));
-            Assert.That(all.Count(t => t.For == RoomTemplateFor.Elite), Is.EqualTo(2));
-            Assert.That(all.Count(t => t.For == RoomTemplateFor.Exit), Is.EqualTo(2));
+            // Work order 072: the first eleven (seven combat, two elite, two exit) and the second set's fifteen (eleven combat,
+            // two elite, two exit), 26 in all.
+            Assert.That(all.Count(t => t.Since < RoomTemplateLibrary.MoreSince), Is.EqualTo(11), "seven combat, two elite, two exit");
+            Assert.That(all.Count, Is.EqualTo(26), "the eleven and work order 072's fifteen");
+            Assert.That(all.Count(t => t.For == RoomTemplateFor.Combat), Is.EqualTo(7 + 11));
+            Assert.That(all.Count(t => t.For == RoomTemplateFor.Elite), Is.EqualTo(2 + 2));
+            Assert.That(all.Count(t => t.For == RoomTemplateFor.Exit), Is.EqualTo(2 + 2));
             Assert.That(all.Select(t => t.Name).Distinct().Count(), Is.EqualTo(all.Count), "every name its own");
             var v = new LevelValues();
             int cases = 0;
@@ -540,7 +543,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_TwoThousandFloors_AreVersion14s_FieldForField()
         {
-            var off = new LevelValues { Templates = false, Passages = false }; // work order 059: version 14 had no passages
+            var off = new LevelValues { Templates = false, Passages = false, MoreTemplates = false }; // work order 059: version 14 had no passages; 072: nor the second set
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {

@@ -348,6 +348,7 @@ namespace Roguelike
             EliteRoomEntered = false;
             EliteRoomDone = false;
             _roomHeals.Clear();
+            SetUpRoomFights(); // work order 070
 
             player.Teleport(_level.PlayerStart);
             Debug.Log(string.Format(s_Inv, "Generated floor {0} of {9} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies, {6} props{7}\n{8}",
@@ -400,6 +401,7 @@ namespace Roguelike
             Cleared = false;
             _entered.Clear();
             _chestsOpened.Clear();
+            ForgetRoomFights(); // work order 070
         }
 
         // ---------------- Runs (work order 012) ----------------
@@ -480,7 +482,8 @@ namespace Roguelike
             LastRunLine = line;
             RecordEnd(how);
             BetweenRunsRunEnded(); // work order 029: what the run earned is kept, with the switch on
-            PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null ? CurrentRoom.Order + 1 : 0,
+            // The fifth review (work order 077): the room's number without the passages, as the end screen's record; 0 in a passage.
+            PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null && CurrentRoom.Kind != RoomKind.Passage ? LevelGeometry.RoomNumber(_level.Layout, CurrentRoom) + 1 : 0,
                                                       CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt,
                                                       Modifiers.StatsAndTiers ? StatsLine() : null); // work order 050: her final stats
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
@@ -502,8 +505,10 @@ namespace Roguelike
             return Modifiers.Stats.OneLine(baseInterval, _health != null ? _health.MaxHealth : 100);
         }
 
+        // The fifth review (work order 077): counted without the passages, as the end screen's record; a passage has no number.
         string RoomWords() =>
-            CurrentRoom != null ? string.Format(s_Inv, ", room {0} ({1})", CurrentRoom.Order + 1, CurrentRoom.Kind.ToString().ToLowerInvariant()) : "";
+            CurrentRoom == null ? "" : CurrentRoom.Kind == RoomKind.Passage ? ", in a passage"
+            : string.Format(s_Inv, ", room {0} ({1})", LevelGeometry.RoomNumber(_level.Layout, CurrentRoom) + 1, CurrentRoom.Kind.ToString().ToLowerInvariant());
 
         void OnDied()
         {
@@ -870,6 +875,7 @@ namespace Roguelike
                 return;
             }
             TrackRoom();
+            TickRoomFights(); // work order 070: after her room is tracked
             if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat; after the room is tracked (work order 033)
         }
 
@@ -986,10 +992,11 @@ namespace Roguelike
                 _text.Append(string.Format(s_Inv, "run {0}   floor {1} of {2}   (floor seed {3})", RunSeedText, Floor, Values.FloorsPerAct, layout.SeedText)).Append('\n');
             else
                 _text.Append(string.Format(s_Inv, "level {0}   floor {1}   generator v{2}", layout.SeedText, layout.Floor, layout.Version)).Append('\n');
-            _text.Append(CurrentRoom != null
-                ? string.Format(s_Inv, "room {0} of {1} ({2}), {3} enemies left in it", CurrentRoom.Order + 1, layout.Rooms.Count,
-                                CurrentRoom.Kind.ToString().ToLowerInvariant(), AliveIn(CurrentRoom))
-                : string.Format(s_Inv, "outside the level ({0} rooms)", layout.Rooms.Count)).Append('\n');
+            // The fifth review (work order 077): the rooms counted without the passages, as the end screen's record.
+            _text.Append(CurrentRoom == null ? string.Format(s_Inv, "outside the level ({0} rooms)", LevelGeometry.RoomCount(layout))
+                : CurrentRoom.Kind == RoomKind.Passage ? string.Format(s_Inv, "in a passage ({0} rooms)", LevelGeometry.RoomCount(layout))
+                : string.Format(s_Inv, "room {0} of {1} ({2}), {3} enemies left in it", LevelGeometry.RoomNumber(layout, CurrentRoom) + 1, LevelGeometry.RoomCount(layout),
+                                CurrentRoom.Kind.ToString().ToLowerInvariant(), AliveIn(CurrentRoom))).Append('\n');
             _text.Append(string.Format(s_Inv, "rooms entered {0} of {1}   exit room enemies left {2}   v{3}", _entered.Count, layout.Rooms.Count,
                                        AliveIn(layout.ExitRoom), layout.Version)).Append('\n');
             if (InRun)

@@ -108,7 +108,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.CurrentRoom, Is.Not.Null);
             Assert.That(_levels.CurrentRoom.Kind, Is.EqualTo(RoomKind.Entrance));
             StringAssert.Contains(layout.SeedText, _levels.StatusText());
-            StringAssert.Contains("room 1 of " + layout.Rooms.Count, _levels.StatusText());
+            StringAssert.Contains("room 1 of " + LevelGeometry.RoomCount(layout), _levels.StatusText()); // changed deliberately (work order 077): the rooms without the passages
             StringAssert.Contains("v" + LevelGenerator.Version, _levels.StatusText());
         }
 
@@ -312,7 +312,8 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Assert.That(_levels.CurrentRoom, Is.SameAs(combat));
             Assert.That(_levels.RoomsEntered, Is.EquivalentTo(new[] { 0, combat.Order }));
-            StringAssert.Contains("room " + (combat.Order + 1) + " of " + level.Layout.Rooms.Count, _levels.StatusText());
+            // Changed deliberately (work order 077): counted without the passages, as the end screen's record.
+            StringAssert.Contains("room " + (LevelGeometry.RoomNumber(level.Layout, combat) + 1) + " of " + LevelGeometry.RoomCount(level.Layout), _levels.StatusText());
 
             SessionEvent built = _recorder.Events.Single(e => e.Type == SessionEventTypes.LevelBuilt);
             Assert.That(built.Name, Is.EqualTo(level.Layout.SeedText));

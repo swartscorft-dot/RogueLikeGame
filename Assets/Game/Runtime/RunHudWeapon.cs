@@ -102,14 +102,42 @@ namespace Roguelike
             }
         }
 
-        /// <summary>The weapon's lines, worked out every frame the screen is up with the attachments on (also without a window, for tests).</summary>
+        /// <summary>How many times the weapon's lines were made (the fifth review of 2026-11-21, work order 077). For tests.</summary>
+        public int WeaponListsMade { get; private set; }
+
+        // What the weapon's lines were last made from (work order 077): the screen up, the save and the table, the currency, and
+        // copies of the owned and fitted lists. The same, and the lines stand.
+        bool _weaponWasUp;
+        MetaState _weaponMadeFor;
+        MetaValues _weaponMadeWith;
+        int _weaponCurrency;
+        readonly List<string> _weaponOwned = new List<string>();
+        readonly List<string> _weaponFitted = new List<string>();
+
+        /// <summary>
+        /// The weapon's lines, made when the screen opens with the attachments on and again only when what they say changes (a
+        /// part bought, fitted or taken off, the currency), not every frame it is up (the fifth review of 2026-11-21, work
+        /// order 077, as <see cref="PauseLines"/> does for the pause screen); also without a window, for tests.
+        /// </summary>
         void BuildWeaponLines()
         {
+            bool on = WeaponOn;
+            if (on && _weaponWasUp && !WeaponLinesStale()) return;
+            _weaponWasUp = on;
             _weaponLines.Clear();
             _weaponRows.Clear();
             _weaponParts.Clear();
-            if (!WeaponOn) return;
+            if (!on) return;
             MetaValues v = _levels.MetaValues;
+            MetaState made = _levels.BetweenRunsState;
+            _weaponMadeFor = made;
+            _weaponMadeWith = v;
+            _weaponCurrency = made.Currency;
+            _weaponOwned.Clear();
+            _weaponOwned.AddRange(made.AttachmentsOwned);
+            _weaponFitted.Clear();
+            _weaponFitted.AddRange(made.AttachmentsFitted);
+            WeaponListsMade++;
             _weaponLines.Add("Loadout (trial)");
             _weaponRows.Add(null);
             _weaponLines.Add("put together before the run: owned parts fit and come off freely");
@@ -123,7 +151,7 @@ namespace Roguelike
                 {
                     _weaponLines.Add(WeaponAttachments.SlotWord(slot));
                     _weaponRows.Add(null);
-                    foreach (WeaponAttachment p in v.Parts ?? new WeaponAttachment[0])
+                    foreach (WeaponAttachment p in v.Parts ?? System.Array.Empty<WeaponAttachment>())
                     {
                         if (p == null || p.Weapon != weapon || p.Slot != slot) continue;
                         _weaponLines.Add(PartHead(p) + "\n" + p.Line + (string.IsNullOrEmpty(p.CostLine) ? "" : "\nCost:  " + p.CostLine));
@@ -132,6 +160,22 @@ namespace Roguelike
                     }
                 }
             }
+        }
+
+        /// <summary>Has what the weapon's lines say changed since they were made (work order 077)? Nothing made in asking.</summary>
+        bool WeaponLinesStale()
+        {
+            MetaState s = _levels.BetweenRunsState;
+            return s != _weaponMadeFor || _levels.MetaValues != _weaponMadeWith || s.Currency != _weaponCurrency
+                   || !SameIds(s.AttachmentsOwned, _weaponOwned) || !SameIds(s.AttachmentsFitted, _weaponFitted);
+        }
+
+        static bool SameIds(List<string> now, List<string> then)
+        {
+            if (now.Count != then.Count) return false;
+            for (int i = 0; i < now.Count; i++)
+                if (!string.Equals(now[i], then[i], System.StringComparison.Ordinal)) return false;
+            return true;
         }
 
         /// <summary>"Laser Sight   FITTED": the name and what it is to her now.</summary>

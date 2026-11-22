@@ -250,6 +250,27 @@ namespace Roguelike.Rules
         /// </summary>
         public readonly List<KeyValuePair<string, string>> TieredPicks = new List<KeyValuePair<string, string>>();
         public string FinalStats = "";
+        /// <summary>
+        /// Work order 070: the rooms' fights that started, by the floor's number: at the point; inside the room short of it (one
+        /// of them noticed her by its range, or was hurt, as she came in); or from outside the room (an enemy hurt, one that
+        /// noticed her by its range, one provoked); and the most enemies that woke at once. Empty for a log from before, or with
+        /// the switch off.
+        /// </summary>
+        public readonly SortedDictionary<int, RoomFightCounts> RoomFights = new SortedDictionary<int, RoomFightCounts>();
+    }
+
+    /// <summary>The rooms' fights of one floor of a run (work order 070), by how they started and where she was.</summary>
+    public sealed class RoomFightCounts
+    {
+        /// <summary>At the point.</summary>
+        public int Point;
+        /// <summary>Inside the room, short of the point: one of its enemies noticed her or was hurt first.</summary>
+        public int Inside;
+        /// <summary>From outside the room (the passage, the room before): by a hit, a sight by range, a provoke.</summary>
+        public int Hit, Seen, Provoked;
+        /// <summary>The most enemies that woke at once in one of them.</summary>
+        public int MostWoke;
+        public int FromOutside => Hit + Seen + Provoked;
     }
 
     /// <summary>One kind of enemy in a session: its kills, and the damage it did her, by attack.</summary>
@@ -555,6 +576,19 @@ namespace Roguelike.Rules
                     case SessionEventTypes.EliteEnter:
                         run.ElitesEntered++;
                         break;
+                    // Work order 070.
+                    case SessionEventTypes.RoomFight:
+                    {
+                        int floor = Number(e, "floor");
+                        if (!run.RoomFights.TryGetValue(floor, out RoomFightCounts counts)) run.RoomFights[floor] = counts = new RoomFightCounts();
+                        if (e.Name == "point") counts.Point++;
+                        else if (e.ExtraValue("inside") == "true") counts.Inside++;
+                        else if (e.Name == "hit") counts.Hit++;
+                        else if (e.Name == "seen") counts.Seen++;
+                        else counts.Provoked++;
+                        counts.MostWoke = Math.Max(counts.MostWoke, Number(e, "woke"));
+                        break;
+                    }
                     case SessionEventTypes.EliteClear:
                         run.ElitesCleared++;
                         if (float.TryParse(e.ExtraValue("seconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out float es)) run.EliteSeconds.Add(es);
@@ -1086,6 +1120,11 @@ namespace Roguelike.Rules
                 sb.Append("  elite rooms      ").Append("entered ").Append(run.ElitesEntered).Append(", cleared ").Append(run.ElitesCleared)
                   .AppendLine(run.EliteSeconds.Count == 0 ? "" : " (" + string.Join(", ", run.EliteSeconds.Select(Duration)) + ")");
                 sb.Append("  skill upgrades   ").AppendLine(run.SkillUpgrades.Count == 0 ? "-" : string.Join(", ", run.SkillUpgrades));
+                // Work order 070: the rooms' fights by floor, only when the run had any.
+                if (run.RoomFights.Count > 0)
+                    sb.Append("  room fights      ").AppendLine(string.Join(";  ", run.RoomFights.Select(p =>
+                        "floor " + p.Key + ": " + p.Value.Point + " at the point, " + p.Value.Inside + " inside short of it, " + p.Value.FromOutside + " from outside (" + p.Value.Hit + " hit, "
+                        + p.Value.Seen + " seen" + (p.Value.Provoked > 0 ? ", " + p.Value.Provoked + " provoked" : "") + "), most woke at once " + p.Value.MostWoke)));
                 // Work order 025: the focus choice, and how the gauge was spent after it.
                 sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
                     : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0

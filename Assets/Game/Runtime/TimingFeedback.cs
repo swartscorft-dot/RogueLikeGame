@@ -333,7 +333,7 @@ namespace Roguelike
                     else ShowMiss(FeedbackRules.RecastMiss(skill, r.Shot, r.Clean, r.Late)); // LATE after the clean part (work order 040)
                     break;
                 case PlayerReportKind.SkillFired:
-                    Fired(r, skill);
+                    Fired(r, AsCast(r, skill)); // the fifth review (work order 077): the band it was judged on
                     break;
                 case PlayerReportKind.ShotFired:
                     Flush(false, -1); // the basic shot's own hits
@@ -349,6 +349,15 @@ namespace Roguelike
                 case PlayerReportKind.DuckStopped: ShowWord(null, FeedbackRules.Word(FeedbackMoment.Ducked)); break;
             }
         }
+
+        /// <summary>
+        /// The skill that went off as it was cast (the fifth review of 2026-11-21, work order 077): a charge held across a chest
+        /// choice in which Wide window was taken is judged, and drawn on the cast bar, by the band it started with (the
+        /// character's skill in use), so its word reads that band too, not the widened one the slot has now. Anything else (a
+        /// keg's burst after its cast, a skill no longer in use): the slot's skill.
+        /// </summary>
+        SkillDefinition AsCast(PlayerReport r, SkillDefinition slotSkill) =>
+            _player != null && _player.ActiveSkillSlot == r.Slot && _player.ActiveSkill != null ? _player.ActiveSkill : slotSkill;
 
         /// <summary>One hit of a skill went off: its hits were reported just before it.</summary>
         void Fired(PlayerReport r, SkillDefinition skill)

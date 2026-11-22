@@ -37,6 +37,11 @@ namespace Roguelike
     /// An elite (work order 017, <see cref="EnemyFactory.MakeElite"/>) is one of its kind made tougher: more health, its
     /// strikes' damage times <see cref="DamageScale"/>, larger, tinted gold, with a stagger bar; the log names it
     /// <see cref="LogWord"/>.
+    ///
+    /// A room is a fight (work order 070, <see cref="RoomFightRules"/>): one of a generated floor's rooms belongs to its room's
+    /// <see cref="Fight"/>. Any waking of it (its range, a hurt, a provoke) starts the fight, and while the fight is on it is
+    /// held awake: it wakes wherever she is and gives up for no distance; it turns to her at once as it wakes. When the
+    /// fight ends it goes home at once, with the rest of its room.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public abstract class Enemy : MonoBehaviour
@@ -119,6 +124,15 @@ namespace Roguelike
         [NonSerialized] public bool IsElite;
         /// <summary>Its strikes deal this times their attack's damage (work order 017: an elite's 1.25); 1 for every other enemy.</summary>
         [NonSerialized] public float DamageScale = 1f;
+        /// <summary>
+        /// The fight of the room it belongs to (work order 070, <see cref="RoomFight"/>), set by the floor: the room it was
+        /// placed in, or for a swarmer the boss calls, the boss's room. Any waking of it starts that fight, and while the
+        /// fight is on it is held awake. Null in the practice room, on a floor before the line, and with
+        /// <see cref="LevelValues.RoomFights"/> off: it wakes and gives up on its own, as before.
+        /// </summary>
+        [NonSerialized] public RoomFight Fight;
+        /// <summary>True while its room's fight is on (work order 070): it comes at her wherever she is, and gives up for no distance.</summary>
+        public bool HeldByFight => Fight != null && Fight.On;
 
         /// <summary>Its kind as the log writes it, "elite " before it for an elite (work order 017).</summary>
         public string LogWord => (IsElite ? "elite " : "") + EnemyKinds.Word(Kind);
@@ -265,10 +279,28 @@ namespace Roguelike
             }
         }
 
-        void OnDamaged(int amount) => _provoked = true;
+        void OnDamaged(int amount)
+        {
+            _provoked = true;
+            // Work order 070: a hurt wakes its whole room, at the hit itself, so one killed by its first hit wakes the others too.
+            Fight?.Stir(RoomFightStart.Hit, Time.time);
+        }
 
-        /// <summary>Wakes it as a hurt would, from wherever she is within its leash: a pack wakes this way.</summary>
-        public void Provoke() => _provoked = true;
+        /// <summary>
+        /// Wakes it as a hurt would, from wherever she is within its leash: a pack wakes this way. Work order 070: one of a
+        /// room's fight wakes its whole room.
+        /// </summary>
+        public void Provoke()
+        {
+            _provoked = true;
+            Fight?.Stir(RoomFightStart.Provoked, Time.time);
+        }
+
+        /// <summary>
+        /// Was it held by its room's fight at its last step (work order 070)? When the fight ends it goes home at once with
+        /// the rest of its room, wherever she is.
+        /// </summary>
+        bool _heldBefore;
 
         /// <summary>Times a counter dropped its attack (work order 015).</summary>
         public int Countered { get; private set; }
@@ -341,20 +373,35 @@ namespace Roguelike
             float distance = toPlayer.magnitude;
             bool playerAlive = PlayerHealth == null || PlayerHealth.IsAlive;
             EnemyState before = _brain.State;
-            bool mayAttack = before != EnemyState.Chase || MayAttack(toPlayer, distance);
+            // Work order 070: held while its room's fight is on; the fight over, it goes home now with the rest of its room.
+            bool held = HeldByFight;
+            if (_heldBefore && !held)
+            {
+                _brain.GoHome(now);
+                _provoked = false;
+            }
+            _heldBefore = held;
+            bool mayAttack = _brain.State != EnemyState.Chase || MayAttack(toPlayer, distance);
             // Its turn (work order 023): asked only when it would begin a wind-up now; held, it goes on with the chase.
             // An elite takes no turn (work order 023's rule, made so in work order 030 now that elites exist).
             TurnSort sort = TakesTurns && !IsElite ? AttackSort : TurnSort.None;
             // An ordinary attack takes no turn (work order 035, AttackTurns.TakesTurn).
-            if (before == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && distance <= values.LeashRange
+            if (_brain.State == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && (held || distance <= values.LeashRange)
                 && AttackTurns.TakesTurn(WouldChoose(distance, values)))
                 mayAttack = Turns.Ask(Id, sort, now);
-            bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose);
+            bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose, held);
             EnemyState state = _brain.State;
             if (before == EnemyState.Windup && state != EnemyState.Windup) Turns.Ended(Id);
 
             if (before == EnemyState.Idle && state != EnemyState.Idle)
             {
+                // Work order 070: one that wakes on its own (it noticed her by its range) wakes its whole room; one of a
+                // room's fight turns to her at once as it wakes, the room together.
+                if (Fight != null)
+                {
+                    Fight.Stir(RoomFightStart.Seen, now);
+                    Face(toPlayer);
+                }
                 Report(EnemyReportKind.Woke);
                 OnWoke();
             }
