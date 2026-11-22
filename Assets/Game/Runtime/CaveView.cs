@@ -64,6 +64,9 @@ namespace Roguelike
         static readonly CaveValues s_defaults = new CaveValues();
         CaveValues V => _values?.CaveRules ?? s_defaults;
 
+        /// <summary>The look it was built with (work order 083): 076's rock, or the dark one.</summary>
+        public CaveLook LookBuilt { get; private set; }
+
         /// <summary>The room or passage she was in at the last frame, by its place in the run; -1 before she was in one.</summary>
         public int Here { get; private set; } = -1;
         /// <summary>The rise of the walls the rock was built from; null with <see cref="CaveValues.TallWalls"/> off or without the kit.</summary>
@@ -97,7 +100,14 @@ namespace Roguelike
             cave._level = level;
             cave._values = level.Values;
             cave._shown = new bool[level.Layout.Rooms.Count];
-            if ((cave.V.TallWalls || cave.V.RockLids) && level.KitPlan != null) cave.BuildRock();
+            // Work order 083: the look. Rock is 076's (its faces and tops by their own switches); Dark the far walls tall, the
+            // near walls a lip, a black cap on every wall and the picture falling to black at its edges.
+            cave.LookBuilt = cave.V.Look;
+            if (level.KitPlan != null)
+            {
+                if (cave.LookBuilt == CaveLook.Rock && (cave.V.TallWalls || cave.V.RockLids)) cave.BuildRock();
+                else if (cave.LookBuilt == CaveLook.Dark) cave.BuildDark();
+            }
             cave.CollectLevel();
             cave.CollectMood();
             cave.Claim();
@@ -164,6 +174,12 @@ namespace Roguelike
                 rock.Add(_lids[i]);
                 int[] o = _lidOwners[i];
                 Track(_lids[i], o[0], o.Length > 1 ? o[1] : -1, o.Length > 2 ? o[2] : -1, o.Length > 3 ? o[3] : -1);
+            }
+            for (int i = 0; i < _dark.Count; i++) // work order 083: the veils and the caps, each to the rooms it stands between
+            {
+                rock.Add(_dark[i]);
+                int[] o = _darkOwners[i];
+                Track(_dark[i], o.Length > 0 ? o[0] : -1, o.Length > 1 ? o[1] : -1, o.Length > 2 ? o[2] : -1, o.Length > 3 ? o[3] : -1);
             }
             var over = new List<int>();
             float big = _level.Layout.CellSize * 1.5f;
@@ -329,6 +345,7 @@ namespace Roguelike
             }
             _earthApplied = new Rgb(-1f, -1f, -1f);
             ApplyEarth();
+            if (LookBuilt == CaveLook.Dark) MakeFalloff(); // work order 083
         }
 
         Material _capMaterial;
@@ -364,6 +381,7 @@ namespace Roguelike
             _claimed = false;
             if (_camera != null) _camera.backgroundColor = _background;
             if (_level != null) PutCapsBack();
+            DropFalloff();
             _camera = null;
         }
 
@@ -733,6 +751,401 @@ namespace Roguelike
                 _lidOwners.Add(owners[pair.Key]);
                 g++;
             }
+        }
+
+        // ---------------- The dark look (work order 083) ----------------
+        //
+        // Kristian, 2026-11-22, on 076's pictures: "det ser ikke bra ut. Hva er det poe2 og diablo gjør som får det til å føles
+        // ut som at man traverserer igjennom et område/hule? Er kameraet mer zoomet inn og veggene høyere?" The producer's reading
+        // of the genre: the far walls tall, a real face that takes light at its foot and goes dark upward; the near walls cut
+        // away; the edge of the world darkness, not a surface; the wall tops a flat black cap that merges with it.
+        //
+        // Every far section of the kit (CaveWalls: the north and side walls for the game's camera) that CaveRise.MakeDark lets
+        // rise gets the kit's own wall piece stacked on it, stretched up to its height, in the kit's stone a little darker and
+        // without its glow; a veil in front of each face toward a room darkens it from CaveValues.FadeFrom to black at
+        // FarHeight (a multiply, so the kit's stone and its lanterns stay what they are at the foot); a flat cap of the earth's
+        // black lies on every wall's top, reaching back past it where nothing stands behind. The near sections are the kit's
+        // low wall cut to the lip, with the same cap. Piers stack with their walls. Nothing has a collider or casts a shadow;
+        // the kit, the boxes, the NavMesh and the colliders are what they were (only the low walls' and posts' drawn height
+        // changes). The picture falls to black toward its edges (MakeFalloff).
+
+        public const string DarkRootName = "CaveDark";
+        Transform _darkRoot;
+        readonly List<MeshRenderer> _dark = new List<MeshRenderer>();
+        readonly List<int[]> _darkOwners = new List<int[]>();
+        readonly List<GameObject> _stacked = new List<GameObject>();
+
+        /// <summary>The veils and the caps of the dark look, one mesh each for every set of rooms they stand between.</summary>
+        public IReadOnlyList<MeshRenderer> DarkMeshes => _dark;
+        /// <summary>The kit pieces stacked over the far walls and their piers (the dark look).</summary>
+        public IReadOnlyList<GameObject> Stacked => _stacked;
+        /// <summary>Far sections raised over the kit's wall, far sections the sight rule held at the kit's height, near sections cut to the lip.</summary>
+        public int Raised { get; private set; }
+        public int Held { get; private set; }
+        public int Lips { get; private set; }
+        /// <summary>The share of its height the kit's low wall is drawn at in the dark look (the lip over the model's top).</summary>
+        public float LipScale { get; private set; } = 1f;
+
+        sealed class ShadeBuild
+        {
+            public readonly List<Vector3> V = new List<Vector3>();
+            public readonly List<Color> C = new List<Color>();
+            public readonly List<int> T = new List<int>();
+
+            public void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color ca, Color cb, Color cc, Color cd)
+            {
+                int i = V.Count;
+                V.Add(a); V.Add(b); V.Add(c); V.Add(d);
+                C.Add(ca); C.Add(cb); C.Add(cc); C.Add(cd);
+                T.Add(i); T.Add(i + 1); T.Add(i + 2);
+                T.Add(i); T.Add(i + 2); T.Add(i + 3);
+            }
+        }
+
+        static long OwnersKey(int a, int b, int c, int d, out int[] set)
+        {
+            var list = new List<int>(4);
+            foreach (int o in new[] { a, b, c, d })
+                if (o >= 0 && !list.Contains(o)) list.Add(o);
+            list.Sort();
+            set = list.ToArray();
+            long key = 0;
+            for (int i = 0; i < set.Length; i++) key = key * 1024 + set[i] + 1;
+            return key;
+        }
+
+        /// <summary>The veil's multiply at a height: 0.5 (the stone as lit) up to FadeFrom, falling to 0 (black) at FarHeight.</summary>
+        static float VeilShade(CaveValues v, float h)
+        {
+            float t = Mathf.Clamp01((h - v.FadeFrom) / Mathf.Max(0.1f, v.FarHeight - v.FadeFrom));
+            return 0.5f * Mathf.Pow(1f - t, Mathf.Max(0.1f, v.FadePower));
+        }
+
+        Material UpperMaterial(CryptPiece piece, CryptKitValues kv)
+        {
+            Material m = CryptKit.MakeMaterial(piece, kv);
+            m.name = "Cave_Upper_" + piece;
+            m.DisableKeyword("_EMISSION");
+            if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", Color.black);
+            Color tint = (piece == CryptPiece.Pier || piece == CryptPiece.Arch ? CryptKit.Picked(kv.PaleStoneTint) : Color.white) * Mathf.Clamp01(V.UpperTint);
+            tint.a = 1f;
+            m.color = tint;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", tint);
+            _owned.Add(m);
+            return m;
+        }
+
+        static void NoShadows(GameObject go)
+        {
+            foreach (MeshRenderer r in go.GetComponentsInChildren<MeshRenderer>(true)) r.shadowCastingMode = ShadowCastingMode.Off;
+        }
+
+        void BuildDark()
+        {
+            CaveValues v = V;
+            LevelLayout layout = _level.Layout;
+            CryptKitPlan plan = _level.KitPlan;
+            CryptKitValues kv = _values.Crypt ?? new CryptKitValues();
+            CryptKit.Model wall = CryptKit.Load(CryptPiece.Wall), low = CryptKit.Load(CryptPiece.LowWall);
+            CryptKit.Model pier = CryptKit.Load(CryptPiece.Pier), post = CryptKit.Load(CryptPiece.Post);
+            WallTop = wall != null ? wall.Bounds.max.y : _values.WallHeight;
+            float lowTop = low != null ? low.Bounds.max.y : _values.NearWallHeight;
+            CameraRig rig = FindAnyObjectByType<CameraRig>();
+            FeelValues feel = rig != null && rig.Settings != null ? rig.Settings.Values : new FeelValues();
+            // The distance in use when the floor is built (the pause menu's step, work order 083).
+            Rise = CaveRise.MakeDark(layout, plan, v, WallTop, feel.CameraPitch, GameSettings.CameraDistance(feel.CameraDistance));
+
+            var rootObject = new GameObject(DarkRootName) { layer = CryptKit.Layer };
+            rootObject.transform.SetParent(transform, false);
+            _darkRoot = rootObject.transform;
+
+            // The kit's pieces by their place in the plan.
+            var sectionPiece = new Dictionary<int, GameObject>();
+            var pointPiece = new Dictionary<int, GameObject>();
+            foreach (GeneratedLevel.KitPiece p in _level.KitPieces)
+            {
+                if (p.Object == null) continue;
+                if (p.Kind == CryptPiece.Wall || p.Kind == CryptPiece.WallNiche || p.Kind == CryptPiece.LowWall) sectionPiece[p.Index] = p.Object;
+                else if (p.Kind == CryptPiece.Pier || p.Kind == CryptPiece.Post) pointPiece[p.Index] = p.Object;
+            }
+
+            float cs = layout.CellSize;
+            float wallFront = wall != null ? wall.Bounds.max.z : _values.WallThickness * 0.5f;
+            float wallBack = wall != null ? -wall.Bounds.min.z : _values.WallThickness * 0.5f;
+            float pierHalf = pier != null ? Mathf.Max(Mathf.Max(pier.Bounds.max.x, -pier.Bounds.min.x), Mathf.Max(pier.Bounds.max.z, -pier.Bounds.min.z)) : 0.3f;
+            float pierTop = pier != null ? pier.Bounds.max.y : WallTop;
+            float veilOut = Mathf.Max(wallFront, wallBack, pierHalf) + 0.03f;
+            LipScale = lowTop > 1e-3f ? Mathf.Clamp(v.LipHeight / lowTop, 0.05f, 1f) : 1f;
+            float lip = lowTop * LipScale;
+            float ground = _level.ToWorld(new LevelPoint(0, 0)).y;
+
+            var caps = new Dictionary<long, ShadeBuild>();
+            var veils = new Dictionary<long, ShadeBuild>();
+            var owners = new Dictionary<long, int[]>();
+            var pointTop = new Dictionary<long, float>();
+            Material upper = null, upperPier = null;
+            Color black = Color.black;
+
+            ShadeBuild Get(Dictionary<long, ShadeBuild> into, long key, int[] set)
+            {
+                if (!into.TryGetValue(key, out ShadeBuild b)) into[key] = b = new ShadeBuild();
+                owners[key] = set;
+                return b;
+            }
+
+            // A flat cap: centred on c, half its length along, reaching plus and minus across, at a height over the ground.
+            void Cap(long key, int[] set, Vector3 c, Vector3 along, Vector3 across, float half, float plus, float minus, float height)
+            {
+                Vector3 y = Vector3.up * (height - c.y + ground);
+                Get(caps, key, set).Quad(c + y - along * half - across * minus, c + y - along * half + across * plus,
+                                         c + y + along * half + across * plus, c + y + along * half - across * minus, black, black, black, black);
+            }
+
+            // A veil in front of a face: from FadeFrom to the top, rows so the fade's curve shows, its multiply by the height.
+            void Veil(long key, int[] set, Vector3 at, Vector3 along, float half, float top)
+            {
+                ShadeBuild b = Get(veils, key, set);
+                const int rows = 6;
+                float from = Mathf.Min(v.FadeFrom, top);
+                for (int r = 0; r < rows; r++)
+                {
+                    float h0 = from + (top - from) * r / rows, h1 = from + (top - from) * (r + 1) / rows;
+                    float s0 = VeilShade(v, h0), s1 = VeilShade(v, h1);
+                    Color c0 = new Color(s0, s0, s0, 1f), c1 = new Color(s1, s1, s1, 1f);
+                    Vector3 lo = at + Vector3.up * (h0 + ground - at.y), hi = at + Vector3.up * (h1 + ground - at.y);
+                    b.Quad(lo - along * half, lo + along * half, hi + along * half, hi - along * half, c0, c0, c1, c1);
+                }
+            }
+
+            void TouchPoint(int x, int y, float top)
+            {
+                long k = ((long)x << 32) ^ (uint)y;
+                if (!pointTop.TryGetValue(k, out float was) || top > was) pointTop[k] = top;
+            }
+
+            for (int i = 0; i < plan.Sections.Count; i++)
+            {
+                CryptKitSection s = plan.Sections[i];
+                LevelPoint mid = s.Vertical ? new LevelPoint(s.Line * cs, (s.Cell + 0.5) * cs) : new LevelPoint((s.Cell + 0.5) * cs, s.Line * cs);
+                Vector3 c = _level.ToWorld(mid);
+                Vector3 along = s.Vertical ? Vector3.forward : Vector3.right;
+                Vector3 across = s.Vertical ? Vector3.right : Vector3.forward; // toward the plus side (east or north)
+                long key = OwnersKey(s.RoomMinus, s.RoomPlus, -1, -1, out int[] set);
+                if (CaveWalls.IsNear(s, CaveWalls.GameYaw))
+                {
+                    // A near wall: the kit's low wall cut to the lip, a black cap on it.
+                    if (sectionPiece.TryGetValue(i, out GameObject go)) go.transform.localScale = new Vector3(1f, LipScale, 1f);
+                    float front = low != null ? low.Bounds.max.z : _values.WallThickness * 0.5f, back = low != null ? -low.Bounds.min.z : _values.WallThickness * 0.5f;
+                    float plus = (s.Facing > 0 ? front : back) + 0.03f, minus = (s.Facing > 0 ? back : front) + 0.03f;
+                    Cap(key, set, c, along, across, cs * 0.5f + 0.03f, plus, minus, lip + 0.01f);
+                    Lips++;
+                    continue;
+                }
+                float top = Rise.RiseOf(s.Vertical, s.Line, s.Cell);
+                bool raised = wall != null && top >= WallTop + v.MinRise;
+                if (raised)
+                {
+                    float sy = (top - WallTop + 0.03f) / Mathf.Max(0.01f, wall.Bounds.size.y);
+                    Vector3 at = c + Vector3.up * (WallTop - 0.03f - wall.Bounds.min.y * sy);
+                    if (upper == null) upper = UpperMaterial(CryptPiece.Wall, kv);
+                    GameObject go = CryptKit.Make(wall, upper, _darkRoot, "CaveUpper_" + (s.Vertical ? "V" : "H") + s.Line + "_" + s.Cell, at,
+                                                  Quaternion.LookRotation(SideOf(s.Vertical, s.Facing)), new Vector3(1f, sy, 1f));
+                    NoShadows(go);
+                    _stacked.Add(go);
+                    Raised++;
+                }
+                else
+                {
+                    top = WallTop;
+                    Held++;
+                }
+                if (s.Vertical) { TouchPoint(s.Line, s.Cell, top); TouchPoint(s.Line, s.Cell + 1, top); }
+                else { TouchPoint(s.Cell, s.Line, top); TouchPoint(s.Cell + 1, s.Line, top); }
+                // The veils on its faces toward a room; the cap over it, reaching back where no room is behind.
+                for (int side = -1; side <= 1; side += 2)
+                    if (s.RoomOn(side) >= 0) Veil(key, set, c + across * (side * veilOut), along, cs * 0.5f + veilOut, top);
+                float pd = (s.Facing > 0 ? wallFront : wallBack) + (s.RoomPlus < 0 ? v.CapBack : 0.03f);
+                float md = (s.Facing > 0 ? wallBack : wallFront) + (s.RoomMinus < 0 ? v.CapBack : 0.03f);
+                Cap(key, set, c, along, across, cs * 0.5f + 0.03f, pd, md, top + 0.01f);
+            }
+
+            // Piers and posts: a pier stacks with the tallest wall it holds and is capped; a post (only near walls meet there) is
+            // cut to the lip and capped, but the two at the ends of a door in a near wall stand (CaveValues.DoorPostsStand).
+            for (int j = 0; j < plan.Points.Count; j++)
+            {
+                CryptKitPoint p = plan.Points[j];
+                Vector3 c = _level.ToWorld(new LevelPoint(p.X * cs, p.Y * cs));
+                long key = OwnersKey(layout.RoomAtCell(p.X - 1, p.Y - 1)?.Order ?? -1, layout.RoomAtCell(p.X, p.Y - 1)?.Order ?? -1,
+                                     layout.RoomAtCell(p.X - 1, p.Y)?.Order ?? -1, layout.RoomAtCell(p.X, p.Y)?.Order ?? -1, out int[] set);
+                if (p.Pier)
+                {
+                    if (pier == null) continue;
+                    float top = pointTop.TryGetValue(((long)p.X << 32) ^ (uint)p.Y, out float t) ? t : pierTop;
+                    if (top > pierTop + 0.1f)
+                    {
+                        float sy = (top - pierTop + 0.03f) / Mathf.Max(0.01f, pier.Bounds.size.y);
+                        if (upperPier == null) upperPier = UpperMaterial(CryptPiece.Pier, kv);
+                        GameObject go = CryptKit.Make(pier, upperPier, _darkRoot, "CaveUpperPier_" + p.X + "_" + p.Y,
+                                                      c + Vector3.up * (pierTop - 0.03f - pier.Bounds.min.y * sy), Quaternion.identity, new Vector3(1f, sy, 1f));
+                        NoShadows(go);
+                        _stacked.Add(go);
+                    }
+                    float h = Mathf.Max(top, pierTop);
+                    Cap(key, set, c, Vector3.right, Vector3.forward, pierHalf + 0.03f, pierHalf + 0.03f, pierHalf + 0.03f, h + 0.012f);
+                    continue;
+                }
+                if (v.DoorPostsStand && AtNearDoorEnd(layout, p.X, p.Y)) continue;
+                if (pointPiece.TryGetValue(j, out GameObject postObject)) postObject.transform.localScale = new Vector3(1f, LipScale, 1f);
+                if (post != null)
+                {
+                    float half = Mathf.Max(Mathf.Max(post.Bounds.max.x, -post.Bounds.min.x), Mathf.Max(post.Bounds.max.z, -post.Bounds.min.z)) + 0.03f;
+                    Cap(key, set, c, Vector3.right, Vector3.forward, half, half, half, post.Bounds.max.y * LipScale + 0.012f);
+                }
+            }
+
+            Material capMaterial = MoodShapes.MakeLit(null);
+            capMaterial.name = "Cave_Cap";
+            Rgb e = v.Earth;
+            Color earth = new Color(e.R, e.G, e.B, 1f);
+            capMaterial.color = earth;
+            if (capMaterial.HasProperty("_BaseColor")) capMaterial.SetColor("_BaseColor", earth);
+            _owned.Add(capMaterial);
+            Material veilMaterial = MoodShapes.MakeUnlit("Cave_Veil", MoodShapes.Blend.Multiply2x, null, 3001);
+            _owned.Add(veilMaterial);
+            MakeMeshes(caps, owners, capMaterial, "CaveCap_");
+            MakeMeshes(veils, owners, veilMaterial, "CaveVeil_");
+        }
+
+        /// <summary>Is the grid point one end of a door in a near (low) line?</summary>
+        static bool AtNearDoorEnd(LevelLayout layout, int x, int y)
+        {
+            foreach (LevelDoor d in layout.Doors)
+            {
+                if (d.Vertical || d.Line != y) continue;
+                if (layout.RoomAtCell(d.From, d.Line) == null) continue; // a full line's door (its arch stands)
+                if (x == d.From || x == d.From + d.Width) return true;
+            }
+            return false;
+        }
+
+        void MakeMeshes(Dictionary<long, ShadeBuild> builds, Dictionary<long, int[]> owners, Material material, string prefix)
+        {
+            foreach (KeyValuePair<long, ShadeBuild> pair in builds)
+            {
+                int[] set = owners[pair.Key];
+                var mesh = new Mesh { name = prefix + string.Join("_", set) };
+                if (pair.Value.V.Count > 65000) mesh.indexFormat = IndexFormat.UInt32;
+                mesh.SetVertices(pair.Value.V);
+                mesh.SetColors(pair.Value.C);
+                mesh.SetTriangles(pair.Value.T, 0);
+                var normals = new Vector3[pair.Value.V.Count];
+                for (int i = 0; i < normals.Length; i++) normals[i] = Vector3.up;
+                mesh.normals = normals;
+                mesh.RecalculateBounds();
+                _owned.Add(mesh);
+                var go = new GameObject(prefix + string.Join("_", set)) { layer = CryptKit.Layer };
+                go.transform.SetParent(_darkRoot, false);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.AddComponent<MeshRenderer>();
+                r.sharedMaterial = material;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                _dark.Add(r);
+                _darkOwners.Add(set);
+            }
+        }
+
+        // ---------------- The falloff: the picture's edges to black (work order 083) ----------------
+
+        GameObject _falloff;
+        Mesh _falloffMesh;
+        Material _falloffMaterial;
+        float _falloffAspect = -1f, _falloffFov = -1f, _falloffNear = -1f;
+        System.Action<ScriptableRenderContext, Camera> _onBeginCamera;
+
+        /// <summary>The falloff's object (a child of the camera), while the dark look holds the camera; else null.</summary>
+        public GameObject Falloff => _falloff;
+
+        /// <summary>
+        /// The falloff (CaveValues.Falloff, FalloffDark): a grid just past the camera's near plane, filling its view, that
+        /// multiplies the picture by a share falling from 1 at the middle (out to the falloff's reach, a share of the
+        /// half-diagonal) toward 1 - FalloffDark at the corners: the edge of the world goes to black. One draw of a few hundred
+        /// triangles; it is sized when the camera begins to draw (no allocation).
+        /// </summary>
+        void MakeFalloff()
+        {
+            CaveValues v = V;
+            if (_falloff != null || _camera == null || v.FalloffDark <= 0f || v.Falloff >= 1f) return;
+            const int n = 16;
+            if (_falloffMesh == null)
+            {
+                var verts = new List<Vector3>();
+                var colours = new List<Color>();
+                var tris = new List<int>();
+                for (int y = 0; y <= n; y++)
+                    for (int x = 0; x <= n; x++)
+                    {
+                        float u = x / (float)n * 2f - 1f, w = y / (float)n * 2f - 1f;
+                        float r = Mathf.Sqrt(u * u + w * w) / Mathf.Sqrt(2f);
+                        float t = Mathf.Clamp01((r - v.Falloff) / Mathf.Max(0.01f, 1f - v.Falloff));
+                        t = t * t * (3f - 2f * t);
+                        float s = 0.5f * (1f - Mathf.Clamp01(v.FalloffDark) * t);
+                        verts.Add(new Vector3(u * 0.5f, w * 0.5f, 0f));
+                        colours.Add(new Color(s, s, s, 1f));
+                    }
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        int a = y * (n + 1) + x;
+                        tris.Add(a); tris.Add(a + n + 1); tris.Add(a + 1);
+                        tris.Add(a + 1); tris.Add(a + n + 1); tris.Add(a + n + 2);
+                    }
+                _falloffMesh = new Mesh { name = "Cave_Falloff" };
+                _falloffMesh.SetVertices(verts);
+                _falloffMesh.SetColors(colours);
+                _falloffMesh.SetTriangles(tris, 0);
+                _falloffMesh.bounds = new Bounds(Vector3.zero, new Vector3(1f, 1f, 0.1f));
+                _owned.Add(_falloffMesh);
+                _falloffMaterial = MoodShapes.MakeUnlit("Cave_Falloff", MoodShapes.Blend.Multiply2x, null, 3999);
+                _owned.Add(_falloffMaterial);
+            }
+            _falloff = new GameObject("CaveFalloff");
+            _falloff.transform.SetParent(_camera.transform, false);
+            _falloff.AddComponent<MeshFilter>().sharedMesh = _falloffMesh;
+            var mr = _falloff.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = _falloffMaterial;
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            _falloffAspect = _falloffFov = _falloffNear = -1f;
+            SizeFalloff(_camera);
+            if (_onBeginCamera == null) _onBeginCamera = OnBeginCamera;
+            RenderPipelineManager.beginCameraRendering += _onBeginCamera;
+        }
+
+        void OnBeginCamera(ScriptableRenderContext context, Camera cam)
+        {
+            if (cam == _camera && _falloff != null) SizeFalloff(cam);
+        }
+
+        void SizeFalloff(Camera cam)
+        {
+            float aspect = cam.pixelHeight > 0 ? cam.pixelWidth / (float)cam.pixelHeight : cam.aspect;
+            if (aspect == _falloffAspect && cam.fieldOfView == _falloffFov && cam.nearClipPlane == _falloffNear) return;
+            _falloffAspect = aspect;
+            _falloffFov = cam.fieldOfView;
+            _falloffNear = cam.nearClipPlane;
+            float z = cam.nearClipPlane + 0.02f;
+            float h = 2f * z * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 1.02f;
+            _falloff.transform.localPosition = new Vector3(0f, 0f, z);
+            _falloff.transform.localRotation = Quaternion.identity;
+            _falloff.transform.localScale = new Vector3(h * aspect, h, 1f);
+        }
+
+        void DropFalloff()
+        {
+            if (_onBeginCamera != null) RenderPipelineManager.beginCameraRendering -= _onBeginCamera;
+            if (_falloff != null) Destroy(_falloff);
+            _falloff = null;
         }
     }
 }

@@ -24,11 +24,18 @@ namespace Roguelike.PlayModeTests
     /// "on", the cave's switch (<c>LevelValues.Cave</c>, looked up by name) is set so before the floor is built; "both"
     /// takes every picture twice, off then on. Beside the pictures a text file lists where she stood and how many renderers
     /// of other rooms and passages the camera's view held.
+    ///
+    /// Work order 083 (the cave, second attempt): with ROGUELIKE_CAPTURE_LOOKS a list of looks, comma between them, from
+    /// "before" (the cave off), "rock" (076's look), "dark" (083's) and "dark25" or "dark22" (083's with the camera at that
+    /// distance step, the pause menu's setting, not kept), every picture is taken once in each look, its file and sheet named
+    /// with the look; it overrides the switch above. The text file adds each look's counts and how long the camera took to
+    /// draw a picture in this batch run (the CPU's side only: no GPU timing without a window).
     /// </summary>
     public class CavePicturesTests
     {
         const string FolderVariable = "ROGUELIKE_CAPTURE_076";
         const string SwitchVariable = "ROGUELIKE_CAPTURE_076_SWITCH";
+        const string LooksVariable = "ROGUELIKE_CAPTURE_LOOKS"; // work order 083
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         const int W = 960, H = 540;
 
@@ -61,6 +68,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            GameSettings.SetCameraDistanceStep(0, false); // work order 083: a look at a closer step is never kept
             if (_player != null)
             {
                 _player.GetComponent<PlayerInputDriver>().InputSource = null;
@@ -181,13 +189,18 @@ namespace Roguelike.PlayModeTests
             string folder = Folder();
             string which = (Environment.GetEnvironmentVariable(SwitchVariable) ?? "").Trim().ToLowerInvariant();
             var settings = which == "both" ? new bool?[] { false, true } : which == "off" ? new bool?[] { false } : which == "on" ? new bool?[] { true } : new bool?[] { null };
+            // Work order 083: the looks, if named.
+            string[] looks = (Environment.GetEnvironmentVariable(LooksVariable) ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(l => l.Trim().ToLowerInvariant()).ToArray();
+            if (looks.Length > 0) settings = looks.Select(l => (bool?)(l != "before")).ToArray();
             var log = new List<string>();
             log.Add($"batch {Application.isBatchMode} device {SystemInfo.graphicsDeviceType} screen {Screen.width}x{Screen.height}");
             var rt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32) { antiAliasing = 1 };
             var tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
             var sheet = new Texture2D(2 * W, 2 * H, TextureFormat.RGBA32, false);
-            foreach (bool? cave in settings)
+            for (int lookIndex = 0; lookIndex < settings.Length; lookIndex++)
             {
+                bool? cave = settings[lookIndex];
                 _levels.Values = new LevelValues();
                 string suffix = "";
                 if (cave.HasValue)
@@ -195,6 +208,16 @@ namespace Roguelike.PlayModeTests
                     bool had = SetCave(_levels.Values, cave.Value);
                     suffix = cave.Value ? "-on" : "-off";
                     log.Add("switch Cave " + (had ? (cave.Value ? "on" : "off") : "NOT FOUND"));
+                }
+                if (looks.Length > 0)
+                {
+                    string look = looks[lookIndex];
+                    suffix = "-" + look;
+                    _levels.Values.CaveRules.Look = look == "rock" ? CaveLook.Rock : look.StartsWith("dark") ? CaveLook.Dark : CaveLook.Before;
+                    int step = look == "dark25" ? 1 : look == "dark22" ? 2 : 0;
+                    GameSettings.SetCameraDistanceStep(step, false);
+                    log.Add("look " + look + ": Cave " + _levels.Values.Cave + ", Look " + _levels.Values.CaveRules.Look + ", camera distance "
+                            + GameSettings.CameraDistance(new FeelValues().CameraDistance).ToString(Inv) + " m");
                 }
                 // A vault (the treasure room with the chest on the dais and the large coin heaps, work order 052): the first seed from 1 whose floor 1 has one.
                 ulong vaultSeed = 0;
@@ -211,6 +234,11 @@ namespace Roguelike.PlayModeTests
                 Assert.That(level, Is.Not.Null);
                 yield return Frames(3);
                 Camera cam = Camera.main;
+                CaveView cv = level.Cave;
+                if (cv != null)
+                    log.Add(string.Format(Inv, "cave {0}: far sections raised {1}, held at the kit's height {2}, near sections cut to the lip {3} (scale {4:0.00}); stacked pieces {5}, veil and cap meshes {6}; 076's rock faces {7}, tops {8}; falloff {9}",
+                                          cv.LookBuilt, cv.Raised, cv.Held, cv.Lips, cv.LipScale, cv.Stacked.Count, cv.DarkMeshes.Count, cv.Rock.Count, cv.Lids.Count, cv.Falloff != null ? "on" : "off"));
+                else log.Add("cave: none (before 076)");
                 log.Add($"floor seed {level.Layout.SeedText} ({seed}) floor 1; camera {cam.name} clear {cam.clearFlags} background {cam.backgroundColor} fov {cam.fieldOfView} far {cam.farClipPlane}");
                 log.Add(LevelMap.Draw(level.Layout));
                 var picks = seed == 42UL ? Chosen(level.Layout)
@@ -226,6 +254,11 @@ namespace Roguelike.PlayModeTests
                         RenderTexture before = cam.targetTexture;
                         cam.targetTexture = rt;
                         cam.Render();
+                        // Work order 083: how long the camera takes to draw it here (CPU, batch run, ten draws).
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
+                        for (int k = 0; k < 10; k++) cam.Render();
+                        watch.Stop();
+                        double renderMs = watch.Elapsed.TotalMilliseconds / 10.0;
                         cam.targetTexture = before;
                         RenderTexture was = RenderTexture.active;
                         RenderTexture.active = rt;
@@ -236,9 +269,9 @@ namespace Roguelike.PlayModeTests
                         int tx = (i % 2) * W, ty = (1 - i / 2) * H;
                         sheet.SetPixels(tx, ty, W, H, tex.GetPixels());
                         (int other, int total) = InView(level, cam, level.RoomAt(_player.Position));
-                        log.Add(string.Format(Inv, "{0}{1}: {2} {3} rect {4} at ({5:0.0}, {6:0.0}) in {7}; renderers drawn in view {8}, of rooms and passages more than a door away {9}",
+                        log.Add(string.Format(Inv, "{0}{1}: {2} {3} rect {4} at ({5:0.0}, {6:0.0}) in {7}; renderers drawn in view {8}, of rooms and passages more than a door away {9}; a draw {10:0.00} ms",
                                               s.Name, suffix, room.Kind, room.Letter + room.Order.ToString(Inv), room.Rect, s.At.x, s.At.z,
-                                              level.RoomAt(_player.Position)?.Letter + "" + level.RoomAt(_player.Position)?.Order, total, other));
+                                              level.RoomAt(_player.Position)?.Letter + "" + level.RoomAt(_player.Position)?.Order, total, other, renderMs));
                     }
                     for (int i = spots.Count; i < 4; i++) sheet.SetPixels((i % 2) * W, (1 - i / 2) * H, W, H, new Color[W * H]);
                     sheet.Apply();

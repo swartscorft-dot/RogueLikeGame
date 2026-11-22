@@ -321,7 +321,8 @@ namespace Roguelike.PlayModeTests
             foreach (bool on in new[] { false, true })
             {
                 // The heaps kept for this comparison: their going changes the vault's colliders on purpose (the chest's test).
-                GeneratedLevel level = Build(42UL, 5, v => { v.Cave = on; v.CaveRules.NoGoldHeaps = false; });
+                // Work order 083: 076's look by its switch (the dark look is the default now: CaveDarkPlayTests).
+                GeneratedLevel level = Build(42UL, 5, v => { v.Cave = on; v.CaveRules.NoGoldHeaps = false; v.CaveRules.Look = CaveLook.Rock; });
                 yield return Frames(3);
                 pieces[on] = level.KitPieces.Count;
                 colliders[on] = string.Join(";", level.GetComponentsInChildren<Collider>(true).Where(c => c.GetComponentInParent<Enemy>(true) == null)
@@ -403,7 +404,7 @@ namespace Roguelike.PlayModeTests
             int offComponents = off.GetComponentsInChildren<Component>(true).Length;
             int offObjects = off.GetComponentsInChildren<Transform>(true).Length;
 
-            GeneratedLevel on = Build(42UL, 1, v => v.CaveRules.NoGoldHeaps = false);
+            GeneratedLevel on = Build(42UL, 1, v => { v.CaveRules.NoGoldHeaps = false; v.CaveRules.Look = CaveLook.Rock; }); // work order 083: 076's look by its switch
             yield return Frames(2);
             CaveView cave = on.Cave;
             Rgb earth = on.Values.CaveRules.Earth;

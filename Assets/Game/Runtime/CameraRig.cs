@@ -23,7 +23,8 @@ namespace Roguelike
             _camera.fieldOfView = feel.FieldOfView;
             Quaternion rotation = Quaternion.Euler(feel.CameraPitch, 0f, 0f);
             Vector3 focus = new Vector3(Target.position.x, 0f, Target.position.z);
-            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * feel.CameraDistance, rotation);
+            // Work order 083: the distance the pause menu's step gives (the feel's own at step 0, the default).
+            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * GameSettings.CameraDistance(feel.CameraDistance), rotation);
         }
     }
 }
