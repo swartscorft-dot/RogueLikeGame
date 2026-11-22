@@ -227,21 +227,30 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The floors ----------------
 
-        static LevelValues On() => new LevelValues { Bombers = true };
+        /// <summary>
+        /// Work order 073's rule with its own values: the bombers on from floor 2, and the warders off (work order 087 turned both
+        /// on in the floors, the bomber from floor 4 and the warder from floor 3: ActPlanTests test the defaults).
+        /// </summary>
+        static LevelValues On() => new LevelValues { Bombers = true, Warders = false, BomberFloors = new BomberFloorValues { FromFloor = 2 } };
+
+        /// <summary>The same with the bombers off (work order 073's "off", the default until work order 087).</summary>
+        static LevelValues Off() => new LevelValues { Bombers = false, Warders = false };
 
         [Test]
-        public void OffByDefault_AndOffNoRoomMayHoldOne()
+        public void Off_OrTheActsPlanOff_NoRoomMayHoldOne()
         {
-            var v = new LevelValues();
-            Assert.That(v.Bombers, Is.False, "built, but off in the floors (work order 073)");
-            for (int f = 1; f <= 5; f++)
-                foreach (RoomKind k in Enum.GetValues(typeof(RoomKind)))
-                    foreach (bool first in new[] { false, true })
-                        Assert.That(LevelBombers.Most(v, k, f, first), Is.EqualTo(0), "off: floor " + f + " " + k);
-            Assert.That(v.EliteKinds(5), Has.No.Member(EnemyKind.Bomber), "never an elite");
-            var fights = new List<List<EnemyGroup>> { new List<EnemyGroup> { new EnemyGroup(EnemyKind.Swarmer, 4) }, new List<EnemyGroup> { new EnemyGroup(EnemyKind.Swarmer, 4) } };
-            LevelBombers.Put(fights, 1UL, 4, v);
-            Assert.That(fights.SelectMany(g => g).All(g => g.Kind == EnemyKind.Swarmer && g.Count == 4), Is.True, "off, nothing is touched");
+            Assert.That(new LevelValues().Bombers, Is.True, "built off (work order 073), on in the floors since work order 087");
+            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false } }) // work order 087: the plan off is version 17's floors, with none
+            {
+                for (int f = 1; f <= 5; f++)
+                    foreach (RoomKind k in Enum.GetValues(typeof(RoomKind)))
+                        foreach (bool first in new[] { false, true })
+                            Assert.That(LevelBombers.Most(v, k, f, first), Is.EqualTo(0), "off: floor " + f + " " + k);
+                Assert.That(v.EliteKinds(5), Has.No.Member(EnemyKind.Bomber), "never an elite");
+                var fights = new List<List<EnemyGroup>> { new List<EnemyGroup> { new EnemyGroup(EnemyKind.Swarmer, 4) }, new List<EnemyGroup> { new EnemyGroup(EnemyKind.Swarmer, 4) } };
+                LevelBombers.Put(fights, 1UL, 4, v);
+                Assert.That(fights.SelectMany(g => g).All(g => g.Kind == EnemyKind.Swarmer && g.Count == 4), Is.True, "off, nothing is touched");
+            }
         }
 
         [Test]
@@ -282,8 +291,8 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void On_WithNoneAllowed_IsTheFloorWithThemOff(int floor)
         {
-            var off = new LevelValues();
-            var none = new LevelValues { Bombers = true, BomberFloors = new BomberFloorValues { FromFloor = 99 } };
+            var off = Off();
+            var none = new LevelValues { Bombers = true, Warders = false, BomberFloors = new BomberFloorValues { FromFloor = 99 } };
             for (ulong s = 0; s < 100; s++)
                 Assert.That(LevelGenerator.Generate(s, floor, none).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, off).Describe()), "seed " + s);
         }
@@ -295,7 +304,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void On_FourHundredSeeds_EveryFloorIsValid_AndTheBombersKeepTheirRules(int floor)
         {
-            LevelValues on = On(), off = new LevelValues();
+            LevelValues on = On(), off = Off();
             var perFloor = new List<int>();
             int rooms = 0, roomsWith = 0;
             for (ulong s = 0; s < 400; s++)
@@ -359,7 +368,7 @@ namespace Roguelike.Rules.Tests
             first.EnemyGroups[j] = new EnemyGroup(EnemyKind.Bomber);
             faults = LevelValidator.Validate(three, on);
             Assert.That(faults.Any(f => f.Contains("bombers, floor 3 at most 0") && f.Contains("first combat room")), string.Join("\n", faults));
-            Assert.That(LevelValidator.Validate(three, new LevelValues()).Any(f => f.Contains("bombers, floor 3 at most 0")), Is.True, "with the switch off none may be");
+            Assert.That(LevelValidator.Validate(three, Off()).Any(f => f.Contains("bombers, floor 3 at most 0")), Is.True, "with the switch off none may be");
         }
 
         // ---------------- The summary ----------------

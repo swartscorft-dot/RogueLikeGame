@@ -70,7 +70,7 @@ namespace Roguelike.Rules.Tests
         public void ThePresets_AreTheFloorsOwnNumbers()
         {
             var v = new LevelValues();
-            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 3, 5, 3 }));
+            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 3, 5, 4 })); // work order 087: the bombers' preset on their first floor, 4 (3 before)
             Assert.That(RoomLab.Mixes.Select(m => m.Bombers), Is.EqualTo(new[] { false, false, false, true }));
             foreach (LabMix mix in RoomLab.Mixes)
                 foreach (LabKind kind in new[] { LabKind.Ordinary, LabKind.Elite, LabKind.Exit })
@@ -99,11 +99,12 @@ namespace Roguelike.Rules.Tests
                         Assert.That(bombers, Is.LessThanOrEqualTo(bombersWanted));
                         if (!mix.Bombers) Assert.That(bombers, Is.Zero);
                     }
-            // The bombers' most is the floors' (work order 073's table, with their switch on): floor 3, one in a combat room, two in the exit.
+            // The bombers' most is the floors' (work order 073's table, with their switch on): floor 4 (work order 087; floor 3 before,
+            // one and two), two in a combat room, three in the exit.
             var bomberFloors = new LevelValues { Bombers = true };
             LabMix withBombers = RoomLab.Mixes[3];
-            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Combat, 3, false)).And.EqualTo(1));
-            Assert.That(RoomLab.BombersIn(LabKind.Exit, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Exit, 3, false)).And.EqualTo(2));
+            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Combat, 4, false)).And.EqualTo(2));
+            Assert.That(RoomLab.BombersIn(LabKind.Exit, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Exit, 4, false)).And.EqualTo(3));
             Assert.That(RoomLab.Groups(LabKind.Treasure, withBombers, LevelRandom.Stream(1, "x"), v), Is.Empty, "nothing in a treasure room");
         }
 

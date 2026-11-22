@@ -151,7 +151,9 @@ namespace Roguelike.PlayModeTests
             shooter.Body.TakeHit(1);
             yield return For(3f);
             float d = Flat(shooter.transform.position, _player.Position);
-            Assert.That(d, Is.InRange(values.KeepNear - 0.5f, values.KeepFar + 0.5f), "it stands off");
+            // Work order 087: it shoots as soon as she is within its reach (11 m) and stands while it shoots, so spawned 12 m off it
+            // comes to about 11 m, past its KeepFar of 10 m (before, at 12 m, it stood where it was spawned).
+            Assert.That(d, Is.InRange(values.KeepNear - 0.5f, Math.Max(values.KeepFar, ShooterValues.ShootsFrom) + 0.5f), "it stands off");
 
             // She walks up to 3 m on its far side from where she was: it backs off, toward open floor.
             Vector3 away = (shooter.transform.position - _player.Position);
@@ -208,6 +210,11 @@ namespace Roguelike.PlayModeTests
         {
             var shooter = SpawnOne<EnemyShooter>(EnemyKind.Shooter);
             shooter.Tuning.Enemy.MoveSpeed = 0f; // it would walk round: here it must stand behind the wall
+            // Work order 087: it shoots from up to 11 m, and it spawns 12 m off: she steps 2 m nearer, within its reach.
+            Vector3 toIt = shooter.transform.position - _player.Position;
+            toIt.y = 0f;
+            _player.Teleport(_player.Position + toIt.normalized * 2f);
+            yield return null;
             Vector3 mid = (shooter.transform.position + _player.Position) * 0.5f;
             Vector3 across = shooter.transform.position - _player.Position;
             GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);

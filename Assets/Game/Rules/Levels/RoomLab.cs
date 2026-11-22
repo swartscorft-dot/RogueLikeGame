@@ -80,15 +80,16 @@ namespace Roguelike.Rules
     {
         /// <summary>
         /// The enemy mixes (the order's presets, the floors' own numbers): floor 1's, floor 3's, floor 5's (with the elite room:
-        /// "floor 5 elite"; with the exit room the act boss and its room), and floor 3's with its bombers (work order 073 is in
-        /// this branch: the most a room of floor 3 holds, 1, or 2 in the exit room).
+        /// "floor 5 elite"; with the exit room the act boss and its room), and floor 4's with its bombers (work order 073 is in
+        /// this branch: the most a room of floor 4 holds, 2, or 3 in the exit room; floor 3's before work order 087 put the
+        /// bomber's first floor at 4, where a room of floor 3 holds none).
         /// </summary>
         public static readonly LabMix[] Mixes =
         {
             new LabMix("floor 1", 1, false),
             new LabMix("floor 3", 3, false),
             new LabMix("floor 5", 5, false),
-            new LabMix("floor 3 with bombers", 3, true),
+            new LabMix("floor 4 with bombers", 4, true), // work order 087: the bomber's first floor ("floor 3 with bombers", 3, before)
         };
 
         public static string Word(LabKind kind) =>
