@@ -196,8 +196,8 @@ namespace Roguelike.PlayModeTests
                     Assert.That(at == null || shown[at.Order], l.name + " is on in a room not drawn");
                 }
             }
-            string line = string.Format(Inv, "CAVECOST run {0} floor 1: {1} renderers of the floor and its mood, at most {2} drawn at once ({3:0%}); {4} rock renderers, {5} rock faces; kit pieces {6}",
-                                        level.Layout.SeedText, total, mostDrawn, mostDrawn / (double)Math.Max(1, total), cave.Rock.Count, cave.RockFaces, level.KitPieces.Count);
+            string line = string.Format(Inv, "CAVECOST run {0} floor 1: {1} renderers of the floor and its mood, at most {2} drawn at once ({3:0%}); {4} rock renderers, {5} rock faces; {7} rock-top renderers over {8} cells; kit pieces {6}",
+                                        level.Layout.SeedText, total, mostDrawn, mostDrawn / (double)Math.Max(1, total), cave.Rock.Count, cave.RockFaces, level.KitPieces.Count, cave.Lids.Count, cave.LidCells);
             Debug.Log(line);
             TestContext.WriteLine(line);
         }
@@ -342,6 +342,13 @@ namespace Roguelike.PlayModeTests
                     Assert.That(b.min.y, Is.GreaterThanOrEqualTo(cave.WallTop - 0.25f - 0.5f), "from the wall's top: " + r.name);
                 }
                 Assert.That(cave.Rock.Max(r => r.bounds.max.y), Is.GreaterThan(v2.RiseHeight - 0.5f), "some reaches the most");
+                Assert.That(cave.Lids.Count, Is.GreaterThan(0), "rock tops round the rooms");
+                foreach (MeshRenderer r in cave.Lids)
+                {
+                    Assert.That(r.GetComponent<Collider>(), Is.Null);
+                    Assert.That(r.shadowCastingMode, Is.EqualTo(UnityEngine.Rendering.ShadowCastingMode.Off));
+                    Assert.That(r.bounds.max.y, Is.LessThanOrEqualTo(cave.WallTop + 0.05f), "a top no higher than the walls: " + r.name);
+                }
                 // Every rock face over a full wall the rule lets rise, none over a low wall.
                 int faces = level.KitPlan.Sections.Where(s => !s.Low && cave.Rise.RiseOf(s.Vertical, s.Line, s.Cell) >= cave.WallTop + v2.MinRise)
                                  .Sum(s => (s.RoomMinus >= 0 ? 1 : 0) + (s.RoomPlus >= 0 ? 1 : 0));
@@ -400,7 +407,8 @@ namespace Roguelike.PlayModeTests
             CaveView cave = on.Cave;
             Rgb earth = on.Values.CaveRules.Earth;
             Assert.That(cam.backgroundColor, Is.EqualTo(new Color(earth.R, earth.G, earth.B, 1f)), "the earth's black behind the floor");
-            int rock = cave.Rock.Count;
+            int rock = cave.Rock.Count + cave.Lids.Count; // the faces over the walls and the tops round the rooms
+            Assert.That(cave.Lids.Count, Is.GreaterThan(0), "rock tops round the rooms");
             Assert.That(on.GetComponentsInChildren<Transform>(true).Length - offObjects, Is.EqualTo(rock + 1), "the rock's objects and their root, nothing else");
             Assert.That(on.GetComponentsInChildren<Component>(true).Length - offComponents, Is.EqualTo(1 + 1 + 3 * rock), "the cave, the rock's root and each rock's transform, filter and renderer");
 

@@ -97,7 +97,7 @@ namespace Roguelike
             cave._level = level;
             cave._values = level.Values;
             cave._shown = new bool[level.Layout.Rooms.Count];
-            if (cave.V.TallWalls && level.KitPlan != null) cave.BuildRock();
+            if ((cave.V.TallWalls || cave.V.RockLids) && level.KitPlan != null) cave.BuildRock();
             cave.CollectLevel();
             cave.CollectMood();
             cave.Claim();
@@ -159,6 +159,12 @@ namespace Roguelike
             }
             var rock = new HashSet<Renderer>(_rock);
             for (int i = 0; i < _rock.Count; i++) Track(_rock[i], RockOwner[i]);
+            for (int i = 0; i < _lids.Count; i++)
+            {
+                rock.Add(_lids[i]);
+                int[] o = _lidOwners[i];
+                Track(_lids[i], o[0], o.Length > 1 ? o[1] : -1, o.Length > 2 ? o[2] : -1, o.Length > 3 ? o[3] : -1);
+            }
             var over = new List<int>();
             float big = _level.Layout.CellSize * 1.5f;
             foreach (Renderer r in _level.GetComponentsInChildren<Renderer>(true))
@@ -446,9 +452,10 @@ namespace Roguelike
             float cs = layout.CellSize, from = WallTop - 0.2f;
             var builds = new Dictionary<int, RockBuild>();
             uint seed = (uint)(layout.Seed ^ (layout.Seed >> 32)) ^ (uint)layout.Floor * 0x9E3779B1u;
+            if (v.RockLids) BuildLids(seed);
             foreach (CryptKitSection s in _level.KitPlan.Sections)
             {
-                if (s.Low) continue;
+                if (s.Low || !v.TallWalls) continue;
                 float top = Rise.RiseOf(s.Vertical, s.Line, s.Cell);
                 if (top < WallTop + v.MinRise) continue;
                 foreach (int side in new[] { -1, 1 })
@@ -496,14 +503,8 @@ namespace Roguelike
             }
             if (builds.Count == 0) return;
 
-            Texture2D fade = MakeFade(v);
-            _owned.Add(fade);
-            Material material = MoodShapes.MakeLit(fade);
-            material.name = "Cave_Rock";
-            _owned.Add(material);
-            var root = new GameObject(RockRootName) { layer = CryptKit.Layer };
-            root.transform.SetParent(transform, false);
-            _rockRoot = root.transform;
+            Material material = RockMaterial();
+            Transform root = RockRoot();
             foreach (KeyValuePair<int, RockBuild> pair in builds)
             {
                 LevelRoom room = layout.Rooms[pair.Key];
@@ -516,7 +517,7 @@ namespace Roguelike
                 mesh.RecalculateBounds();
                 _owned.Add(mesh);
                 var go = new GameObject("CaveRock_" + room.Letter + room.Order) { layer = CryptKit.Layer };
-                go.transform.SetParent(_rockRoot, false);
+                go.transform.SetParent(root, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var r = go.AddComponent<MeshRenderer>();
                 r.sharedMaterial = material;
@@ -524,6 +525,210 @@ namespace Roguelike
                 r.receiveShadows = true;
                 _rock.Add(r);
                 RockOwner.Add(pair.Key);
+            }
+        }
+
+        // ---------------- The rock round the room: its tops ----------------
+
+        Material _rockMaterial;
+
+        /// <summary>The rock's material: Simple Lit on its fade (shared by the faces and the tops).</summary>
+        Material RockMaterial()
+        {
+            if (_rockMaterial != null) return _rockMaterial;
+            Texture2D fade = MakeFade(V);
+            _owned.Add(fade);
+            _rockMaterial = MoodShapes.MakeLit(fade);
+            _rockMaterial.name = "Cave_Rock";
+            _owned.Add(_rockMaterial);
+            return _rockMaterial;
+        }
+
+        Transform RockRoot()
+        {
+            if (_rockRoot != null) return _rockRoot;
+            var root = new GameObject(RockRootName) { layer = CryptKit.Layer };
+            root.transform.SetParent(transform, false);
+            _rockRoot = root.transform;
+            return _rockRoot;
+        }
+
+        readonly List<MeshRenderer> _lids = new List<MeshRenderer>();
+        readonly List<int[]> _lidOwners = new List<int[]>();
+
+        /// <summary>The rock tops' renderers, one for each set of rooms and passages near them (CaveValues.RockLids).</summary>
+        public IReadOnlyList<MeshRenderer> Lids => _lids;
+        /// <summary>How many cells have a rock top.</summary>
+        public int LidCells { get; private set; }
+
+        /// <summary>
+        /// The rock round the room (the producer on round 2's pictures: "a room cut out of rock"): over every cell the rule gives
+        /// a top (<see cref="CaveRise.LidOf"/>), a rough flat rock at its height, its facets' corners sunk a little at random, its
+        /// colour darkening to the earth's black as it goes from the nearest floor; where it stands higher than its neighbour
+        /// (a lower top, a cut one, or a wall lower than it), a face down to it. Each top is drawn while any room or passage
+        /// within its reach is (the nearest four), grouped by those into one mesh each.
+        /// </summary>
+        void BuildLids(uint seed)
+        {
+            CaveValues v = V;
+            CaveRise rise = Rise;
+            LevelLayout layout = _level.Layout;
+            float cs = layout.CellSize;
+            int reach = Mathf.Max(1, v.LidReach);
+            const int sub = 3;
+            float ground = _level.ToWorld(new LevelPoint(0, 0)).y;
+            var groups = new Dictionary<long, RockBuild>();
+            var owners = new Dictionary<long, int[]>();
+            var near = new List<(int space, int d)>();
+
+            float Fade(float px, float py)
+            {
+                // From the nearest open floor cell, in metres, over the reach: the top's shade at the wall to black.
+                int cx = Mathf.FloorToInt(px / cs), cy = Mathf.FloorToInt(py / cs);
+                float best = float.MaxValue;
+                for (int dy = -reach - 1; dy <= reach + 1; dy++)
+                    for (int dx = -reach - 1; dx <= reach + 1; dx++)
+                    {
+                        int x = cx + dx, y = cy + dy;
+                        if (rise.SpaceAt(x, y) < 0) continue;
+                        float ex = Mathf.Max(0f, Mathf.Max(x * cs - px, px - (x + 1) * cs));
+                        float ey = Mathf.Max(0f, Mathf.Max(y * cs - py, py - (y + 1) * cs));
+                        best = Mathf.Min(best, Mathf.Sqrt(ex * ex + ey * ey));
+                    }
+                float k = Mathf.Clamp01(best / (reach * cs));
+                return Mathf.Lerp(v.LidShade, 1f, k);
+            }
+
+            float Sink(int gx, int gy) => v.LidJitter * Hash(seed ^ 0x2545F491u, (uint)gx, (uint)gy, 7u);
+
+            bool Within(int x, int y)
+            {
+                for (int dy = -reach; dy <= reach; dy++)
+                    for (int dx = -reach; dx <= reach; dx++)
+                        if (rise.SpaceAt(x + dx, y + dy) >= 0) return true;
+                return false;
+            }
+
+            for (int y = rise.Y0; y < rise.Y0 + rise.Ny; y++)
+                for (int x = rise.X0; x < rise.X0 + rise.Nx; x++)
+                {
+                    float top = rise.LidOf(x, y);
+                    if (top <= 0f) continue;
+                    top += 0.02f; // over the carved cells' own dark tops and level with the walls' tops
+                    // Its rooms and passages: those within the reach, the nearest four.
+                    near.Clear();
+                    for (int dy = -reach; dy <= reach; dy++)
+                        for (int dx = -reach; dx <= reach; dx++)
+                        {
+                            int s = rise.SpaceAt(x + dx, y + dy);
+                            if (s < 0) continue;
+                            int d = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy));
+                            int at = near.FindIndex(n => n.space == s);
+                            if (at < 0) near.Add((s, d));
+                            else if (d < near[at].d) near[at] = (s, d);
+                        }
+                    if (near.Count == 0) continue;
+                    near.Sort((p, q) => p.d != q.d ? p.d.CompareTo(q.d) : p.space.CompareTo(q.space));
+                    int n4 = Mathf.Min(4, near.Count);
+                    var set = new int[n4];
+                    for (int i = 0; i < n4; i++) set[i] = near[i].space;
+                    System.Array.Sort(set);
+                    long key = 0;
+                    for (int i = 0; i < n4; i++) key = key * 1024 + set[i] + 1;
+                    if (!groups.TryGetValue(key, out RockBuild b))
+                    {
+                        groups[key] = b = new RockBuild();
+                        owners[key] = set;
+                    }
+                    LidCells++;
+
+                    // The top: sub by sub facets, corners sunk by a hash of their place on the floor (neighbours meet).
+                    var corner = new Vector3[(sub + 1) * (sub + 1)];
+                    var shade = new float[corner.Length];
+                    for (int j = 0; j <= sub; j++)
+                        for (int i = 0; i <= sub; i++)
+                        {
+                            float px = (x + i / (float)sub) * cs, py = (y + j / (float)sub) * cs;
+                            corner[j * (sub + 1) + i] = _level.ToWorld(new LevelPoint(px, py)) + Vector3.up * (top - Sink(x * sub + i, y * sub + j));
+                            shade[j * (sub + 1) + i] = Fade(px, py);
+                        }
+                    for (int j = 0; j < sub; j++)
+                        for (int i = 0; i < sub; i++)
+                        {
+                            int a = j * (sub + 1) + i, bb = a + 1, c = a + sub + 2, d = a + sub + 1;
+                            if (((i + j + x + y) & 1) == 0)
+                            {
+                                b.Tri(corner[a], corner[bb], corner[c], shade[a], shade[bb], shade[c], Vector3.up);
+                                b.Tri(corner[a], corner[c], corner[d], shade[a], shade[c], shade[d], Vector3.up);
+                            }
+                            else
+                            {
+                                b.Tri(corner[a], corner[bb], corner[d], shade[a], shade[bb], shade[d], Vector3.up);
+                                b.Tri(corner[bb], corner[c], corner[d], shade[bb], shade[c], shade[d], Vector3.up);
+                            }
+                        }
+
+                    // A face down to each lower neighbour: a lower top, a cut cell within the reach (to the ground), a wall lower than it.
+                    for (int side = 0; side < 4; side++)
+                    {
+                        int nx = x + (side == 0 ? 1 : side == 1 ? -1 : 0), ny = y + (side == 2 ? 1 : side == 3 ? -1 : 0);
+                        float below;
+                        if (rise.SpaceAt(nx, ny) >= 0)
+                        {
+                            bool vertical = side < 2;
+                            int line = side == 0 ? x + 1 : side == 1 ? x : side == 2 ? y + 1 : y;
+                            below = rise.TodayOf(vertical, line, vertical ? y : x);
+                        }
+                        else
+                        {
+                            float other = rise.LidOf(nx, ny);
+                            if (other > 0f) below = other + 0.02f;
+                            else if (Within(nx, ny)) below = 0f;
+                            else continue; // past the reach: the earth's black
+                        }
+                        if (below >= top - 0.05f) continue;
+                        Vector3 outward = side == 0 ? Vector3.right : side == 1 ? Vector3.left : side == 2 ? Vector3.forward : Vector3.back;
+                        for (int k = 0; k < sub; k++)
+                        {
+                            int i0, i1;
+                            if (side == 0) { i0 = k * (sub + 1) + sub; i1 = (k + 1) * (sub + 1) + sub; }
+                            else if (side == 1) { i0 = k * (sub + 1); i1 = (k + 1) * (sub + 1); }
+                            else if (side == 2) { i0 = sub * (sub + 1) + k; i1 = i0 + 1; }
+                            else { i0 = k; i1 = k + 1; }
+                            Vector3 t0 = corner[i0], t1 = corner[i1];
+                            Vector3 b0 = new Vector3(t0.x, ground + below, t0.z), b1 = new Vector3(t1.x, ground + below, t1.z);
+                            float s0 = shade[i0], s1 = shade[i1];
+                            float sb0 = Mathf.Min(1f, s0 + 0.25f), sb1 = Mathf.Min(1f, s1 + 0.25f);
+                            b.Tri(t0, t1, b1, s0, s1, sb1, outward);
+                            b.Tri(t0, b1, b0, s0, sb1, sb0, outward);
+                        }
+                    }
+                }
+            if (groups.Count == 0) return;
+
+            Material material = RockMaterial();
+            Transform root = RockRoot();
+            int g = 0;
+            foreach (KeyValuePair<long, RockBuild> pair in groups)
+            {
+                var mesh = new Mesh { name = "Cave_RockTop_" + g };
+                if (pair.Value.V.Count > 65000) mesh.indexFormat = IndexFormat.UInt32;
+                mesh.SetVertices(pair.Value.V);
+                mesh.SetNormals(pair.Value.N);
+                mesh.SetUVs(0, pair.Value.U);
+                mesh.SetTriangles(pair.Value.T, 0);
+                mesh.RecalculateBounds();
+                _owned.Add(mesh);
+                var go = new GameObject("CaveRockTop_" + string.Join("_", owners[pair.Key])) { layer = CryptKit.Layer };
+                go.transform.SetParent(root, false);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.AddComponent<MeshRenderer>();
+                r.sharedMaterial = material;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = true;
+                _lids.Add(r);
+                _lidOwners.Add(owners[pair.Key]);
+                g++;
             }
         }
     }
