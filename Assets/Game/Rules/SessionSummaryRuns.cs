@@ -109,7 +109,9 @@ namespace Roguelike.Rules
                     {
                         string kind = e.ExtraValue("kind");
                         int room = Number(e, "room");
-                        string where = "floor " + Number(e, "floor") + (room > 0 ? ", room " + room + (string.IsNullOrEmpty(kind) ? "" : " (" + kind + ")") : "");
+                        // Work order 081 (noted by work order 077): a passage has no room number (0), and the line says it was in one.
+                        string where = "floor " + Number(e, "floor") + (room > 0 ? ", room " + room + (string.IsNullOrEmpty(kind) ? "" : " (" + kind + ")")
+                                                                       : kind == "passage" ? ", in a passage" : "");
                         float after = float.TryParse(e.ExtraValue("seconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out float t) ? t : 0f;
                         run.Ended = (e.Result == "act cleared" ? "act cleared" : (e.Result ?? "?") + " on " + where) + " after " + Duration(after);
                         if (!string.IsNullOrEmpty(e.ExtraValue("stats"))) run.FinalStats = e.ExtraValue("stats"); // work order 050
