@@ -864,6 +864,18 @@ namespace Roguelike
                         Add(e);
                         break;
                     }
+                    // The warder's wards (work order 079): one raised once it is on; one ended, why, and what it took off.
+                    case EnemyReportKind.WardRaised:
+                        Add(Of(SessionEventTypes.WardRaised, WarderValues.Ward));
+                        break;
+                    case EnemyReportKind.WardBroken:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.WardBroken, WarderValues.Ward);
+                        e.Damage = r.Damage;
+                        e.AddExtra("why", SessionWords.WardWhy(r.Count));
+                        Add(e);
+                        break;
+                    }
                 }
             }
             catch (Exception e)

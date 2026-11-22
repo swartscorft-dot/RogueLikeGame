@@ -58,6 +58,10 @@ namespace Roguelike.Rules
         // The bomber (work order 073). Its fuse lit is an enemy_attack named Blast, with fuse how ("at her", "dropped",
         // "chain"); its blast on her an enemy_strike named Blast, as every enemy's.
         public const string BomberBlast = "bomber_blast";     // its blast went off: name Blast, enemies how many others it hurt, killed how many of them it killed, damage what it dealt them
+        // The warder (work order 079). A ward raised is ward_raised once it is on; a ward that ended is ward_broken, with why
+        // (SessionWords.WardWhy) and damage what it took off her hits on the warded while it was on ("warded away").
+        public const string WardRaised = "ward_raised";       // name Ward
+        public const string WardBroken = "ward_broken";       // name Ward, why, damage the ward's warded away
         // Things that fly (work order 036). Each one's end is an enemy_strike named its attack, with flown "true".
         public const string EnemyLoose = "enemy_loose";       // what it shot or threw left it: name the attack, count how many at once
         public const string PlayerDamaged = "player_damaged";
@@ -149,6 +153,17 @@ namespace Roguelike.Rules
         /// <summary>The log's word for how a bomber's fuse was lit (work order 073), from its report's count (<see cref="FuseCause"/>).</summary>
         public static string Fuse(int cause) =>
             cause == (int)FuseCause.Dropped ? FuseDropped : cause == (int)FuseCause.Chain ? FuseChain : FuseAtHer;
+
+        public const string WarderKilled = "warder killed";   // why a ward ended (work order 079): its warder died...
+        public const string WarderStaggered = "warder staggered"; // ...was staggered or stunned...
+        public const string WardTooFar = "distance";          // ...the warded was too far from it...
+        public const string WardAllyGone = "ally gone";       // ...the warded died or was taken away (no daze)...
+        public const string WardWentHome = "went home";       // ...or the warder gave up or was taken away (no daze)
+
+        /// <summary>The log's word for why a ward ended (work order 079), from its report's count (<see cref="WardEnd"/>).</summary>
+        public static string WardWhy(int why) =>
+            why == (int)WardEnd.WarderKilled ? WarderKilled : why == (int)WardEnd.WarderStaggered ? WarderStaggered
+            : why == (int)WardEnd.TooFar ? WardTooFar : why == (int)WardEnd.AllyGone ? WardAllyGone : WardWentHome;
 
         // Taking cover (2026-11-19, an experiment).
         public const string StoppedByCover = "stopped by cover"; // how an enemy strike went: what she was in cover behind stopped it

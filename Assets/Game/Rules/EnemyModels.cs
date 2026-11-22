@@ -203,11 +203,26 @@ namespace Roguelike.Rules
             },
         };
 
-        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber };
+        /// <summary>
+        /// The warder (work order 079, 2026-11-22): no model of its own (no new art). It wears the caster's, the hooded
+        /// skeleton, as made (the same file, height and clips, so the look measures it as the caster's), and is shown larger
+        /// (<see cref="WarderValues.Shown"/>) and tinted the ward's green by its factory. Alone it throws the caster's bolt
+        /// with the caster's quick cast.
+        /// </summary>
+        public static readonly EnemyModelSpec Warder = new EnemyModelSpec
+        {
+            Kind = EnemyKind.Warder, Name = Caster.Name, Height = Caster.Height, HasStagger = true, Glow = Caster.Glow,
+            WalkStride = Caster.WalkStride, RunStride = Caster.RunStride,
+            AttackClips = new[] { CasterValues.BoneOrb, "Cast" },
+            Clips = Caster.Clips,
+        };
+
+        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber, Warder };
 
         public static EnemyModelSpec Of(EnemyKind kind) =>
             kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard
-            : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : kind == EnemyKind.Bomber ? Bomber : Brute;
+            : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : kind == EnemyKind.Bomber ? Bomber
+            : kind == EnemyKind.Warder ? Warder : Brute; // work order 079
 
         /// <summary>
         /// The clip's own name in a take name as an exporter writes it: "Armature|Idle" is "Idle". The part after the

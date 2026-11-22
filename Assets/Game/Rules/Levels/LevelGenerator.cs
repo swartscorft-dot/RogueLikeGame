@@ -189,6 +189,7 @@ namespace Roguelike.Rules
             // Work order 041: in a line, each room holds what the same seed's floor of version 9 holds there.
             List<List<EnemyGroup>> fights = values.InALine ? FightsOf(seed, floor, values) : null;
             if (values.Bombers) LevelBombers.Put(fights, seed, floor, values); // work order 073: off by default, and then nothing is read
+            if (values.Warders) LevelWarders.Put(fights, seed, floor, values); // work order 079: off by default, and then nothing is read
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {
@@ -805,7 +806,7 @@ namespace Roguelike.Rules
                     Put(g, room.Middle(cs), at);
                     continue;
                 }
-                bool done = g.Kind == EnemyKind.Shooter || g.Kind == EnemyKind.Caster ? Place(g, v.FarBand, 1d)
+                bool done = g.Kind == EnemyKind.Shooter || g.Kind == EnemyKind.Caster || g.Kind == EnemyKind.Warder ? Place(g, v.FarBand, 1d) // 079: the warder at the back
                           : g.Kind == EnemyKind.Swarmer ? Place(g, 0d, 1d)
                           : Place(g, v.MiddleBandFrom, v.MiddleBandTo);
                 if (!done) return false;

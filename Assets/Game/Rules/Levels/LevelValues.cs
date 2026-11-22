@@ -272,6 +272,13 @@ namespace Roguelike.Rules
         public bool Bombers = false;
         public int BomberHealth = 100;         // work order 073: a floor's bomber, as the practice room's (BomberValues)
         public BomberFloorValues BomberFloors = new BomberFloorValues();
+        // The warders in the floors (work order 079, 2026-11-22): built, and OFF by default, as the bombers are. Off: no room
+        // holds a warder and every seed's floor is what it was, field for field (no version is taken). On: from floor 2, at
+        // most one a room, never in the floor's first combat room, only in a room with at least three other enemies, each in
+        // place of a swarmer (LevelWarders). The practice room's warder does not depend on it.
+        public bool Warders = false;
+        public int WarderHealth = 220;         // work order 079: a floor's warder, as the practice room's (WarderValues)
+        public WarderFloorValues WarderFloors = new WarderFloorValues();
         public FloorEnemies[] Floors = DefaultFloors();
 
         // Props (work order 009)
@@ -517,6 +524,7 @@ namespace Roguelike.Rules
             : kind == EnemyKind.Guard ? GuardHealth
             : kind == EnemyKind.Caster ? CasterHealth
             : kind == EnemyKind.Bomber ? BomberHealth // work order 073
+            : kind == EnemyKind.Warder ? WarderHealth // work order 079
             : EnemyHealth;
 
         /// <summary>The most guards a room of this kind may hold on this floor, the act boss counted.</summary>

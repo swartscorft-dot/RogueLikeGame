@@ -101,7 +101,7 @@ namespace Roguelike.Rules
         /// </summary>
         public static TurnSort SortOf(EnemyKind kind) =>
             kind == EnemyKind.Brute || kind == EnemyKind.Guard ? TurnSort.Heavy
-            : kind == EnemyKind.Shooter || kind == EnemyKind.Caster ? TurnSort.Ranged
+            : kind == EnemyKind.Shooter || kind == EnemyKind.Caster || kind == EnemyKind.Warder ? TurnSort.Ranged // 079: the warder's bolt waits with them
             : kind == EnemyKind.Swarmer ? TurnSort.Light
             : TurnSort.None;
 

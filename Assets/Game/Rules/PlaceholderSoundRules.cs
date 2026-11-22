@@ -207,7 +207,7 @@ namespace Roguelike.Rules
                 case SoundMoment.MenuMoved: return PlaceholderSound.Menu;
                 case SoundMoment.FocusFilled: return PlaceholderSound.FocusFull;
                 // Work order 048: the caster's orb is softer and lower than the arrow; what else flies is heard as before.
-                case SoundMoment.Loosed: return kind == EnemyKind.Caster ? PlaceholderSound.OrbLoosed : SoundFor(SoundMoment.EnemyStruck, kind);
+                case SoundMoment.Loosed: return kind == EnemyKind.Caster || kind == EnemyKind.Warder ? PlaceholderSound.OrbLoosed : SoundFor(SoundMoment.EnemyStruck, kind); // 079: the warder's bolt is the caster's orb
                 case SoundMoment.ProjectileStopped: return PlaceholderSound.ProjectileStopped;
                 case SoundMoment.Ducked: return PlaceholderSound.Duck;
                 case SoundMoment.HerStunned: return PlaceholderSound.Stunned;

@@ -259,7 +259,11 @@ namespace Roguelike
             Report(EnemyReportKind.Blasted, Tuning.BlastAttack, damage: dealt, count: result.Hurt, killed: result.Killed);
 
             // It is gone with its blast: dead by it, if it was not, and not seen any more.
-            if (_self != null && _self.IsAlive) _self.TakeHit(_self.CurrentHealth);
+            if (_self != null && _self.IsAlive)
+            {
+                _self.WardShare = 0f; // work order 079: a warded bomber's own end is not lessened (its ward goes with it)
+                _self.TakeHit(_self.CurrentHealth);
+            }
             Hide();
         }
 

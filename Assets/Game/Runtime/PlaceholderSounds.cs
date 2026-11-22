@@ -233,6 +233,7 @@ namespace Roguelike
             switch (kind)
             {
                 case EnemyReportKind.AttackStarted: return SoundMoment.WindupStarted;
+                case EnemyReportKind.WardRaising: return SoundMoment.WindupStarted; // work order 079: a ward's raising is a wind-up, heard as one
                 case EnemyReportKind.Struck: return SoundMoment.EnemyStruck;
                 case EnemyReportKind.Died: return SoundMoment.EnemyDied;
                 case EnemyReportKind.Dazed: return SoundMoment.EnemyDazed;
