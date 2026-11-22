@@ -468,70 +468,96 @@ namespace Roguelike.Rules
 
         // ---------------- The sight rule on several threads (work order 081) ----------------
 
-        /// <summary>One thread's buffers for a ray's crossings, as <see cref="Ray"/>'s own.</summary>
+        /// <summary>
+        /// One thread's buffers: a ray's crossings, as <see cref="Ray"/>'s own, and what the thread kept of its rays that could
+        /// lower a rise, in the order it asked them: for each edge such a ray would lower, the ray's number, the edge and the
+        /// height it must keep under. They grow by doubling and are written only by their thread: no allocation per ray (a
+        /// runtime whose allocator takes a lock, as Unity's, would make the threads wait on each other).
+        /// </summary>
         sealed class RayBuffers
         {
             public readonly int[] Edge = new int[64];
             public readonly double[] At = new double[64];
             public readonly bool[] End = new bool[64];
+            public int[] KeptRay = new int[1024];
+            public int[] KeptEdge = new int[1024];
+            public double[] KeptKeep = new double[1024];
+            public int Kept;
+
+            public void Keep(int ray, int edge, double keep)
+            {
+                if (Kept == KeptRay.Length)
+                {
+                    Array.Resize(ref KeptRay, Kept * 2);
+                    Array.Resize(ref KeptEdge, Kept * 2);
+                    Array.Resize(ref KeptKeep, Kept * 2);
+                }
+                KeptRay[Kept] = ray;
+                KeptEdge[Kept] = edge;
+                KeptKeep[Kept++] = keep;
+            }
         }
 
-        /// <summary>A ray that could lower a rise: the edges it would ask about, in its order, and the height each must keep under.</summary>
-        sealed class Lowering
+        /// <summary>One of her places: the rays asked from it, and where in its thread's buffers its kept rays lie.</summary>
+        struct HerRays
         {
-            public int[] Edges;
-            public double[] Keeps;
+            public RayBuffers Of;
+            public int From, To;
+            public long Count;
         }
 
         /// <summary>
         /// One space's rays, as the one-thread rule asks them (for each of her places in order, the guarded floor in view in
         /// order, then with work order 083's guard her feet and her head), asked about at once on several threads against the
         /// rise as it stands now; each ray today's walls leave free that crosses a shown rock above the height it must keep
-        /// under is kept (<see cref="Lowering"/>). Then, on this thread, those rays are run in the one-thread rule's order on
+        /// under is kept (<see cref="Consider"/>). Then, on this thread, those rays are run in the one-thread rule's order on
         /// the rise as it is lowered: a ray left out could lower nothing, as the rise only ever goes down, so the rise and the
         /// counts are the one-thread rule's.
         /// </summary>
         void HoldDownAtOnce(List<LevelPoint> hers, List<LevelPoint> targets, bool[] shown)
         {
             int m = hers.Count;
-            var found = new List<Lowering>[m];
-            var rays = new long[m];
+            var found = new HerRays[m];
             Parallel.For(0, m, () => new RayBuffers(), (i, state, b) =>
             {
                 LevelPoint her = hers[i];
-                List<Lowering> list = null;
-                long count = 0;
-                foreach (LevelPoint t in targets)
+                int from = b.Kept, ray = 0;
+                for (int k = 0; k < targets.Count; k++)
                 {
+                    LevelPoint t = targets[k];
                     if (!InView(her, t)) continue;
-                    count++;
-                    Consider(her, t, shown, b, ref list);
+                    Consider(her, t, shown, b, ray++);
                 }
                 if (_v.GuardHerAndDoors)
                 {
-                    count += 2;
-                    Consider(her, her, shown, b, ref list);
-                    Consider(her, her, shown, b, ref list, _v.HerHeight);
+                    Consider(her, her, shown, b, ray++);
+                    Consider(her, her, shown, b, ray++, _v.HerHeight);
                 }
-                found[i] = list;
-                rays[i] = count;
+                found[i] = new HerRays { Of = b, From = from, To = b.Kept, Count = ray };
                 return b;
             }, b => { });
             for (int i = 0; i < m; i++)
             {
-                Rays += rays[i];
-                if (found[i] == null) continue;
-                foreach (Lowering l in found[i])
-                    if (Lower(l)) Lowered++;
+                HerRays r = found[i];
+                Rays += r.Count;
+                for (int k = r.From; k < r.To;)
+                {
+                    int ray = r.Of.KeptRay[k];
+                    bool any = false;
+                    for (; k < r.To && r.Of.KeptRay[k] == ray; k++)
+                        if (Lower(r.Of.KeptEdge[k], r.Of.KeptKeep[k])) any = true;
+                    if (any) Lowered++;
+                }
             }
         }
 
         /// <summary>
-        /// <see cref="Ray"/>'s crossings and its test of today's walls, with the same arithmetic, into one thread's buffers; the
-        /// ray is added to <paramref name="list"/> when today's walls leave it free and a shown rock it crosses stands, as the
-        /// rise is now, above the height it must keep under. Reads the rise, never writes it.
+        /// <see cref="Ray"/>'s crossings and its test of today's walls, with the same arithmetic, into one thread's buffers; when
+        /// today's walls leave the ray free, each shown rock it crosses that stands, as the rise is now, above the height it must
+        /// keep under is kept in the buffers under the ray's number <paramref name="ray"/>, in the order Ray asks them. Reads
+        /// the rise, never writes it.
         /// </summary>
-        void Consider(LevelPoint her, LevelPoint t, bool[] shown, RayBuffers b, ref List<Lowering> list, double th = 0.0)
+        void Consider(LevelPoint her, LevelPoint t, bool[] shown, RayBuffers b, int ray, double th = 0.0)
         {
             double cx = her.X, cy = her.Y - CameraBack;
             double dx = cx - t.X, dy = cy - t.Y, len = Math.Sqrt(dx * dx + dy * dy);
@@ -594,9 +620,6 @@ namespace Roguelike.Rules
                 float today = e < _todayV.Length ? _todayV[e] : _todayH[e - _todayV.Length];
                 if (today > th + slope * hitAt[h]) return;
             }
-            int[] edges = null;
-            double[] keeps = null;
-            int kept = 0;
             for (int h = 0; h < hits; h++)
             {
                 int e = hitEdge[h];
@@ -609,40 +632,26 @@ namespace Roguelike.Rules
                 if (cave <= today) continue;
                 double keep = th + slope * Math.Max(0.0, hitAt[h] - reach) - margin; // the rock's top must stay under this
                 if (cave <= keep) continue;
-                if (edges == null)
-                {
-                    edges = new int[hits];
-                    keeps = new double[hits];
-                }
-                edges[kept] = e;
-                keeps[kept++] = keep;
+                b.Keep(ray, e, keep);
             }
-            if (kept == 0) return;
-            Array.Resize(ref edges, kept);
-            Array.Resize(ref keeps, kept);
-            (list ?? (list = new List<Lowering>())).Add(new Lowering { Edges = edges, Keeps = keeps });
         }
 
-        /// <summary>The lowering of <see cref="Ray"/>, for a ray <see cref="Consider"/> kept, on the rise as it stands now: true if any was lowered.</summary>
-        bool Lower(Lowering l)
+        /// <summary>
+        /// The lowering of <see cref="Ray"/> for one edge of a ray <see cref="Consider"/> kept, on the rise as it stands now:
+        /// true if it was lowered.
+        /// </summary>
+        bool Lower(int e, double keep)
         {
-            bool any = false;
-            for (int k = 0; k < l.Edges.Length; k++)
-            {
-                int e = l.Edges[k];
-                bool v = e < _todayV.Length;
-                int j = v ? e : e - _todayV.Length;
-                float today = v ? _todayV[j] : _todayH[j];
-                float cave = v ? _riseV[j] : _riseH[j];
-                if (cave <= today) continue;
-                double keep = l.Keeps[k];
-                if (cave <= keep) continue;
-                float to = (float)Math.Max(today, keep);
-                if (v) _riseV[j] = to;
-                else _riseH[j] = to;
-                any = true;
-            }
-            return any;
+            bool v = e < _todayV.Length;
+            int j = v ? e : e - _todayV.Length;
+            float today = v ? _todayV[j] : _todayH[j];
+            float cave = v ? _riseV[j] : _riseH[j];
+            if (cave <= today) return false;
+            if (cave <= keep) return false;
+            float to = (float)Math.Max(today, keep);
+            if (v) _riseV[j] = to;
+            else _riseH[j] = to;
+            return true;
         }
 
         /// <summary>

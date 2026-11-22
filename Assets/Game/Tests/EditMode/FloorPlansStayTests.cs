@@ -195,7 +195,7 @@ namespace Roguelike.Rules.Tests
         public void TheRulesOfAFloorsBuild_StepByStep_Table()
         {
             var v = new LevelValues();
-            var lines = new List<string> { "BUILDRULES  floor  generator  kit plan  cave rise (dark)  mood plan  (ms, the middle of 3; mean over 5 run seeds)" };
+            var lines = new List<string> { "BUILDRULES  floor  generator  kit plan  cave rise (dark)  the same on one thread  mood plan  (ms, the middle of 3; mean over 5 run seeds)" };
             double Middle(Func<object> make)
             {
                 make();
@@ -211,7 +211,7 @@ namespace Roguelike.Rules.Tests
             }
             for (int floor = 1; floor <= 5; floor++)
             {
-                double gen = 0, kitMs = 0, cave = 0, mood = 0;
+                double gen = 0, kitMs = 0, cave = 0, caveOne = 0, mood = 0;
                 long rays = 0;
                 for (int i = 0; i < 5; i++)
                 {
@@ -221,10 +221,14 @@ namespace Roguelike.Rules.Tests
                     gen += Middle(() => LevelGenerator.Generate(seed, floor, v));
                     kitMs += Middle(() => CryptKitPlan.Make(l, v.Crypt));
                     cave += Middle(() => CaveRise.MakeDark(l, kit, v.CaveRules, v.WallHeight, Feel.CameraPitch, Feel.CameraDistance));
+                    bool was = CaveRise.Threads;
+                    CaveRise.Threads = false;
+                    try { caveOne += Middle(() => CaveRise.MakeDark(l, kit, v.CaveRules, v.WallHeight, Feel.CameraPitch, Feel.CameraDistance)); }
+                    finally { CaveRise.Threads = was; }
                     mood += Middle(() => RoomMoodPlan.Make(l, v));
                     rays += CaveRise.MakeDark(l, kit, v.CaveRules, v.WallHeight, Feel.CameraPitch, Feel.CameraDistance).Rays;
                 }
-                lines.Add(string.Format(Inv, "BUILDRULES  {0}  {1,8:0.0}  {2,8:0.0}  {3,8:0.0}  {4,8:0.0}  (cave rays {5})", floor, gen / 5, kitMs / 5, cave / 5, mood / 5, rays / 5));
+                lines.Add(string.Format(Inv, "BUILDRULES  {0}  {1,8:0.0}  {2,8:0.0}  {3,8:0.0}  {4,8:0.0}  {5,8:0.0}  (cave rays {6})", floor, gen / 5, kitMs / 5, cave / 5, caveOne / 5, mood / 5, rays / 5));
             }
             TestContext.WriteLine(string.Join("\n", lines));
             Assert.That(lines.Count, Is.EqualTo(6));
