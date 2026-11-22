@@ -359,8 +359,8 @@ namespace Roguelike.Rules
             return faults;
         }
 
-        /// <summary>The enemies of one room (work order 012): their numbers, kinds and groups, and where each stands.</summary>
-        static void CheckEnemies(LevelLayout level, LevelRoom r, LevelValues values, List<string> faults, string name)
+        /// <summary>The enemies of one room (work order 012): their numbers, kinds and groups, and where each stands. Work order 084: the room lab's check asks it too.</summary>
+        internal static void CheckEnemies(LevelLayout level, LevelRoom r, LevelValues values, List<string> faults, string name)
         {
             int floor = level.Floor;
             if (r.EnemyGroups.Count != r.EnemyPoints.Count)

@@ -138,8 +138,9 @@ namespace Roguelike.PlayModeTests
         [Test]
         public void TheDevelopersKeys_AreF1_F6ToF12_AndC_AndNotF5()
         {
-            // Work order 073: and B, the practice room's bomber. Work order 084: and G, the greybox view.
-            Assert.That(DeveloperKeys.Keys, Is.EquivalentTo(new[] { Key.F1, Key.F6, Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12, Key.C, Key.B, Key.G }));
+            // Work order 073: and B, the practice room's bomber. Work order 084: and G, the greybox view, and the room lab's L, N, . and ,.
+            Assert.That(DeveloperKeys.Keys, Is.EquivalentTo(new[] { Key.F1, Key.F6, Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12, Key.C, Key.B, Key.G,
+                                                                    Key.L, Key.N, Key.Period, Key.Comma }));
             Assert.That(DeveloperKeys.IsDeveloperKey(GeneratedLevels.NewLevelKey), Is.False, "F5 starts a run in every build");
             Assert.That(DeveloperKeys.IsDeveloperKey(RunHud.PauseKey), Is.False, "Esc");
             Assert.That(DeveloperKeys.IsDeveloperKey(RunHud.DevTextKey), Is.True);

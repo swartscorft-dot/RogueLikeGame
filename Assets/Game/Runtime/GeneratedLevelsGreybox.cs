@@ -52,17 +52,25 @@ namespace Roguelike
         bool ToolKeys(Keyboard keyboard)
         {
             if (Paused || Ending != EndKind.None || BetweenRunsUp) return false;
-            return GreyboxKeys(keyboard);
+            return GreyboxKeys(keyboard) || LabKeys(keyboard); // the lab's: GeneratedLevelsLab.cs
         }
 
         /// <summary>Once a frame, after her room is tracked and the room's fight looked at (work order 084).</summary>
-        void TickTools() => FollowGreybox();
+        void TickTools()
+        {
+            FollowGreybox();
+            LabTick();
+        }
 
         /// <summary>The developer's box's lines of work order 084's tools (the floor's box; the practice room's is <see cref="ToolsPracticeLine"/>).</summary>
-        void AppendTools(StringBuilder text) => AppendGreybox(text);
+        void AppendTools(StringBuilder text)
+        {
+            AppendLab(text);
+            AppendGreybox(text);
+        }
 
         /// <summary>The practice room's box's line of work order 084's tools.</summary>
-        static readonly string ToolsPracticeLine = "\n" + GreyboxKey + " greybox";
+        static readonly string ToolsPracticeLine = "\n" + LabKey + " room lab   " + GreyboxKey + " greybox";
 
         /// <summary>The developer's G: the greybox view on or off, kept as the pause menu's line keeps it.</summary>
         bool GreyboxKeys(Keyboard keyboard)

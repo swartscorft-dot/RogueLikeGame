@@ -327,7 +327,7 @@ namespace Roguelike
         {
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
-            LevelLayout layout = LevelGenerator.Generate(seed, floor, Values);
+            LevelLayout layout = _labLayout ?? LevelGenerator.Generate(seed, floor, Values); // work order 084: or the room lab's one room (GeneratedLevelsLab.cs)
 
             if (_level != null) Remove();
             else
@@ -457,6 +457,7 @@ namespace Roguelike
 
         /// <summary>The same run seed again from floor 1 (F6); a new run if there was none. The screen between runs as for F5.</summary>
         public GeneratedLevel RestartRun() =>
+            InLab ? LabSameAgain() : // work order 084: in the room lab, the same room again
             RunSeed.HasValue ? (OpensBetweenRuns(RunSeed) ? null : StartRun(RunSeed.Value)) : StartNewRun();
 
         GeneratedLevel EnterFloor(int floor)
@@ -480,6 +481,7 @@ namespace Roguelike
             if (!InRun) return;
             InRun = false;
             LastRunLine = line;
+            LabRunEnded(how); // work order 084: the room lab's run, told as the lab's
             RecordEnd(how);
             BetweenRunsRunEnded(); // work order 029: what the run earned is kept, with the switch on
             // The fifth review (work order 077): the room's number without the passages, as the end screen's record; 0 in a passage.
@@ -534,6 +536,7 @@ namespace Roguelike
         /// </summary>
         void FloorGoesOn()
         {
+            if (LabFloorGoesOn()) return; // work order 084: the act's last exit room in the room lab shows no end screen
             if (Floor >= Values.FloorsPerAct)
             {
                 if (EliteRewardFirst()) return; // work order 047: it would be left lying on the act's last floor
@@ -605,6 +608,7 @@ namespace Roguelike
                 Record?.FloorHealed(Floor, healed);
                 PlaySessionRecorder.Current?.NoteFloorHeal(Floor, healed, _health.Current);
             }
+            if (LabTookTheReward()) return true; // work order 084: in the room lab she stays in the room
             // Work order 025: after floor 1's reward the focus choice comes up, still paused, before floor 2.
             if (FocusChoiceDue)
             {
@@ -915,6 +919,7 @@ namespace Roguelike
         {
             if (!_diedPending) return;
             _diedPending = false;
+            if (LabDied()) return; // work order 084: in the room lab, the same room again at once
             string line = "DIED on floor " + Floor + RoomWords() + "   run " + RunSeedText;
             EndRun("death", line);
             // She stays where she fell until a key on the death screen (work order 018); the game slows to a stop.
