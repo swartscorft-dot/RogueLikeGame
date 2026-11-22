@@ -593,6 +593,20 @@ namespace Roguelike
         }
 
         /// <summary>
+        /// The concept's inked plate (work order 068, the producer's reading of round 4: line weight is most of what "anime"
+        /// means here): <see cref="HeavyPlate"/>'s dark copy and black outline, and outside the black a stroke of
+        /// <paramref name="stroke"/> (white or teal) <see cref="InterfaceValues.OuterStroke"/> thick, times <paramref name="k"/>.
+        /// With the outer stroke at 0 it is <see cref="HeavyPlate"/>.
+        /// </summary>
+        public static void InkedPlate(Rect r, float pivotY, float slant, float outline, float depth, Color stroke, float k = 1f)
+        {
+            float t = Mathf.Max(0f, V.OuterStroke) * k, g = outline + t;
+            if (depth > 0f) Leaning(new Rect(r.x - g + depth, r.y - g + depth, r.width + 2f * g, r.height + 2f * g), pivotY, slant, C(V.Black, 0.55f));
+            if (t > 0f) Leaning(new Rect(r.x - g, r.y - g, r.width + 2f * g, r.height + 2f * g), pivotY, slant, stroke);
+            HeavyPlate(r, pivotY, slant, outline, 0f);
+        }
+
+        /// <summary>
         /// Halftone dots across the right part of a leaning shape, from <paramref name="fromShare"/> of its width (none) to its
         /// right end (large): the concept's dots fading across a plate. One draw, the dots' texture repeated down the shape.
         /// </summary>

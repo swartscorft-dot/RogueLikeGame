@@ -48,7 +48,7 @@ namespace Roguelike.Rules
         public static UiBox Whole(InterfaceValues v)
         {
             UiBox c = Corner(v), h = Health(v), f = Focus(v), k = FocusKey(v);
-            float o = Math.Max(0f, v.HeavyOutline), s = v.PlateSlant;
+            float o = Math.Max(0f, v.HeavyOutline) + Math.Max(0f, v.OuterStroke), s = v.PlateSlant;
             float right = Math.Max(c.Right + HalfLean(c.H, s), Math.Max(h.Right + HalfLean(h.H, s) + o + v.Depth, Math.Max(f.Right, k.Right) + HalfLean(k.H, s) + o));
             float bottom = Math.Max(c.Bottom, Math.Max(h.Bottom, Math.Max(f.Bottom, k.Bottom)) + o + v.Depth);
             return new UiBox(0f, 0f, right, bottom);
@@ -107,7 +107,7 @@ namespace Roguelike.Rules
         public static UiBox ComboWhole(int keys, float viewWidth, InterfaceValues v)
         {
             UiBox bar = ComboBar(keys, viewWidth, v), label = ComboLabel(bar, v);
-            float tag = Math.Max(v.ComboTagSize * 1.3f + 6f, NumberHeight(v) + 1f), o = Math.Max(0f, v.HeavyOutline), lean = HalfLean(label.H, v.ComboSlant);
+            float tag = Math.Max(v.ComboTagSize * 1.3f + 6f, NumberHeight(v) + 1f), o = Math.Max(0f, v.HeavyOutline) + Math.Max(0f, v.OuterStroke), lean = HalfLean(label.H, v.ComboSlant);
             float top = Math.Min(label.Y, bar.Y - tag) - o, bottom = label.Bottom + o + v.Depth;
             return new UiBox(bar.X - lean - o, top, bar.W + 2f * (lean + o) + v.Depth, bottom - top);
         }

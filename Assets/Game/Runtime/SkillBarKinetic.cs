@@ -514,19 +514,25 @@ namespace Roguelike
             float pivot = box.center.y;
             // Work order 063, item 4: the box's own dark plate where no strip plate carries the depth, and always under a lit box.
             if (!v.StripPlate || s.Recast) InterfaceStyle.Plate(box, pivot, v.Depth * _strip, v.Outline * _strip);
+            bool heavy = v.StripOutline > 0f;
             if (s.Look == SlotLook.Empty)
             {
+                // The morning of 2026-11-22 (the producer, from round 4): a dim outlined box, not a black void.
+                if (heavy && v.EmptyEdge > 0f)
+                    InterfaceStyle.InkedPlate(box, pivot, v.Slant, v.StripOutline * _fight * 0.6f, 0f, InterfaceStyle.C(v.White, v.EmptyEdge), StripEdgeScale(v));
                 InterfaceStyle.Slanted(face, pivot, InterfaceStyle.C(v.Back, 0.5f));
                 InterfaceStyle.Slanted(plate, pivot, InterfaceStyle.C(v.White, 0.18f));
                 InterfaceStyle.Label(Shifted(plate, pivot, v), s.Key, InterfaceStyle.Text(true, _keyFont, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White, 0.55f));
                 return;
             }
             bool cooling = s.Look == SlotLook.Cooling;
-            Color ink = s.Look == SlotLook.Live ? InterfaceStyle.C(v.Teal) : cooling ? InterfaceStyle.C(v.Grey, v.CoolingIconAlpha) : InterfaceStyle.C(v.White);
-            // Work order 068 (the concept's strip): each box in the heavy black outline, its face near black.
-            bool heavy = v.StripOutline > 0f;
-            if (heavy) InterfaceStyle.HeavyPlate(box, pivot, v.Slant, v.StripOutline * _fight, 0f);
+            // The morning of 2026-11-22: a ready skill's icon teal, as the concept's (IconTeal); in use, white on its teal frame.
+            Color ready = v.IconTeal ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White);
+            Color ink = s.Look == SlotLook.Live ? (v.IconTeal ? InterfaceStyle.C(v.White) : InterfaceStyle.C(v.Teal)) : cooling ? InterfaceStyle.C(v.Grey, v.CoolingIconAlpha) : ready;
+            // Work order 068 (the concept's strip): each box in the heavy black outline with a white line outside it, its face near black.
+            if (heavy) InterfaceStyle.InkedPlate(box, pivot, v.Slant, v.StripOutline * _fight, 0f, InterfaceStyle.C(v.White), StripEdgeScale(v));
             InterfaceStyle.Slanted(face, pivot, heavy ? InterfaceStyle.C(v.Black, 0.86f) : InterfaceStyle.C(v.Back));
+            if (cooling && v.CoolingFace > 0f) InterfaceStyle.Slanted(face, pivot, InterfaceStyle.C(v.Grey, v.CoolingFace)); // a cooling box grey, as the concept's
             CellEdge(face, pivot, v);
             if (s.Look == SlotLook.Live && !s.Recast) InterfaceStyle.SlantedFrame(new Rect(face.x - 1f, face.y - 1f, face.width + 2f, face.height + 2f), pivot, InterfaceStyle.C(v.Teal, 0.9f), 1.5f * _fight);
             Rect faceShown = Shifted(face, pivot, v);
@@ -538,7 +544,7 @@ namespace Roguelike
             else if (s.Icon != null)
             {
                 // Work order 068: the icon fills its box, as in the concept (063's: 34 pixels at the strip's scale).
-                float size = v.IconFill > 0f ? Mathf.Min(faceShown.height * v.IconFill, faceShown.width * 0.9f) : Mathf.Min(_iconSize, faceShown.height - 4f);
+                float size = v.IconFill > 0f ? Mathf.Min(faceShown.height * v.IconFill, faceShown.width * 0.95f) : Mathf.Min(_iconSize, faceShown.height - 4f);
                 GUI.color = ink;
                 GUI.DrawTexture(new Rect(faceShown.center.x - size * 0.5f, faceShown.center.y - size * 0.5f, size, size), s.Icon);
             }
@@ -598,6 +604,9 @@ namespace Roguelike
             InterfaceStyle.SlantedFrame(new Rect(face.x - edge, face.y - edge, face.width + 2f * edge, face.height + 2f * edge), pivot, InterfaceStyle.C(v.Teal, flash), edge);
         }
 
+        /// <summary>The white line outside a strip box's black outline as a share of <see cref="InterfaceValues.OuterStroke"/>: <see cref="InterfaceValues.StripWhiteEdge"/> at the strip's scale.</summary>
+        float StripEdgeScale(InterfaceValues v) => v.OuterStroke > 0f ? Mathf.Max(0f, v.StripWhiteEdge) * _fight / v.OuterStroke : 0f;
+
         /// <summary>The thin white line round a box's face (work order 063, item 4), so the boxes read apart on the strip's plate.</summary>
         void CellEdge(Rect face, float pivot, InterfaceValues v)
         {
@@ -614,9 +623,12 @@ namespace Roguelike
             float pivot = _left.center.y;
             var face = new Rect(_left.x, _left.y, _left.width, _left.height - plateH - 2f * _strip);
             var plate = new Rect(_left.x, _left.yMax - plateH, _left.width, plateH);
-            Color ink = _cooling ? InterfaceStyle.C(v.Grey, v.CoolingIconAlpha) : InterfaceStyle.C(v.White);
+            Color ink = _cooling ? InterfaceStyle.C(v.Grey, v.CoolingIconAlpha) : v.IconTeal ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White);
             if (!v.StripPlate) InterfaceStyle.Plate(_left, pivot, v.Depth * _strip, v.Outline * _strip); // work order 063, item 4
-            InterfaceStyle.Slanted(face, pivot, InterfaceStyle.C(v.Back));
+            bool heavy = v.StripOutline > 0f; // the morning of 2026-11-22: the ends inked as the boxes
+            if (heavy) InterfaceStyle.InkedPlate(_left, pivot, v.Slant, v.StripOutline * _fight, 0f, InterfaceStyle.C(v.White), StripEdgeScale(v));
+            InterfaceStyle.Slanted(face, pivot, heavy ? InterfaceStyle.C(v.Black, 0.86f) : InterfaceStyle.C(v.Back));
+            if (_cooling && v.CoolingFace > 0f) InterfaceStyle.Slanted(face, pivot, InterfaceStyle.C(v.Grey, v.CoolingFace));
             CellEdge(face, pivot, v);
             Rect shown = Shifted(face, pivot, v);
             Texture2D dash = InterfaceStyle.Icon("Dash");
@@ -657,7 +669,8 @@ namespace Roguelike
             plate = new Rect(_right.x, _right.yMax - plateH, _right.width, plateH);
             ink = _focusBright ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.Grey);
             if (!v.StripPlate) InterfaceStyle.Plate(_right, pivot, v.Depth * _strip, v.Outline * _strip);
-            InterfaceStyle.Slanted(face, pivot, InterfaceStyle.C(v.Back));
+            if (heavy) InterfaceStyle.InkedPlate(_right, pivot, v.Slant, v.StripOutline * _fight, 0f, _focusBright ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White), StripEdgeScale(v));
+            InterfaceStyle.Slanted(face, pivot, heavy ? InterfaceStyle.C(v.Black, 0.86f) : InterfaceStyle.C(v.Back));
             CellEdge(face, pivot, v);
             if (_focusBright) InterfaceStyle.SlantedFrame(new Rect(face.x - 1f, face.y - 1f, face.width + 2f, face.height + 2f), pivot, InterfaceStyle.C(v.Teal, 0.9f), 1.5f * _fight);
             shown = Shifted(face, pivot, v);

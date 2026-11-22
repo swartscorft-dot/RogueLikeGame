@@ -287,11 +287,16 @@ namespace Roguelike.Rules
         public bool TopPlate = true;
         /// <summary>The top plate's own lean (the concept's plates lean much harder than the strip's boxes: about 0.6 of their height).</summary>
         public float PlateSlant = 0.6f;
-        /// <summary>The dark wedge in the screen's corner where a portrait would stand (none is drawn; room is kept): its width and height.</summary>
-        public float CornerWidth = 190f;
-        public float CornerHeight = 176f;
+        /// <summary>
+        /// The dark wedge in the screen's corner where a portrait would stand (none is drawn; room is kept): its width and
+        /// height. The morning of 2026-11-22 (the producer, from round 4: "a large black wedge that covers the screen's
+        /// corner"; the concept's dark shapes are compact): 120 by 150, the plate moved left with it (round 4's: 190 by 176,
+        /// the plate at 214, the bar at 300).
+        /// </summary>
+        public float CornerWidth = 120f;
+        public float CornerHeight = 150f;
         /// <summary>The red health plate: its left edge (at its middle line), top, width and height.</summary>
-        public float HealthPlateX = 214f;
+        public float HealthPlateX = 160f;
         public float HealthPlateY = 40f;
         public float HealthPlateWidth = 330f;
         public float HealthPlateHeight = 62f;
@@ -299,11 +304,17 @@ namespace Roguelike.Rules
         public int PlateNumberSize = 54;
         /// <summary>The black outline round every plate of the concept's style, at a scale of 1 (much heavier than <see cref="Outline"/>).</summary>
         public float HeavyOutline = 4f;
+        /// <summary>
+        /// The stroke outside the black outline (white or teal), at a scale of 1: the concept's panels have a heavy black edge
+        /// with a light line outside it (the producer, from round 4: "line weight is most of what anime means here"). 0: the
+        /// black outline alone, as round 4.
+        /// </summary>
+        public float OuterStroke = 2.5f;
         /// <summary>The share of the red plate, from its right end, the halftone dots fade across.</summary>
         public float PlateDots = 0.42f;
         /// <summary>The word FOCUS and the bar under the red plate: the word's size, the bar's left (at its middle line), top, width and height.</summary>
         public int FocusWordSize = 26;
-        public float FocusBarX = 300f;
+        public float FocusBarX = 246f;
         public float FocusBarY = 116f;
         public float FocusBarWidth = 230f;
         public float FocusBarHeight = 20f;
@@ -362,10 +373,31 @@ namespace Roguelike.Rules
 
         /// <summary>The skill strip's boxes outlined in the heavy black (<see cref="HeavyOutline"/>) and its key plates white under each, as in the concept.</summary>
         public float StripOutline = 2.5f;
-        /// <summary>The icon in a strip box this share of the face's height (the concept's icons fill their box); 063's was 34 px.</summary>
-        public float IconFill = 0.86f;
+        /// <summary>
+        /// The icon in a strip box this share of the face's height (the concept's icons fill their box); 063's was 34 px. The
+        /// morning of 2026-11-22: 1.05 (round 4's 0.86 still read small: the icons' own art has a margin), never wider than
+        /// 0.95 of the face.
+        /// </summary>
+        public float IconFill = 1.05f;
         /// <summary>The key on its white plate under each strip box this many times 063's (the concept's keys are large, bold letters); 1 is 063's.</summary>
         public float StripKeyGrow = 1.25f;
+        /// <summary>
+        /// The strip as the concept's (the producer, from round 4: "every box FULL of a large cyan icon on black, a bright white
+        /// key cap under it, white outlines between the boxes; a box on cooldown grey with the number large; ours: small thin
+        /// white icons in mostly black boxes, empty slots black voids"): a ready skill's icon teal (off: white, as round 4);
+        /// the white line outside each box's black outline this thick at the strip's scale (0: none); a box cooling on a grey
+        /// face this opaque; an empty slot a dim outlined box, its outline white this opaque.
+        /// </summary>
+        public bool IconTeal = true;
+        public float StripWhiteEdge = 2f;
+        public float CoolingFace = 0.32f;
+        public float EmptyEdge = 0.35f;
+        /// <summary>
+        /// The run box at the top right as a compact plate (the producer, from round 4: "a large black area with small thin
+        /// text"): its dark plate behind the head and this many lines under it only; the lines after (the time, the upgrades,
+        /// the run's code) smaller, on no plate. A large number: the whole box on its plate, as round 4.
+        /// </summary>
+        public int RunPlateLines = 2;
 
         /// <summary>
         /// The cards of an offer in the concept's style: the name on a white plate in black italic, the numeral white on black in

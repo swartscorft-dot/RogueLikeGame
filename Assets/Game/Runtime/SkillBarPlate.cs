@@ -77,7 +77,7 @@ namespace Roguelike
             float bandX = c.xMax + s * (cp - (top + bottom) * 0.5f);
             var band = new Rect(bandX, top, h.xMax + 26f - bandX, bottom - top);
             InterfaceStyle.Leaning(band, band.center.y, s, InterfaceStyle.C(v.Black, 0.78f));
-            InterfaceStyle.HeavyPlate(h, hp, s, o, d);
+            InterfaceStyle.InkedPlate(h, hp, s, o, d, InterfaceStyle.C(v.White)); // the morning of 2026-11-22: a white line outside the black
             InterfaceStyle.Leaning(h, hp, s, InterfaceStyle.C(v.Panel));
             InterfaceStyle.Leaning(new Rect(h.x, h.y, h.width * HealthShare, h.height), hp, s, InterfaceStyle.C(v.Red));
             if (LostAlpha > 0f && LostFrom > HealthShare)
@@ -98,7 +98,7 @@ namespace Roguelike
             bool full = _focusBright;
             InterfaceStyle.Label(R(InterfacePlate.FocusWord(v)), "FOCUS", InterfaceStyle.Text(true, v.FocusWordSize, TextAnchor.MiddleRight),
                                  full ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White), true);
-            InterfaceStyle.HeavyPlate(f, fp, s, o * 0.75f, d * 0.75f);
+            InterfaceStyle.InkedPlate(f, fp, s, o * 0.75f, d * 0.75f, InterfaceStyle.C(v.Teal), 0.8f);
             // Round 1's picture: an empty gauge on the black band read as nothing; its slot is a dim teal now, so the bar is there.
             InterfaceStyle.Leaning(f, fp, s, InterfaceStyle.C(v.Teal, 0.16f));
             InterfaceStyle.Leaning(new Rect(f.x, f.yMax - 3f, f.width, 3f), fp, s, InterfaceStyle.C(v.Teal, 0.45f));

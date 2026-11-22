@@ -211,6 +211,12 @@ namespace Roguelike.Rules.Tests
             Assert.That(ComboLine.Most, Is.GreaterThanOrEqualTo(5), "Steady Hand's five presses fit");
             Assert.That(v.StrokeConcept, Is.True, "the strokes in the plate's language (StrokeConcept off: 063's drawing)");
             Assert.That(v.StrokeSlant, Is.GreaterThan(v.Slant), "they lean harder than the strip's boxes, as the plate does");
+            // The producer's reading of round 4 (line weight, the strip, the black slabs).
+            Assert.That(v.OuterStroke, Is.GreaterThan(0f), "a light line outside the black outlines");
+            Assert.That(v.IconTeal && v.StripWhiteEdge > 0f && v.CoolingFace > 0f && v.EmptyEdge > 0f, Is.True, "the strip as the concept's");
+            Assert.That(v.IconFill, Is.GreaterThan(1f), "the icons fill their boxes");
+            Assert.That(v.CornerWidth, Is.LessThan(190f), "the corner's wedge narrower than round 4's");
+            Assert.That(v.RunPlateLines, Is.EqualTo(2), "the run box's plate behind the floor, the room and the enemies left");
         }
     }
 }

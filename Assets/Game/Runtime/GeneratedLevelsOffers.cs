@@ -238,7 +238,9 @@ namespace Roguelike
             float k = _popScale, pivot = r.center.y, slant = o.Slant;
             // Work order 068 (the concept's cards): a heavy black outline and a dark copy behind, a darker panel, a teal band
             // across its top with halftone dots fading into it, a red double slash at its foot.
-            InterfaceStyle.HeavyPlate(r, pivot, slant, v.HeavyOutline * k, v.Depth * 2f * k);
+            // The morning of 2026-11-22: a line outside the black, the tier's colour on a rare or an epic, else white.
+            InterfaceStyle.InkedPlate(r, pivot, slant, v.HeavyOutline * k, v.Depth * 2f * k,
+                                      _cardInks[i] != UiInk.White ? Lit(InterfaceStyle.Ink(_cardInks[i]), light) : InterfaceStyle.C(v.White, light), k);
             Leaning(r, pivot, slant, InterfaceStyle.C(v.Black, 0.92f * light));
             InterfaceStyle.DotsAlong(new Rect(r.x + r.width * 0.45f, r.y, r.width * 0.55f, r.height * 0.32f), pivot, slant, 0.1f, InterfaceStyle.C(v.Teal, 0.28f * light));
             Leaning(new Rect(r.x, r.y, 5f * k, r.height), pivot, slant, InterfaceStyle.C(v.Teal, light));

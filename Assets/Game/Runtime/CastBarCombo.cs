@@ -258,7 +258,7 @@ namespace Roguelike
             var label = new Rect(lb.X, lb.Y, lb.W, lb.H);
 
             // The bar: its heavy plate, a dark track, a thin white inner edge along its top.
-            InterfaceStyle.HeavyPlate(bar, pivot, s, o, v.Depth);
+            InterfaceStyle.InkedPlate(bar, pivot, s, o, v.Depth, InterfaceStyle.C(v.White, a)); // the morning of 2026-11-22: a white line outside the black
             InterfaceStyle.Leaning(bar, pivot, s, InterfaceStyle.C(v.Panel, a));
             InterfaceStyle.Leaning(new Rect(track.x, track.y, track.width, 2f), pivot, s, InterfaceStyle.C(v.White, 0.35f * a));
 
@@ -274,7 +274,7 @@ namespace Roguelike
 
             // The label: a black plate with a teal cut, the name in the heavy italic, a red double slash after it.
             float lp = label.center.y;
-            InterfaceStyle.HeavyPlate(label, lp, s, o, v.Depth);
+            InterfaceStyle.InkedPlate(label, lp, s, o, v.Depth, InterfaceStyle.C(v.Teal, a));
             InterfaceStyle.Leaning(label, lp, s, InterfaceStyle.C(v.Black, a));
             InterfaceStyle.Leaning(new Rect(label.x, label.y, 6f, label.height), lp, s, InterfaceStyle.C(v.Teal, a));
             InterfaceStyle.Slashes(label.xMax - 4f, label.y + 6f, label.height - 12f, 5f, 2, InterfaceStyle.C(v.Red, a));
