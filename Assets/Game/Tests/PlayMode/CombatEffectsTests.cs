@@ -231,6 +231,9 @@ namespace Roguelike.PlayModeTests
                 // counter's daze is Dazed).
                 { EnemyReportKind.CirclePlaced, null }, { EnemyReportKind.CircleOffGround, null },
                 { EnemyReportKind.CircleFaded, null }, { EnemyReportKind.Countered, null },
+                // Work order 073, added on purpose: the bomber's blast on the others has no effect of its own (its blast is
+                // drawn where it goes off, as a caster's circle, and Struck when it lands on her).
+                { EnemyReportKind.Blasted, null },
             };
             foreach (EnemyReportKind kind in Enum.GetValues(typeof(EnemyReportKind)))
             {

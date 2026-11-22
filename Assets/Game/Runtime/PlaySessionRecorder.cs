@@ -765,8 +765,12 @@ namespace Roguelike
                         Add(Of(SessionEventTypes.EnemyWake));
                         break;
                     case EnemyReportKind.AttackStarted:
-                        Add(Of(SessionEventTypes.EnemyAttack, r.Attack));
+                    {
+                        SessionEvent e = Of(SessionEventTypes.EnemyAttack, r.Attack);
+                        if (r.EnemyKind == EnemyKind.Bomber) e.AddExtra("fuse", SessionWords.Fuse(r.Count)); // work order 073: how its fuse was lit
+                        Add(e);
                         break;
+                    }
                     case EnemyReportKind.Struck:
                     {
                         SessionEvent e = Of(SessionEventTypes.EnemyStrike, r.Attack);
@@ -841,6 +845,16 @@ namespace Roguelike
                     case EnemyReportKind.Countered:
                         Add(Of(SessionEventTypes.EnemyCountered, r.Attack));
                         break;
+                    // The bomber's blast on the others (work order 073); on her it is an enemy_strike as every enemy's.
+                    case EnemyReportKind.Blasted:
+                    {
+                        SessionEvent e = Of(SessionEventTypes.BomberBlast, r.Attack);
+                        e.Damage = r.Damage > 0 ? r.Damage : (int?)null;
+                        e.AddExtra("enemies", r.Count.ToString(CultureInfo.InvariantCulture));
+                        e.AddExtra("killed", r.Killed.ToString(CultureInfo.InvariantCulture));
+                        Add(e);
+                        break;
+                    }
                 }
             }
             catch (Exception e)

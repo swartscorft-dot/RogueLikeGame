@@ -32,6 +32,11 @@ namespace Roguelike
         public static readonly Color BossColor = new Color(0.25f, 0.22f, 0.30f); // work order 014: the act boss's capsule
         public static readonly Color CasterColor = new Color(0.55f, 0.35f, 0.85f); // work order 027: the caster's capsule
         /// <summary>
+        /// The bomber's colour (work order 073): ember orange, its capsule's and the tint over the swarmer's model it wears;
+        /// redder than the angry boss's orange (1, 0.55, 0.32) and far from the elite's gold.
+        /// </summary>
+        public static readonly Color BomberTint = new Color(1f, 0.38f, 0.1f);
+        /// <summary>
         /// An elite's tint (work order 017): a bright gold, warm, and far from the daze's pale blue and the angry boss's
         /// orange (1, 0.55, 0.32).
         /// </summary>
@@ -104,6 +109,17 @@ namespace Roguelike
                     height = c.Tuning.BodyHeight;
                     color = CasterColor;
                     enemy = c;
+                    break;
+                }
+                case EnemyKind.Bomber:
+                {
+                    // Work order 073: small, fast, ember orange; shown smaller than a swarmer, whose model it wears.
+                    var b = go.AddComponent<EnemyBomber>();
+                    radius = b.Tuning.BodyRadius;
+                    height = b.Tuning.BodyHeight;
+                    color = BomberTint;
+                    go.transform.localScale = Vector3.one * Mathf.Max(0.1f, b.Tuning.Shown);
+                    enemy = b;
                     break;
                 }
                 case EnemyKind.Boss:

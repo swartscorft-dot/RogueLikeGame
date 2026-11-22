@@ -106,9 +106,12 @@ namespace Roguelike
     /// which circle, from 1); CircleOffGround, one was not, its place being off the walkable ground; CircleFaded, one of a
     /// countered Grave Rain faded without bursting; Countered, Stopping Shot dropped its cast. Things that fly (work order
     /// 036): each one's end is a Struck with Flown set; that they left is told by <see cref="ThingsThatFly.Loosed"/>.
+    /// The bomber's (work order 073): its fuse lit is an AttackStarted of its Blast (Count how: 0 at her, 1 dropped dead, 2
+    /// set off by another's blast, <see cref="Roguelike.Rules.FuseCause"/>), and its blast on her a Struck, as every enemy's;
+    /// Blasted, its blast went off (Count the enemies it hurt, Killed those of them it killed, Damage what it dealt them).
     /// </summary>
     public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded, Charged, CalledPack, Angered,
-                                  CirclePlaced, CircleOffGround, CircleFaded, Countered }
+                                  CirclePlaced, CircleOffGround, CircleFaded, Countered, Blasted }
 
     /// <summary>
     /// How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment,
@@ -135,5 +138,6 @@ namespace Roguelike
         public int Count;             // CalledPack: the enemies that came (work order 014); the caster's circle reports: which circle (work order 027)
         public bool Elite;            // the elite of an elite room (work order 017): the log names it "elite brute"
         public bool Flown;            // Struck: the end of a thing that flew (work order 036); it was heard as it left, not here
+        public int Killed;            // Blasted: the enemies a bomber's blast killed (work order 073)
     }
 }

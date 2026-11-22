@@ -130,7 +130,8 @@ namespace Roguelike.Rules
         {
             switch (kind)
             {
-                case EnemyKind.Swarmer: return Swarmer;
+                case EnemyKind.Swarmer:
+                case EnemyKind.Bomber: return Swarmer; // work order 073: a bomber's size for the effects is a swarmer's
                 case EnemyKind.Shooter:
                 case EnemyKind.Caster: return Shooter; // work order 034: a caster's size for the effects is a shooter's
                 case EnemyKind.Guard: return Guard;
@@ -143,7 +144,8 @@ namespace Roguelike.Rules
         {
             switch (kind)
             {
-                case EnemyKind.Swarmer: return ShardsSmall;
+                case EnemyKind.Swarmer:
+                case EnemyKind.Bomber: return ShardsSmall; // work order 073
                 case EnemyKind.Guard:
                 case EnemyKind.Boss: return ShardsLarge;
                 default: return ShardsPlain;

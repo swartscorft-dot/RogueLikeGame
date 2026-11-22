@@ -186,11 +186,28 @@ namespace Roguelike.Rules
             },
         };
 
-        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster };
+        /// <summary>
+        /// The bomber (work order 073, 2026-11-21): no model of its own (no new art). It wears the swarmer's, the ghoul, as
+        /// made (the same file and height, so the look measures it as the swarmer's), and is shown smaller
+        /// (<see cref="BomberValues.Shown"/>) and tinted ember orange by its factory. It has no attack clip: its fuse is not
+        /// a wind-up of the brain, and while it burns it stands (Idle), swelling and flashing.
+        /// </summary>
+        public static readonly EnemyModelSpec Bomber = new EnemyModelSpec
+        {
+            Kind = EnemyKind.Bomber, Name = "Crypt_Ghoul_01", Height = 1.1, Walk = "CrouchWalk",
+            WalkStride = 0.77, RunStride = 1.77,
+            Clips = new[]
+            {
+                Idle, new EnemyClipSpec("CrouchWalk", 1.133, true), WalkClip, RunClip,
+                new EnemyClipSpec("Attack", 2.467, false, 1.233), Death,
+            },
+        };
+
+        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber };
 
         public static EnemyModelSpec Of(EnemyKind kind) =>
             kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard
-            : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : Brute;
+            : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : kind == EnemyKind.Bomber ? Bomber : Brute;
 
         /// <summary>
         /// The clip's own name in a take name as an exporter writes it: "Armature|Idle" is "Idle". The part after the
