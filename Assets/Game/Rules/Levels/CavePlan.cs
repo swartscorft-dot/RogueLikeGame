@@ -283,6 +283,7 @@ namespace Roguelike.Rules
             return r;
         }
 
+        // Her places: four a side of every cell (three a side let the rock hide floor from two places of the sight test's).
         static readonly double[] s_her = { 0.5, 1.5, 2.5, 3.5 };
         static readonly double[] s_floor = { 0.5, 2.0, 3.5 };
         // A cell past a door, to its edges: the floor beyond it is not guarded, so no other sample stands near its far side.
@@ -459,14 +460,27 @@ namespace Roguelike.Rules
                 else _riseH[j] = to;
                 any = true;
             }
-            // The rock tops over the cells the line passes over near the floor (every one taken as drawn): one that would stand
-            // within the margin of the line is lowered to the low walls' height, or taken away if even that would.
+            // The rock tops over the cells the line passes over near the floor (every one taken as drawn), cell by cell from the
+            // floor point, each at the line's height where it enters the cell (its lowest over it): one that would stand within
+            // the margin of the line is lowered to the low walls' height, or to a rock floor if even that would.
             if (_lid != null)
             {
-                double lidFar = Math.Min(len, (WallTop + margin) / slope + 0.2);
-                for (double d = 0.0; d < lidFar; d += 0.2)
+                double lidFar = Math.Min(len, (WallTop + margin) / slope);
+                double px = t.X / cs, py = t.Y / cs;
+                int gx = (int)Math.Floor(px), gy = (int)Math.Floor(py);
+                int sx = ux > 0 ? 1 : -1, sy = uy > 0 ? 1 : -1;
+                double ax = Math.Abs(ux), ay = Math.Abs(uy);
+                double nextX = ax > 1e-12 ? (ux > 0 ? gx + 1 - px : px - gx) * cs / ax : double.MaxValue;
+                double nextY = ay > 1e-12 ? (uy > 0 ? gy + 1 - py : py - gy) * cs / ay : double.MaxValue;
+                double stepX = ax > 1e-12 ? cs / ax : double.MaxValue, stepY = ay > 1e-12 ? cs / ay : double.MaxValue;
+                for (double d = 0.0; d < lidFar;)
                 {
-                    int x = (int)Math.Floor((t.X + ux * d) / cs) - X0, y = (int)Math.Floor((t.Y + uy * d) / cs) - Y0;
+                    int x = gx - X0, y = gy - Y0;
+                    if (nextX < nextY) { d = nextX; nextX += stepX; gx += sx; }
+                    else { d = nextY; nextY += stepY; gy += sy; }
+                    if (d >= lidFar) break;
+                    x = gx - X0;
+                    y = gy - Y0;
                     if (x < 0 || y < 0 || x >= Nx || y >= Ny) continue;
                     int i = y * Nx + x;
                     float top = _lid[i];
