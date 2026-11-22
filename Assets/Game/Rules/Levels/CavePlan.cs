@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Roguelike.Rules
 {
@@ -421,18 +422,33 @@ namespace Roguelike.Rules
             return list;
         }
 
+        /// <summary>
+        /// Work order 081 (cleanup and speed): the sight rule's rays are asked about on several threads, a space's rays all at
+        /// once against the rise as it stands when the space begins (<see cref="HoldDownAtOnce"/>); only the rays that could
+        /// lower anything are then run, on one thread, in the order the one-thread rule runs them. The rise, the rays counted
+        /// and the rays that lowered are the same field for field (FloorPlansStayTests). False, or with rock tops (076's rock
+        /// look, whose tops are lowered on one thread as before), the rule runs on one thread as it did.
+        /// </summary>
+        public static bool Threads = true;
+
         void HoldDown()
         {
             int n = Layout.Rooms.Count;
             var shown = new bool[n];
             var herBySpace = new List<LevelPoint>[n];
             for (int s = 0; s < n; s++) herBySpace[s] = Points(s, s_her);
+            bool threads = Threads && _lid == null;
             for (int s = 0; s < n; s++)
             {
                 CaveSight.Shown(Layout, s, shown);
                 // The dark look samples its floor finer (six a side): its walls stand on her room's own outline, and a floor
                 // point a quarter metre from a pier's corner is where a tall wall's end grazes a line of sight.
                 List<LevelPoint> targets = Guarded(s, shown, _v.GuardHerAndDoors ? s_floorFine : s_floor, s_door);
+                if (threads)
+                {
+                    HoldDownAtOnce(herBySpace[s], targets, shown); // work order 081
+                    continue;
+                }
                 foreach (LevelPoint her in herBySpace[s])
                 {
                     foreach (LevelPoint t in targets)
@@ -448,6 +464,185 @@ namespace Roguelike.Rules
                     if (Ray(her, her, shown, true, _v.HerHeight)) Lowered++;
                 }
             }
+        }
+
+        // ---------------- The sight rule on several threads (work order 081) ----------------
+
+        /// <summary>One thread's buffers for a ray's crossings, as <see cref="Ray"/>'s own.</summary>
+        sealed class RayBuffers
+        {
+            public readonly int[] Edge = new int[64];
+            public readonly double[] At = new double[64];
+            public readonly bool[] End = new bool[64];
+        }
+
+        /// <summary>A ray that could lower a rise: the edges it would ask about, in its order, and the height each must keep under.</summary>
+        sealed class Lowering
+        {
+            public int[] Edges;
+            public double[] Keeps;
+        }
+
+        /// <summary>
+        /// One space's rays, as the one-thread rule asks them (for each of her places in order, the guarded floor in view in
+        /// order, then with work order 083's guard her feet and her head), asked about at once on several threads against the
+        /// rise as it stands now; each ray today's walls leave free that crosses a shown rock above the height it must keep
+        /// under is kept (<see cref="Lowering"/>). Then, on this thread, those rays are run in the one-thread rule's order on
+        /// the rise as it is lowered: a ray left out could lower nothing, as the rise only ever goes down, so the rise and the
+        /// counts are the one-thread rule's.
+        /// </summary>
+        void HoldDownAtOnce(List<LevelPoint> hers, List<LevelPoint> targets, bool[] shown)
+        {
+            int m = hers.Count;
+            var found = new List<Lowering>[m];
+            var rays = new long[m];
+            Parallel.For(0, m, () => new RayBuffers(), (i, state, b) =>
+            {
+                LevelPoint her = hers[i];
+                List<Lowering> list = null;
+                long count = 0;
+                foreach (LevelPoint t in targets)
+                {
+                    if (!InView(her, t)) continue;
+                    count++;
+                    Consider(her, t, shown, b, ref list);
+                }
+                if (_v.GuardHerAndDoors)
+                {
+                    count += 2;
+                    Consider(her, her, shown, b, ref list);
+                    Consider(her, her, shown, b, ref list, _v.HerHeight);
+                }
+                found[i] = list;
+                rays[i] = count;
+                return b;
+            }, b => { });
+            for (int i = 0; i < m; i++)
+            {
+                Rays += rays[i];
+                if (found[i] == null) continue;
+                foreach (Lowering l in found[i])
+                    if (Lower(l)) Lowered++;
+            }
+        }
+
+        /// <summary>
+        /// <see cref="Ray"/>'s crossings and its test of today's walls, with the same arithmetic, into one thread's buffers; the
+        /// ray is added to <paramref name="list"/> when today's walls leave it free and a shown rock it crosses stands, as the
+        /// rise is now, above the height it must keep under. Reads the rise, never writes it.
+        /// </summary>
+        void Consider(LevelPoint her, LevelPoint t, bool[] shown, RayBuffers b, ref List<Lowering> list, double th = 0.0)
+        {
+            double cx = her.X, cy = her.Y - CameraBack;
+            double dx = cx - t.X, dy = cy - t.Y, len = Math.Sqrt(dx * dx + dy * dy);
+            if (len < 1e-6 || th >= CameraHeight) return;
+            double ux = dx / len, uy = dy / len, slope = (CameraHeight - th) / len;
+            double reach = _v.RockReach, margin = _v.SightMargin;
+            double far = Math.Min(len, Math.Max(0.0, Math.Max(_v.RiseHeight, WallTop) + margin - th) / slope + reach);
+            double cs = Layout.CellSize;
+            int[] hitEdge = b.Edge;
+            double[] hitAt = b.At;
+            bool[] hitEnd = b.End;
+            int hits = 0;
+            void Hit(int edge, double d, bool end)
+            {
+                if (edge < 0 || hits >= hitEdge.Length) return;
+                hitEdge[hits] = edge;
+                hitAt[hits] = d;
+                hitEnd[hits++] = end;
+            }
+            // Vertical lines.
+            if (Math.Abs(ux) > 1e-9)
+            {
+                int step = ux > 0 ? 1 : -1;
+                int k = ux > 0 ? (int)Math.Floor(t.X / cs) + 1 : (int)Math.Ceiling(t.X / cs) - 1;
+                for (; hits < hitEdge.Length; k += step)
+                {
+                    double d = (k * cs - t.X) / ux;
+                    if (d > far) break;
+                    double y = t.Y + uy * d;
+                    int cell = (int)Math.Floor(y / cs);
+                    double into = y - cell * cs;
+                    Hit(Index(true, k, cell), d, false);
+                    if (into < reach) Hit(Index(true, k, cell - 1), d, true);
+                    else if (into > cs - reach) Hit(Index(true, k, cell + 1), d, true);
+                }
+            }
+            // Horizontal lines.
+            if (Math.Abs(uy) > 1e-9)
+            {
+                int step = uy > 0 ? 1 : -1;
+                int k = uy > 0 ? (int)Math.Floor(t.Y / cs) + 1 : (int)Math.Ceiling(t.Y / cs) - 1;
+                for (; hits < hitEdge.Length; k += step)
+                {
+                    double d = (k * cs - t.Y) / uy;
+                    if (d > far) break;
+                    double x = t.X + ux * d;
+                    int cell = (int)Math.Floor(x / cs);
+                    double into = x - cell * cs;
+                    int i = Index(false, k, cell);
+                    Hit(i < 0 ? -1 : _todayV.Length + i, d, false);
+                    int n = into < reach ? Index(false, k, cell - 1) : into > cs - reach ? Index(false, k, cell + 1) : -1;
+                    if (n >= 0) Hit(_todayV.Length + n, d, true);
+                }
+            }
+            // Today: hidden by any wall standing above the line where it crosses.
+            for (int h = 0; h < hits; h++)
+            {
+                if (hitEnd[h]) continue;
+                int e = hitEdge[h];
+                float today = e < _todayV.Length ? _todayV[e] : _todayH[e - _todayV.Length];
+                if (today > th + slope * hitAt[h]) return;
+            }
+            int[] edges = null;
+            double[] keeps = null;
+            int kept = 0;
+            for (int h = 0; h < hits; h++)
+            {
+                int e = hitEdge[h];
+                int a = _ownerA[e], o = _ownerB[e];
+                if (!((a >= 0 && shown[a]) || (o >= 0 && shown[o]))) continue; // not drawn in the cave: hides nothing
+                bool v = e < _todayV.Length;
+                int j = v ? e : e - _todayV.Length;
+                float today = v ? _todayV[j] : _todayH[j];
+                float cave = v ? _riseV[j] : _riseH[j];
+                if (cave <= today) continue;
+                double keep = th + slope * Math.Max(0.0, hitAt[h] - reach) - margin; // the rock's top must stay under this
+                if (cave <= keep) continue;
+                if (edges == null)
+                {
+                    edges = new int[hits];
+                    keeps = new double[hits];
+                }
+                edges[kept] = e;
+                keeps[kept++] = keep;
+            }
+            if (kept == 0) return;
+            Array.Resize(ref edges, kept);
+            Array.Resize(ref keeps, kept);
+            (list ?? (list = new List<Lowering>())).Add(new Lowering { Edges = edges, Keeps = keeps });
+        }
+
+        /// <summary>The lowering of <see cref="Ray"/>, for a ray <see cref="Consider"/> kept, on the rise as it stands now: true if any was lowered.</summary>
+        bool Lower(Lowering l)
+        {
+            bool any = false;
+            for (int k = 0; k < l.Edges.Length; k++)
+            {
+                int e = l.Edges[k];
+                bool v = e < _todayV.Length;
+                int j = v ? e : e - _todayV.Length;
+                float today = v ? _todayV[j] : _todayH[j];
+                float cave = v ? _riseV[j] : _riseH[j];
+                if (cave <= today) continue;
+                double keep = l.Keeps[k];
+                if (cave <= keep) continue;
+                float to = (float)Math.Max(today, keep);
+                if (v) _riseV[j] = to;
+                else _riseH[j] = to;
+                any = true;
+            }
+            return any;
         }
 
         /// <summary>

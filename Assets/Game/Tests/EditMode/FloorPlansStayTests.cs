@@ -108,7 +108,7 @@ namespace Roguelike.Rules.Tests
         // Pinned from the code before the order's changes (main 6adfc56), each in its runtime. With a pin at 0 the test fails and
         // says what it found.
 #if UNITY_5_3_OR_NEWER
-        const ulong PinLayout = 0UL, PinRock = 0UL, PinDark = 0UL;
+        const ulong PinLayout = 0x41D0091227C66DAEUL, PinRock = 0x884ECAFF2CCC551FUL, PinDark = 0x7349308A15E0BC76UL; // Unity's EditMode run, 6adfc56
 #else
         const ulong PinLayout = 0x16D25A63977E65A1UL, PinRock = 0x884ECAFF2CCC551FUL, PinDark = 0x7349308A15E0BC76UL; // .NET, 6adfc56
 #endif
@@ -123,6 +123,50 @@ namespace Roguelike.Rules.Tests
             Assert.That(layout, Is.EqualTo(PinLayout), "the layouts and the kit's plans of the three hundred floors, found " + found);
             Assert.That(rock, Is.EqualTo(PinRock), "the rock look's rise of the three hundred floors, found " + found);
             Assert.That(dark, Is.EqualTo(PinDark), "the dark look's rise of the three hundred floors, found " + found);
+        }
+
+        /// <summary>
+        /// The cave's sight rule on several threads (work order 081, <see cref="CaveRise.Threads"/>) against the rule on one thread,
+        /// the code as it was, on the same floors in this runtime: the same rise, rays and lowered rays, field for field, in both
+        /// looks (the rock look's tops keep it on one thread) and with each guard of the dark look.
+        /// </summary>
+        [Test]
+        public void TheSightRule_OnSeveralThreads_IsTheRuleOnOneThread_FieldForField()
+        {
+            var v = new LevelValues();
+            bool was = CaveRise.Threads;
+            try
+            {
+                int floors = 0;
+                long lowered = 0;
+                for (int i = 0; i < 12; i++)
+                    for (int floor = 1; floor <= 5; floor += 2)
+                    {
+                        LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(RunSeedOf(i + 500), floor), floor, v);
+                        CryptKitPlan kit = CryptKitPlan.Make(l, v.Crypt);
+                        var lookValues = new List<CaveValues> { v.CaveRules };
+                        lookValues.Add(new CaveValues { GuardHerAndDoors = false });                     // 076's guards, no tops
+                        lookValues.Add(new CaveValues { RockLids = false, GuardNeighbours = true });     // round 2's rule
+                        foreach (CaveValues cv in lookValues)
+                        {
+                            CaveRise.Threads = false;
+                            CaveRise oneDark = CaveRise.MakeDark(l, kit, cv, v.WallHeight, Feel.CameraPitch, Feel.CameraDistance);
+                            CaveRise oneRock = CaveRise.Make(l, kit, cv, v.WallHeight, v.NearWallHeight, Feel.CameraPitch, Feel.CameraDistance);
+                            CaveRise.Threads = true;
+                            CaveRise manyDark = CaveRise.MakeDark(l, kit, cv, v.WallHeight, Feel.CameraPitch, Feel.CameraDistance);
+                            CaveRise manyRock = CaveRise.Make(l, kit, cv, v.WallHeight, v.NearWallHeight, Feel.CameraPitch, Feel.CameraDistance);
+                            Assert.That(manyDark.Rays, Is.EqualTo(oneDark.Rays), "the rays, seed " + l.SeedText);
+                            Assert.That(manyDark.Lowered, Is.EqualTo(oneDark.Lowered), "the lowered rays, seed " + l.SeedText);
+                            Assert.That(OfRise(manyDark, 1UL), Is.EqualTo(OfRise(oneDark, 1UL)), "the dark look's rise, seed " + l.SeedText);
+                            Assert.That(OfRise(manyRock, 1UL), Is.EqualTo(OfRise(oneRock, 1UL)), "the rock look's rise, seed " + l.SeedText);
+                            lowered += oneDark.Lowered + oneRock.Lowered;
+                        }
+                        floors++;
+                    }
+                Assert.That(floors, Is.EqualTo(36));
+                Assert.That(lowered, Is.GreaterThan(0), "the rule lowered rises: the comparison saw it work");
+            }
+            finally { CaveRise.Threads = was; }
         }
 
         [Test]
