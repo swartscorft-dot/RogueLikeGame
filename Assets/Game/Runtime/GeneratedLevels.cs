@@ -327,7 +327,9 @@ namespace Roguelike
         {
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
+            bool clocked = FloorBuildClock.Begin(); // work order 081: the build's steps, for the build-time table
             LevelLayout layout = _labLayout ?? LevelGenerator.Generate(seed, floor, Values); // work order 084: or the room lab's one room (GeneratedLevelsLab.cs)
+            FloorBuildClock.Step("plan: the generator");
 
             if (_level != null) Remove();
             else
@@ -339,6 +341,7 @@ namespace Roguelike
             EnemyBrute template = PracticeEnemy();
             GameObject practiceFloor = GameObject.Find("Floor");
             Material baseMaterial = practiceFloor != null && practiceFloor.TryGetComponent(out Renderer floorRenderer) ? floorRenderer.sharedMaterial : null;
+            FloorBuildClock.Step("the floor before removed, the template found");
             _level = GeneratedLevel.Build(layout, Values, template, baseMaterial);
             LastSeed = seed;
             Cleared = false;
@@ -349,13 +352,18 @@ namespace Roguelike
             EliteRoomDone = false;
             _roomHeals.Clear();
             SetUpRoomFights(); // work order 070
+            FloorBuildClock.Step("room fights set up");
 
             player.Teleport(_level.PlayerStart);
+            FloorBuildClock.Step("she is put at the entrance");
             Debug.Log(string.Format(s_Inv, "Generated floor {0} of {9} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies, {6} props{7}\n{8}",
                                     layout.SeedText, layout.Seed, layout.Version, layout.Attempt, layout.Rooms.Count, _level.Enemies.Count,
                                     _level.Props.Count, template == null ? " (no enemy in the scene to copy)" : "", LevelMap.Draw(layout), layout.Floor));
+            FloorBuildClock.Step("the log's line and map");
             PlaySessionRecorder.Current?.NoteLevelBuilt(layout.SeedText, layout.Version, layout.Rooms.Count);
             TrackRoom();
+            FloorBuildClock.Step("the recorder told, the room tracked");
+            FloorBuildClock.End(clocked);
             return _level;
         }
 
@@ -416,7 +424,9 @@ namespace Roguelike
         {
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
+            bool clocked = FloorBuildClock.Begin(); // work order 081: the run's start and its first floor, for the build-time table
             InterfaceStyle.LoadIcons(); // work order 055: every icon decoded now, none in a frame of play
+            FloorBuildClock.Step("run: the icons loaded");
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
@@ -446,7 +456,10 @@ namespace Roguelike
             _runStartedAt = Time.time;
             Record = new RunRecord(RunSeedText, Values.FloorsPerAct);
             PlaySessionRecorder.Current?.NoteRunStarted(RunSeedText);
-            return EnterFloor(1);
+            FloorBuildClock.Step("run: her skills, upgrades and health set");
+            GeneratedLevel first = EnterFloor(1);
+            FloorBuildClock.End(clocked);
+            return first;
         }
 
         /// <summary>
@@ -463,12 +476,15 @@ namespace Roguelike
         GeneratedLevel EnterFloor(int floor)
         {
             Floor = floor;
+            bool clocked = FloorBuildClock.Begin(); // work order 081: a floor of a run, from the choice before it
             ulong seed = RunSeeds.FloorSeed(RunSeed ?? 0UL, floor);
             GeneratedLevel level = Build(seed, floor);
             RecordFloor(level);
             _floorStartedAt = Time.time;
             PlaySessionRecorder.Current?.NoteFloorEntered(floor, LevelSeed.ToText(seed));
             BetweenRunsFloorEntered(floor); // work order 029
+            FloorBuildClock.Step("the run's record and the recorder told");
+            FloorBuildClock.End(clocked);
             return level;
         }
 

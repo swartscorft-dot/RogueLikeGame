@@ -153,30 +153,42 @@ namespace Roguelike
             LevelPoint start = layout.Rooms[0].PlayerStart ?? layout.Rooms[0].Middle(layout.CellSize);
             level._shift = new Vector3(values.OffsetX - (float)start.X, 0f, values.OffsetZ - (float)start.Y);
 
+            FloorBuildClock.Step("level: its root"); // work order 081: each step of the build, for the build-time table
             level.BuildFloors(baseMaterial);
+            FloorBuildClock.Step("level: floors");
             level.BuildWalls(baseMaterial);
+            FloorBuildClock.Step("level: walls and carved tops");
             // Work order 052: the large props of the rooms' compositions are props of the floor, built with the others before
             // the NavMesh, from the mood's plan (made once here, and given to the mood below).
             if (values.RoomMood && values.LargeProps && values.Props && (values.Mood == null || values.Mood.Compose))
                 level.LargePropsPlan = RoomMoodPlan.Make(layout, values);
+            FloorBuildClock.Step("plan: the mood's (RoomMoodPlan)");
             level.BuildProps();
+            FloorBuildClock.Step("level: props");
             level.BuildLargeProps();
+            FloorBuildClock.Step("level: large props");
 
             level.Surface = root.AddComponent<NavMeshSurface>();
             level.Surface.collectObjects = CollectObjects.Children;
             level.Surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             level.Surface.BuildNavMesh();
+            FloorBuildClock.Step("level: NavMesh");
 
             // Work order 016: the kit is put in only once the NavMesh is built, so nothing of it can be in it.
             if (values.CryptKit) level.DressInCryptKit();
+            FloorBuildClock.Step("level: the kit's objects");
             if (values.DoorSigns) DoorSigns.Add(level); // work order 041: the doors that say what is behind them
+            FloorBuildClock.Step("level: door signs");
 
             if (enemyTemplate != null) level.PlaceEnemies(enemyTemplate);
+            FloorBuildClock.Step("level: enemies");
             // Work order 044: the rooms' mood, last, beside the level (RoomMood); off, the floor is as before.
             if (values.RoomMood) level.Mood = RoomMood.Add(level, level.LargePropsPlan);
+            FloorBuildClock.Step("level: the mood (RoomMood.Add)");
             // Work order 076: the room as a cave, after everything it shows and hides is there; off, the floor looks as before.
             // Work order 083: its look Before is the floor as it was before 076 (no CaveView).
             if (values.Cave && (values.CaveRules == null || values.CaveRules.Look != CaveLook.Before)) level.Cave = CaveView.Add(level);
+            FloorBuildClock.Step("level: the cave (CaveView.Add)");
             return level;
         }
 
@@ -417,6 +429,7 @@ namespace Roguelike
         {
             CryptKitValues v = Values.Crypt ?? new CryptKitValues();
             KitPlan = CryptKitPlan.Make(Layout, v);
+            FloorBuildClock.Step("plan: the kit's (CryptKitPlan)"); // work order 081
             var kitRoot = new GameObject("CryptKit") { layer = CryptKit.Layer };
             kitRoot.transform.SetParent(transform, false);
             KitRoot = kitRoot.transform;
