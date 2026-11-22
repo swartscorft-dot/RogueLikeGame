@@ -265,6 +265,13 @@ namespace Roguelike.Rules
         public int[] CastersMostInRoom = { 0, 1, 1, 2, 2 }; // by floor number, from 1; past the end its last
         public int CastersMoreInExit = 1;
         public float CasterSpacing = 8f;       // m between two casters of a room
+        // The bombers in the floors (work order 073, 2026-11-21): built, and OFF by default, as the casters were before work
+        // order 054. Off: no room holds a bomber and every seed's floor is what it was, field for field (no version is
+        // taken). On: from floor 2, never in the floor's first combat room, each in place of a swarmer (LevelBombers). The
+        // practice room's bomber does not depend on it.
+        public bool Bombers = false;
+        public int BomberHealth = 100;         // work order 073: a floor's bomber, as the practice room's (BomberValues)
+        public BomberFloorValues BomberFloors = new BomberFloorValues();
         public FloorEnemies[] Floors = DefaultFloors();
 
         // Props (work order 009)
@@ -485,6 +492,7 @@ namespace Roguelike.Rules
             : kind == EnemyKind.Shooter ? ShooterHealth
             : kind == EnemyKind.Guard ? GuardHealth
             : kind == EnemyKind.Caster ? CasterHealth
+            : kind == EnemyKind.Bomber ? BomberHealth // work order 073
             : EnemyHealth;
 
         /// <summary>The most guards a room of this kind may hold on this floor, the act boss counted.</summary>

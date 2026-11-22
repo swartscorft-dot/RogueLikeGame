@@ -178,6 +178,7 @@ namespace Roguelike.Rules
             floor = Math.Max(1, Math.Min(values.FloorsPerAct, floor));
             // Work order 041: in a line, each room holds what the same seed's floor of version 9 holds there.
             List<List<EnemyGroup>> fights = values.InALine ? FightsOf(seed, floor, values) : null;
+            if (values.Bombers) LevelBombers.Put(fights, seed, floor, values); // work order 073: off by default, and then nothing is read
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {

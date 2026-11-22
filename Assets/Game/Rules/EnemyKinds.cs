@@ -20,23 +20,28 @@ namespace Roguelike.Rules
         /// a fifth kind, 2026-11-20): do you keep moving to somewhere new, and can you reach it or silence it? (<see cref="CasterValues"/>)
         /// </summary>
         Caster,
+        /// <summary>
+        /// Small and fast, runs at her and blows up, its blast hurting its own side as much as her (work order 073,
+        /// 2026-11-21, "Ny fiendetype"): do you move now, and do you shoot the right one first? (<see cref="BomberValues"/>)
+        /// </summary>
+        Bomber,
     }
 
     public static class EnemyKinds
     {
-        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss", "caster".</summary>
+        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss", "caster", "bomber".</summary>
         public static string Word(EnemyKind kind) =>
             kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter"
-            : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : "guard";
+            : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : kind == EnemyKind.Bomber ? "bomber" : "guard";
 
         /// <summary>
         /// The letter for an enemy point on a level's text map: b brute, s swarmer, p a pack of swarmers, h shooter,
-        /// g guard, c caster (work order 027; casters never stand in a line). Small letters, so they do not read as the
-        /// rooms' capitals. The act boss is G (work order 014).
+        /// g guard, c caster (work order 027; casters never stand in a line), x bomber (work order 073; each alone). Small
+        /// letters, so they do not read as the rooms' capitals. The act boss is G (work order 014).
         /// </summary>
         public static char Letter(EnemyKind kind, int count) =>
             kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h'
-            : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : 'g';
+            : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : kind == EnemyKind.Bomber ? 'x' : 'g';
     }
 
     /// <summary>

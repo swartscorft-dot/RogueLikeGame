@@ -55,6 +55,9 @@ namespace Roguelike.Rules
         public const string CasterCircle = "caster_circle";   // a circle of its cast: name the cast, result placed or off the ground, circle which (from 1)
         public const string CasterCircleFaded = "caster_circle_faded"; // a circle of a countered Grave Rain faded without bursting: name, circle
         public const string EnemyCountered = "enemy_countered"; // Stopping Shot dropped its cast: name the cast
+        // The bomber (work order 073). Its fuse lit is an enemy_attack named Blast, with fuse how ("at her", "dropped",
+        // "chain"); its blast on her an enemy_strike named Blast, as every enemy's.
+        public const string BomberBlast = "bomber_blast";     // its blast went off: name Blast, enemies how many others it hurt, killed how many of them it killed, damage what it dealt them
         // Things that fly (work order 036). Each one's end is an enemy_strike named its attack, with flown "true".
         public const string EnemyLoose = "enemy_loose";       // what it shot or threw left it: name the attack, count how many at once
         public const string PlayerDamaged = "player_damaged";
@@ -138,6 +141,13 @@ namespace Roguelike.Rules
         public const string Removed = "removed";              // an enemy taken out of the game awake
         public const string Placed = "placed";                // a caster's circle (work order 027): placed on the ground...
         public const string OffTheGround = "off the ground";  // ...or not, its place off the walkable ground
+        public const string FuseAtHer = "at her";             // how a bomber's fuse was lit (work order 073): at her...
+        public const string FuseDropped = "dropped";          // ...killed before it lit, where it fell...
+        public const string FuseChain = "chain";              // ...or by another's blast
+
+        /// <summary>The log's word for how a bomber's fuse was lit (work order 073), from its report's count (<see cref="FuseCause"/>).</summary>
+        public static string Fuse(int cause) =>
+            cause == (int)FuseCause.Dropped ? FuseDropped : cause == (int)FuseCause.Chain ? FuseChain : FuseAtHer;
 
         // Taking cover (2026-11-19, an experiment).
         public const string StoppedByCover = "stopped by cover"; // how an enemy strike went: what she was in cover behind stopped it

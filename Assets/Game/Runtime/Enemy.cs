@@ -179,11 +179,11 @@ namespace Roguelike
         public event Action<EnemyReport> Reported;
 
         protected void Report(EnemyReportKind kind, EnemyAttackDefinition attack = null, StrikeOutcome outcome = StrikeOutcome.NoEffect,
-                              int damage = 0, float stagger = 0f, float staggerLeft = 0f, int count = 0) =>
+                              int damage = 0, float stagger = 0f, float staggerLeft = 0f, int count = 0, int killed = 0) =>
             Reported?.Invoke(new EnemyReport
             {
                 Kind = kind, Attack = attack?.Name, Outcome = outcome, Damage = damage, Id = Id, EnemyKind = Kind,
-                Stagger = stagger, StaggerLeft = staggerLeft, Count = count, Elite = IsElite,
+                Stagger = stagger, StaggerLeft = staggerLeft, Count = count, Elite = IsElite, Killed = killed, // killed: work order 073's blast
             });
 
         protected virtual void Awake()

@@ -32,7 +32,7 @@ namespace Roguelike.PlayModeTests
         static readonly float Stopped = HudRules.EndSlowSeconds + 0.25f; // real seconds until the end screen surely shows
 
         /// <summary>A string that names a developer key as a prompt: F1, F6 to F12, or the caster's C before its word.</summary>
-        static readonly Regex DeadKey = new Regex(@"\bF(1|6|7|8|9|10|11|12)\b|\b" + GeneratedLevels.CasterKey + @" caster\b");
+        static readonly Regex DeadKey = new Regex(@"\bF(1|6|7|8|9|10|11|12)\b|\b" + GeneratedLevels.CasterKey + @" caster\b|\b" + GeneratedLevels.BomberKey + @" bomber\b"); // work order 073: the bomber's key too
 
         PlayerCharacter _player;
         PlayerHealth _health;
@@ -138,7 +138,8 @@ namespace Roguelike.PlayModeTests
         [Test]
         public void TheDevelopersKeys_AreF1_F6ToF12_AndC_AndNotF5()
         {
-            Assert.That(DeveloperKeys.Keys, Is.EquivalentTo(new[] { Key.F1, Key.F6, Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12, Key.C }));
+            // Work order 073: and B, the practice room's bomber.
+            Assert.That(DeveloperKeys.Keys, Is.EquivalentTo(new[] { Key.F1, Key.F6, Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12, Key.C, Key.B }));
             Assert.That(DeveloperKeys.IsDeveloperKey(GeneratedLevels.NewLevelKey), Is.False, "F5 starts a run in every build");
             Assert.That(DeveloperKeys.IsDeveloperKey(RunHud.PauseKey), Is.False, "Esc");
             Assert.That(DeveloperKeys.IsDeveloperKey(RunHud.DevTextKey), Is.True);
