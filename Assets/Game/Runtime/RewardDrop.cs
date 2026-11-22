@@ -136,15 +136,16 @@ namespace Roguelike
         void OnGUI()
         {
             if (_owner == null || Event.current.type != EventType.Repaint) return;
+            GUI.depth = InterfaceDepth.Fight; // work order 068: under an offer and every screen
             if (InterfaceStyle.Kinetic)
             {
                 DrawKinetic(); // work order 045
                 return;
             }
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
 
             if (_owner.DropPrompt == this && Camera.main is Camera cam)
             {
@@ -152,7 +153,7 @@ namespace Roguelike
                 if (screen.z > 0f)
                 {
                     if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
-                    float px = screen.x / scale, py = (Screen.height - screen.y) / scale;
+                    float px = screen.x / scale, py = (InterfaceStyle.ScreenHeight - screen.y) / scale;
                     string key = PromptKey();
                     if (_prompt == null || key != _promptKey)
                     {
@@ -189,7 +190,7 @@ namespace Roguelike
                 {
                     string key = PromptKey();
                     if (_kineticWords == null) _kineticWords = "pick up " + What;
-                    InterfaceStyle.Prompt(screen.x / scale, (Screen.height - screen.y) / scale, key, _kineticWords);
+                    InterfaceStyle.Prompt(screen.x / scale, (InterfaceStyle.ScreenHeight - screen.y) / scale, key, _kineticWords);
                 }
             }
             string line = Kind != GeneratedLevels.ChoiceKind.SkillUpgrade ? _owner.WaitingLine : "";

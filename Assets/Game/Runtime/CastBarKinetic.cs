@@ -17,7 +17,9 @@ namespace Roguelike
         /// <summary>The bar under the middle of the screen is drawn now (the skin off).</summary>
         public bool CentreBarDrawn => Showing && !Kinetic;
         /// <summary>The blade over her head is drawn now, and where (layout pixels of a view 1080 high).</summary>
-        public bool BladeDrawn => Showing && Kinetic && _bladeOnScreen;
+        public bool BladeDrawn => Showing && Kinetic && _bladeOnScreen && BladeAllowed;
+        /// <summary>The blade may be drawn: the combo bar is off, or both are asked for (work order 068: one place to read the timing).</summary>
+        static bool BladeAllowed => !InterfaceStyle.V.ComboBar || InterfaceStyle.V.BladeWithCombo;
         public Rect Blade { get; private set; }
 
         float _herTop = 2f;
@@ -34,7 +36,7 @@ namespace Roguelike
             Vector3 head = cam.WorldToScreenPoint(_player.Position + Vector3.up * _herTop);
             if (head.z <= 0f) return;
             float scale = Mathf.Max(1e-4f, InterfaceStyle.Scale);
-            UiBox b = InterfaceRules.Blade(head.x / scale, (Screen.height - head.y) / scale, InterfaceStyle.V);
+            UiBox b = InterfaceRules.Blade(head.x / scale, (InterfaceStyle.ScreenHeight - head.y) / scale, InterfaceStyle.V);
             Blade = new Rect(b.X, b.Y, b.W, b.H);
             _bladeOnScreen = true;
         }

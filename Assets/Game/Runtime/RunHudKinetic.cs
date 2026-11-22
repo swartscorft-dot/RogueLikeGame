@@ -19,6 +19,12 @@ namespace Roguelike
     {
         /// <summary>Her health bar of before is drawn now (the skin off, and no skill bar to show it).</summary>
         public bool HealthBarDrawn { get; private set; }
+        /// <summary>
+        /// The IMGUI depth it draws at (work order 068): a screen's (the pause menu, an end screen, the screen between runs)
+        /// while one is up, over an offer and everything else; else the fight's, under an offer (its run box, its prompt).
+        /// </summary>
+        public int GuiDepth => InterfaceDepth.Hud(_levels != null && (_levels.EndScreenShown || _levels.Paused || _levels.BetweenRunsUp));
+
         /// <summary>True when the HUD and its screens are drawn in the kinetic skin.</summary>
         public bool Kinetic => InterfaceStyle.Kinetic;
 
@@ -93,7 +99,15 @@ namespace Roguelike
                 return;
             }
             InterfaceValues v = InterfaceStyle.V;
+            // Work order 068 (the concept's plates): a heavy black outline and its dark copy, a teal cut down its left edge, a red
+            // double slash at its top right and halftone dots fading in under it. (The HUD's 720 layout: the 1080 values made 720.)
+            float k = SkillBar.LayoutHeight / v.LayoutHeight, o = v.HeavyOutline * k;
+            Fill(new Rect(r.x - o + v.Depth * k * 2f, r.y - o + v.Depth * k * 2f, r.width + 2f * o, r.height + 2f * o), InterfaceStyle.C(v.Black, 0.55f));
+            Fill(new Rect(r.x - o, r.y - o, r.width + 2f * o, r.height + 2f * o), InterfaceStyle.C(v.Black));
             Fill(r, InterfaceStyle.C(v.Panel));
+            InterfaceStyle.DotsAlong(new Rect(r.x + r.width * 0.55f, r.y, r.width * 0.45f, Mathf.Min(70f, r.height * 0.3f)), r.y, 0f, 0.05f, InterfaceStyle.C(v.Teal, 0.18f));
+            Fill(new Rect(r.x, r.y, 4f, r.height), accent == s_Health ? InterfaceStyle.C(v.Red) : InterfaceStyle.C(v.Teal));
+            InterfaceStyle.Slashes(r.xMax - 12f, r.y + 10f, 26f, 5f, 2, InterfaceStyle.C(v.Red));
             Color rule = accent == s_Health ? InterfaceStyle.C(v.Red) : InterfaceStyle.C(v.Teal);
             InterfaceStyle.Slanted(new Rect(r.x + r.width * 0.2f, ruleY, r.width * 0.6f, Mathf.Max(1f, v.RuleThickness * 0.67f)), rule);
         }
@@ -127,6 +141,13 @@ namespace Roguelike
         void DrawRunBoxLines(float viewWidth, InterfaceValues v)
         {
             float right = viewWidth - 12f, w = RunBoxWidth;
+            // Work order 068 (the concept's top right): the lines on a dark slanted plate in the heavy black outline, a teal cut
+            // down its left edge; inside the run box's own width, clear of the map beside it.
+            float k = SkillBar.LayoutHeight / v.LayoutHeight, o = v.HeavyOutline * k;
+            var plate = new Rect(right - w + 4f, 3f, w + 30f, 8f + 26f + 5f + Mathf.Max(0, _runBox.Count - 2) * 17f + 15f);
+            InterfaceStyle.Slanted(new Rect(plate.x - o, plate.y - o, plate.width + 2f * o, plate.height + 2f * o), InterfaceStyle.C(v.Black));
+            InterfaceStyle.Slanted(plate, InterfaceStyle.C(v.Black, 0.72f));
+            InterfaceStyle.Slanted(new Rect(plate.x, plate.y, 3f, plate.height), InterfaceStyle.C(v.Teal));
             var head = new Rect(right - w, 8f, w, 26f);
             GUI.Label(head, _runBox[0], RightAligned(_big));
             InterfaceStyle.Slanted(new Rect(right - w * 0.55f, head.yMax + 1f, w * 0.55f, 1.5f), InterfaceStyle.C(v.Teal));

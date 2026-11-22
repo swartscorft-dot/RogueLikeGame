@@ -1006,14 +1006,15 @@ namespace Roguelike
             if (_player == null) return;
             bool inLevel = _level != null;
             if (!inLevel && !StartedByItself && Choice == ChoiceKind.None && LastRunLine.Length == 0) return;
+            GUI.depth = GuiDepth; // work order 068: an offer over everything of the fight's interface, under the screens
             if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 12, alignment = TextAnchor.UpperLeft, wordWrap = true };
 
             // Laid out for a view 720 pixels high and scaled to the real height, like the readout in the other corner.
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             const float width = 330f;
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
             float x = viewWidth - width - 10f;
             // The developer's box: shown or not, and how far down, as the HUD says (work order 018: F1); as before without one.
             bool kinetic = InterfaceStyle.Kinetic; // work order 045: in the interface's skin (GeneratedLevelsKinetic.cs)
@@ -1072,7 +1073,7 @@ namespace Roguelike
             Vector3 screen = cam.WorldToScreenPoint(chest.Object.transform.position + Vector3.up * 1.4f);
             if (screen.z <= 0f) return;
             if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
-            float px = screen.x / scale, py = (Screen.height - screen.y) / scale;
+            float px = screen.x / scale, py = (InterfaceStyle.ScreenHeight - screen.y) / scale;
             GUI.Box(new Rect(px - 60f, py - 14f, 120f, 26f), InteractKey + "  open chest", _promptStyle);
         }
 
