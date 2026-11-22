@@ -27,7 +27,7 @@ namespace Roguelike.EditModeTests
         }
 
         [Test]
-        public void TheSteps_AsBeforeFirst_ThenABC_RoundBothWays_AndAnythingElseIsAsBefore()
+        public void TheSteps_AsBeforeFirst_ThenABC_RoundBothWays_CTheDefault_AndAnythingElseIsTheDefault()
         {
             Assert.That(LightSteps.Count, Is.EqualTo(4));
             Assert.That(LightSteps.Names, Is.EqualTo(new[] { "as before", "lamplit A", "lamplit B", "lamplit C" }));
@@ -40,7 +40,9 @@ namespace Roguelike.EditModeTests
             Assert.That(LightSteps.Next(3), Is.EqualTo(0), "round to as before after C");
             Assert.That(LightSteps.Previous(0), Is.EqualTo(3), "back from as before is C");
             Assert.That(LightSteps.Previous(1), Is.EqualTo(0));
-            foreach (int bad in new[] { -1, 4, 99, int.MinValue }) Assert.That(LightSteps.Step(bad), Is.EqualTo(LightSteps.AsBefore), "stored " + bad);
+            Assert.That(LightSteps.Default, Is.EqualTo(3), "lamplit C is the default (Kristian, having played the four: C er best)");
+            Assert.That(LightSteps.Of(LightSteps.Default).Name, Is.EqualTo("lamplit C"));
+            foreach (int bad in new[] { -1, 4, 99, int.MinValue }) Assert.That(LightSteps.Step(bad), Is.EqualTo(LightSteps.Default), "stored " + bad + ": the default");
         }
 
         [Test]

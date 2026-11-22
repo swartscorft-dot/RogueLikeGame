@@ -148,6 +148,8 @@ namespace Roguelike
         /// </summary>
         public LamplitValues Lamplit;
         LamplitValues _lamplitSeen;
+        ParticleSystem.Particle[] _fogBuffer; // work order 085: the fog's particles, read and written back without allocating
+        bool _fogTreated;
 
         /// <summary>Enemy renderers drawn with the light floor.</summary>
         public int FlooredRenderers => _floored.Count;
@@ -403,6 +405,8 @@ namespace Roguelike
             }
             Here = -2;
             _fogLevel = -1f;
+            _fogBuffer = new ParticleSystem.Particle[Mathf.Max(1, v.FogMostPerRoom)]; // work order 085
+            _fogTreated = false;
         }
 
         /// <summary>
@@ -962,6 +966,18 @@ namespace Roguelike
                 }
             }
 
+            // Work order 085: the fog at a lamplit level, see-through; as before exactly as it was.
+            if (lamplit != null && lamplit.ChangesFog)
+            {
+                LamplitFog(v, lamplit, her);
+                _fogTreated = true;
+            }
+            else if (_fogTreated)
+            {
+                _fogTreated = false;
+                FogAsBefore(v);
+            }
+
             // The flicker of her room and the next.
             float t = Time.time;
             for (int i = 0; i < _rooms.Count; i++)
@@ -1002,6 +1018,74 @@ namespace Roguelike
                 PlaceholderSounds sounds = PlaceholderSounds.Current;
                 float master = sounds == null ? 1f : sounds.Values.On ? sounds.Values.Master : 0f;
                 _tone.volume = Mathf.Clamp01(v.ToneVolume * master);
+            }
+        }
+
+        // ---------------- The fog at a lamplit level (work order 085) ----------------
+
+        /// <summary>
+        /// Kristian, having played lamplit C: "det blir som et rart lag man kommer inn i, det skal jo være litt gjennomsiktig".
+        /// The fog's particles add a fixed grey whatever lies under them; on C's dark floor that grey is brighter than the floor,
+        /// a milky layer over the floor, her feet and the telegraphs. Here every fog particle alive is given the level's share of
+        /// that grey (<see cref="LamplitValues.FogLevel"/>), and nothing within <see cref="LamplitValues.FogClearNear"/> of her or
+        /// of a point of an enemy's telegraph, rising smoothly to its share at <see cref="LamplitValues.FogClearFar"/>. Its place,
+        /// how many there are and how they move are as before. Allocates nothing.
+        /// </summary>
+        void LamplitFog(MoodValues v, LamplitValues l, Vector3 her)
+        {
+            if (_fogBuffer == null) return;
+            float share = Mathf.Max(0f, l.FogLevel);
+            float near = Mathf.Max(0f, l.FogClearNear), far = Mathf.Max(near + 0.01f, l.FogClearFar);
+            Color fog = new Color(v.FogColour.R * v.FogLevel * share, v.FogColour.G * v.FogLevel * share, v.FogColour.B * v.FogLevel * share, 1f);
+            IReadOnlyList<Enemy> enemies = _level.Enemies;
+            for (int i = 0; i < _rooms.Count; i++)
+            {
+                ParticleSystem ps = _rooms[i].Fog;
+                if (ps == null || ps.particleCount == 0) continue;
+                int n = ps.GetParticles(_fogBuffer);
+                for (int k = 0; k < n; k++)
+                {
+                    Vector3 at = _fogBuffer[k].position;
+                    float clear = l.FogClearFar > 0f && _player != null ? Clear(at, her, near, far) : 1f;
+                    if (l.FogClearFar > 0f)
+                        for (int e = 0; e < enemies.Count && clear > 0f; e++)
+                        {
+                            Enemy enemy = enemies[e];
+                            if (enemy == null || !enemy.IsTelegraphing) continue;
+                            LineRenderer line = enemy.Telegraph;
+                            int points = Mathf.Min(16, line.positionCount);
+                            for (int q = 0; q < points; q++)
+                            {
+                                Vector3 p = line.useWorldSpace ? line.GetPosition(q) : line.transform.TransformPoint(line.GetPosition(q));
+                                clear = Mathf.Min(clear, Clear(at, p, near, far));
+                            }
+                        }
+                    _fogBuffer[k].startColor = new Color(fog.r * clear, fog.g * clear, fog.b * clear, 1f);
+                }
+                ps.SetParticles(_fogBuffer, n);
+            }
+        }
+
+        /// <summary>0 within <paramref name="near"/> of a point on the ground, 1 from <paramref name="far"/>, smooth between.</summary>
+        static float Clear(Vector3 at, Vector3 from, float near, float far)
+        {
+            float dx = at.x - from.x, dz = at.z - from.z;
+            float t = Mathf.Clamp01((Mathf.Sqrt(dx * dx + dz * dz) - near) / (far - near));
+            return t * t * (3f - 2f * t);
+        }
+
+        /// <summary>Back to as before: every fog particle alive has the fog's own grey again, as it was made with.</summary>
+        void FogAsBefore(MoodValues v)
+        {
+            if (_fogBuffer == null) return;
+            Color fog = new Color(v.FogColour.R * v.FogLevel, v.FogColour.G * v.FogLevel, v.FogColour.B * v.FogLevel, 1f);
+            for (int i = 0; i < _rooms.Count; i++)
+            {
+                ParticleSystem ps = _rooms[i].Fog;
+                if (ps == null || ps.particleCount == 0) continue;
+                int n = ps.GetParticles(_fogBuffer);
+                for (int k = 0; k < n; k++) _fogBuffer[k].startColor = fog;
+                ps.SetParticles(_fogBuffer, n);
             }
         }
 

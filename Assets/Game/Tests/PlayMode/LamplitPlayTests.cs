@@ -135,9 +135,9 @@ namespace Roguelike.PlayModeTests
             });
 
         [UnityTest]
-        public IEnumerator AsBefore_TheDefault_AddsNothing_AndLeavesEveryLightAsOnMain_AlsoAfterALamplitLevelWasOnAndOff()
+        public IEnumerator AsBefore_Chosen_AddsNothing_AndLeavesEveryLightAsOnMain_AlsoAfterALamplitLevelWasOnAndOff()
         {
-            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.AsBefore), "the default");
+            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.AsBefore), "chosen in the set-up (the default is lamplit C)");
             GeneratedLevel level = StyleRoom();
             _player.Teleport(AtDepth(level, 2.0));
             yield return Frames(4);
@@ -293,7 +293,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(lines.IndexOf(RunHud.MenuLine.Light), Is.EqualTo(lines.IndexOf(RunHud.MenuLine.Greybox) + 1), "under the greybox view, beside the camera's lines");
             Assert.That(lines.IndexOf(RunHud.MenuLine.Greybox), Is.EqualTo(lines.IndexOf(RunHud.MenuLine.CameraDistance) + 1), "the camera's lines as they were");
             Assert.That(lines.Last(), Is.EqualTo(RunHud.MenuLine.Attachments), "the attachments' line still last");
-            Assert.That(_hud.MenuText(RunHud.MenuLine.Light), Is.EqualTo("Light:  as before"), "as before by default");
+            Assert.That(_hud.MenuText(RunHud.MenuLine.Light), Is.EqualTo("Light:  as before"), "as before, as kept above");
             var seen = new List<string>();
             for (int i = 0; i < 4; i++)
             {
@@ -313,12 +313,15 @@ namespace Roguelike.PlayModeTests
             yield return Frames(2);
             Assert.That(_levels.Level, Is.SameAs(level), "the run goes on, on the same floor");
             GameSettings.Unload();
-            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.AsBefore), "unloaded: as before, as for a test that never made the HUD");
+            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.Default), "unloaded: the default, lamplit C, as for a test that never made the HUD");
             GameSettings.Load();
             Assert.That(GameSettings.LightStep, Is.EqualTo(2), "loaded again: lamplit B, as it was kept");
             PlayerPrefs.SetInt(GameSettings.LightKey, 17);
             GameSettings.Load();
-            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.AsBefore), "a stored value that is no step is as before");
+            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.Default), "a stored value that is no step is the default");
+            PlayerPrefs.DeleteKey(GameSettings.LightKey);
+            GameSettings.Load();
+            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.Default), "nothing stored: lamplit C (Kristian: C er best)");
         }
 
         // ---------------- The greybox wins ----------------
@@ -375,6 +378,63 @@ namespace Roguelike.PlayModeTests
             Assert.That(arrow.shader.name, Does.Contain("Unlit"), "an arrow or an orb is unlit");
             Assert.That(Of(arrow), Is.EqualTo(arrowBefore), "its colour as before");
             Assert.That(level.Mood.FlooredRenderers, Is.GreaterThan(0), "every enemy drawn with the light floor");
+        }
+
+        // ---------------- The default, and the fog ----------------
+
+        [UnityTest]
+        public IEnumerator WithNothingChosen_AFloorIsLamplitC_TheGreyboxStillWins()
+        {
+            GameSettings.Unload(); // as for a player with nothing stored (and a test that never made the HUD)
+            Assert.That(GameSettings.LightStep, Is.EqualTo(LightSteps.Default));
+            GeneratedLevel level = StyleRoom();
+            yield return Frames(3);
+            Assert.That(_levels.Lamplit != null && _levels.Lamplit.On == LightSteps.Of(3), Is.True, "lamplit C, Kristian's choice");
+            GameSettings.SetGreybox(true, keep: false);
+            yield return Frames(3);
+            Assert.That(_levels.Lamplit.On, Is.Null, "the greybox wins over the default too");
+        }
+
+        [UnityTest]
+        public IEnumerator TheFog_AtLamplitC_IsSeeThrough_NothingRoundHer_TheRestAtCsShare_AndAsBeforeItIsAsItWas()
+        {
+            GeneratedLevel level = StyleRoom();
+            LevelRoom nave = level.Layout.Rooms[1];
+            _player.Teleport(AtDepth(level, 3.0));
+            yield return UseLight(0);
+            RoomMood.RoomParts parts = level.Mood.Of(nave.Order);
+            Assume.That(parts != null && parts.Fog != null, "the nave has its fog");
+            yield return new WaitForSecondsRealtime(0.3f);
+            var buffer = new ParticleSystem.Particle[level.Values.Mood.FogMostPerRoom];
+            int n = parts.Fog.GetParticles(buffer);
+            Assume.That(n, Is.GreaterThan(0), "fog alive in the nave (prewarmed)");
+            MoodValues mv = level.Values.Mood;
+            Color32 fog = new Color(mv.FogColour.R * mv.FogLevel, mv.FogColour.G * mv.FogLevel, mv.FogColour.B * mv.FogLevel, 1f);
+            for (int i = 0; i < n; i++) Assert.That(buffer[i].startColor, Is.EqualTo(fog), "as before: every fog particle the fog's own grey");
+
+            yield return UseLight(3);
+            LamplitValues c = LightSteps.Of(3);
+            Assert.That(c.ChangesFog, Is.True);
+            n = parts.Fog.GetParticles(buffer);
+            int cleared = 0;
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 at = buffer[i].position, her = _player.Position;
+                float d = new Vector2(at.x - her.x, at.z - her.z).magnitude;
+                Color32 got = buffer[i].startColor;
+                Assert.That(got.b, Is.LessThanOrEqualTo((byte)Mathf.CeilToInt(fog.b * c.FogLevel) + 1), "never more than C's share of the grey");
+                if (d < c.FogClearNear - 0.2f) // she moves a little between the frames: a margin
+                {
+                    Assert.That(got.r + got.g + got.b, Is.LessThanOrEqualTo(3), "nothing added round her: she and the floor under her read through it");
+                    cleared++;
+                }
+            }
+            TestContext.WriteLine(string.Format(Inv, "LAMPLIT fog: {0} particles in the nave, {1} round her cleared", n, cleared));
+            Assert.That(() => { for (int i = 0; i < 100; i++) level.Mood.Tick(); }, AllocExt.AllocatingGCMemory(Is.Not), "the fog's frame allocates nothing");
+
+            yield return UseLight(0);
+            n = parts.Fog.GetParticles(buffer);
+            for (int i = 0; i < n; i++) Assert.That(buffer[i].startColor, Is.EqualTo(fog), "back to as before: every particle the fog's own grey again");
         }
 
         // ---------------- Her shots ----------------
