@@ -25,23 +25,31 @@ namespace Roguelike.Rules
         /// 2026-11-21, "Ny fiendetype"): do you move now, and do you shoot the right one first? (<see cref="BomberValues"/>)
         /// </summary>
         Bomber,
+        /// <summary>
+        /// A slow support at the back that wards its allies (they take much less damage while it lives) until it is killed or
+        /// staggered, when every ward breaks and the warded are dazed (work order 079, 2026-11-22, "Enda en fiendetype"):
+        /// whom do you shoot first? (<see cref="WarderValues"/>)
+        /// </summary>
+        Warder,
     }
 
     public static class EnemyKinds
     {
-        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss", "caster", "bomber".</summary>
+        /// <summary>The kind as the play session log writes it: "brute", "swarmer", "shooter", "guard", "boss", "caster", "bomber", "warder".</summary>
         public static string Word(EnemyKind kind) =>
             kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter"
-            : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : kind == EnemyKind.Bomber ? "bomber" : "guard";
+            : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : kind == EnemyKind.Bomber ? "bomber"
+            : kind == EnemyKind.Warder ? "warder" : "guard"; // work order 079
 
         /// <summary>
         /// The letter for an enemy point on a level's text map: b brute, s swarmer, p a pack of swarmers, h shooter,
-        /// g guard, c caster (work order 027; casters never stand in a line), x bomber (work order 073; each alone). Small
+        /// g guard, c caster (work order 027; casters never stand in a line), x bomber (work order 073; each alone), w warder (work order 079; each alone). Small
         /// letters, so they do not read as the rooms' capitals. The act boss is G (work order 014).
         /// </summary>
         public static char Letter(EnemyKind kind, int count) =>
             kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h'
-            : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : kind == EnemyKind.Bomber ? 'x' : 'g';
+            : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : kind == EnemyKind.Bomber ? 'x'
+            : kind == EnemyKind.Warder ? 'w' : 'g'; // work order 079
     }
 
     /// <summary>

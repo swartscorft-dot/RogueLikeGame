@@ -112,9 +112,11 @@ namespace Roguelike
     /// The bomber's (work order 073): its fuse lit is an AttackStarted of its Blast (Count how: 0 at her, 1 dropped dead, 2
     /// set off by another's blast, <see cref="Roguelike.Rules.FuseCause"/>), and its blast on her a Struck, as every enemy's;
     /// Blasted, its blast went off (Count the enemies it hurt, Killed those of them it killed, Damage what it dealt them).
+    /// The warder's (work order 079): WardRaising, a ward's raising began (its telegraph); WardRaised, the ward is on;
+    /// WardBroken, a ward that was on ended (Count why, <see cref="Roguelike.Rules.WardEnd"/>; Damage what it took off hits).
     /// </summary>
     public enum EnemyReportKind { Woke, AttackStarted, Struck, GaveUp, Died, Removed, StaggerTaken, Dazed, DazeEnded, Charged, CalledPack, Angered,
-                                  CirclePlaced, CircleOffGround, CircleFaded, Countered, Blasted }
+                                  CirclePlaced, CircleOffGround, CircleFaded, Countered, Blasted, WardRaising, WardRaised, WardBroken }
 
     /// <summary>
     /// How a strike went. StoppedByCover: the shooter's shot was stopped by what she was in cover behind (an experiment,

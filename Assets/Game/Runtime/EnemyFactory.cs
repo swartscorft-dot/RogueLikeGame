@@ -37,6 +37,12 @@ namespace Roguelike
         /// </summary>
         public static readonly Color BomberTint = new Color(1f, 0.38f, 0.1f);
         /// <summary>
+        /// The warder's colour (work order 079): a deep green, its capsule's and the tint over the caster's model it wears; its
+        /// wards' light is the brighter green of <see cref="EnemyWarder.WardColor"/>. Far from the daze's pale blue, the
+        /// elite's gold and the bomber's ember.
+        /// </summary>
+        public static readonly Color WarderTint = new Color(0.25f, 0.75f, 0.45f);
+        /// <summary>
         /// An elite's tint (work order 017): a bright gold, warm, and far from the daze's pale blue and the angry boss's
         /// orange (1, 0.55, 0.32).
         /// </summary>
@@ -120,6 +126,17 @@ namespace Roguelike
                     color = BomberTint;
                     go.transform.localScale = Vector3.one * Mathf.Max(0.1f, b.Tuning.Shown);
                     enemy = b;
+                    break;
+                }
+                case EnemyKind.Warder:
+                {
+                    // Work order 079: slow, at the back, green; shown larger than a caster, whose model it wears.
+                    var w = go.AddComponent<EnemyWarder>();
+                    radius = w.Tuning.BodyRadius;
+                    height = w.Tuning.BodyHeight;
+                    color = WarderTint;
+                    go.transform.localScale = Vector3.one * Mathf.Max(0.1f, w.Tuning.Shown);
+                    enemy = w;
                     break;
                 }
                 case EnemyKind.Boss:

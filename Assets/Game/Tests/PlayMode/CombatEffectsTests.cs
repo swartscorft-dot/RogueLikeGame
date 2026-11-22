@@ -234,6 +234,9 @@ namespace Roguelike.PlayModeTests
                 // Work order 073, added on purpose: the bomber's blast on the others has no effect of its own (its blast is
                 // drawn where it goes off, as a caster's circle, and Struck when it lands on her).
                 { EnemyReportKind.Blasted, null },
+                // Work order 079, added on purpose: the warder draws its wards itself (its glow, the thread, the shell and its
+                // burst); the warded are drawn dazed as a ward breaks.
+                { EnemyReportKind.WardRaising, null }, { EnemyReportKind.WardRaised, null }, { EnemyReportKind.WardBroken, null },
             };
             foreach (EnemyReportKind kind in Enum.GetValues(typeof(EnemyReportKind)))
             {

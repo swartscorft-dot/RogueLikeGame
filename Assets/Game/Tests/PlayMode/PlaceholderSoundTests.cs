@@ -655,6 +655,10 @@ namespace Roguelike.PlayModeTests
                 // Work order 073, added on purpose: the bomber's blast on the others has no sound of its own (its fuse is
                 // AttackStarted, its blast on her Struck).
                 { EnemyReportKind.Blasted, null },
+                // Work order 079, added on purpose: a warder's ward being raised is heard as a wind-up (its telegraph); the ward
+                // on and broken have no sound of their own (the warded are heard dazed as it breaks).
+                { EnemyReportKind.WardRaising, SoundMoment.WindupStarted }, { EnemyReportKind.WardRaised, null },
+                { EnemyReportKind.WardBroken, null },
             };
             foreach (EnemyReportKind kind in Enum.GetValues(typeof(EnemyReportKind)))
             {

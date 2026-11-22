@@ -134,6 +134,7 @@ namespace Roguelike.Rules
                 case EnemyKind.Bomber: return Swarmer; // work order 073: a bomber's size for the effects is a swarmer's
                 case EnemyKind.Shooter:
                 case EnemyKind.Caster: return Shooter; // work order 034: a caster's size for the effects is a shooter's
+                case EnemyKind.Warder: return Shooter; // work order 079: a warder's too, as the caster whose model it wears
                 case EnemyKind.Guard: return Guard;
                 case EnemyKind.Boss: return Boss;
                 default: return Brute;

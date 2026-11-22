@@ -868,6 +868,7 @@ namespace Roguelike
                 else if (dev && keyboard[GuardKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Guard);
                 else if (dev && keyboard[CasterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Caster);
                 else if (dev && keyboard[BomberKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Bomber); // work order 073
+                else if (dev && keyboard[WarderKey].wasPressedThisFrame) SpawnWarder(keyboard.shiftKey.isPressed); // work order 079: with Shift, its pack
                 else if (dev && keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
                 else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
                 else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);
@@ -1055,7 +1056,7 @@ namespace Roguelike
             {
                 string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
                             + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
-                            + "\n" + CasterKey + " caster   " + BomberKey + " bomber" // work order 034: its own line, the line above being full; 073: the bomber
+                            + "\n" + CasterKey + " caster   " + BomberKey + " bomber   " + WarderKey + " warder (Shift: with a pack)" // work order 034: its own line, the line above being full; 073: the bomber; 079: the warder
                             + "\n" + PracticeFocusLine() // work order 025
                             + ToolsPracticeLine // work order 084
                             + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");

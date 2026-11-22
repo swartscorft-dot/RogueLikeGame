@@ -205,6 +205,16 @@ namespace Roguelike.Rules
         public int BlastEnemiesHurt;
         /// <summary>Enemies killed by a bomber's blast.</summary>
         public int BlastKills;
+
+        // The warders (work order 079), whole session: wards raised (on), wards broken and why, the damage the wards took off
+        // her hits ("warded away"), warders killed.
+        public int WardsRaised;
+        public int WardsBroken;
+        public int WardsBrokenByKill;
+        public int WardsBrokenByStagger;
+        public int WardsBrokenByDistance;
+        public int WardedAway;
+        public int WardersKilled;
         /// <summary>The frame times (work order 074): empty for a log from before them, and then the summary has no block of them.</summary>
         public FrameTimesStats Frames = new FrameTimesStats();
         /// <summary>The room lab's rooms (work order 084, <see cref="LabRoomsSummary"/>): empty for a session without the lab.</summary>
@@ -418,6 +428,7 @@ namespace Roguelike.Rules
             stats.InFights.CoverSeconds = (float)Overlap(stats.CoverSpans, stats.FightSpans);
             stats.Kit = ComputeKit(events, start, kit);
             ComputeBombers(events, stats); // work order 073
+            ComputeWarders(events, stats); // work order 079
             stats.Frames = FrameTimesSummary.Compute(events); // work order 074
             stats.LabRooms = LabRoomsSummary.Compute(events); // work order 084
             return stats;
@@ -444,6 +455,44 @@ namespace Roguelike.Rules
                          && e.Enemy != null && e.Enemy.EndsWith(Bomber, StringComparison.Ordinal))
                     stats.BomberBlastsOnHer++;
             }
+        }
+
+        /// <summary>
+        /// The warders (work order 079), whole session: wards raised (ward_raised), wards ended (ward_broken) by why, the damage
+        /// they took off her hits, and warders killed (an enemy_death of a warder).
+        /// </summary>
+        static void ComputeWarders(List<SessionEvent> events, SessionStats stats)
+        {
+            const string Warder = "warder";
+            foreach (SessionEvent e in events)
+            {
+                if (e.Type == SessionEventTypes.WardRaised) stats.WardsRaised++;
+                else if (e.Type == SessionEventTypes.WardBroken)
+                {
+                    stats.WardedAway += e.Damage ?? 0;
+                    string why = e.ExtraValue("why");
+                    if (why == SessionWords.WardAllyGone || why == SessionWords.WardWentHome) continue;
+                    stats.WardsBroken++;
+                    if (why == SessionWords.WarderKilled) stats.WardsBrokenByKill++;
+                    else if (why == SessionWords.WarderStaggered) stats.WardsBrokenByStagger++;
+                    else if (why == SessionWords.WardTooFar) stats.WardsBrokenByDistance++;
+                }
+                else if (e.Type == SessionEventTypes.EnemyDeath && e.Enemy != null && e.Enemy.EndsWith(Warder, StringComparison.Ordinal))
+                    stats.WardersKilled++;
+            }
+        }
+
+        /// <summary>The warders' lines (work order 079), only in a log that has a ward in it.</summary>
+        static void WriteWarders(StringBuilder sb, SessionStats stats)
+        {
+            if (stats.WardsRaised <= 0) return;
+            sb.AppendLine();
+            var t = new Table("Warders, whole session", "");
+            t.Add("Wards raised / broken", stats.WardsRaised + " / " + stats.WardsBroken);
+            t.Add("Broken by its death / stagger / distance", stats.WardsBrokenByKill + " / " + stats.WardsBrokenByStagger + " / " + stats.WardsBrokenByDistance);
+            t.Add("Warded away (damage)", Int(stats.WardedAway));
+            t.Add("Warders killed", Int(stats.WardersKilled));
+            t.Write(sb);
         }
 
         /// <summary>The bombers' lines (work order 073), only in a log that has a blast in it.</summary>
@@ -1280,6 +1329,7 @@ namespace Roguelike.Rules
                 gd.Write(sb);
             }
             WriteBombers(sb, stats); // work order 073
+            WriteWarders(sb, stats); // work order 079
             LabRoomsSummary.Write(sb, stats.LabRooms); // work order 084: nothing without the lab
             FrameTimesSummary.Write(sb, stats.Frames); // work order 074: its own block, under every line before it
             return sb.ToString();

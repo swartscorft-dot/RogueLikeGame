@@ -58,6 +58,14 @@ namespace Roguelike
         public event Action DazeEnded;
         public bool IsDazed => (Stagger != null && Stagger.IsDazed(Time.time)) || Time.time < _dazedUntil;
 
+        /// <summary>
+        /// The share of every hit a warder's ward takes off while it is on (work order 079, <see cref="WarderRules.Lessened"/>):
+        /// 0, no ward. Set and cleared by the warder; one rule for every hit, hers and a bomber's blast.
+        /// </summary>
+        [NonSerialized] public float WardShare;
+        /// <summary>Raised after a hit the ward lessened, with the damage it took off (work order 079): the shell flashes, the log counts.</summary>
+        public event Action<int> Warded;
+
         // Work order 015 (2026-11-20).
         readonly Tag _tag = new Tag();
         float _dazedUntil = float.NegativeInfinity;
@@ -124,7 +132,10 @@ namespace Roguelike
                 if (Stagger.Tick(now)) DazeEnded?.Invoke();
                 damage = Stagger.Scale(damage, now);
             }
+            int full = damage;
+            if (WardShare > 0f) damage = WarderRules.Lessened(damage, WardShare); // work order 079: a ward on it
             int applied = _health.TakeDamage(damage);
+            if (full > damage && applied > 0) Warded?.Invoke(full - damage);
             if (applied > 0)
             {
                 HitsTaken++;
