@@ -39,9 +39,68 @@ namespace Roguelike.Rules
         public int LidReach = 2;           // cells from the nearest floor that get a rock top; past them, the earth's black
         public float LidJitter = 0.3f;     // m, at most, a corner of the top's facets sinks under its height
         public float LidShade = 0.3f;      // how far down the rock's fade the top starts at the wall (0 the rock's foot colour, 1 black)
+        // What the sight rule guards besides her room's floor (work order 083; 076's rule is both false, the cells past the doors guarded):
+        public bool GuardDoorCells = true;  // the first cell past each of her room's doors (076: where an enemy comes in); the dark look leaves it to the tall walls ("another zone")
+        public bool GuardHerAndDoors = false; // her body, feet and head, wherever she stands, and the openings of her room's doors
 
         // 3. The treasure room's gold
         public bool NoGoldHeaps = true;    // the vault's two large coin heaps beside the chest's dais (work order 052) are not placed; the chest, its dais, its gold light, the code-made heaps on the dais and the spilled coins stay
+
+        // The look (work order 083, "the cave, second attempt"; Kristian, 2026-11-22, on 076's pictures: "når jeg ser
+        // skjermbildene av nye "hule" følelsen så ser det ikke bra ut. Hva er det poe2 og diablo gjør ... Er kameraet mer zoomet
+        // inn og veggene høyere?"). Before: the floor as it was before 076 (no CaveView; the gold heaps rule above still holds).
+        // Rock: 076's look (the rock faces and tops above, by their own switches). Dark: the far walls tall, the near walls a
+        // lip, a black cap on every wall, nothing outside the walls but the earth's black, and the picture falling to black
+        // toward its edges. Read when a floor is built.
+        public CaveLook Look = CaveLook.Dark;
+        public float HerHeight = 1.8f;     // m, her model's height (CombatEffects' fallback for her top): the heights below are in it
+        public float FarHeight = 5.4f;     // m a far wall's face rises to (the order's first guess: three times her height; try 2.5 to 4 times); the kit's wall is about 3 m
+        public float LipHeight = 0.45f;    // m a near wall is cut to (the order's first guess: a quarter of her height); the kit's low wall is about 1 m
+        public bool DoorPostsStand = true; // the posts at the two ends of a door in a near wall keep the kit's height, so that the door reads (the order: "the door's frame may stand taller than the lip")
+        public float FarSightMargin = 0.2f; // m a far wall stays under any line from the camera to her own room's floor, her body or her doors that today's walls leave free; held, it stays at the kit's height
+        public float FarReach = 0.35f;     // m from its line into the room that a far wall is taken to reach, for that rule: the kit's wall and its stacked piece are about 0.3 m either side
+        public float UpperTint = 0.85f;    // the stacked stone over the kit's wall: the kit's own texture times this, no glow (round 1's pictures: 0.6 under the veil read as black)
+        public float FadeFrom = 2.4f;      // m: up to here a far wall is as lit as the kit's; from here it darkens to black at its top (round 1's pictures: from 1.6 the face read as a black band, not as stone)
+        public float FadePower = 1f;       // how it darkens up its height: 1 evenly, more sooner (round 1: 1.4)
+        public float BlockTop = 0.5f;      // the tops of the carved cells walled in on every side (work order 051's caps) in the kit's stone times this, not the earth's black (round 1's pictures: black, they read as pits; round 2: 0.3 still read dark as a hole); 0 black
+        public float CapBack = 0.6f;       // m the black cap reaches past a wall's back where nothing stands behind it ("a flat black cap that runs back into the darkness")
+        public float Falloff = 0.62f;      // the falloff's reach: how far out from the picture's middle it stays as lit as the game draws it, a share of the half-diagonal (1: no falloff)
+        public float FalloffDark = 0.85f;  // how dark the picture's corners go (0 not at all, 1 black)
+    }
+
+    /// <summary>Which look the cave has (work order 083): before 076, 076's rock, or the far walls tall and the edge dark.</summary>
+    public enum CaveLook { Before, Rock, Dark }
+
+    /// <summary>
+    /// Which wall faces are far and which near for the game's camera (work order 083). The camera looks along its yaw (0: north,
+    /// as <c>CameraRig</c> stands it) and down at its pitch. A wall face toward a room is NEAR when it looks the way the
+    /// camera looks (it stands between the camera and the room: the room's south side for yaw 0), and FAR otherwise: the
+    /// north side, whose face is toward the camera, and the east and west sides, which the camera sees from inside the room
+    /// and whose tops lean out of the picture away from her. A section is near if it is near for any room it bounds, so she is
+    /// never behind stone; for yaw 0 that is the crypt kit's own low walls (<see cref="CryptKitSection.Low"/>). Plain data.
+    /// </summary>
+    public static class CaveWalls
+    {
+        /// <summary>The game's camera yaw in degrees: CameraRig turns it only by its pitch.</summary>
+        public const float GameYaw = 0f;
+        /// <summary>A face is near when its normal and the camera's look on the ground are closer than this (cosine of 60 degrees).</summary>
+        public const double NearCosine = 0.5;
+
+        /// <summary>Is the face of a wall on a cell edge toward the room on side <paramref name="side"/> (+1 east or north, -1 west or south) near?</summary>
+        public static bool IsNearFace(bool vertical, int side, float yawDegrees)
+        {
+            double yaw = yawDegrees * Math.PI / 180.0;
+            double fx = Math.Sin(yaw), fz = Math.Cos(yaw);
+            double nx = vertical ? side : 0, nz = vertical ? 0 : side;
+            return nx * fx + nz * fz > NearCosine;
+        }
+
+        /// <summary>Is the section near (for any room it bounds) for a camera at this yaw?</summary>
+        public static bool IsNear(CryptKitSection s, float yawDegrees) =>
+            (s.RoomMinus >= 0 && IsNearFace(s.Vertical, -1, yawDegrees)) || (s.RoomPlus >= 0 && IsNearFace(s.Vertical, 1, yawDegrees));
+
+        /// <summary>Far: a full section of the kit that is near for no room it bounds.</summary>
+        public static bool IsFar(CryptKitSection s, float yawDegrees) => !IsNear(s, yawDegrees);
     }
 
     /// <summary>
@@ -286,6 +345,7 @@ namespace Roguelike.Rules
         // Her places: four a side of every cell (three a side let the rock hide floor from two places of the sight test's).
         static readonly double[] s_her = { 0.5, 1.5, 2.5, 3.5 };
         static readonly double[] s_floor = { 0.5, 2.0, 3.5 };
+        static readonly double[] s_floorFine = { 0.1, 0.8, 1.6, 2.4, 3.2, 3.9 }; // work order 083
         // A cell past a door, to its edges: the floor beyond it is not guarded, so no other sample stands near its far side.
         static readonly double[] s_door = { 0.1, 1.0, 2.0, 3.0, 3.9 };
 
@@ -333,6 +393,18 @@ namespace Roguelike.Rules
                 return list;
             }
             double cs = Layout.CellSize;
+            if (_v.GuardHerAndDoors)
+            {
+                // Work order 083: the openings of her space's doors, along the door's line, are never covered.
+                foreach (LevelDoor d in Layout.Doors)
+                {
+                    if (!d.Joins(space)) continue;
+                    d.Opening(cs, out LevelPoint a, out LevelPoint b);
+                    for (int k = 0; k <= 4; k++)
+                        list.Add(new LevelPoint(a.X + (b.X - a.X) * (0.1 + 0.2 * k), a.Y + (b.Y - a.Y) * (0.1 + 0.2 * k)));
+                }
+            }
+            if (!_v.GuardDoorCells) return list;
             foreach (LevelDoor d in Layout.Doors)
             {
                 if (!d.Joins(space)) continue;
@@ -358,16 +430,57 @@ namespace Roguelike.Rules
             for (int s = 0; s < n; s++)
             {
                 CaveSight.Shown(Layout, s, shown);
-                List<LevelPoint> targets = Guarded(s, shown, s_floor, s_door);
+                // The dark look samples its floor finer (six a side): its walls stand on her room's own outline, and a floor
+                // point a quarter metre from a pier's corner is where a tall wall's end grazes a line of sight.
+                List<LevelPoint> targets = Guarded(s, shown, _v.GuardHerAndDoors ? s_floorFine : s_floor, s_door);
                 foreach (LevelPoint her in herBySpace[s])
+                {
                     foreach (LevelPoint t in targets)
                     {
                         if (!InView(her, t)) continue;
                         Rays++;
                         if (Ray(her, t, shown, true)) Lowered++;
                     }
+                    if (!_v.GuardHerAndDoors) continue;
+                    // Work order 083: her body where she stands, her feet and her head.
+                    Rays += 2;
+                    if (Ray(her, her, shown, true)) Lowered++;
+                    if (Ray(her, her, shown, true, _v.HerHeight)) Lowered++;
+                }
             }
         }
+
+        /// <summary>
+        /// The far walls of the dark look (work order 083): every full section that is far for the game's camera
+        /// (<see cref="CaveWalls"/>) rises to <see cref="CaveValues.FarHeight"/>, held at the kit's height wherever it would
+        /// stand between the camera and her, her room's floor or the openings of its doors on a line that the look's other
+        /// walls leave free (its near walls are <see cref="CaveValues.LipHeight"/>); the cells past the doors and the rooms
+        /// behind are not guarded: a tall wall covering them is wanted ("another zone"). No rock tops. Plain data.
+        /// </summary>
+        public static CaveRise MakeDark(LevelLayout layout, CryptKitPlan kit, CaveValues v, float wallTop, float pitch, float distance)
+        {
+            v = v ?? new CaveValues();
+            return Make(layout, kit, DarkRules(v), wallTop, Math.Min(wallTop, v.LipHeight), pitch, distance);
+        }
+
+        /// <summary>The values the dark look's rule runs on: 076's rule with the far height, its own margin and reach, and its own guards.</summary>
+        public static CaveValues DarkRules(CaveValues v) => new CaveValues
+        {
+            TallWalls = true,
+            RiseHeight = v.FarHeight,
+            SightMargin = v.FarSightMargin,
+            RockReach = v.FarReach,
+            MinRise = v.MinRise,
+            GuardNeighbours = false,
+            GuardDoorCells = false,
+            GuardHerAndDoors = true,
+            HerHeight = v.HerHeight,
+            RockLids = false,
+            LidReach = 0,
+            FarHeight = v.FarHeight,
+            LipHeight = v.LipHeight,
+            Look = CaveLook.Dark,
+        };
 
         // A ray's crossings, nearest the floor point first: the edge's place in the arrays and how far from the point.
         readonly int[] _hitEdge = new int[64];
@@ -388,14 +501,15 @@ namespace Roguelike.Rules
         /// do not: with <paramref name="lower"/>, every shown rock that would reach within the margin of the line is lowered to
         /// keep under it (true if any was); without, true when a shown rock or wall of the cave hides it.
         /// </summary>
-        bool Ray(LevelPoint her, LevelPoint t, bool[] shown, bool lower)
+        bool Ray(LevelPoint her, LevelPoint t, bool[] shown, bool lower, double th = 0.0)
         {
             double cx = her.X, cy = her.Y - CameraBack;
             double dx = cx - t.X, dy = cy - t.Y, len = Math.Sqrt(dx * dx + dy * dy);
-            if (len < 1e-6) return false;
-            double ux = dx / len, uy = dy / len, slope = CameraHeight / len;
+            if (len < 1e-6 || th >= CameraHeight) return false;
+            // The line from the point, th over the floor (0 the floor, her head for work order 083), up to the camera.
+            double ux = dx / len, uy = dy / len, slope = (CameraHeight - th) / len;
             double reach = _v.RockReach, margin = _v.SightMargin;
-            double far = Math.Min(len, (Math.Max(_v.RiseHeight, WallTop) + margin) / slope + reach);
+            double far = Math.Min(len, Math.Max(0.0, Math.Max(_v.RiseHeight, WallTop) + margin - th) / slope + reach);
             double cs = Layout.CellSize;
             int hits = 0;
             // Vertical lines.
@@ -439,7 +553,7 @@ namespace Roguelike.Rules
                 if (_hitEnd[h]) continue;
                 int e = _hitEdge[h];
                 float today = e < _todayV.Length ? _todayV[e] : _todayH[e - _todayV.Length];
-                if (today > slope * _hitAt[h]) return false;
+                if (today > th + slope * _hitAt[h]) return false;
             }
             bool any = false;
             for (int h = 0; h < hits; h++)
@@ -452,7 +566,7 @@ namespace Roguelike.Rules
                 float today = v ? _todayV[j] : _todayH[j];
                 float cave = v ? _riseV[j] : _riseH[j];
                 if (cave <= today) continue;
-                double keep = slope * Math.Max(0.0, _hitAt[h] - reach) - margin; // the rock's top must stay under this
+                double keep = th + slope * Math.Max(0.0, _hitAt[h] - reach) - margin; // the rock's top must stay under this
                 if (cave <= keep) continue;
                 if (!lower) return true;
                 float to = (float)Math.Max(today, keep);
@@ -463,7 +577,7 @@ namespace Roguelike.Rules
             // The rock tops over the cells the line passes over near the floor (every one taken as drawn), cell by cell from the
             // floor point, each at the line's height where it enters the cell (its lowest over it): one that would stand within
             // the margin of the line is lowered to the low walls' height, or to a rock floor if even that would.
-            if (_lid != null)
+            if (_lid != null && th <= 0.0)
             {
                 double lidFar = Math.Min(len, (WallTop + margin) / slope);
                 double px = t.X / cs, py = t.Y / cs;
@@ -520,12 +634,18 @@ namespace Roguelike.Rules
         /// her space with <paramref name="shown"/> drawn, where today's walls leave it seen? (The rock taken at its reach, but with
         /// no margin: the rule's margin is what the test has in hand.)
         /// </summary>
-        public bool NewlyHidden(LevelPoint her, LevelPoint t, bool[] shown)
+        public bool NewlyHidden(LevelPoint her, LevelPoint t, bool[] shown) => NewlyHidden(her, t, shown, 0.0);
+
+        /// <summary>As <see cref="NewlyHidden(LevelPoint, LevelPoint, bool[])"/>, for a point <paramref name="height"/> over the floor (her head, work order 083).</summary>
+        public bool NewlyHidden(LevelPoint her, LevelPoint t, bool[] shown, double height)
         {
             double m = _v.SightMargin;
             _v.SightMargin = 0f;
-            try { return Ray(her, t, shown, false); }
+            try { return Ray(her, t, shown, false, height); }
             finally { _v.SightMargin = (float)m; }
         }
+
+        /// <summary>The values the rule ran on (for the dark look, <see cref="DarkRules"/>).</summary>
+        public CaveValues Rules => _v;
     }
 }

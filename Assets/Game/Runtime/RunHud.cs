@@ -55,8 +55,9 @@ namespace Roguelike
         /// The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch. CameraKick (work
         /// order 064): the camera's kick when she fires, on or off. Attachments (work order 060): her pistols' parts' switch,
         /// last (RunHudWeapon.cs). Greybox (work order 084): the greybox view, on or off, shown under the camera kick.
+        /// CameraDistance (work order 083): the camera's distance, 28, 25 or 22 m, beside the kick.
         /// </summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -251,6 +252,7 @@ namespace Roguelike
                 case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
                 case MenuLine.CameraKick: ChangeSetting(line, 1); break; // work order 064
                 case MenuLine.Greybox: ChangeSetting(line, 1); break; // work order 084
+                case MenuLine.CameraDistance: ChangeSetting(line, 1); break; // work order 083
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
                 case MenuLine.Attachments: ChangeSetting(line, 1); break; // work order 060
             }
@@ -292,6 +294,11 @@ namespace Roguelike
             if (line == MenuLine.BetweenRuns)
             {
                 BetweenRunsSwitch.Set(!BetweenRunsOn); // either way it flips (work order 029)
+                return true;
+            }
+            if (line == MenuLine.CameraDistance)
+            {
+                StepCameraDistance(delta); // work order 083 (RunHudCamera.cs)
                 return true;
             }
             if (line == MenuLine.Attachments)
@@ -432,7 +439,8 @@ namespace Roguelike
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
             _menu.Add(MenuLine.CameraKick); // work order 064: the camera's kick when a shot goes off
-            _menu.Add(MenuLine.Greybox); // work order 084: the greybox view, beside the camera kick
+            _menu.Add(MenuLine.CameraDistance); // work order 083: the camera's distance, beside the kick
+            _menu.Add(MenuLine.Greybox); // work order 084: the greybox view, under the camera's two lines
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
             _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
@@ -453,6 +461,7 @@ namespace Roguelike
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
                 case MenuLine.CameraKick: return GameSettings.CameraKick ? "Camera kick:  on" : "Camera kick:  off"; // work order 064
                 case MenuLine.Greybox: return GameSettings.Greybox ? "Greybox view:  on" : "Greybox view:  off"; // work order 084
+                case MenuLine.CameraDistance: return CameraDistanceText; // work order 083 (RunHudCamera.cs)
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
@@ -728,6 +737,7 @@ namespace Roguelike
                 bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns
                                || line == MenuLine.CameraKick    // work order 064
                                || line == MenuLine.Greybox       // work order 084
+                               || line == MenuLine.CameraDistance // work order 083
                                || line == MenuLine.Attachments;  // work order 060
                 if (setting)
                 {

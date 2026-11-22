@@ -301,7 +301,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Pause(), Is.True);
             yield return null;
             List<RunHud.MenuLine> lines = _hud.MenuLines.ToList();
-            Assert.That(lines.IndexOf(RunHud.MenuLine.Greybox), Is.EqualTo(lines.IndexOf(RunHud.MenuLine.CameraKick) + 1), "its line, under the camera kick");
+            Assert.That(lines.IndexOf(RunHud.MenuLine.Greybox), Is.EqualTo(lines.IndexOf(RunHud.MenuLine.CameraDistance) + 1), "its line, under the camera's two lines (the kick, then work order 083's distance)");
             Assert.That(lines.Last(), Is.EqualTo(RunHud.MenuLine.Attachments), "the attachments' line still last");
             Assert.That(_hud.MenuText(RunHud.MenuLine.Greybox), Is.EqualTo("Greybox view:  off"), "off by default");
             Assert.That(_hud.ChangeSetting(RunHud.MenuLine.Greybox, 1), Is.True);

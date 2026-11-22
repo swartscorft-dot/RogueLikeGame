@@ -175,7 +175,8 @@ namespace Roguelike
             // Work order 044: the rooms' mood, last, beside the level (RoomMood); off, the floor is as before.
             if (values.RoomMood) level.Mood = RoomMood.Add(level, level.LargePropsPlan);
             // Work order 076: the room as a cave, after everything it shows and hides is there; off, the floor looks as before.
-            if (values.Cave) level.Cave = CaveView.Add(level);
+            // Work order 083: its look Before is the floor as it was before 076 (no CaveView).
+            if (values.Cave && (values.CaveRules == null || values.CaveRules.Look != CaveLook.Before)) level.Cave = CaveView.Add(level);
             return level;
         }
 

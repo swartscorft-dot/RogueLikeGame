@@ -27,6 +27,7 @@ namespace Roguelike
         public const string DamageNumbersKey = "Roguelike.Settings.DamageNumbers";
         public const string CameraKickKey = "Roguelike.Settings.CameraKick"; // work order 064: 1 on (the default), 0 off
         public const string GreyboxKey = "Roguelike.Settings.Greybox"; // work order 084: 1 on, 0 off (the default)
+        public const string CameraDistanceKey = "Roguelike.Settings.CameraDistance"; // work order 083: the step, 0 the feel's own distance (the default), 1 25 m, 2 22 m
 
         static bool s_loaded;
         static int s_dash = SettingsRules.NoOverride;
@@ -34,6 +35,7 @@ namespace Roguelike
         static int s_numbers = FeedbackRules.NoOverride;
         static bool s_kick = true;
         static bool s_greybox; // work order 084
+        static int s_distanceStep;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -44,6 +46,7 @@ namespace Roguelike
             s_numbers = FeedbackRules.NoOverride;
             s_kick = true;
             s_greybox = false; // work order 084
+            s_distanceStep = 0;
         }
 
         public static bool IsLoaded => s_loaded;
@@ -61,6 +64,7 @@ namespace Roguelike
             s_numbers = FeedbackRules.StoredNumbers(PlayerPrefs.GetInt(DamageNumbersKey, FeedbackRules.NoOverride));
             s_kick = PlayerPrefs.GetInt(CameraKickKey, 1) != 0;
             s_greybox = PlayerPrefs.GetInt(GreyboxKey, 0) != 0; // work order 084
+            s_distanceStep = CameraDistanceSteps.Step(PlayerPrefs.GetInt(CameraDistanceKey, 0));
             s_loaded = true;
             AudioListener.volume = SettingsRules.Volume(s_volume);
         }
@@ -127,6 +131,24 @@ namespace Roguelike
             s_greybox = on;
             if (!keep) return;
             PlayerPrefs.SetInt(GreyboxKey, on ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>
+        /// The camera's distance step (work order 083: "Er kameraet mer zoomet inn"): 0 the feel's own distance (28 m), 1 and 2
+        /// closer (<see cref="CameraDistanceSteps"/>), stepped in the pause menu beside the camera's kick.
+        /// </summary>
+        public static int CameraDistanceStep => s_distanceStep;
+
+        /// <summary>The camera's distance in use: the step's, or <paramref name="feelDistance"/> at step 0.</summary>
+        public static float CameraDistance(float feelDistance) => CameraDistanceSteps.Distance(s_distanceStep, feelDistance);
+
+        /// <summary>Sets the camera's distance step and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void SetCameraDistanceStep(int step, bool keep = true)
+        {
+            s_distanceStep = CameraDistanceSteps.Step(step);
+            if (!keep) return;
+            PlayerPrefs.SetInt(CameraDistanceKey, s_distanceStep);
             PlayerPrefs.Save();
         }
 
