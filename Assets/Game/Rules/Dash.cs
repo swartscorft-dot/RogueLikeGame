@@ -51,6 +51,20 @@ namespace Roguelike.Rules
         }
 
         /// <summary>
+        /// Takes this many seconds off a running cooldown, no more than it has left, as <see cref="Cooldown.CutSeconds"/> does
+        /// (work order 071: while spent focus's gains run, the dash's cooldown runs faster). Returns the seconds cut.
+        /// </summary>
+        public float CutCooldownSeconds(float now, float seconds)
+        {
+            if (_maxCharges > 1) return _charges.CutSeconds(now, seconds);
+            float left = CooldownRemaining(now);
+            if (left <= 0f || seconds <= 0f) return 0f;
+            float cut = left < seconds ? left : seconds;
+            _readyAt -= cut;
+            return cut;
+        }
+
+        /// <summary>
         /// Starts a dash if it may. <paramref name="cooldownShare"/> is the share of the feel's cooldown it runs (work order
         /// 017: the run's chest steps cut it; 1 outside a run).
         /// </summary>

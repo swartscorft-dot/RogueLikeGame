@@ -574,6 +574,60 @@ namespace Roguelike
         public float FocusBarFill => _focus.BarFill(Time.time, Identity);
         public bool IsDashing => _dashing;
 
+        // ---------------- The gains of spent focus (work order 071, 2026-11-21) ----------------
+
+        /// <summary>
+        /// True while spent focus makes her stronger (<see cref="FocusGains"/>): in the window of today's gauge and of Steady
+        /// Hand, and with Hair Trigger for a part's seconds after each part spent. Her shots look and sound empowered for as long.
+        /// </summary>
+        public bool IsFocusBoosted => _focus.IsBoosted(Time.time);
+        /// <summary>Seconds of the gains left, and how long those running were given for (for the effects' last second).</summary>
+        public float FocusBoostRemaining => _focus.BoostRemaining(Time.time);
+        public float FocusBoostSeconds => _focus.BoostSeconds;
+        /// <summary>
+        /// True while focus is ready and unspent (work order 071: "ready" on her, not only on the interface): a full gauge, or
+        /// with Hair Trigger at least one full part; never while the gains run.
+        /// </summary>
+        public bool IsFocusReady => !IsFocusBoosted && !IsEmpowered && (FocusMode == FocusMode.HairTrigger ? FocusPartsFull >= 1 : IsFocusFull);
+        /// <summary>Her damage times this now from focus: the window's multiplier and the gains'.</summary>
+        public float FocusDamageMultiplier => _focus.DamageMultiplier(Time.time, Identity);
+        /// <summary>Her basic shot's rate times this now from the gains; 1 outside them.</summary>
+        public float FocusFireRate => FocusGains.FireRate(IsFocusBoosted, Identity);
+        /// <summary>Her run speed times this now from the gains; 1 outside them.</summary>
+        public float FocusMoveScale => FocusGains.MoveScale(IsFocusBoosted, Identity);
+        /// <summary>How many times as fast the slot's cooldown runs now: the gains' rate, never past the run's floor (work order 065).</summary>
+        public float FocusCooldownRate(int slot)
+        {
+            if (!IsFocusBoosted) return 1f;
+            SkillDefinition skill = slot >= 0 && slot < Skills.Count ? Skills[slot] : null;
+            float share = Modifiers != null && skill != null ? Modifiers.CooldownShare(skill.Name) : 1f;
+            return FocusGains.CooldownRate(true, Identity, share, Modifiers != null ? Modifiers.CooldownFloor : 0f);
+        }
+        /// <summary>The same for the dash's cooldown (her dash steps and the rack's Spare Step make its share).</summary>
+        float FocusDashCooldownRate =>
+            FocusGains.CooldownRate(IsFocusBoosted, Identity, Modifiers != null ? Modifiers.DashCooldownShare : 1f, Modifiers != null ? Modifiers.CooldownFloor : 0f);
+
+        float _gainsTickedAt = float.NaN; // the game time the gains last ran the cooldowns to
+
+        /// <summary>
+        /// Each frame: while the gains run, every running cooldown, the dash's too, runs faster (work order 071): the
+        /// seconds the gains ran since the last frame, times the rate less one, come off what is left. Nothing is allocated.
+        /// </summary>
+        void TickFocusGains(float now)
+        {
+            float from = float.IsNaN(_gainsTickedAt) || _gainsTickedAt > now ? now : _gainsTickedAt;
+            _gainsTickedAt = now;
+            float boosted = _focus.BoostedSeconds(from, now);
+            if (boosted <= 0f) return;
+            for (int slot = 0; slot < _cooldowns.Count; slot++)
+            {
+                float extra = FocusGains.ExtraCooldownSeconds(boosted, FocusCooldownRate(slot));
+                if (extra > 0f) CooldownFor(slot).CutSeconds(now, extra);
+            }
+            float dash = FocusGains.ExtraCooldownSeconds(boosted, FocusDashCooldownRate);
+            if (dash > 0f) _dash.CutCooldownSeconds(now, dash);
+        }
+
         // ---------------- The focus choice (work order 025, 2026-11-20) ----------------
 
         /// <summary>
@@ -724,8 +778,11 @@ namespace Roguelike
             return Modifiers != null ? skill.Cooldown * Modifiers.CooldownShare(skill.Name) : skill.Cooldown;
         }
 
-        /// <summary>The share of the feel's run speed she runs at: 1, more with the run's upgrades.</summary>
-        public float RunSpeedShare => Modifiers != null ? Modifiers.RunSpeedShare : 1f;
+        /// <summary>
+        /// The share of the feel's run speed she runs at: 1, more with the run's upgrades; work order 071: times the gains'
+        /// (<see cref="FocusMoveScale"/>, 1.1) while spent focus's gains run.
+        /// </summary>
+        public float RunSpeedShare => (Modifiers != null ? Modifiers.RunSpeedShare : 1f) * FocusMoveScale;
 
         /// <summary>Basic shot hits counted toward the next mark.</summary>
         public int BasicShotsTowardMark => _basicMarks.Counted;
@@ -757,19 +814,49 @@ namespace Roguelike
         /// <summary>
         /// The clean part of the open window, in seconds after it opened (<see cref="CleanPart.Of"/>: early, or with
         /// <see cref="KitValues.CleanEarly"/> off the last share); primed (work order 025) the whole window; none when the next
-        /// press cannot be clean.
+        /// press cannot be clean (the skill has no clean press, or the chain is complete).
+        /// Work order 069: every press of the chain has its own (the quick presses' early, the last's a beat later), so this is
+        /// the part of the press whose window is open now, or comes next, whichever press of the chain it is; before, only the
+        /// last press's (the presses before it showed none, "veldig utydlig når skal skje"); with the rhythm's switch off
+        /// (<see cref="KitValues.ChainRhythm"/>) still only the last's, as this morning.
         /// </summary>
         public CleanPart RecastCleanPart =>
-            _chain.Slot >= 0 && _chain.NextIsLast && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot])
-                ? (_chainPrimed ? CleanPart.Whole(_chain.Window) : ChainCleanPart) : default; // work order 064: after a hop, its own
+            _chain.Slot >= 0 && !_chain.IsComplete && _chain.Slot < Skills.Count && RecastChain.HasCleanPress(Skills[_chain.Slot]) && ShowsThisPress
+                ? (_chainPrimed && _chain.NextIsLast ? CleanPart.Whole(_chain.Window) : ChainCleanPart) : default; // work order 064: after a hop, its own
 
         /// <summary>
-        /// The clean part of the running chain's window as the kit places it (work order 064: after a hop, its own), widened by
-        /// her Wide window (work order 067; 0 outside a run or with the stats off): the ONE place the judging
-        /// (<see cref="JudgeRecast"/>, a press's rhythm in <see cref="Recast"/>) and everything that shows it
-        /// (<see cref="RecastCleanPart"/>: the cast blade, the strip's box, the signs) read it.
+        /// The clean part of the running chain's next press as the kit places it (work order 064: after a hop, its own; work
+        /// order 069: each press its own, <see cref="RecastRhythm"/>), widened by her Wide window (work order 067; 0 outside a run
+        /// or with the stats off): the ONE place the judging (<see cref="JudgeRecast"/>, a press's rhythm in <see cref="Recast"/>)
+        /// and everything that shows it (<see cref="RecastCleanPart"/>: the cast blade, the strip's box, the signs) read it.
         /// </summary>
-        CleanPart ChainCleanPart => CleanPart.Of(Kit, _chain.Window, _chain.OpenedWithMove, WideWindowNow);
+        CleanPart ChainCleanPart => ChainBeat.Clean;
+
+        /// <summary>True when the press open now is shown (work order 069): every press with the rhythm on, only the last with it off (this morning's).</summary>
+        bool ShowsThisPress => _chain.NextIsLast || Kit.ChainRhythm;
+
+        /// <summary>The running chain's next press: its window and clean part (work order 069, <see cref="RecastRhythm.Press(KitValues, float, bool, int, int, float)"/>); the default with no chain.</summary>
+        RecastBeat ChainBeat =>
+            _chain.Slot >= 0 && _chain.Slot < Skills.Count && Skills[_chain.Slot] != null
+                ? RecastRhythm.Press(Kit, Skills[_chain.Slot].RecastWindow, _chain.OpenedWithMove, _chain.Shots + 1, _chain.Count, WideWindowNow) : default;
+
+        // Work order 069: what work order 068's combo bar reads: the whole chain on one time line. They read only.
+        /// <summary>
+        /// The chain running on one time line (<see cref="Roguelike.Rules.RecastLine"/>): for each press 2 to
+        /// <see cref="Roguelike.Rules.RecastLine.Count"/> its window and clean part from the shot before it (<see cref="Roguelike.Rules.RecastLine.Beat"/>, as
+        /// judged: widened, primed), which press is next (<see cref="Roguelike.Rules.RecastLine.Next"/>), how long since the shot before it went
+        /// off (<see cref="Roguelike.Rules.RecastLine.SinceShotBefore"/>), and how each press made fell (<see cref="Roguelike.Rules.RecastLine.Timing"/>). The
+        /// default (<see cref="Roguelike.Rules.RecastLine.Any"/> false) with no chain running. Makes nothing.
+        /// </summary>
+        public RecastLine RecastLine =>
+            _chain.Slot >= 0 && _chain.Slot < Skills.Count ? RecastLine.Of(_chain, Skills[_chain.Slot], Kit, WideWindowNow, _chainPrimed, Time.time) : default;
+
+        /// <summary>The line of this slot's chain with none running (work order 069): every press's window and clean part as she has the skill now.</summary>
+        public RecastLine RecastLineOf(int slot) =>
+            slot >= 0 && slot < Skills.Count ? RecastLine.Of(Skills[slot], Kit, WideWindowNow) : default;
+
+        /// <summary>How press <paramref name="press"/> (2 on) of the latest chain fell (work order 069): kept after the chain ended, until the next one starts.</summary>
+        public RecastTiming RecastTimingOf(int press) => _chain.TimingOf(press);
         /// <summary>Seconds after the window opened that its clean part begins, and ends; both 0 when the next press cannot be clean.</summary>
         public float RecastCleanFrom => RecastCleanPart.From;
         public float RecastCleanTo => RecastCleanPart.To;
@@ -805,11 +892,29 @@ namespace Roguelike
         /// <summary>
         /// True when a press of the chain's key now would be clean: judged exactly as that press itself would be. Stunned,
         /// pulled or down in a quick duck a press waits and is judged as one that waited (the third review of 2026-11-20,
-        /// work order 047), so the signs and the tick follow that.
+        /// work order 047), so the signs and the tick follow that. Work order 069: for every press of the chain, the one open now:
+        /// the last press clean (a clean tap or spend), a press before it in its clean part (in rhythm, toward a full clean
+        /// chain), exactly as <see cref="Recast"/> records it (<see cref="RecastTiming.Clean"/>); before, only the last press.
         /// </summary>
         public bool RecastPressWouldBeClean =>
             _chain.Slot >= 0 && _chain.Slot < Skills.Count && !_chain.Expired(Time.time)
-            && JudgeRecast(_chain.Slot, Time.time, buffered: _held.IsHeld || _duck.IsDown) == RecastPress.Clean;
+            && ShowsThisPress && TimingOfRecast(_chain.Slot, Time.time, _held.IsHeld || _duck.IsDown) == RecastTiming.Clean;
+
+        /// <summary>
+        /// How a press of this slot's key now falls in the running chain (work order 069): the ONE judgement of a press's timing
+        /// that the record of the press (<see cref="Recast"/>) and what the interface is told (<see cref="RecastPressWouldBeClean"/>)
+        /// both read. The last press: clean when <see cref="JudgeRecast"/> says so; a press before it: clean in its clean part,
+        /// never one that waited. <paramref name="buffered"/>: the press waited from before the window opened.
+        /// </summary>
+        RecastTiming TimingOfRecast(int slot, float now, bool buffered)
+        {
+            if (slot < 0 || slot >= Skills.Count || _chain.Slot != slot) return RecastTiming.None;
+            bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
+            bool clean = _chain.NextIsLast
+                ? JudgeRecast(slot, now, buffered) == RecastPress.Clean
+                : hasClean && _chain.InCleanPart(slot, now, ChainCleanPart, buffered);
+            return RecastRhythm.TimingOf(_chain.SinceOpened(now), ChainCleanPart, clean, buffered, hasClean);
+        }
 
         /// <summary>
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
@@ -1171,14 +1276,22 @@ namespace Roguelike
         void Recast(int slot, Vector3 point, bool clean, bool buffered)
         {
             float now = Time.time;
-            // Work order 040: a press of the last shot after the clean part, in the window, was late (the word says so).
-            bool late = !clean && _chain.Slot == slot && RecastCleanPart.IsAfter(_chain.SinceOpened(now));
+            // Work order 069: how the press fell, by its own window's clean part (the one judgement the interface reads too).
+            // Work order 040: a press after the clean part, in the window, was late (the word says so for the last).
+            float since = _chain.SinceOpened(now);
+            RecastTiming timing = clean ? RecastTiming.Clean : TimingOfRecast(slot, now, buffered);
+            bool late = timing == RecastTiming.Late;
             // Work order 064: whether this press fell in its window's clean part, the last press or not (a full clean chain).
-            bool inRhythm = clean || _chain.InCleanPart(slot, now, ChainCleanPart, buffered); // work order 067: the one clean part
-            _chain.Recast(inRhythm);
+            bool inRhythm = timing == RecastTiming.Clean; // work order 067: the one clean part
+            _chain.Recast(inRhythm, timing);
+            if (!_chain.IsComplete) _chain.NextWindow(ChainBeat.Window); // work order 069: the next press's own window
             bool fullClean = MarkRules.IsFullCleanChain(Skills[slot], clean, _chain.Shots, _chain.AllInRhythm);
             float focus = clean ? GainFocus(Identity.FocusPerCleanTap) : 0f;
-            Report(new PlayerReport { Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus, Late = late });
+            Report(new PlayerReport
+            {
+                Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus, Late = late,
+                Timing = timing, Seconds = since, // work order 069
+            });
             if (_actionKind == ActionKind.Skill)
             {
                 ReportSkillEnded(SkillEnding.RanOut, now);
@@ -1204,7 +1317,9 @@ namespace Roguelike
         void ExpireChain(float now)
         {
             RunChainOnThroughHitStop();
-            if (_chain.Expired(now)) EndChain();
+            if (!_chain.Expired(now)) return;
+            _chain.MarkMissed(); // work order 069: the line of the chain shows the press missed
+            EndChain();
         }
 
         // Work order 038 (Kristian's answer of 2026-11-20: the recast window runs on real time). A hit stop froze the
@@ -1295,7 +1410,8 @@ namespace Roguelike
             FocusMode mode = FocusMode;
             FocusModeValues ways = FocusModeValues;
             // Work order 025: Hair Trigger spends one full part, with no window; Steady Hand a full gauge on a longer window.
-            bool started = mode == FocusMode.HairTrigger ? _focus.TrySpendPart(Identity, FocusParts)
+            // Work order 071: the window brings the gains; a part brings them for its own seconds (Long focus lengthens them).
+            bool started = mode == FocusMode.HairTrigger ? _focus.TrySpendPart(Identity, FocusParts, now, FocusGains.PartSeconds(ways, LongFocusNow))
                          : _focus.TryActivate(now, Identity, (mode == FocusMode.SteadyHand ? ways.WindowSeconds : Identity.EmpoweredDuration) * LongFocusNow); // work order 065: Long focus
             IntentResult result = started ? IntentResult.Started : IntentResult.Rejected;
             Report(new PlayerReport { Kind = PlayerReportKind.FocusPressed, Result = result, FocusMode = mode });
@@ -1521,6 +1637,7 @@ namespace Roguelike
             float now = Time.time;
             ApplyMovementFeel(feel);
             DropCooldownPressWhenHeldBack(); // work order 066
+            TickFocusGains(now); // work order 071: the cooldowns run faster while spent focus's gains run
             ExpireChain(now);
             BurstKegsOnFuse(now);
             if (_prime.TakeLapsed(now))
@@ -2046,7 +2163,9 @@ namespace Roguelike
         {
             if (!_buffer.TryPeek(out Press waiting)) return false;
             if (_duck.IsDown) return false; // waits out a quick duck, and is judged when she rises as at the end of a lock (work order 043)
-            if (waiting.Kind == PressKind.Skill && now < _skillGateUntil && !CutsRecovery(waiting.Slot)) return false; // waits out a free recovery (not Backstep's hop: work order 064)
+            // Work order 069: nor a recast press whose window has opened: it fires the instant it opens, as a press in the window
+            // does (PressSkill), not when the shot before's free recovery would have ended (0.1 s later for Triple Tap until then).
+            if (waiting.Kind == PressKind.Skill && now < _skillGateUntil && !CutsRecovery(waiting.Slot) && !RecastWindowOpenFor(waiting.Slot)) return false; // waits out a free recovery (not Backstep's hop: work order 064)
             FeelValues feel = Feel;
             // Work order 064: a press that waits for its cooldown waits while it is no older than the cooldown buffer (and the
             // ordinary buffer: a guard), and once the cooldown has ended it goes, judged good for the ordinary buffer from
@@ -2409,6 +2528,7 @@ namespace Roguelike
             {
                 EndChain(); // another skill starting ends a chain (decision 0005)
                 _chain.Start(slot, skill.RecastCount, skill.RecastWindow, skill.OpeningMove);
+                _chain.NextWindow(ChainBeat.Window); // work order 069: the second press's own window (RecastRhythm)
                 CooldownFor(slot).Start(Time.time, CooldownOf(slot));
                 TakePrime(slot, skill);
                 _useKillCut = _useDazeCut = false; // a new use: its kill and daze cuts may come once (work order 033)
@@ -2690,7 +2810,9 @@ namespace Roguelike
         void ReportHit(int slot, Damageable target, int damage, bool empowered, float focus, bool countered = false) =>
             Report(new PlayerReport
             {
-                Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered, Focus = focus, Countered = countered,
+                // Work order 071: a hit in a Hair Trigger part's gains counts as empowered too, so the log's "damage while
+                // empowered" is what the gains dealt in every way of the gauge.
+                Kind = PlayerReportKind.Hit, Slot = slot, Target = target, Damage = damage, Empowered = empowered || IsFocusBoosted, Focus = focus, Countered = countered,
                 Crit = _dealtCrit, // work order 050: of the Deal just before
             });
 
@@ -2728,6 +2850,9 @@ namespace Roguelike
         /// order 060: her pistols' parts first (a barrel's longer recovery), and her attack speed works on that as on the feel's.
         /// </summary>
         float BasicShotRecoveryNow(FeelValues f) =>
+            FocusGains.Recovery(f.BasicShotStartup, f.BasicShotActive, StatsRecovery(f), FocusFireRate, Identity.EmpoweredLeastRecovery); // work order 071: the gains' faster fire
+        /// <summary>The basic shot's recovery with her stats, before the gains of spent focus (work order 071): as before the order.</summary>
+        float StatsRecovery(FeelValues f) =>
             Modifiers != null ? Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive, WeaponRecovery(f)) : f.BasicShotRecovery;
         /// <summary>The basic shot's recovery as her pistols' parts make it, before her attack speed (work order 060): the feel's with none.</summary>
         float WeaponRecovery(FeelValues f) =>
@@ -2755,7 +2880,8 @@ namespace Roguelike
         }
 
         /// <summary>
-        /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005), and what
+        /// Deals damage to a target: times the empowered multiplier while empowered (1 since decision 0005) and, since work
+        /// order 071, the gains' while they run (<see cref="FocusGauge.DamageMultiplier"/>, 1.35), and what
         /// was dealt trickles into the focus gauge. Returns the amount actually removed, and the focus gained.
         /// <paramref name="stagger"/> is what the hit takes off a stagger bar (work order 008); the basic shot's is 0.
         /// Work order 050: in a run with the stats on, the hit may crit (her crit chance, on the crits' stream), and one
@@ -2969,7 +3095,7 @@ namespace Roguelike
             float master = ShotLooks != null ? ShotLooks.SoundVolume : 1f;
             float spread = Mathf.Max(0f, values.SoundPitchSpread);
             float pitch = values.SoundPitch * (1f + Random.Range(-spread, spread));
-            if (IsEmpowered && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch;
+            if (IsFocusBoosted && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch; // work order 071: for as long as the gains run
             Sounds.Play(values.Sound, values.SoundVolume * master, pitch, values.SoundStart);
         }
 
@@ -2991,7 +3117,7 @@ namespace Roguelike
             AudioClip own = ShotVariationClips.For(ShotVariations, v.Index);
             AudioClip clip = own != null ? own : values.Sound;
             float pitch = values.SoundPitch * v.Pitch;
-            if (IsEmpowered && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch;
+            if (IsFocusBoosted && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch; // work order 071: for as long as the gains run
             Sounds.Play(clip, values.SoundVolume * master * v.Volume, pitch, own != null ? 0f : values.SoundStart, v);
         }
 
@@ -3010,9 +3136,14 @@ namespace Roguelike
                   // with the effects switched off does it borrow its nearest's, sound and all, as before (work order 015).
                   ?? (CombatEffects.PoolLooksBorrowed && ShotLooks != null ? ShotLooks.For(ShotFxDefaults.Nearest(skill.Name)) : null)
                   ?? FallbackLook(skill.Name);
-            bool empowered = IsEmpowered;
-            float empoweredScale = ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
-            Color rim = empowered ? (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim) : values.Rim;
+            // Work order 071: empowered for as long as the gains run (a Hair Trigger part's seconds too); with the focus feel
+            // running, larger and in its teal (FocusFeel.ShotLookNow), else the asset's empowered look as before.
+            bool empowered = IsFocusBoosted;
+            FocusFeelValues felt = empowered ? FocusFeel.ShotLookNow : null;
+            float empoweredScale = felt != null ? felt.ShotScale : ShotLooks != null ? ShotLooks.EmpoweredScale : ShotFxSettings.StartEmpoweredScale;
+            Color rim = !empowered ? values.Rim
+                      : felt != null ? new Color(felt.ShotRimR, felt.ShotRimG, felt.ShotRimB)
+                      : (ShotLooks != null ? ShotLooks.EmpoweredRim : ShotFxSettings.StartEmpoweredRim);
             return new Look
             {
                 Values = values,

@@ -84,9 +84,12 @@ namespace Roguelike.Rules
             s.PerfectTo = t;
         }
 
-        /// <summary>The clean part of this skill's last window as the kit places it, widened by <paramref name="share"/> (for the card's numbers).</summary>
+        /// <summary>
+        /// The clean part of this skill's last window as the kit places it, widened by <paramref name="share"/> (for the card's
+        /// numbers): its last press's, through the chain's rhythm (work order 069, <see cref="RecastRhythm.Press(KitValues, SkillDefinition, int, float)"/>).
+        /// </summary>
         public static CleanPart CleanPartOf(SkillDefinition s, KitValues kit, float share) =>
-            s == null ? default : CleanPart.Of(kit, s.RecastWindow, s.OpeningMove, share);
+            s == null ? default : RecastRhythm.Press(kit, s, s.RecastCount, share).Clean;
     }
 
     /// <summary>
