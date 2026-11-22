@@ -165,7 +165,8 @@ namespace Roguelike.PlayModeTests
 
         /// <summary>
         /// Renamed for decision 0005 (2026-11-19): the empowered mode no longer deals more by default (its multiplier is
-        /// 1). Still checked: the damage follows the multiplier in the settings, and no focus is gained.
+        /// 1). Still checked: the damage follows the multiplier in the settings, and no focus is gained. Changed deliberately
+        /// for work order 071: the multiplier is the window's own times the gains' (EmpoweredDamageScale, 1.35): 35 % more.
         /// </summary>
         [UnityTest]
         public IEnumerator Empowered_DamageFollowsItsMultiplier_AndNoFocusIsGained()
@@ -184,13 +185,14 @@ namespace Roguelike.PlayModeTests
 
             _player.PressSkill(Quick, _a.transform.position);
             yield return Until(() => _player.Action == ActionKind.None, 3f);
-            int skillDamage = Mathf.RoundToInt(skill.Damage * identity.EmpoweredDamage);
+            float multiplier = identity.EmpoweredDamage * identity.EmpoweredDamageScale; // work order 071
+            int skillDamage = Mathf.RoundToInt(skill.Damage * multiplier);
             Assert.That(Lost(_a), Is.EqualTo(skillDamage), "the skill deals the multiplier's damage");
 
             _player.Shoot(_a.transform.position);
             yield return Until(() => _a.HitsTaken >= 2, 3f);
             _player.Stop();
-            Assert.That(Lost(_a) - skillDamage, Is.EqualTo(Mathf.RoundToInt(Placeholders.BasicShotDamage * identity.EmpoweredDamage)),
+            Assert.That(Lost(_a) - skillDamage, Is.EqualTo(Mathf.RoundToInt(Placeholders.BasicShotDamage * multiplier)),
                         "and so does the basic shot");
             Assert.That(_player.Focus, Is.EqualTo(0f), "no focus while empowered");
             Assert.That(_player.EmpoweredRemaining, Is.GreaterThan(0f).And.LessThan(identity.EmpoweredDuration));
