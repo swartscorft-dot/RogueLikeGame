@@ -28,6 +28,7 @@ namespace Roguelike
         public const string CameraKickKey = "Roguelike.Settings.CameraKick"; // work order 064: 1 on (the default), 0 off
         public const string GreyboxKey = "Roguelike.Settings.Greybox"; // work order 084: 1 on, 0 off (the default)
         public const string CameraDistanceKey = "Roguelike.Settings.CameraDistance"; // work order 083: the step, 0 the feel's own distance (the default), 1 25 m, 2 22 m
+        public const string LightKey = "Roguelike.Settings.Light"; // work order 085: the step, 0 as before (the default), 1 to 3 lamplit A, B, C
 
         static bool s_loaded;
         static int s_dash = SettingsRules.NoOverride;
@@ -36,6 +37,7 @@ namespace Roguelike
         static bool s_kick = true;
         static bool s_greybox; // work order 084
         static int s_distanceStep;
+        static int s_light; // work order 085
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -47,6 +49,7 @@ namespace Roguelike
             s_kick = true;
             s_greybox = false; // work order 084
             s_distanceStep = 0;
+            s_light = LightSteps.AsBefore; // work order 085
         }
 
         public static bool IsLoaded => s_loaded;
@@ -65,6 +68,7 @@ namespace Roguelike
             s_kick = PlayerPrefs.GetInt(CameraKickKey, 1) != 0;
             s_greybox = PlayerPrefs.GetInt(GreyboxKey, 0) != 0; // work order 084
             s_distanceStep = CameraDistanceSteps.Step(PlayerPrefs.GetInt(CameraDistanceKey, 0));
+            s_light = LightSteps.Step(PlayerPrefs.GetInt(LightKey, LightSteps.AsBefore)); // work order 085
             s_loaded = true;
             AudioListener.volume = SettingsRules.Volume(s_volume);
         }
@@ -149,6 +153,21 @@ namespace Roguelike
             s_distanceStep = CameraDistanceSteps.Step(step);
             if (!keep) return;
             PlayerPrefs.SetInt(CameraDistanceKey, s_distanceStep);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>
+        /// The light (work order 085, <see cref="LightSteps"/>): 0 as before (the default), 1 to 3 the lamplit levels A, B, C,
+        /// stepped in the pause menu beside the camera's lines; the floor she is on follows it at once (<see cref="LamplitView"/>).
+        /// </summary>
+        public static int LightStep => s_light;
+
+        /// <summary>Sets the light's step and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void SetLightStep(int step, bool keep = true)
+        {
+            s_light = LightSteps.Step(step);
+            if (!keep) return;
+            PlayerPrefs.SetInt(LightKey, s_light);
             PlayerPrefs.Save();
         }
 

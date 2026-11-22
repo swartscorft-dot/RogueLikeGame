@@ -108,7 +108,8 @@ namespace Roguelike
             Shots++;
             float now = Time.unscaledTime;
             float peak = FiringWeightRules.Light(weight, Values);
-            if (peak > 0f && Values.LightSeconds > 0f && Values.MaxLights > 0) LightUp(muzzle, peak, now);
+            // Work order 085: at a lamplit level the lamplit flash is the muzzle's light (one light at a muzzle, not two).
+            if (peak > 0f && Values.LightSeconds > 0f && Values.MaxLights > 0 && !LamplitView.TakesTheMuzzle) LightUp(muzzle, peak, now);
             if (GameSettings.CameraKick) _kicks.Add(now, flatDirection.x, flatDirection.z, FiringWeightRules.Kick(weight, Values));
         }
 

@@ -158,6 +158,7 @@ namespace Roguelike
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             Spawned++;
+            LamplitView.ShotWentOff(kind, origin, direction, size, fx._core); // work order 085: at a lamplit level the shot lights the room
             return fx;
         }
 

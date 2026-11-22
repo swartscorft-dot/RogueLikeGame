@@ -140,6 +140,15 @@ namespace Roguelike
                 if (rooms[k].Kind != RoomKind.Passage) return k;
             return -1;
         }
+        /// <summary>
+        /// Work order 085: the lamplit level of this floor (<see cref="LamplitView"/> sets it), or null, as before. At a level the
+        /// darkness takes the scene's light down to the level's base in place of <see cref="MoodValues.AmbientLevel"/> and
+        /// <see cref="MoodValues.KeyLevel"/>, her light is the level's small one, the enemies' light floor is the level's, and the
+        /// mood's own few real lights stay off (the lamps light every source). Null: every one of these exactly as before.
+        /// </summary>
+        public LamplitValues Lamplit;
+        LamplitValues _lamplitSeen;
+
         /// <summary>Enemy renderers drawn with the light floor.</summary>
         public int FlooredRenderers => _floored.Count;
         public bool Built => _built;
@@ -258,12 +267,14 @@ namespace Roguelike
         {
             MoodValues v = V;
             if (!s_saved) return;
-            if (Mathf.Approximately(s_appliedAmbient, v.AmbientLevel) && Mathf.Approximately(s_appliedKey, v.KeyLevel)
+            float ambientLevel = Lamplit != null ? Lamplit.AmbientLevel : v.AmbientLevel; // work order 085: the lamplit level's base
+            float keyLevel = Lamplit != null ? Lamplit.KeyLevel : v.KeyLevel;
+            if (Mathf.Approximately(s_appliedAmbient, ambientLevel) && Mathf.Approximately(s_appliedKey, keyLevel)
                 && s_appliedTint.R == v.DarkTint.R && s_appliedTint.G == v.DarkTint.G && s_appliedTint.B == v.DarkTint.B) return;
-            s_appliedAmbient = v.AmbientLevel;
-            s_appliedKey = v.KeyLevel;
+            s_appliedAmbient = ambientLevel;
+            s_appliedKey = keyLevel;
             s_appliedTint = v.DarkTint;
-            float a = Mathf.Max(0f, v.AmbientLevel), k = Mathf.Max(0f, v.KeyLevel);
+            float a = Mathf.Max(0f, ambientLevel), k = Mathf.Max(0f, keyLevel);
             var tint = new Color(v.DarkTint.R, v.DarkTint.G, v.DarkTint.B, 1f);
             SphericalHarmonicsL2 probe = s_probe;
             for (int c = 0; c < 9; c++)
@@ -884,12 +895,18 @@ namespace Roguelike
             LevelRoom room = _player != null ? _level.RoomAt(her) : null;
             int here = room != null ? room.Order : -1;
 
+            LamplitValues lamplit = Lamplit; // work order 085: null as before
+            if (lamplit != _lamplitSeen)
+            {
+                _lamplitSeen = lamplit;
+                Here = -2; // her room's real lights looked at again below: off at a lamplit level, on as before
+            }
             if (_herLight != null)
             {
                 _herLight.enabled = _player != null;
-                _herLight.transform.position = her + Up(v.HerLightHeight);
-                _herLight.intensity = v.HerLightIntensity;
-                _herLight.range = v.HerLightRange;
+                _herLight.transform.position = lamplit != null ? her + Up(lamplit.HerLightHeight) + new Vector3(0f, 0f, -lamplit.HerLightBack) : her + Up(v.HerLightHeight);
+                _herLight.intensity = lamplit != null ? lamplit.HerLightIntensity : v.HerLightIntensity;
+                _herLight.range = lamplit != null ? lamplit.HerLightRange : v.HerLightRange;
                 _herLight.color = new Color(v.HerLightColour.R, v.HerLightColour.G, v.HerLightColour.B, 1f);
             }
             if (_dust != null)
@@ -914,10 +931,11 @@ namespace Roguelike
                         main.startColor = fog;
                     }
             }
-            if (!Mathf.Approximately(_overlayLevel, v.EnemyLightFloor))
+            float enemyFloor = lamplit != null && v.EnemyLightFloor > 0f ? lamplit.EnemyLightFloor : v.EnemyLightFloor; // work order 085
+            if (!Mathf.Approximately(_overlayLevel, enemyFloor))
             {
-                _overlayLevel = v.EnemyLightFloor;
-                foreach (KeyValuePair<(Texture, Color), Material> pair in _overlays) SetOverlay(pair.Value, pair.Key.Item2, Mathf.Max(0f, v.EnemyLightFloor));
+                _overlayLevel = enemyFloor;
+                foreach (KeyValuePair<(Texture, Color), Material> pair in _overlays) SetOverlay(pair.Value, pair.Key.Item2, Mathf.Max(0f, enemyFloor));
             }
 
             if (here != Here)
@@ -927,7 +945,7 @@ namespace Roguelike
                 for (int i = 0; i < _rooms.Count; i++)
                 {
                     RoomParts p = _rooms[i];
-                    for (int k = 0; k < p.Lights.Count; k++) p.Lights[k].enabled = p.Order == here;
+                    for (int k = 0; k < p.Lights.Count; k++) p.Lights[k].enabled = p.Order == here && lamplit == null; // work order 085: the lamps light every source
                     bool air = here >= 0 && (p.Order == here || p.Order == Next);
                     if (air == p.AirOn) continue;
                     p.AirOn = air;

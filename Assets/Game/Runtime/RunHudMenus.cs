@@ -67,7 +67,8 @@ namespace Roguelike
             line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns
             || line == MenuLine.CameraKick || line == MenuLine.Attachments
             || line == MenuLine.CameraDistance   // work order 083, joined with the menus at the merge of 2026-11-22
-            || line == MenuLine.Greybox;         // work order 084, the same
+            || line == MenuLine.Greybox          // work order 084, the same
+            || line == MenuLine.Light;           // work order 085
 
         /// <summary>The rows' words and her stats read apart (work order 078): made with the pause screen's lists, when it opens and when a setting changes.</summary>
         void MakeMenuRows()

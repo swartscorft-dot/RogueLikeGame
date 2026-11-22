@@ -59,6 +59,7 @@ namespace Roguelike
         void TickTools()
         {
             FollowGreybox();
+            FollowLamplit(); // work order 085 (GeneratedLevelsLamplit.cs): after the greybox view, which wins over it
             LabTick();
         }
 
@@ -78,6 +79,7 @@ namespace Roguelike
             if (!keyboard[GreyboxKey].wasPressedThisFrame) return false;
             GameSettings.SetGreybox(!GameSettings.Greybox);
             FollowGreybox();
+            FollowLamplit(); // work order 085: the greybox wins over the lamplit light
             return true;
         }
 
