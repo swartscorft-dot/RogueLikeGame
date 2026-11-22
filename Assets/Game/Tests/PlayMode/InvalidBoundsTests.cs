@@ -288,6 +288,28 @@ namespace Roguelike.PlayModeTests
             Assert.That(mood.Rooms.Where(r => r.Order > Math.Max(room.Order + 1, mood.Next)).All(r => r.Fog == null || (!r.Fog.isPlaying && r.Fog.gameObject.activeInHierarchy)), "the far rooms' fog made, not playing");
         }
 
+        /// <summary>
+        /// Work order 082 (review 6, finding 12): the mechanism of work order 061's fix pinned, not the luck of seeds found on
+        /// generator 14 (on today's floors they may no longer land on a system that asserts): every particle system of the air
+        /// is added to an object not yet active in the hierarchy, in a floor's build and in the mood made again.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheAirsSystems_AreAddedToAnInactiveObject_InAFloorsBuild_AndInTheMoodMadeAgain()
+        {
+            _levels.Values = new LevelValues();
+            GeneratedLevel level = _levels.Build(Seed, 5);
+            RoomMood mood = level.Mood;
+            Assert.That(mood, Is.Not.Null);
+            Assert.That(mood.Dust != null && mood.Rooms.Any(r => r.Fog != null), "the air's systems made");
+            Assert.That(mood.SystemsAddedActive, Is.Zero, "a floor's build: every system added to an inactive object");
+            yield return null;
+            Object.Destroy(mood);
+            mood = RoomMood.Add(level);
+            Assert.That(mood.Dust != null && mood.Rooms.Any(r => r.Fog != null), "made again");
+            Assert.That(mood.SystemsAddedActive, Is.Zero, "the mood made again: every system added to an inactive object");
+            yield return null;
+        }
+
         // ---------------- The proofs (minutes long) ----------------
 
         [UnityTest, Explicit("work order 061: a proof, minutes long"), Timeout(3600000)]

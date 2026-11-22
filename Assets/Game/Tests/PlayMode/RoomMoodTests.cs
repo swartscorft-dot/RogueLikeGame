@@ -27,6 +27,11 @@ namespace Roguelike.PlayModeTests
     /// of floor 5 costs ("MOODCOST"). Nothing here looks at the picture: the look is Kristian's to judge by playing.
     ///
     /// Frames without a window are short (about 0.3 ms): the waits here count frames, and nothing hangs on a frame's length.
+    ///
+    /// Work order 082 (review 6, finding 2): the caps and the budget, the master off, the enemies' light floor, the walking
+    /// from door to door and the frame run with the passages off (the rooms touching, as the mood was built for them) and on
+    /// (the floor he plays: no mood of a passage's own, the air ahead past the passage). The scene's light, the switches, her
+    /// light and the room tone are kept with the passages off: a passage changes nothing of them.
     /// </summary>
     public class RoomMoodTests
     {
@@ -67,11 +72,12 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < n; i++) yield return null;
         }
 
-        GeneratedLevel Build(int floor = 5, Action<LevelValues> change = null, ulong seed = Seed)
+        GeneratedLevel Build(int floor = 5, Action<LevelValues> change = null, ulong seed = Seed, bool passages = false)
         {
             // Work order 059: the rooms touching, as the mood was built for them (her room and the next one in the run); the mood
             // across a passage is PassagesPlayTests.InAPassage_TheAirAheadIsOn_AndBehindOff_InARoom_TheRoomPastThePassage.
-            _levels.Values = new LevelValues { Passages = false };
+            // Work order 082: and with the passages on where a test says so.
+            _levels.Values = new LevelValues { Passages = passages };
             change?.Invoke(_levels.Values);
             GeneratedLevel level = _levels.Build(seed, floor);
             Assert.That(level, Is.Not.Null);
@@ -80,8 +86,25 @@ namespace Roguelike.PlayModeTests
 
         IEnumerator Into(GeneratedLevel level, LevelRoom room)
         {
-            _player.Teleport(level.Middle(room));
+            _player.Teleport(room.Kind == RoomKind.Passage ? InPassage(level, room) : level.Middle(room));
             yield return Frames(3);
+        }
+
+        /// <summary>A passage's middle cell of its path, on the ground (as PassagesPlayTests).</summary>
+        static Vector3 InPassage(GeneratedLevel level, LevelRoom passage)
+        {
+            List<(int x, int y)> path = Passages.PathOf(level.Layout, passage);
+            (int x, int y) c = path[path.Count / 2];
+            double cs = level.Layout.CellSize;
+            return level.ToWorld(new LevelPoint((c.x + 0.5) * cs, (c.y + 0.5) * cs));
+        }
+
+        /// <summary>The first room after this one in the run that is not a passage (the room whose air is on with hers), or -1.</summary>
+        static int NextRoom(LevelLayout layout, int here)
+        {
+            for (int k = here + 1; k < layout.Rooms.Count; k++)
+                if (layout.Rooms[k].Kind != RoomKind.Passage) return k;
+            return -1;
         }
 
         static Light Key()
@@ -110,19 +133,22 @@ namespace Roguelike.PlayModeTests
         // ---------------- With the master on ----------------
 
         [UnityTest]
-        public IEnumerator MasterOn_AFloorHasItsSources_Pools_Fog_Dust_AndWear_InsideEveryCap_AndTheBudget()
+        public IEnumerator MasterOn_AFloorHasItsSources_Pools_Fog_Dust_AndWear_InsideEveryCap_AndTheBudget([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = Build();
+            GeneratedLevel level = Build(passages: passages);
             yield return Frames(2);
             RoomMood mood = level.Mood;
             MoodValues v = level.Values.Mood;
             Assert.That(mood, Is.Not.Null, "on by default");
             Assert.That(mood.Root, Is.Not.Null);
-            Assert.That(mood.Rooms.Count, Is.EqualTo(level.Layout.Rooms.Count));
-            Assert.That(mood.Plan.WearCount, Is.GreaterThan(level.Layout.Rooms.Count * 2), "a worn floor");
+            Assert.That(level.Layout.Rooms.Any(r => r.Kind == RoomKind.Passage), Is.EqualTo(passages));
+            int rooms = LevelGeometry.RoomCount(level.Layout); // work order 082: a passage has no mood of its own
+            Assert.That(mood.Rooms.Count, Is.EqualTo(rooms));
+            Assert.That(mood.Rooms.All(p => level.Layout.Rooms[p.Order].Kind != RoomKind.Passage));
+            Assert.That(mood.Plan.WearCount, Is.GreaterThan(rooms * 2), "a worn floor");
             Assert.That(mood.Rooms.Sum(r => r.Sources.Count), Is.GreaterThan(0), "sources");
             Assert.That(mood.Rooms.All(r => r.Glow != null), "pools in every room (the middle's at least)");
-            Assert.That(mood.Rooms.Count(r => r.Decals != null), Is.GreaterThan(level.Layout.Rooms.Count / 2), "stains and cracks");
+            Assert.That(mood.Rooms.Count(r => r.Decals != null), Is.GreaterThan(rooms / 2), "stains and cracks");
             Assert.That(mood.Rooms.All(r => r.Fog != null && r.Fog.main.maxParticles == v.FogMostPerRoom), "fog in every room, capped");
             Assert.That(mood.Dust, Is.Not.Null);
             Assert.That(mood.Dust.main.maxParticles, Is.EqualTo(v.DustMost));
@@ -132,7 +158,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(mood.Tone.loop && mood.Tone.isPlaying, "the room tone loops");
             Assert.That(mood.Root.GetComponentsInChildren<Collider>(true), Is.Empty, "nothing of it has a collider");
             Assert.That(mood.Root.GetComponentsInChildren<Transform>(true).All(t => t.gameObject.layer == CryptKit.Layer), "every piece on Ignore Raycast");
-            Assert.That(mood.Rooms.Count(r => r.LargePropPlace != null), Is.GreaterThan(level.Layout.Rooms.Count / 2), "empty places for large props");
+            Assert.That(mood.Rooms.Count(r => r.LargePropPlace != null), Is.GreaterThan(rooms / 2), "empty places for large props");
             Assert.That(mood.Rooms.Where(r => r.LargePropPlace != null).All(r => r.LargePropPlace.childCount == 0 && r.LargePropPlace.GetComponents<Component>().Length == 1), "empty");
 
             int budget = level.Values.Crypt.LightsPerRoom + level.Values.Signs.LightsMost + 1;
@@ -144,9 +170,11 @@ namespace Roguelike.PlayModeTests
                 int on = LightsOn(level);
                 mostOn = Mathf.Max(mostOn, on);
                 Assert.That(on, Is.LessThanOrEqualTo(budget), "lights on in " + room.Letter + room.Order);
+                int next = NextRoom(level.Layout, room.Order);
+                Assert.That(mood.Next, Is.EqualTo(next), "the next room, past a passage");
                 foreach (RoomMood.RoomParts p in mood.Rooms)
                 {
-                    bool air = p.Order == room.Order || p.Order == room.Order + 1;
+                    bool air = p.Order == room.Order || p.Order == next;
                     Assert.That(p.Fog.isEmitting, Is.EqualTo(air), "fog only in her room and the next, room " + p.Order + ", she in " + room.Order);
                     Assert.That(p.Lights.All(l => l.enabled == (p.Order == room.Order)), "real lights only in her room");
                     Assert.That(p.Fog.particleCount, Is.LessThanOrEqualTo(v.FogMostPerRoom));
@@ -158,8 +186,8 @@ namespace Roguelike.PlayModeTests
                       + " a room, the door's " + level.Values.Signs.LightsMost + ", hers 1)");
 
             // What the largest room costs.
-            LevelRoom largest = level.Layout.Rooms.OrderByDescending(r => r.Rect.Width * r.Rect.Height).First();
-            RoomMood.RoomParts lp = mood.Rooms[largest.Order];
+            LevelRoom largest = level.Layout.Rooms.Where(r => r.Kind != RoomKind.Passage).OrderByDescending(r => r.Rect.Width * r.Rect.Height).First();
+            RoomMood.RoomParts lp = mood.Of(largest.Order);
             long tris = 0;
             int meshes = 0;
             foreach (MeshRenderer r in new[] { lp.Lit, lp.Decals, lp.Glow })
@@ -171,7 +199,7 @@ namespace Roguelike.PlayModeTests
             }
             int enemies = level.EnemiesByRoom.TryGetValue(largest.Order, out List<Enemy> list) ? list.Count : 0;
             int overlays = list == null ? 0 : list.Sum(e => e.GetComponentsInChildren<Renderer>(true).Count(r => r.sharedMaterials.Any(m => m != null && m.name == "Mood_EnemyFloor")));
-            MoodRoom plan = mood.Plan.Rooms[largest.Order];
+            MoodRoom plan = mood.Plan.Rooms.First(r => r.Room.Order == largest.Order);
             int pools = lp.Sources.Count + (v.Darkness && v.MiddleFill > 0 ? 1 : 0);
             int flames = plan.Sources.Count(s => s.Flame);
             int systems = (lp.Fog != null ? 1 : 0) + lp.Embers.Count + 1;
@@ -301,12 +329,12 @@ namespace Roguelike.PlayModeTests
             }).Select(t => t.name).ToList();
 
         [UnityTest]
-        public IEnumerator MasterOff_GivesExactlyTodaysObjects()
+        public IEnumerator MasterOff_GivesExactlyTodaysObjects([Values(false, true)] bool passages)
         {
             Light key = Key();
             float intensity = key.intensity;
             SphericalHarmonicsL2 probe = RenderSettings.ambientProbe;
-            GeneratedLevel off = Build(5, v => v.RoomMood = false);
+            GeneratedLevel off = Build(5, v => v.RoomMood = false, passages: passages);
             yield return Frames(2);
             Assert.That(off.Mood, Is.Null);
             Assert.That(off.GetComponent<RoomMood>(), Is.Null);
@@ -318,7 +346,7 @@ namespace Roguelike.PlayModeTests
             int lightsOff = off.GetComponentsInChildren<Light>(true).Length;
 
             // The mood never adds to the level's own objects: the same names on, under the level.
-            GeneratedLevel on = Build(5);
+            GeneratedLevel on = Build(5, passages: passages);
             yield return Frames(2);
             Assert.That(Names(on), Is.EqualTo(namesOff), "the level's own objects, the same with the master on");
             Assert.That(on.GetComponentsInChildren<Light>(true).Length, Is.EqualTo(lightsOff));
@@ -345,9 +373,9 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TheEnemies_KeepAFloorOnTheirLight_AndTheMiddleIsNeverTheDarkest()
+        public IEnumerator TheEnemies_KeepAFloorOnTheirLight_AndTheMiddleIsNeverTheDarkest([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = Build();
+            GeneratedLevel level = Build(passages: passages);
             yield return Frames(2);
             Assert.That(level.Enemies.Count, Is.GreaterThan(0));
             int floored = 0;
@@ -394,6 +422,7 @@ namespace Roguelike.PlayModeTests
             var path = new NavMeshPath();
             foreach (LevelRoom room in level.Layout.Rooms)
             {
+                if (room.Kind == RoomKind.Passage) continue; // work order 082: no mood in a passage; the way through one is PassagesPlayTests'
                 List<LevelDoor> doors = level.Layout.DoorsOf(room.Order).ToList();
                 for (int i = 0; i < doors.Count; i++)
                     for (int j = 0; j < doors.Count; j++)
@@ -411,15 +440,15 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator NothingBlocksWalking_ThePathsFromDoorToDoor_AreAsTheyWere()
+        public IEnumerator NothingBlocksWalking_ThePathsFromDoorToDoor_AreAsTheyWere([Values(false, true)] bool passages)
         {
             int compared = 0;
             foreach (int floor in new[] { 1, 5 })
             {
-                GeneratedLevel off = Build(floor, v => v.RoomMood = false);
+                GeneratedLevel off = Build(floor, v => v.RoomMood = false, passages: passages);
                 yield return Frames(2);
                 Dictionary<string, (NavMeshPathStatus status, float length)> before = Paths(off);
-                GeneratedLevel on = Build(floor);
+                GeneratedLevel on = Build(floor, passages: passages);
                 yield return Frames(2);
                 Assert.That(on.Mood.Root.GetComponentsInChildren<Collider>(true), Is.Empty);
                 Dictionary<string, (NavMeshPathStatus status, float length)> after = Paths(on);
@@ -444,9 +473,9 @@ namespace Roguelike.PlayModeTests
         // ---------------- Its frame ----------------
 
         [UnityTest]
-        public IEnumerator ItsFrame_AllocatesNothing()
+        public IEnumerator ItsFrame_AllocatesNothing([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = Build();
+            GeneratedLevel level = Build(passages: passages);
             yield return Frames(2);
             LevelRoom combat = level.Layout.Rooms.First(r => r.Kind == RoomKind.Combat);
             yield return Into(level, combat);

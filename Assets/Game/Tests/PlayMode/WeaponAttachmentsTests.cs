@@ -637,6 +637,32 @@ namespace Roguelike.PlayModeTests
             _player.Modifiers = null;
         }
 
+        /// <summary>
+        /// Work order 082 (review 6, finding 10): with her stats on, a chest's flat damage goes through the barrel: 40 and 6 flat,
+        /// times Bull Barrel's 1.35, is 62 (the flat damage added after the barrel would give 60). The crit is ruled out by
+        /// a start chance of 0 in this run's numbers.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator BullBarrel_WithSixFlatDamage_Deals62_TheFlatDamageTakesTheBarrel()
+        {
+            ClearTheRange();
+            var dealt = new List<int>();
+            _a.Damaged += d => dealt.Add(d);
+            RunModifiers m = Fitted(WeaponAttachments.BullBarrel);
+            m.StatsAndTiers = true;
+            m.StatValues.StartCritChance = 0f; // no crit
+            m.Take(new Upgrade { Kind = UpgradeKind.FlatDamage, Amount = 6f, Tier = UpgradeTier.Common, Tiered = true });
+            Assert.That(m.Stats.FlatFor(null), Is.EqualTo(6), "her six flat damage");
+            _player.Teleport(NearA);
+            yield return null;
+            yield return UntilFree();
+            _player.Shoot(_a.transform.position);
+            yield return Until(() => dealt.Count >= 1, 2f);
+            Assert.That(dealt, Is.Not.Empty, "it hit");
+            Assert.That(dealt[0], Is.EqualTo(62), "(40 + 6) times 1.35");
+            _player.Modifiers = null;
+        }
+
         [UnityTest]
         public IEnumerator RunnersGrip_ShootingOnTheMove_At075OfRunSpeed_32OnTheMove_40Standing()
         {
@@ -679,6 +705,50 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.IsShootingOnTheMove, Is.False);
             yield return Until(() => dealt.Count > n, 2f);
             Assert.That(dealt.Last(), Is.EqualTo(40), "standing: 40");
+            _player.Modifiers = null;
+        }
+
+        /// <summary>
+        /// Work order 082 (review 6, finding 14): Runner's Grip's backpedal cap in play, as WasdTests' backpedal round: S held
+        /// with the cursor up the screen and the basic shot clicked in rhythm, she backs away at the grip's 75 % of run speed
+        /// (about 4.5 m/s), where the stock gun holds her to its 50 % (about 3 m/s).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator RunnersGrip_Backpedalling_WhileShooting_At075OfRunSpeed_TheStockGunAt05()
+        {
+            ClearTheRange();
+            FeelValues feel = _player.Feel;
+            PlayerInputDriver driver = _player.GetComponent<PlayerInputDriver>();
+            Vector3 up = driver.ScreenToGround(new Vector2(0f, 1f)), down = -up;
+            float cycle = feel.BasicShotStartup + feel.BasicShotActive + feel.BasicShotRecovery;
+            var fastest = new float[2];
+            for (int round = 0; round < 2; round++)
+            {
+                if (round == 0) Fitted();
+                else Fitted(WeaponAttachments.RunnersGrip);
+                yield return UntilFree();
+                yield return new WaitForSeconds(0.5f);
+                _player.Teleport(new Vector3(-8f, 0f, 8f));
+                yield return null;
+                _player.Steer(down);
+                yield return new WaitForSeconds(0.3f);
+                int clicks = 0;
+                float start = Time.time, deadline = Time.realtimeSinceStartup + 6f;
+                while (Time.time < start + 2f && Time.realtimeSinceStartup < deadline)
+                {
+                    Vector3 aim = _player.Position + up * 8f;
+                    _player.AimAt(aim);
+                    if (Time.time >= start + clicks * (cycle + 0.03f)) { _player.Shoot(aim); clicks++; }
+                    yield return null;
+                    if (Time.time > start + 0.6f) fastest[round] = Mathf.Max(fastest[round], _player.Speed);
+                }
+                _player.Steer(Vector3.zero);
+                _player.Stop();
+                Assert.That(clicks, Is.GreaterThanOrEqualTo(6), "shooting in rhythm, round " + round);
+            }
+            Debug.Log("Work order 082: backpedalling while shooting, fastest " + fastest[0].ToString("0.00") + " m/s stock, " + fastest[1].ToString("0.00") + " m/s with Runner's Grip (run speed " + feel.RunSpeed + ")");
+            Assert.That(fastest[0], Is.LessThan(feel.RunSpeed * feel.BackpedalSpeedShare + 0.25f), "the stock gun: the feel's backpedal cap");
+            Assert.That(fastest[1], Is.EqualTo(feel.RunSpeed * 0.75f).Within(0.4f), "the grip: 75 % of run speed backwards");
             _player.Modifiers = null;
         }
 

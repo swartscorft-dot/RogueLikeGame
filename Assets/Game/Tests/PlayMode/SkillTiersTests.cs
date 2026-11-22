@@ -141,7 +141,7 @@ namespace Roguelike.PlayModeTests
             _health.Untouchable = true;
             _levels.FinishFloorForTests();
             yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
-            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward));
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward));
             List<SkillTierOffer> rules = FloorOne(seed);
             Assert.That(_levels.OfferedSkills, Is.EqualTo(rules.Select(o => o.Slot)), "the slots as the rules give them");
             Assert.That(_levels.OfferedSkillTiers.Select(o => o.ToString()), Is.EqualTo(rules.Select(o => o.ToString())),
@@ -337,6 +337,52 @@ namespace Roguelike.PlayModeTests
             _levels.BackToPracticeRoom();
         }
 
+        /// <summary>
+        /// Work order 082 (review 6, finding 7): the same forced rare and epic, in the pop-up he plays (the test above pins the
+        /// right-edge look): the rare's numeral teal, the epic's gold, each card's tier line, and the epic's "+ CHANGE" note (none
+        /// on the rare's), so a pop-up card that lost its tier's ink or its change is seen whatever the seed draws.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheKineticCards_OfARareAndAnEpic_InThePopUp_SayTheTier_InItsInk_AndTheEpicsChange()
+        {
+            Assert.That(_levels.Offers.PopUp, Is.True, "the pop-up on by default");
+            _levels.RunValues.SkillTierNumbers.Odds = new[] { 100f, 0f, 0f };
+            ulong seed = 0x0E117E17UL;
+            _levels.StartRun(seed);
+            yield return null;
+            _health.Untouchable = true;
+            _levels.FinishFloorForTests();
+            yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward);
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward));
+            Assert.That(_levels.OfferedSkills.Count, Is.EqualTo(3));
+            var tiers = (List<SkillTierOffer>)_levels.OfferedSkillTiers;
+            SkillDefinition s1 = _player.Skills[_levels.OfferedSkills[1]], s2 = _player.Skills[_levels.OfferedSkills[2]];
+            var v = new SkillTierValues();
+            tiers[0] = new SkillTierOffer { Slot = _levels.OfferedSkills[0], Skill = _player.Skills[_levels.OfferedSkills[0]].Name, Tier = UpgradeTier.Common };
+            tiers[1] = new SkillTierOffer { Slot = _levels.OfferedSkills[1], Skill = s1.Name, Tier = UpgradeTier.Rare, Step = SkillTiers.Step(s1, v) };
+            List<SkillUpgradeDefinition> changes = SkillTiers.OpenChanges(_levels.UpgradeValues.Table, s2.Name, _levels.SkillUpgrades.Taken);
+            Assert.That(changes.Count, Is.GreaterThan(0), "an epic's change open for " + s2.Name);
+            SkillUpgradeDefinition change = changes[0];
+            tiers[2] = new SkillTierOffer { Slot = _levels.OfferedSkills[2], Skill = s2.Name, Tier = UpgradeTier.Epic, Step = SkillTiers.Step(s2, v), Change = change };
+
+            Assert.That(_levels.KineticCards(), Is.EqualTo(3));
+            Assert.That(_levels.CardNumeralInk(0), Is.EqualTo(UiInk.White), "a common");
+            Assert.That(_levels.CardNumeralInk(1), Is.EqualTo(UiInk.Teal), "a rare's numeral teal");
+            Assert.That(_levels.CardNumeralInk(2), Is.EqualTo(UiInk.Gold), "an epic's gold");
+            OfferCard common = _levels.OfferCardAt(0), rare = _levels.OfferCardAt(1), epic = _levels.OfferCardAt(2);
+            Assert.That(common != null && rare != null && epic != null, "the pop-up's cards");
+            Assert.That(common.Tiered, Is.False);
+            Assert.That(rare.Tier, Is.EqualTo(UpgradeTier.Rare));
+            StringAssert.StartsWith("RARE", rare.TierLine, "a rare's tier line");
+            Assert.That(rare.Notes, Is.Empty, "a rare has no change");
+            Assert.That(epic.Tier, Is.EqualTo(UpgradeTier.Epic));
+            StringAssert.StartsWith("EPIC", epic.TierLine, "an epic's tier line");
+            Assert.That(epic.Notes.Count, Is.EqualTo(1), "the epic's change, one note");
+            StringAssert.StartsWith("+ " + change.Name.ToUpperInvariant(), epic.Notes[0], "the epic's change by its name");
+            Assert.That(_levels.PickReward(0), Is.True);
+            _levels.BackToPracticeRoom();
+        }
+
         [UnityTest]
         public IEnumerator ACommonOnlyOffer_OnALaterFloor_HasTodaysCards()
         {
@@ -420,11 +466,11 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _health.Untouchable = true;
             List<Enemy> alive = _levels.Level.ExitEnemies.Where(e => e != null && !e.IsDead).ToList();
-            Assume.That(alive.Count, Is.GreaterThan(0));
+            Assert.That(alive.Count, Is.GreaterThan(0));
             foreach (Enemy e in alive) e.Body.TakeHit(100000000);
             yield return Frames(() => _levels.FloorDrop != null || _levels.Choice != GeneratedLevels.ChoiceKind.None);
             RewardDrop drop = _levels.FloorDrop;
-            Assume.That(drop, Is.Not.Null, "the reward lies on the ground");
+            Assert.That(drop, Is.Not.Null, "the reward lies on the ground");
             Assert.That(_levels.OfferedSkillTiers, Is.Empty, "nothing offered on screen");
             yield return Until(() => drop.Settled, 5f);
             _player.Teleport(new Vector3(drop.Landing.x, 0f, drop.Landing.z));

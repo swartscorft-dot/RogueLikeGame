@@ -299,7 +299,7 @@ namespace Roguelike.Rules.Tests
             // The marks: rooms and cells that held what they are for.
             int hRooms = 0, hRoomsHeld = 0, hCells = 0, hCellsHeld = 0;
             int eRooms = 0, eHeld = 0;
-            int aRooms = 0, aHeld = 0, aLargeRooms = 0, aLargeHeld = 0, aRefusedByEnemy = 0;
+            int aRooms = 0, aHeld = 0, aLargeRooms = 0, aLargeHeld = 0, aRefusedByEnemy = 0, aOffRooms = 0, aOffHeld = 0;
             int cCells = 0, cHeld = 0;
             // The themes: rooms of each template whose theme it suits, and rooms without a template whose theme that template suits.
             var suited = new Dictionary<RoomTemplate, (int rooms, int suits)>();
@@ -422,9 +422,19 @@ namespace Roguelike.Rules.Tests
                     if (RoomTemplates.FarMark(room, cs, out int far, out double along))
                     {
                         LevelProp piece = room.Props.FirstOrDefault(q => q.Model == PropModel.Altar || q.Model == PropModel.BoneThrone);
+                        // Work order 082: what the altar, the throne's neighbours and the mood's large-prop place are asked for is the
+                        // middle of the A cells on the far wall (FarMarkAlong; null would send them to the wall's middle).
+                        Assert.That(RoomTemplates.FarMarkAlong(room, far, cs), Is.EqualTo(along).Within(1e-9), "the A's place along its far wall: " + name);
+                        // An A away from its wall's middle, where the altar's place from the mark differs from the wall's middle it
+                        // falls back to. On 2026-11-22 there was none in 9642 rooms: every template's A is at its wall's middle, so
+                        // the sweep cannot tell the mark from the fallback (said in work order 082's report).
+                        double wallMiddle = far == LevelGenerator.North || far == LevelGenerator.South ? (room.Rect.X + room.Rect.Right) * 0.5 * cs : (room.Rect.Y + room.Rect.Top) * 0.5 * cs;
+                        bool offMiddle = Math.Abs(along - wallMiddle) > cs;
                         if (piece != null)
                         {
                             aRooms++;
+                            if (offMiddle) aOffRooms++;
+                            if (At(piece.Position) == 'A' && offMiddle) aOffHeld++;
                             if (At(piece.Position) == 'A') aHeld++;
                             else
                             {
@@ -471,6 +481,7 @@ namespace Roguelike.Rules.Tests
                 "TEMPLATEMARKS floor {0}: h a shooter or caster in {1} of {2} rooms with both ({3} of {4} h cells); e the elite {5} of {6}; " +
                 "A the altar or throne {7} of {8} (of the others, the A's own place refused for an enemy point {9}), A the mood's large-prop place {10} of {11} where no altar holds it (every fourth seed); c a floor prop {12} of {13} c cells",
                 floor, hRoomsHeld, hRooms, hCellsHeld, hCells, eHeld, eRooms, aHeld, aRooms, aRefusedByEnemy, aLargeHeld, aLargeRooms, cHeld, cCells));
+            TestContext.WriteLine(string.Format(Inv, "TEMPLATEMARKS floor {0}: an A more than a cell off its wall's middle in {1} of the {2} altar or throne rooms, held there {3}", floor, aOffRooms, aRooms, aOffHeld));
             var themeLines = new List<string>();
             foreach (KeyValuePair<RoomTemplate, (int rooms, int suits)> pair in suited.OrderBy(p => p.Key.Name))
             {
@@ -491,7 +502,21 @@ namespace Roguelike.Rules.Tests
             attemptsOn.Sort();
             Assert.That(Percentile(attemptsOn, 0.99), Is.LessThanOrEqualTo(8), "the 99th percentile of attempts");
             Assert.That(mOn, Is.LessThanOrEqualTo(mOff * 2), "the median generation at most twice that without the templates");
-            if (eRooms > 0) Assert.That(eHeld / (double)eRooms, Is.GreaterThanOrEqualTo(0.5), "the e mark holds the elite in half the elite rooms at least");
+            // Work order 082 (review 6, finding 3): every mark asserted, not only counted. Each bound is the share seen on .NET on
+            // 2026-11-22 (floors 1-5) less a margin: h 100 % of the rooms (57-99.8 % of the cells), e 100 %, A 88-93 % held
+            // and 97-98 % held or refused for an enemy point, the mood's large-prop place 53-59 %, c 52-59 %.
+            Assert.That(eRooms, Is.GreaterThan(100), "elite rooms with an e mark");
+            Assert.That(eHeld / (double)eRooms, Is.GreaterThanOrEqualTo(0.9), "the e mark holds the elite");
+            Assert.That(hRooms, Is.GreaterThan(100), "rooms with an h mark and a shooter or caster");
+            Assert.That(hRoomsHeld / (double)hRooms, Is.GreaterThanOrEqualTo(0.95), "the h marks hold a shooter or caster: " + hRoomsHeld + " of " + hRooms + " rooms");
+            Assert.That(hCellsHeld / (double)hCells, Is.GreaterThanOrEqualTo(0.45), "the h cells held: " + hCellsHeld + " of " + hCells);
+            Assert.That(cCells, Is.GreaterThan(100), "open c cells");
+            Assert.That(cHeld / (double)cCells, Is.GreaterThanOrEqualTo(0.45), "the c marks hold a floor prop (cover placed first): " + cHeld + " of " + cCells);
+            Assert.That(aRooms, Is.GreaterThan(100), "rooms with an A mark and an altar or throne");
+            Assert.That(aHeld / (double)aRooms, Is.GreaterThanOrEqualTo(0.8), "the A mark holds the altar or throne: " + aHeld + " of " + aRooms);
+            Assert.That((aHeld + aRefusedByEnemy) / (double)aRooms, Is.GreaterThanOrEqualTo(0.93), "held, or refused only for an enemy standing there");
+            Assert.That(aLargeRooms, Is.GreaterThan(50), "rooms whose A is left to the mood's large-prop place");
+            Assert.That(aLargeHeld / (double)aLargeRooms, Is.GreaterThanOrEqualTo(0.45), "the mood's large-prop place on the A: " + aLargeHeld + " of " + aLargeRooms);
         }
 
         // ---------------- The switch off ----------------

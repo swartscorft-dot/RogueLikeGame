@@ -550,10 +550,13 @@ namespace Roguelike.Rules.Tests
         // "ikke nødvendigvis et bytte", a later part may be a plain gain, and nothing in the rules refuses one
         // (APartWithNoCost_IsBoughtAndFittedAsAnyOther). When a part is meant to be a gain, it does not belong in this list.
         // state 0: the stats and tiers off; 1: on, at her start; 2: on, after +6 flat damage and +12 % attack speed.
-        [TestCase(0, 177.78, 177.78, 177.78, 177.78, 142.22, TestName = "TheFirstFourParts_KeepTheBasicShotsDamagePerSecond_Within5PercentOfStock_StatsOff")]
-        [TestCase(1, 154.89, 154.89, 154.89, 154.89, 123.91, TestName = "TheFirstFourParts_KeepTheBasicShotsDamagePerSecond_Within5PercentOfStock_StatsOnAtHerStart")]
-        [TestCase(2, 199.50, 199.50, 199.18, 199.50, 160.47, TestName = "TheFirstFourParts_KeepTheBasicShotsDamagePerSecond_Within5PercentOfStock_StatsOnAfterFlat6AndAttackSpeed12")]
-        public void TheFirstFourParts_KeepTheBasicShotsDamagePerSecond(int state, double stock, double laser, double bull, double runnerStanding, double runnerMoving)
+        // Work order 082 (review 6, finding 10): renamed "...PartsTable...": the damage per second here is the test's own model of
+        // the parts' table (Dps below), not the player; the player's flat damage through the barrel is PlayMode
+        // WeaponAttachmentsTests.BullBarrel_WithSixFlatDamage_Deals62_TheFlatDamageTakesTheBarrel.
+        [TestCase(0, 177.78, 177.78, 177.78, 177.78, 142.22, TestName = "TheFirstFourPartsTable_KeepsTheBasicShotsDamagePerSecond_Within5PercentOfStock_StatsOff")]
+        [TestCase(1, 154.89, 154.89, 154.89, 154.89, 123.91, TestName = "TheFirstFourPartsTable_KeepsTheBasicShotsDamagePerSecond_Within5PercentOfStock_StatsOnAtHerStart")]
+        [TestCase(2, 199.50, 199.50, 199.18, 199.50, 160.47, TestName = "TheFirstFourPartsTable_KeepsTheBasicShotsDamagePerSecond_Within5PercentOfStock_StatsOnAfterFlat6AndAttackSpeed12")]
+        public void TheFirstFourPartsTable_KeepsTheBasicShotsDamagePerSecond(int state, double stock, double laser, double bull, double runnerStanding, double runnerMoving)
         {
             double s = Dps(Modifiers(state, null), false);
             Assert.That(s, Is.EqualTo(stock).Within(0.01), "the stock gun");

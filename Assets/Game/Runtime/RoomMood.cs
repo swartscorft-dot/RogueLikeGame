@@ -145,6 +145,8 @@ namespace Roguelike
         public bool Built => _built;
         /// <summary>For tests: how many times it was built.</summary>
         public int Builds { get; private set; }
+        /// <summary>For tests (work order 082): the particle systems of the last build added to an object already active in the hierarchy (work order 061's cause of the invalid bounds: 0).</summary>
+        public int SystemsAddedActive { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -318,6 +320,7 @@ namespace Roguelike
             _built = true;
             Builds++;
             _systemsMade = 0;
+            SystemsAddedActive = 0;
             _block = _block ?? new MaterialPropertyBlock();
             _root = new GameObject(RootName + "_" + _level.Layout.SeedText) { layer = CryptKit.Layer };
             SceneManager.MoveGameObjectToScene(_root, _level.gameObject.scene);
@@ -745,6 +748,7 @@ namespace Roguelike
             go.SetActive(false);
             go.transform.SetParent(parent, false);
             go.transform.position = at;
+            if (go.activeInHierarchy) SystemsAddedActive++; // work order 082: for tests
             var ps = go.AddComponent<ParticleSystem>();
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             if (ParticleSeedForTests != 0)

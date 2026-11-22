@@ -61,41 +61,58 @@ namespace Roguelike.Rules.Tests
             return true;
         }
 
-        [TestCase(1)]
-        [TestCase(2)]
-        [TestCase(3)]
-        [TestCase(4)]
-        [TestCase(5)]
-        public void TwoThousandSeeds_EveryRoomKeepsTheRules_AndEverythingStandsOnOpenCells(int floor)
+        // Work order 082 (review 6, finding 4): the sweep is the one place that checks the mood's pieces, the wear, the large
+        // props, the enemies' paths, the doors' paths and the drops' landings against the carved cells: with the templates and
+        // the passages off (051's drawn shapes, as they were) and, a thousand seeds a floor, with the defaults (the floor he
+        // plays, templated rooms and passages). With the defaults the passages themselves are passed (PassagesTests' own), and
+        // so are the gate (a passage's door has none), the comparison with the shapes off and the shares of the drawn shapes.
+        [TestCase(1, false)]
+        [TestCase(2, false)]
+        [TestCase(3, false)]
+        [TestCase(4, false)]
+        [TestCase(5, false)]
+        [TestCase(1, true)]
+        [TestCase(2, true)]
+        [TestCase(3, true)]
+        [TestCase(4, true)]
+        [TestCase(5, true)]
+        public void TwoThousandSeeds_EveryRoomKeepsTheRules_AndEverythingStandsOnOpenCells(int floor, bool defaults)
         {
-            var values = new LevelValues { Templates = false, Passages = false }; // work order 058: 051's drawn shapes, as they were; 059: touching rooms, a gate in each
+            var values = defaults ? new LevelValues() : new LevelValues { Templates = false, Passages = false }; // work order 058: 051's drawn shapes, as they were; 059: touching rooms, a gate in each
             var off = new LevelValues { Shapes = false, Templates = false, Passages = false };
             var shapes = new Dictionary<string, int>();
             int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0, earlier = 0;
-            const int seeds = 2000;
-            for (ulong s = 0; s < seeds; s++)
+            int templated = 0, enemyPaths = 0;
+            int seeds = defaults ? 1000 : 2000;
+            for (ulong s = 0; s < (ulong)seeds; s++)
             {
                 LevelLayout level = LevelGenerator.Generate(s, floor, values);
                 string where = "seed " + s + " floor " + floor;
                 double cs = level.CellSize;
                 Assert.That(level.Shapes, Is.True, where);
+                Assert.That(level.Templates && level.Passages, Is.EqualTo(defaults), where);
                 List<string> faults = LevelValidator.Validate(level, values);
                 Assert.That(faults, Is.Empty, where + "\n" + LevelMap.Draw(level));
 
                 // A seed keeps its rooms' places, sizes, order and doors. Work order 054: with the casters on, the plain rooms'
                 // contents may find no place on an attempt the carved ones fit (seed 1513 of floor 5), and the floor with the
                 // shapes off is the next attempt's; never the other way round (an attempt fails only where it failed without them).
-                LevelLayout plain = LevelGenerator.Generate(s, floor, off);
-                Assert.That(level.Attempt, Is.LessThanOrEqualTo(plain.Attempt), "no later attempt with the shapes on, " + where);
-                if (level.Attempt == plain.Attempt)
-                    Assert.That(level.DescribeLayout(), Is.EqualTo(plain.DescribeLayout()), "the same layout with the shapes on and off, " + where);
-                else earlier++;
+                if (!defaults)
+                {
+                    LevelLayout plain = LevelGenerator.Generate(s, floor, off);
+                    Assert.That(level.Attempt, Is.LessThanOrEqualTo(plain.Attempt), "no later attempt with the shapes on, " + where);
+                    if (level.Attempt == plain.Attempt)
+                        Assert.That(level.DescribeLayout(), Is.EqualTo(plain.DescribeLayout()), "the same layout with the shapes on and off, " + where);
+                    else earlier++;
+                }
 
                 RoomMoodPlan mood = RoomMoodPlan.Make(level, values);
                 bool allDiffer = true;
                 for (int i = 0; i < level.Rooms.Count; i++)
                 {
                     LevelRoom room = level.Rooms[i];
+                    if (room.Kind == RoomKind.Passage) continue; // work order 082: a passage's own rules are PassagesTests'
+                    if (room.Template != null) templated++;
                     string name = room.Letter + room.Order.ToString(Inv) + " " + where;
                     rooms++;
                     string key = (room.Elite ? "elite" : room.Kind.ToString().ToLowerInvariant()) + " " + RoomShapes.Word(room.Shape);
@@ -115,7 +132,7 @@ namespace Roguelike.Rules.Tests
                     Assert.That(RoomShapes.Faults(level, room, values, broken), Is.EqualTo(0), name + ": " + string.Join("; ", broken));
                     Assert.That(room.Shape, Is.Not.EqualTo(RoomShape.None), "a shape drawn: " + name);
                     LevelDoor entry = LevelGeometry.EntryDoor(level, room);
-                    if (entry != null) Assert.That(RoomShapes.HasGate(room, entry), "a gate inside the door in: " + name);
+                    if (entry != null && !level.Passages) Assert.That(RoomShapes.HasGate(room, entry), "a gate inside the door in: " + name);
 
                     // Her start, the enemies, the props on open cells, clear of the carved walls.
                     if (room.PlayerStart.HasValue)
@@ -129,6 +146,7 @@ namespace Roguelike.Rules.Tests
                             Assert.That(level.RoomAt(m.X, m.Y), Is.SameAs(room), "an enemy on an open cell: " + name + " at " + m);
                             Assert.That(RoomShapes.DistanceToSolid(room, m, cs), Is.GreaterThanOrEqualTo(values.WallClearance - 1e-9), "clear of a carved wall: " + name);
                             Assert.That(Path(room, CellOf(room.Middle(cs), cs), CellOf(m, cs)), "a path on the open cells from the middle to the enemy at " + m + ": " + name);
+                            enemyPaths++;
                         }
                     foreach (LevelProp p in room.Props)
                     {
@@ -138,7 +156,7 @@ namespace Roguelike.Rules.Tests
                     }
 
                     // The eye-catchers (work order 044) never on a carved cell.
-                    MoodRoom mr = mood.Rooms[i];
+                    MoodRoom mr = mood.Rooms.First(r => r.Room == room); // work order 059: a passage has no plan, so the plan is not by order
                     foreach (CompositionPiece c in mr.Pieces)
                     {
                         pieces++;
@@ -204,7 +222,14 @@ namespace Roguelike.Rules.Tests
                                          floor, seeds - 1, rooms, fellBack, fellBack / (double)rooms, bare, redraws, pairsDiffer, pairs, pairsDiffer / (double)pairs,
                                          floorsAllDiffer, floorsAllDiffer / (double)seeds, drops, pieces,
                                          string.Join(", ", shapes.OrderBy(k => k.Key).Select(k => k.Key + " " + k.Value)), largeProps, wallLarge);
-            TestContext.WriteLine(stats + "; floors on an earlier attempt than with the shapes off " + earlier); // work order 054
+            TestContext.WriteLine(stats + "; floors on an earlier attempt than with the shapes off " + earlier + "; templated rooms " + templated + ", enemy paths " + enemyPaths); // work order 054
+            Assert.That(drops, Is.GreaterThan(seeds), "drops asked where they land");
+            Assert.That(enemyPaths, Is.GreaterThan(seeds), "paths to the enemies asked");
+            if (defaults)
+            {
+                Assert.That(templated, Is.GreaterThan(seeds), "templated rooms among them");
+                return;
+            }
             Assert.That(bare, Is.EqualTo(0), "no room kept its plain rectangle");
             Assert.That(fellBack / (double)rooms, Is.LessThan(0.01), "fewer than one room in a hundred fell back to its gate alone");
             Assert.That(floorsAllDiffer / (double)seeds, Is.GreaterThanOrEqualTo(0.95), "on 95 % of floors no two rooms in a row have the same shape");

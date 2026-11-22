@@ -82,8 +82,8 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(Spot);
             yield return null;
             _player.SpendCooldownForTests(slot, left);
-            Assume.That(_player.SkillCooldownRemaining(slot), Is.EqualTo(left).Within(1e-3f));
-            Assume.That(_player.SkillChargesReady(slot), Is.EqualTo(0));
+            Assert.That(_player.SkillCooldownRemaining(slot), Is.EqualTo(left).Within(1e-3f));
+            Assert.That(_player.SkillChargesReady(slot), Is.EqualTo(0));
         }
 
         // ---------------- The twelve ----------------

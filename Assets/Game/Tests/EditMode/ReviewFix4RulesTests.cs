@@ -45,6 +45,11 @@ namespace Roguelike.Rules.Tests
             bool Standable(GroundPoint p) => p.X > 0.5f && p.Z > 0.5f && p.X < 11.5f && p.Z < 9.5f;
             Assert.That(RewardDropRules.TryLanding(fell, middle, Standable, (a, b) => true, V, out GroundPoint at), Is.True);
             Assert.That(at.X, Is.EqualTo(RewardDropRules.Landing(fell, middle, Standable, (a, b) => true, V).X).Within(1e-6f), "the same place as Landing");
+            // Work order 082 (review 6, finding 22): the place itself pinned (Landing is TryLanding or the middle, so the line above
+            // holds by construction): 1.5 m from where it fell toward the middle, taken from today's code on 2026-11-22, not from
+            // the code before work order 055.
+            Assert.That(at.X, Is.EqualTo(5.06066f).Within(1e-4f), "1.5 m toward the middle");
+            Assert.That(at.Z, Is.EqualTo(4.06066f).Within(1e-4f), "1.5 m toward the middle");
             Assert.That(Standable(at), Is.True);
         }
 

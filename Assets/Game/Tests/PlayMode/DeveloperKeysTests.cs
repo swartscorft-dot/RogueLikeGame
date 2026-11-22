@@ -181,8 +181,11 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Off_InAFloor_EveryDeveloperKey_ChangesNothing()
         {
-            DeveloperKeys.ForceForTests(false);
             _levels.StartRun(RunSeed);
+            yield return null;
+            yield return null;
+            bool shownOn = _hud.DevTextShown; // work order 082 (review 6, finding 17): the floor's own default with the keys on
+            DeveloperKeys.ForceForTests(false);
             yield return null;
             _health.Untouchable = true;
             GeneratedLevel level = _levels.Level;
@@ -200,6 +203,43 @@ namespace Roguelike.PlayModeTests
                 Assert.That(_hud.DevTextShown, Is.False, key + ": no text shown");
                 Assert.That(_levels.ShowDevBox, Is.False, key.ToString());
             }
+            // Work order 082 (review 6, finding 17): F1 did not flip the floor's choice underneath while off: on again, the
+            // text is as it was with the keys on before the presses.
+            DeveloperKeys.ForceForTests(true);
+            yield return null;
+            Assert.That(_hud.DevTextShown, Is.EqualTo(shownOn), "F1 changed nothing while off, in a floor");
+        }
+
+        /// <summary>
+        /// Work order 082 (review 6, finding 13): F7 at a choice with the keys off (the friends' build): the choice stays up,
+        /// the run goes on and the floor is the same (work order 066's leak: F7 at a chest threw the run away).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Off_F7_AtAChoice_ChangesNothing_TheChoiceStaysUp_AndTheRunGoesOn()
+        {
+            DeveloperKeys.ForceForTests(false);
+            _levels.StartRun(RunSeed);
+            yield return null;
+            _health.Untouchable = true;
+            _levels.FinishFloorForTests();
+            yield return Frames(() => _levels.Choice != GeneratedLevels.ChoiceKind.None);
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "the floor's reward is up");
+            GeneratedLevel level = _levels.Level;
+            int floor = _levels.Floor;
+            yield return new WaitForSecondsRealtime(0.5f); // past the choice's guard, where a key is read
+            yield return Tap(GeneratedLevels.PracticeRoomKey);
+            yield return null;
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), "F7: the choice still up");
+            Assert.That(_levels.InRun, Is.True, "F7: the run goes on");
+            Assert.That(_levels.IsInLevel, Is.True, "F7: still in the floor");
+            Assert.That(_levels.Level, Is.SameAs(level), "F7: the same floor");
+            Assert.That(_levels.Floor, Is.EqualTo(floor));
+            Assert.That(_levels.RunSeed, Is.EqualTo(RunSeed));
+            // On (the Editor's, the developer's build): F7 at a choice does take her to the practice room, as work order 066 meant.
+            DeveloperKeys.ForceForTests(true);
+            yield return Tap(GeneratedLevels.PracticeRoomKey);
+            yield return Frames(() => !_levels.InRun);
+            Assert.That(_levels.InRun, Is.False, "with the keys on, F7 at a choice ends the run");
         }
 
         [UnityTest]
