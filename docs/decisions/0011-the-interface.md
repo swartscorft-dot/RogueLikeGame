@@ -19,6 +19,29 @@ He asked for four or five different interface styles to choose between, "slik at
 5. **Type and numbers** as on `ui_kinetic_type_sheet.png`, calmer: the same heavy condensed italic everywhere; a slanted plate behind a word only for the few that matter most (PERFECT, COUNTER); damage numbers smaller than on the sheet. One typeface, with an open licence, kept in the project with its licence beside it (proposed: Barlow Condensed ExtraBold Italic).
 6. The palette is the sheet's: white, hot teal, red, black. Gold and red keep their meanings on doors, the map and rewards (treasure, elite).
 
+## What changed on 2026-11-21 (work order 068)
+
+After playing he said the two strokes were drawn over the offer's cards, too large, "fortsatt ikke samme stil som konsept UIet ... føles fortsatt litt flat, ikke nok anime", and that the combo bar of the right click must make clear when each press is due. Asked, he chose **"Begge: plate oppe, små under"**. So, overriding points 2 and 3 where they disagree (legibility in a fight still first):
+
+- Her health and focus are **both** the concept's plate at the top left (`ui_b_kinetic_anime.png`: a slanted red plate with a heavy black outline, halftone dots and the number in the heavy white italic; FOCUS and a slanted teal bar under it, white-hot with its key when full; the corner's dark wedge kept for a portrait) **and** two small strokes under her, two thirds of their old width, in the plate's language, with no number.
+- The blade over her head gives way to the concept's wide **combo bar** at the bottom middle over the strip: every press of a recast chain drawn ahead from the first shot, numbered, each press's window and clean part as the rules judge them (`ComboLine` in `Rules/InterfaceCombo.cs`, reading order 069's `RecastLine`); a charge's perfect band and a hold on the same bar.
+- Which piece is drawn over which is said in one place (`InterfaceDepth` in `Rules/InterfaceRules.cs`): order 071's screen edge under everything, then the enemies' bars, the words and the combo bar, the fight's pieces, an offer over all of those, the screens over the offer.
+- Line weight is most of what "anime" means here: the plates have the heavy black outline with a white or teal line outside it (`OuterStroke`); the strip's boxes are full of a teal icon with a white line between them, a cooling box grey, an empty one a dim outlined box; the dark shapes are compact (the corner's wedge narrow, the run box's plate behind the floor, the room and the enemies left only, its lesser lines smaller under it).
+- Everything new is a value in `InterfaceValues` (section 10); `TopPlate`, `ComboBar`, `StrokeConcept` off and `StrokeShrink` 1 give back the look of the morning of 2026-11-21.
+
+## How to take a picture of the interface (work order 068, 2026-11-21)
+
+Kristian allowed pictures of the game's interface for interface work ("Ja, for grensesnittet"); nothing else is verified this way, and no sound is played. The cheapest way works without a window, through the ordinary test helper:
+
+```
+$env:ROGUELIKE_CAPTURE = 'C:\Users\kriss\.claude-automation\runner\captures\<order>\round1'
+powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/kriss/.claude-automation/runner/run-tests.ps1 PlayMode -Minutes 20 -Filter "InterfacePicturesTests"
+```
+
+`Assets/Game/Tests/PlayMode/InterfacePicturesTests.cs` is skipped unless that variable names a folder outside the project (so no ordinary suite takes a picture or leaves a file). It stages moments through the game's intents (a fight with an elite, Triple Tap's chain, Backstep, a full gauge with a hit taken, an offer, the pause menu) and writes one PNG per moment, 1920 by 1080 (and one at 1280 by 720), plus `pictures.txt` with what was drawn in which order. `ROGUELIKE_CAPTURE_BEFORE=1` adds a picture with work order 063's look for comparison. Add a moment by staging it and calling `Picture("name", 1920, 1080)`.
+
+What it does and what was learnt: a batch run with a graphics device renders cameras (the main camera into a 1920 by 1080 render texture works), but it sends no OnGUI events and yields no end of frame (`WaitForEndOfFrame` throws in batch mode), and its `Screen` is not 1920 by 1080. So the test tells the interface the screen's size (`InterfaceStyle.ScreenForPictures`; every piece reads the screen's size through `InterfaceStyle.ScreenWidth`/`ScreenHeight`), sets the camera's target to the texture, lets every piece work out its frame, renders the camera, and then calls every `OnGUI` in the scene by hand inside an IMGUI container (the engine's internal `GUIUtility.BeginContainer`/`BeginGUI`/`EndGUI`/`EndContainer`, by reflection: the way UI Toolkit's IMGUIContainer runs IMGUI outside a window), a layout pass then a repaint pass in the pieces' `GUI.depth` order, with the texture active and a pixel matrix loaded. A picture costs tokens to read: take the few that answer a question. (Order 071's teal screen edge, `FocusEdge`, reads `Screen` itself, so in a picture it would be drawn at the batch run's small screen: no moment stages it.)
+
 ## Open
 
 - The skills' icons: the pictures invent them. The twelve skills need real ones in this style.

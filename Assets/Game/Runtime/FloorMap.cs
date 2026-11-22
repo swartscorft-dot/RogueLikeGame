@@ -187,8 +187,8 @@ namespace Roguelike
         /// <summary>Where the two maps stand, in the 720-high layout of the view as it is now (1280 by 720 without a window).</summary>
         void Place()
         {
-            float height = Screen.height > 0 ? Screen.height : SkillBar.LayoutHeight;
-            float viewWidth = (Screen.width > 0 ? Screen.width : 1280f) * SkillBar.LayoutHeight / height;
+            float height = InterfaceStyle.ScreenHeight > 0 ? InterfaceStyle.ScreenHeight : SkillBar.LayoutHeight;
+            float viewWidth = (InterfaceStyle.ScreenWidth > 0 ? InterfaceStyle.ScreenWidth : 1280f) * SkillBar.LayoutHeight / height;
             CellRect box = _layout.Bounds();
             double cs = _layout.CellSize;
             FloorMapRules.Fit(box.Width * cs, box.Height * cs, SkillBar.LayoutHeight * _v.MapHeightShare - 2 * Pad, _v.MapWidthMost - 2 * Pad,
@@ -237,7 +237,8 @@ namespace Roguelike
         void OnGUI()
         {
             if (!Shown || _layout == null || Event.current.type != EventType.Repaint) return;
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            GUI.depth = InterfaceDepth.Fight; // work order 068: under an offer and every screen
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             Color colourBefore = GUI.color;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));

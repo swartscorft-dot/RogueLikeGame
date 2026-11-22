@@ -159,6 +159,7 @@ namespace Roguelike
             if (!up && Flash != CastBarFlash.None) View = _flashView;
             Showing = Values.On && alive && !PlayerSigns.ScreenUp && (up || Flash != CastBarFlash.None);
             PlaceBlade(); // work order 045: in the interface's skin, a blade over her head (CastBarKinetic.cs)
+            TickCombo(up ? kind : CastBarKind.None); // work order 068: the combo bar at the bottom middle (CastBarCombo.cs)
         }
 
         /// <summary>The newest timed thing of hers, if one is up: a recast chain's next press, else the skill in use's charge, hold or cast.</summary>
@@ -249,6 +250,7 @@ namespace Roguelike
             switch (r.Kind)
             {
                 case PlayerReportKind.RecastPressed:
+                    ComboPressed(r); // work order 068: its zone on the combo bar, before the flash takes the bar's view
                     StartFlash(CastBarRules.OfPress(r.Clean));
                     break;
                 case PlayerReportKind.SkillFired when skill != null && skill.Input == SkillInput.Charge && !skill.NoCharge:
@@ -279,18 +281,20 @@ namespace Roguelike
 
         void OnGUI()
         {
-            if (Event.current.type != EventType.Repaint || !Showing) return;
-            GUI.depth = 1; // under the skill bar, the HUD and its screens, as the signs' words
+            if (Event.current.type != EventType.Repaint) return;
+            GUI.depth = InterfaceDepth.Words; // under an offer and every screen (work order 068: the depths in one place)
+            if (ComboShown) DrawCombo(); // work order 068: the combo bar at the bottom middle, while a timed thing is up and a moment after
+            if (!Showing) return;
             if (Kinetic)
             {
-                DrawBlade(); // work order 045: the blade over her head instead of the bar under the middle
+                if (_bladeOnScreen && BladeAllowed) DrawBlade(); // work order 045: the blade over her head instead of the bar under the middle
                 return;
             }
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             Color before = GUI.color;
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
             float w = Mathf.Max(Values.LeastWidth, viewWidth * Mathf.Clamp01(Values.WidthShare));
             var bar = new Rect((viewWidth - w) * 0.5f, SkillBar.LayoutHeight * 0.5f + Values.BelowMiddle, w, Mathf.Max(4f, Values.Height));
             bool flashing = Flash != CastBarFlash.None;

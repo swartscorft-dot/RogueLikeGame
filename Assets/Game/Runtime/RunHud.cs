@@ -585,11 +585,11 @@ namespace Roguelike
             if (_player == null) return;
             Styles();
             bool kinetic = UseStyles(); // work order 045: the screens in the interface's skin (RunHudKinetic.cs)
-            GUI.depth = -10; // over the skill bar and the run's boxes: the screens dim them
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            GUI.depth = GuiDepth; // work order 068: a screen over everything (the offers too); else its run box and prompt with the fight's interface
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
             Color before = GUI.color;
 
             if (EdgeAlpha > 0.001f)

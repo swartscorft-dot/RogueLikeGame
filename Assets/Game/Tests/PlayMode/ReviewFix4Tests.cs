@@ -85,6 +85,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            InterfaceStyle.Shared.BladeWithCombo = false; // work order 068
             PlaceholderSounds.Requested -= Record;
             ShotSounds.Requested -= Voice;
             Time.captureDeltaTime = 0f;
@@ -312,6 +313,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(bar, Is.Not.Null);
             CastBar cast = CastBar.Ensure();
             _made.Add(cast.gameObject);
+            InterfaceStyle.Shared.BladeWithCombo = true; // work order 068: the blade over her head only beside the combo bar when asked for
             int shot = Slot("Long Shot");
             _player.EquipSkill(shot);
             _player.Teleport(NearA);

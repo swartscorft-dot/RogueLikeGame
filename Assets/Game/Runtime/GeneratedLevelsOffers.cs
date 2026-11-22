@@ -236,15 +236,34 @@ namespace Roguelike
             InterfaceValues v = InterfaceStyle.V;
             OfferValues o = Offers;
             float k = _popScale, pivot = r.center.y, slant = o.Slant;
-            Leaning(r, pivot, slant, InterfaceStyle.C(v.Panel, light));
+            // Work order 068 (the concept's cards): a heavy black outline and a dark copy behind, a darker panel, a teal band
+            // across its top with halftone dots fading into it, a red double slash at its foot.
+            // The morning of 2026-11-22: a line outside the black, the tier's colour on a rare or an epic, else white.
+            InterfaceStyle.InkedPlate(r, pivot, slant, v.HeavyOutline * k, v.Depth * 2f * k,
+                                      _cardInks[i] != UiInk.White ? Lit(InterfaceStyle.Ink(_cardInks[i]), light) : InterfaceStyle.C(v.White, light), k);
+            Leaning(r, pivot, slant, InterfaceStyle.C(v.Black, 0.92f * light));
+            InterfaceStyle.DotsAlong(new Rect(r.x + r.width * 0.45f, r.y, r.width * 0.55f, r.height * 0.32f), pivot, slant, 0.1f, InterfaceStyle.C(v.Teal, 0.28f * light));
             Leaning(new Rect(r.x, r.y, 5f * k, r.height), pivot, slant, InterfaceStyle.C(v.Teal, light));
             Color ink = Lit(InterfaceStyle.Ink(_cardInks[i]), light);
-            if (_cardInks[i] != UiInk.White) Leaning(new Rect(r.x, r.y, r.width, 5f * k), pivot, slant, ink); // a rare's or an epic's bar
+            Leaning(new Rect(r.x, r.y, r.width, 6f * k), pivot, slant, _cardInks[i] != UiInk.White ? ink : InterfaceStyle.C(v.Teal, light)); // a rare's or an epic's bar, else teal
+            if (Choice != ChoiceKind.FocusChoice) // the focus choice's gauge sketch stands there (round 3's picture)
+                InterfaceStyle.Slashes(r.xMax - 14f * k - slant * r.height * 0.5f, r.yMax - 30f * k, 22f * k, 6f * k, 2, InterfaceStyle.C(v.Red, light));
             if (hover) LeaningFrame(r, pivot, slant, InterfaceStyle.C(v.Teal), 3f * k);
             Rect plate = _popKeys[i];
-            Leaning(plate, plate.center.y, slant, InterfaceStyle.C(v.White, light));
-            InterfaceStyle.Label(plate, _cardKeys[i], InterfaceStyle.Text(true, OfferLayout.Size(o.KeySize, k), TextAnchor.MiddleCenter), InterfaceStyle.C(v.Black, light));
-            InterfaceStyle.Label(_popNames[i], _cardTitles[i], _popNameStyle, InterfaceStyle.C(v.White, light), true);
+            // Round 2's picture: a white key plate beside the white name plate read as one; the key is the concept's numeral now,
+            // white on black in a teal frame (the tier's colour on a rare or an epic).
+            Color frame = _cardInks[i] != UiInk.White ? ink : InterfaceStyle.C(v.Teal, light);
+            Leaning(plate, plate.center.y, slant, InterfaceStyle.C(v.Black, light));
+            LeaningFrame(plate, plate.center.y, slant, frame, 3f * k);
+            InterfaceStyle.Label(plate, _cardKeys[i], InterfaceStyle.Text(true, OfferLayout.Size(o.KeySize, k), TextAnchor.MiddleCenter), InterfaceStyle.C(v.White, light));
+            if (v.CardNamePlate)
+            {
+                // The name on a white plate, black italic (the concept's "RICOCHET").
+                Rect n = _popNames[i];
+                Leaning(new Rect(n.x - 6f * k, n.y + 2f * k, n.width + 4f * k, n.height - 4f * k), n.center.y, slant, InterfaceStyle.C(v.White, light));
+                InterfaceStyle.Label(n, _cardTitles[i], _popNameStyle, InterfaceStyle.C(v.Black, light));
+            }
+            else InterfaceStyle.Label(_popNames[i], _cardTitles[i], _popNameStyle, InterfaceStyle.C(v.White, light), true);
             List<PopPart> parts = _popParts[i];
             for (int p = 0; p < parts.Count; p++)
             {

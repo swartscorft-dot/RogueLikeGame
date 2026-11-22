@@ -19,6 +19,12 @@ namespace Roguelike
     {
         /// <summary>Her health bar of before is drawn now (the skin off, and no skill bar to show it).</summary>
         public bool HealthBarDrawn { get; private set; }
+        /// <summary>
+        /// The IMGUI depth it draws at (work order 068): a screen's (the pause menu, an end screen, the screen between runs)
+        /// while one is up, over an offer and everything else; else the fight's, under an offer (its run box, its prompt).
+        /// </summary>
+        public int GuiDepth => InterfaceDepth.Hud(_levels != null && (_levels.EndScreenShown || _levels.Paused || _levels.BetweenRunsUp));
+
         /// <summary>True when the HUD and its screens are drawn in the kinetic skin.</summary>
         public bool Kinetic => InterfaceStyle.Kinetic;
 
@@ -93,7 +99,15 @@ namespace Roguelike
                 return;
             }
             InterfaceValues v = InterfaceStyle.V;
+            // Work order 068 (the concept's plates): a heavy black outline and its dark copy, a teal cut down its left edge, a red
+            // double slash at its top right and halftone dots fading in under it. (The HUD's 720 layout: the 1080 values made 720.)
+            float k = SkillBar.LayoutHeight / v.LayoutHeight, o = v.HeavyOutline * k;
+            Fill(new Rect(r.x - o + v.Depth * k * 2f, r.y - o + v.Depth * k * 2f, r.width + 2f * o, r.height + 2f * o), InterfaceStyle.C(v.Black, 0.55f));
+            Fill(new Rect(r.x - o, r.y - o, r.width + 2f * o, r.height + 2f * o), InterfaceStyle.C(v.Black));
             Fill(r, InterfaceStyle.C(v.Panel));
+            InterfaceStyle.DotsAlong(new Rect(r.x + r.width * 0.55f, r.y, r.width * 0.45f, Mathf.Min(70f, r.height * 0.3f)), r.y, 0f, 0.05f, InterfaceStyle.C(v.Teal, 0.18f));
+            Fill(new Rect(r.x, r.y, 4f, r.height), accent == s_Health ? InterfaceStyle.C(v.Red) : InterfaceStyle.C(v.Teal));
+            InterfaceStyle.Slashes(r.xMax - 12f, r.y + 10f, 26f, 5f, 2, InterfaceStyle.C(v.Red));
             Color rule = accent == s_Health ? InterfaceStyle.C(v.Red) : InterfaceStyle.C(v.Teal);
             InterfaceStyle.Slanted(new Rect(r.x + r.width * 0.2f, ruleY, r.width * 0.6f, Mathf.Max(1f, v.RuleThickness * 0.67f)), rule);
         }
@@ -112,11 +126,24 @@ namespace Roguelike
             GUI.matrix = before;
         }
 
+        /// <summary>
+        /// The run box's height in the HUD's 720 layout with <paramref name="lines"/> lines, as <see cref="DrawRunBoxLines"/>
+        /// draws them: all on the plate (work order 063), or since the morning of 2026-11-22 the head and
+        /// <see cref="InterfaceValues.RunPlateLines"/> on a compact plate and the rest smaller under it.
+        /// </summary>
+        static float RunBoxHeight(int lines, InterfaceValues v)
+        {
+            int middle = Mathf.Max(0, lines - 2), onPlate = Mathf.Min(middle, Mathf.Max(0, v.RunPlateLines));
+            if (onPlate >= middle) return 8f + 26f + 5f + middle * 17f + 15f;
+            float k = SkillBar.LayoutHeight / v.LayoutHeight, o = v.HeavyOutline * k, t = Mathf.Max(0f, v.OuterStroke) * k;
+            return 3f + 8f + 26f + 5f + onPlate * 17f + 6f + o + t + 3f + (middle - onPlate) * 14f + 14f + 2f;
+        }
+
         /// <summary>The run box's place in the HUD's 720 layout with <paramref name="lines"/> lines, grown about the top right corner (work order 063): for the overlap checks.</summary>
         public static Rect RunBoxKinetic(float viewWidth, int lines)
         {
             float k = RunBoxFactor(InterfaceStyle.V);
-            float h = 8f + 26f + 5f + Mathf.Max(0, lines - 2) * 17f + 15f;
+            float h = RunBoxHeight(lines, InterfaceStyle.V);
             float w = RunBoxWidth + 12f;
             return new Rect(viewWidth - w * k, 0f, w * k, h * k);
         }
@@ -127,27 +154,43 @@ namespace Roguelike
         void DrawRunBoxLines(float viewWidth, InterfaceValues v)
         {
             float right = viewWidth - 12f, w = RunBoxWidth;
+            // Work order 068 (the concept's top right): the lines on a dark slanted plate in the heavy black outline, a teal cut
+            // down its left edge; inside the run box's own width, clear of the map beside it.
+            // The morning of 2026-11-22 (the producer, from round 4: "a large black area with small thin text"): the plate is
+            // compact, behind the head and RunPlateLines lines only, a white line outside its black outline; the lesser lines
+            // after it smaller, on no plate.
+            float k = SkillBar.LayoutHeight / v.LayoutHeight, o = v.HeavyOutline * k, t = Mathf.Max(0f, v.OuterStroke) * k;
+            int middle = Mathf.Max(0, _runBox.Count - 2), onPlate = Mathf.Min(middle, Mathf.Max(0, v.RunPlateLines));
+            var plate = new Rect(right - w + 4f, 3f, w + 30f, 8f + 26f + 5f + onPlate * 17f + (onPlate < middle ? 6f : 15f));
+            if (t > 0f) InterfaceStyle.Slanted(new Rect(plate.x - o - t, plate.y - o - t, plate.width + 2f * (o + t), plate.height + 2f * (o + t)), InterfaceStyle.C(v.White));
+            InterfaceStyle.Slanted(new Rect(plate.x - o, plate.y - o, plate.width + 2f * o, plate.height + 2f * o), InterfaceStyle.C(v.Black));
+            InterfaceStyle.Slanted(plate, InterfaceStyle.C(v.Black, 0.72f));
+            InterfaceStyle.Slanted(new Rect(plate.x, plate.y, 3f, plate.height), InterfaceStyle.C(v.Teal));
             var head = new Rect(right - w, 8f, w, 26f);
             GUI.Label(head, _runBox[0], RightAligned(_big));
             InterfaceStyle.Slanted(new Rect(right - w * 0.55f, head.yMax + 1f, w * 0.55f, 1.5f), InterfaceStyle.C(v.Teal));
             float y = head.yMax + 5f;
-            GUIStyle line = RightAligned(_label);
+            GUIStyle line = RightAligned(_label), small = RightAligned(_small);
             for (int i = 1; i < _runBox.Count - 1; i++)
             {
-                InterfaceStyle.Label(new Rect(right - w, y, w, 17f), _runBox[i], line, Color.white, true);
-                y += 17f;
+                bool lesser = i > onPlate;
+                if (lesser && i == onPlate + 1) y = plate.yMax + o + t + 3f;
+                float h = lesser ? 14f : 17f;
+                InterfaceStyle.Label(new Rect(right - w, y, w, h), _runBox[i], lesser ? small : line, lesser ? new Color(1f, 1f, 1f, 0.85f) : Color.white, true);
+                y += h;
             }
-            GUI.color = Color.white;
-            GUI.Label(new Rect(right - w, y + 1f, w, 14f), _runBox[_runBox.Count - 1], RightAligned(_small));
+            if (onPlate >= middle) y += 1f;
+            InterfaceStyle.Label(new Rect(right - w, y, w, 14f), _runBox[_runBox.Count - 1], small, new Color(1f, 1f, 1f, 0.6f), true);
         }
 
         GUIStyle _rightBig, _rightLabel, _rightSmall;
 
         GUIStyle RightAligned(GUIStyle style)
         {
-            if (style == _big) return _rightBig ?? (_rightBig = new GUIStyle(_big) { alignment = TextAnchor.MiddleRight, wordWrap = false });
-            if (style == _small) return _rightSmall ?? (_rightSmall = new GUIStyle(_small) { alignment = TextAnchor.MiddleRight, wordWrap = false });
-            return _rightLabel ?? (_rightLabel = new GUIStyle(_label) { alignment = TextAnchor.MiddleRight, wordWrap = false });
+            // Work order 068 (round 4's picture: "Upgrades" read "Uparades", the g's tail cut at its 17-pixel line): not clipped.
+            if (style == _big) return _rightBig ?? (_rightBig = new GUIStyle(_big) { alignment = TextAnchor.MiddleRight, wordWrap = false, clipping = TextClipping.Overflow });
+            if (style == _small) return _rightSmall ?? (_rightSmall = new GUIStyle(_small) { alignment = TextAnchor.MiddleRight, wordWrap = false, clipping = TextClipping.Overflow });
+            return _rightLabel ?? (_rightLabel = new GUIStyle(_label) { alignment = TextAnchor.MiddleRight, wordWrap = false, clipping = TextClipping.Overflow });
         }
 
         /// <summary>The practice room's line as a prompt in the skin: "F5" on its plate, "start a run" after it.</summary>

@@ -52,6 +52,7 @@ namespace Roguelike
         static void ResetStatics()
         {
             Current = null;
+            ScreenForPictures = Vector2Int.zero; // work order 068
             // The fourth review of 2026-11-21 (work order 055): with domain reload off the values, and the textures made in
             // code, lasted from one Play session to the next; the values are made anew, the textures destroyed.
             s_Shared = new InterfaceValues();
@@ -62,6 +63,8 @@ namespace Roguelike
             Gone(s_Pips);
             Gone(s_Halftone); // work order 063
             s_Halftone = null;
+            Gone(s_DotRow); // work order 068
+            s_DotRow = null;
             Gone(s_ButtonNormal);
             Gone(s_ButtonHover);
             Gone(s_ButtonActive);
@@ -319,8 +322,19 @@ namespace Roguelike
 
         static readonly GUIContent s_Content = new GUIContent();
 
+        /// <summary>
+        /// A screen size the interface lays itself out for instead of the window's, for pictures of it taken without a window
+        /// (work order 068: a test draws the interface into a texture of 1920 by 1080 when the batch run's screen is another
+        /// size); zero, the window's, always in play. Every piece of the interface reads the screen's size here.
+        /// </summary>
+        public static Vector2Int ScreenForPictures;
+
+        /// <summary>The screen's width and height the interface lays itself out for (the window's, or <see cref="ScreenForPictures"/>).</summary>
+        public static int ScreenWidth => ScreenForPictures.x > 0 ? ScreenForPictures.x : Screen.width;
+        public static int ScreenHeight => ScreenForPictures.y > 0 ? ScreenForPictures.y : Screen.height;
+
         /// <summary>The layout's scale now, real pixels per layout pixel.</summary>
-        public static float Scale => InterfaceRules.Scale(Screen.height, V);
+        public static float Scale => InterfaceRules.Scale(ScreenHeight, V);
 
         /// <summary>Sets the matrix to the layout's scale; returns the view's width in layout pixels.</summary>
         public static float BeginLayout(out Matrix4x4 before)
@@ -328,7 +342,7 @@ namespace Roguelike
             before = GUI.matrix;
             float scale = Mathf.Max(1e-4f, Scale);
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-            return Screen.width / scale;
+            return ScreenWidth / scale;
         }
 
         /// <summary>A plain rectangle.</summary>
@@ -539,6 +553,114 @@ namespace Roguelike
                 s_Halftone.SetPixels32(px);
                 s_Halftone.Apply();
                 return s_Halftone;
+            }
+        }
+
+        // ---------------- The concept's style (work order 068) ----------------
+
+        /// <summary>A shape leaning by its own <paramref name="slant"/> about the line <paramref name="pivotY"/> (the plates of the concept lean harder than the strip).</summary>
+        public static void Leaning(Rect r, float pivotY, float slant, Color c)
+        {
+            Matrix4x4 before = GUI.matrix;
+            GUI.matrix = before * Shear(pivotY, slant);
+            GUI.color = c;
+            GUI.DrawTexture(r, Texture2D.whiteTexture);
+            GUI.matrix = before;
+        }
+
+        /// <summary>A leaning outline of four sides <paramref name="t"/> thick, inside the rectangle.</summary>
+        public static void LeaningFrame(Rect r, float pivotY, float slant, Color c, float t)
+        {
+            Matrix4x4 before = GUI.matrix;
+            GUI.matrix = before * Shear(pivotY, slant);
+            GUI.color = c;
+            GUI.DrawTexture(new Rect(r.x, r.y, r.width, t), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(r.x, r.yMax - t, r.width, t), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(r.x, r.y, t, r.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(r.xMax - t, r.y, t, r.height), Texture2D.whiteTexture);
+            GUI.matrix = before;
+        }
+
+        /// <summary>
+        /// The concept's heavy plate under a shape (work order 068): a dark copy moved down and right by <paramref name="depth"/>,
+        /// then the black outline, the shape grown by <paramref name="outline"/> on every side; the shape's face is drawn after.
+        /// </summary>
+        public static void HeavyPlate(Rect r, float pivotY, float slant, float outline, float depth)
+        {
+            Color ink = C(V.Black);
+            if (depth > 0f) Leaning(new Rect(r.x - outline + depth, r.y - outline + depth, r.width + 2f * outline, r.height + 2f * outline), pivotY, slant, C(V.Black, 0.55f));
+            if (outline > 0f) Leaning(new Rect(r.x - outline, r.y - outline, r.width + 2f * outline, r.height + 2f * outline), pivotY, slant, ink);
+        }
+
+        /// <summary>
+        /// The concept's inked plate (work order 068, the producer's reading of round 4: line weight is most of what "anime"
+        /// means here): <see cref="HeavyPlate"/>'s dark copy and black outline, and outside the black a stroke of
+        /// <paramref name="stroke"/> (white or teal) <see cref="InterfaceValues.OuterStroke"/> thick, times <paramref name="k"/>.
+        /// With the outer stroke at 0 it is <see cref="HeavyPlate"/>.
+        /// </summary>
+        public static void InkedPlate(Rect r, float pivotY, float slant, float outline, float depth, Color stroke, float k = 1f)
+        {
+            float t = Mathf.Max(0f, V.OuterStroke) * k, g = outline + t;
+            if (depth > 0f) Leaning(new Rect(r.x - g + depth, r.y - g + depth, r.width + 2f * g, r.height + 2f * g), pivotY, slant, C(V.Black, 0.55f));
+            if (t > 0f) Leaning(new Rect(r.x - g, r.y - g, r.width + 2f * g, r.height + 2f * g), pivotY, slant, stroke);
+            HeavyPlate(r, pivotY, slant, outline, 0f);
+        }
+
+        /// <summary>
+        /// Halftone dots across the right part of a leaning shape, from <paramref name="fromShare"/> of its width (none) to its
+        /// right end (large): the concept's dots fading across a plate. One draw, the dots' texture repeated down the shape.
+        /// </summary>
+        public static void DotsAlong(Rect r, float pivotY, float slant, float fromShare, Color c)
+        {
+            fromShare = Mathf.Clamp01(fromShare);
+            if (fromShare >= 1f || r.width <= 0f || r.height <= 0f) return;
+            var dots = new Rect(r.x + r.width * fromShare, r.y, r.width * (1f - fromShare), r.height);
+            float cell = dots.width / DotCellsAcross;
+            float rows = Mathf.Max(1f, r.height / Mathf.Max(1f, 2f * cell));
+            Matrix4x4 before = GUI.matrix;
+            GUI.matrix = before * Shear(pivotY, slant);
+            GUI.color = c;
+            GUI.DrawTextureWithTexCoords(dots, DotRow, new Rect(0f, 0f, 1f, rows));
+            GUI.matrix = before;
+        }
+
+        /// <summary>Hot slashes leaning hard (the concept's double red slash): <paramref name="count"/> of them, <paramref name="w"/> wide, from x leftward.</summary>
+        public static void Slashes(float rightX, float y, float h, float w, int count, Color c)
+        {
+            for (int i = 0; i < count; i++)
+                Leaning(new Rect(rightX - (i + 1) * w * 1.9f, y, w, h), y + h * 0.5f, 0.7f, c);
+        }
+
+        static Texture2D s_DotRow;
+        /// <summary>The dots' row texture: this many cells across, two rows (the second set half a cell over), each cell this many texels.</summary>
+        public const int DotCellsAcross = 14, DotCell = 8;
+
+        /// <summary>A row of halftone dots growing from nothing at its left to touching at its right, two rows staggered: white, to tint.</summary>
+        public static Texture2D DotRow
+        {
+            get
+            {
+                if (s_DotRow != null) return s_DotRow;
+                int w = DotCellsAcross * DotCell, h = 2 * DotCell;
+                s_DotRow = new Texture2D(w, h, TextureFormat.RGBA32, false)
+                {
+                    name = "KineticDotRow", wrapModeU = TextureWrapMode.Clamp, wrapModeV = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear,
+                };
+                var px = new Color32[w * h];
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < w; x++)
+                    {
+                        int row = y / DotCell;
+                        float sx = x + (row == 1 ? DotCell * 0.5f : 0f);
+                        float cx = Mathf.Floor(sx / DotCell) * DotCell + DotCell * 0.5f, cy = row * DotCell + DotCell * 0.5f;
+                        float t = Mathf.Clamp01(cx / w);
+                        float radius = t * DotCell * 0.62f;
+                        float d = Mathf.Sqrt((sx - cx) * (sx - cx) + (y + 0.5f - cy) * (y + 0.5f - cy));
+                        px[y * w + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(radius - d + 0.5f) * 255f));
+                    }
+                s_DotRow.SetPixels32(px);
+                s_DotRow.Apply();
+                return s_DotRow;
             }
         }
 
