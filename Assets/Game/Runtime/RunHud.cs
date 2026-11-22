@@ -54,9 +54,9 @@ namespace Roguelike
         /// <summary>
         /// The lines of the pause menu, in the order shown. BetweenRuns (work order 029): the trial's switch. CameraKick (work
         /// order 064): the camera's kick when she fires, on or off. Attachments (work order 060): her pistols' parts' switch,
-        /// last (RunHudWeapon.cs).
+        /// last (RunHudWeapon.cs). Greybox (work order 084): the greybox view, on or off, shown under the camera kick.
         /// </summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -250,6 +250,7 @@ namespace Roguelike
                     break;
                 case MenuLine.DamageNumbers: ChangeSetting(line, 1); break;
                 case MenuLine.CameraKick: ChangeSetting(line, 1); break; // work order 064
+                case MenuLine.Greybox: ChangeSetting(line, 1); break; // work order 084
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
                 case MenuLine.Attachments: ChangeSetting(line, 1); break; // work order 060
             }
@@ -281,6 +282,11 @@ namespace Roguelike
             if (line == MenuLine.CameraKick)
             {
                 GameSettings.SetCameraKick(!GameSettings.CameraKick); // either way it flips (work order 064)
+                return true;
+            }
+            if (line == MenuLine.Greybox)
+            {
+                GameSettings.SetGreybox(!GameSettings.Greybox); // either way it flips (work order 084); the floor follows it this frame
                 return true;
             }
             if (line == MenuLine.BetweenRuns)
@@ -426,6 +432,7 @@ namespace Roguelike
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
             _menu.Add(MenuLine.CameraKick); // work order 064: the camera's kick when a shot goes off
+            _menu.Add(MenuLine.Greybox); // work order 084: the greybox view, beside the camera kick
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
             _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
@@ -445,6 +452,7 @@ namespace Roguelike
                 case MenuLine.DashDirection: return "Dash direction:  " + (DashNow == DashDirection.TowardMovement ? "the way you move" : "toward the cursor");
                 case MenuLine.DamageNumbers: return "Damage numbers:  " + (TimingFeedback.NumbersOn ? "on" : "off");
                 case MenuLine.CameraKick: return GameSettings.CameraKick ? "Camera kick:  on" : "Camera kick:  off"; // work order 064
+                case MenuLine.Greybox: return GameSettings.Greybox ? "Greybox view:  on" : "Greybox view:  off"; // work order 084
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
@@ -719,6 +727,7 @@ namespace Roguelike
                 if (i == Selected) Frame(new Rect(row.x - 3f, row.y - 3f, row.width + 6f, row.height + 6f), s_Accent);
                 bool setting = line == MenuLine.DashDirection || line == MenuLine.Volume || line == MenuLine.DamageNumbers || line == MenuLine.BetweenRuns
                                || line == MenuLine.CameraKick    // work order 064
+                               || line == MenuLine.Greybox       // work order 084
                                || line == MenuLine.Attachments;  // work order 060
                 if (setting)
                 {
