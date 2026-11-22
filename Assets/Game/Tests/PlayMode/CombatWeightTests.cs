@@ -5,6 +5,7 @@ using System.Linq;
 using NUnit.Framework;
 using Roguelike.Rules;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
@@ -26,7 +27,7 @@ namespace Roguelike.PlayModeTests
     {
         static readonly Vector3 NearA = new Vector3(2f, 0f, 1f);   // Dummy_A is 2.3 m away here (the sound tests' place)
         static readonly Vector3 TargetAt = new Vector3(0f, 0f, 8f); // where a burst is shown by hand
-        static readonly Vector3 Facing = new Vector3(0f, 0f, 1f);   // her, on open floor, when a practice enemy to kill is spawned off her
+        static readonly Vector3 Far = new Vector3(-17f, 0f, -17f);  // a corner of the practice room, out of the way (the sound tests' place for the brute)
 
         PlayerCharacter _player;
         PlayerHealth _health;
@@ -111,23 +112,33 @@ namespace Roguelike.PlayModeTests
         void ByHand(float critChance) =>
             _player.Modifiers = new RunModifiers { StatsAndTiers = true, StatValues = new StatValues { StartCritChance = critChance } };
 
-        /// <summary>A practice shooter spawned off her standing at <paramref name="from"/>, standing still, with this much health.</summary>
-        EnemyShooter Shooter(Vector3 from, int health)
+        /// <summary>A practice shooter put at <paramref name="at"/>, unable to walk, with this much health (as the sound tests make them).</summary>
+        EnemyShooter Shooter(Vector3 at, int health)
         {
-            _player.Teleport(from);
             List<Enemy> made = _levels.SpawnPractice(EnemyKind.Shooter);
             Assert.That(made.Count, Is.EqualTo(1), "a shooter spawned");
             var shooter = (EnemyShooter)made[0];
-            shooter.Tuning.Enemy.MoveSpeed = 0f;
+            shooter.Values.MoveSpeed = 0f;
+            Assert.That(shooter.GetComponent<NavMeshAgent>().Warp(at), Is.True, "on the NavMesh at " + at);
             shooter.Body.SetMaxHealth(health);
             return shooter;
         }
 
-        /// <summary>One with one point of health, spawned off her where she will shoot from: her next hit kills it.</summary>
-        EnemyShooter OneToKill() => Shooter(Facing, 1);
+        /// <summary>
+        /// One with one point of health where Dummy_A stood (the dummy put out of the way): her basic shot from
+        /// <see cref="NearA"/> hits it there, as it hits the dummy in the sound tests.
+        /// </summary>
+        EnemyShooter OneToKill()
+        {
+            Vector3 at = new Vector3(_a.transform.position.x, 0f, _a.transform.position.z);
+            _a.transform.position = new Vector3(-17f, _a.transform.position.y, 18f);
+            return Shooter(at, 1);
+        }
 
         IEnumerator ShootToKill(Enemy enemy)
         {
+            _player.Teleport(NearA);
+            yield return null;
             yield return UntilFree();
             _player.Shoot(enemy.transform.position);
             yield return Until(() => enemy.IsDead, 2f);
@@ -200,7 +211,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator HerKill_StartsTheKillSound_AndABurst_NotTheEnemysDeathThump()
         {
             // Another one alive, off to the side (the practice brute is switched off, and so not among the enemies there).
-            EnemyShooter other = Shooter(NearA + new Vector3(4f, 0f, 0f), 1000000);
+            EnemyShooter other = Shooter(Far, 1000000);
             EnemyShooter shooter = OneToKill();
             yield return Frames(2);
             Assume.That(Enemy.All.Count(e => e != null && !e.IsDead), Is.EqualTo(2), "two alive: the room is not won by the first");
@@ -299,7 +310,8 @@ namespace Roguelike.PlayModeTests
 
             // Unclean: press 2 the moment its window opens (before its clean part), silent; press 3 clean is step 1, not the top.
             yield return UntilNoChain();
-            yield return new WaitForSeconds(0.3f);
+            yield return Until(() => _player.SkillChargesReady(tap) > 0, 15f); // its cooldown
+            yield return UntilFree();
             _played.Clear();
             Assert.That(_player.PressSkill(tap, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
