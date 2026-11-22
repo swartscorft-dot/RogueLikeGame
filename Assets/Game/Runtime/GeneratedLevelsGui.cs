@@ -51,6 +51,13 @@ namespace Roguelike
             return _text.ToString();
         }
 
+        // The practice room's box as last made, and what it was made of (work order 081).
+        string _practiceText;
+        ulong? _practiceSeed;
+        FocusMode _practiceFocus;
+        string _practiceLastRun;
+        int _practiceLines;
+
         void OnGUI()
         {
             if (_player == null) return;
@@ -81,13 +88,23 @@ namespace Roguelike
             }
             else if (ShowDevBox)
             {
-                string text = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
-                            + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
-                            + "\n" + CasterKey + " caster   " + BomberKey + " bomber   " + WarderKey + " warder (Shift: with a pack)" // work order 034: its own line, the line above being full; 073: the bomber; 079: the warder
-                            + "\n" + PracticeFocusLine() // work order 025
-                            + ToolsPracticeLine // work order 084
-                            + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
-                GUI.Box(new Rect(x, DevBoxTop, width, 12 + text.Split('\n').Length * 15), text, DevBoxStyle());
+                // Work order 081: the practice room's box is made again only when what it says changes (the run seed, the focus
+                // way she tries, the last run's line), not at every event of every frame; its lines counted once with it.
+                FocusMode focusNow = _player != null ? _player.PracticeFocusMode : FocusMode.Today;
+                if (_practiceText == null || _practiceSeed != RunSeed || _practiceFocus != focusNow || !ReferenceEquals(_practiceLastRun, LastRunLine))
+                {
+                    _practiceSeed = RunSeed;
+                    _practiceFocus = focusNow;
+                    _practiceLastRun = LastRunLine;
+                    _practiceText = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
+                                + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
+                                + "\n" + CasterKey + " caster   " + BomberKey + " bomber   " + WarderKey + " warder (Shift: with a pack)" // work order 034: its own line, the line above being full; 073: the bomber; 079: the warder
+                                + "\n" + PracticeFocusLine() // work order 025
+                                + ToolsPracticeLine // work order 084
+                                + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");
+                    _practiceLines = _practiceText.Split('\n').Length;
+                }
+                GUI.Box(new Rect(x, DevBoxTop, width, 12 + _practiceLines * 15), _practiceText, DevBoxStyle());
             }
             if (Choice != ChoiceKind.None && kinetic) DrawGuardedChoiceKinetic(); // work order 045: slim tilted cards at the right edge; 065: the pop-up in the middle
             else if (Choice != ChoiceKind.None) DrawGuardedChoice(viewWidth); // work order 042: dim, and deaf to clicks, for a moment

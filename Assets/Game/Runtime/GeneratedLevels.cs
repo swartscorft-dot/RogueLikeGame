@@ -73,6 +73,9 @@ namespace Roguelike
     /// A reward on the ground and the guard on every choice (work order 042, Kristian's answers of 2026-11-20) are in
     /// GeneratedLevelsDrops.cs: the elite room's upgrade and the floor's reward land as a drop she picks up with the
     /// interact key, and no choice takes a key or a click in its first 0.35 s, nor one that went down before.
+    ///
+    /// Work order 081 moved, code unchanged: the practice spawns to GeneratedLevelsPractice.cs, the choices of a run (the
+    /// floor's reward, chests, upgrades, the elite room) to GeneratedLevelsChoices.cs, and what it draws to GeneratedLevelsGui.cs.
     /// </summary>
     public sealed partial class GeneratedLevels : MonoBehaviour
     {
@@ -638,10 +641,18 @@ namespace Roguelike
         {
             get
             {
-                PlayerInputDriver driver = _player != null ? _player.GetComponent<PlayerInputDriver>() : null;
-                return driver != null ? driver.ActiveBindings.Interact : Key.E;
+                // Work order 081: asked every frame of play, so her driver is found once for her, not each frame.
+                if (_player == null) return Key.E;
+                if (_driverOf != _player)
+                {
+                    _driverOf = _player;
+                    _driver = _player.GetComponent<PlayerInputDriver>();
+                }
+                return _driver != null ? _driver.ActiveBindings.Interact : Key.E;
             }
         }
+        PlayerCharacter _driverOf;
+        PlayerInputDriver _driver;
 
         void TrackRoom()
         {
@@ -694,7 +705,14 @@ namespace Roguelike
         int AliveIn(LevelRoom room) =>
             _level != null && room != null ? Alive(_level.EnemiesByRoom, room) + Alive(_level.CalledByRoom, room) : 0;
 
-        static int Alive(IReadOnlyDictionary<int, List<Enemy>> byRoom, LevelRoom room) =>
-            byRoom.TryGetValue(room.Order, out List<Enemy> list) ? list.Count(e => e != null && !e.IsDead) : 0;
+        // Work order 081: asked every frame of a run (the run box's enemies left): a loop, not LINQ's count over a boxed enumerator.
+        static int Alive(IReadOnlyDictionary<int, List<Enemy>> byRoom, LevelRoom room)
+        {
+            if (!byRoom.TryGetValue(room.Order, out List<Enemy> list)) return 0;
+            int n = 0;
+            for (int i = 0; i < list.Count; i++)
+                if (list[i] != null && !list[i].IsDead) n++;
+            return n;
+        }
     }
 }
