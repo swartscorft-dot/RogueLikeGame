@@ -56,7 +56,9 @@ namespace Roguelike.Rules.Tests
                     }
                 lines.Add(string.Format(Inv, "{0} {1}x{2} ({3}), {4} cases an orientation, at most {5} of {6} cells solid before the gate", t.Name, t.Width, t.Height, t.For, each, solid, t.Width * t.Height));
             }
-            Assert.That(RoomTemplateLibrary.Usable(v), Is.EquivalentTo(all), "the library is usable");
+            // Work order 072: the second set only with its switch on (off by default since 2026-11-22).
+            Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true }), Is.EquivalentTo(all), "the library is usable");
+            Assert.That(RoomTemplateLibrary.Usable(v), Is.EquivalentTo(all.Where(t => t.Since < RoomTemplateLibrary.MoreSince)), "the defaults: the eleven");
             TestContext.WriteLine("TEMPLATECASES " + cases + " cases in all (eight orientations): " + string.Join("; ", lines));
         }
 

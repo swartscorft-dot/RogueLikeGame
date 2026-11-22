@@ -12,7 +12,7 @@ namespace Roguelike.Rules.Tests
     /// as text here: every one reads, and in all eight orientations, for every draw of its ? cells and every pair of its door
     /// marks, keeps the rules the eleven keep (work order 051's with no filling, its marks open, the area rule; work order 059's
     /// passages at both ends are PassagesTests', over the whole library). Over four hundred seeds of every floor number with the
-    /// defaults: every floor valid, the second set's rooms on their marks, at their size, with their cells, falling back seldom,
+    /// second set turned on (it is off by default since 2026-11-22, until Kristian has played its rooms): every floor valid, the second set's rooms on their marks, at their size, with their cells, falling back seldom,
     /// holding the same enemies as with the second set off. The draw: how often each of the whole set comes, on a floor and over a
     /// run of five floors. The measures: the kit's pieces (the plan's, on .NET) and the walk to the exit room's middle, against the
     /// second set off. With the switch off the floors are version 16's, field for field. Writes what it measures ("MORESHARES",
@@ -23,6 +23,8 @@ namespace Roguelike.Rules.Tests
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static readonly int[] Walls = { LevelGenerator.North, LevelGenerator.East, LevelGenerator.South, LevelGenerator.West };
         static readonly LevelValues SecondSetOff = new LevelValues { MoreTemplates = false };
+        // The second set turned on (off by default since 2026-11-22, until Kristian has played its rooms in the room lab).
+        static LevelValues On => new LevelValues { MoreTemplates = true };
 
         static List<RoomTemplate> More => RoomTemplateLibrary.All.Where(t => t.Since == RoomTemplateLibrary.MoreSince).ToList();
         static List<RoomTemplate> First => RoomTemplateLibrary.All.Where(t => t.Since < RoomTemplateLibrary.MoreSince).ToList();
@@ -221,7 +223,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(RoomTemplateLibrary.All.Take(First.Count), Is.EqualTo(First), "the eleven first in the library's order");
             Assert.That(First.Count, Is.EqualTo(11));
             Assert.That(RoomTemplateLibrary.All.Select(t => t.Name).Distinct().Count(), Is.EqualTo(RoomTemplateLibrary.All.Count), "every name its own");
-            var v = new LevelValues();
+            LevelValues v = On;
             var faults = new List<string>();
             var lines = new List<string>();
             int cases = 0;
@@ -284,15 +286,17 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_Off_LeavesTheSecondSetOut_On_DrawsItBesideTheEleven()
         {
             Assert.That(RoomTemplateLibrary.Usable(SecondSetOff), Is.EqualTo(First), "off: the eleven, in their order");
-            Assert.That(RoomTemplateLibrary.Usable(new LevelValues()), Is.EqualTo(RoomTemplateLibrary.All), "on: the whole library, in its order");
-            Assert.That(new LevelValues().MoreTemplates, Is.True, "on by default");
+            Assert.That(RoomTemplateLibrary.Usable(On), Is.EqualTo(RoomTemplateLibrary.All), "on: the whole library, in its order");
+            Assert.That(new LevelValues().MoreTemplates, Is.False, "off by default (2026-11-22: until Kristian has played the second set in the room lab)");
+            Assert.That(RoomTemplateLibrary.Usable(new LevelValues()), Is.EqualTo(First), "the defaults: the eleven");
             Assert.That(LevelGenerator.Version, Is.EqualTo(17));
             int seen = 0;
             for (ulong s = 0; s < 40; s++)
             {
                 LevelLayout off = LevelGenerator.Generate(s, 1 + (int)(s % 5), SecondSetOff);
                 Assert.That(off.Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "seed " + s);
-                seen += LevelGenerator.Generate(s, 1 + (int)(s % 5)).Rooms.Count(r => r.Template != null && r.Template.Template.Since == RoomTemplateLibrary.MoreSince);
+                Assert.That(LevelGenerator.Generate(s, 1 + (int)(s % 5)).Describe(), Is.EqualTo(off.Describe()), "the defaults are the switch off, seed " + s);
+                seen += LevelGenerator.Generate(s, 1 + (int)(s % 5), On).Rooms.Count(r => r.Template != null && r.Template.Template.Since == RoomTemplateLibrary.MoreSince);
             }
             Assert.That(seen, Is.GreaterThan(40), "on, the second set is drawn");
         }
@@ -302,7 +306,7 @@ namespace Roguelike.Rules.Tests
         static string Groups(LevelRoom r) => string.Join(",", r.EnemyGroups.Select(g => g.ToString()));
 
         /// <summary>
-        /// Four hundred seeds of each floor number with the defaults (the earlier sweeps' count): every floor valid, every room of
+        /// Four hundred seeds of each floor number with the second set on (the earlier sweeps' count): every floor valid, every room of
         /// the second set at its template's size, its doors on its marks, its cells its template's when stamped, falling back in
         /// fewer than 2 rooms of 100 (at the stamp or by <c>PlaceAgainPlainer</c>, when its enemies find no place: a template with
         /// too little floor for its room's enemies shows here); the 99th percentile of attempts at most 8; and for the first two
@@ -316,7 +320,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void FourHundredSeeds_TheSecondSetsRooms_KeepTheirRules_AndHoldTheSameEnemies(int floor)
         {
-            var on = new LevelValues();
+            LevelValues on = On;
             const int seeds = 400, compared = 200;
             var share = new Dictionary<string, int>();
             var back = new Dictionary<string, int>();
@@ -436,7 +440,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheDraw_TwoHundredRuns_TheSecondSetComesAsOftenAsTheFirst_AndARunRepeatsLess()
         {
-            DrawCount on = CountDraws(new LevelValues(), 200), off = CountDraws(SecondSetOff, 200);
+            DrawCount on = CountDraws(On, 200), off = CountDraws(SecondSetOff, 200);
             TestContext.WriteLine("MORERUNS " + Describe("with the second set", on) + "\nMORERUNS " + Describe("without", off));
             Assert.That(on.TwiceOnAFloor + off.TwiceOnAFloor, Is.EqualTo(0), "never a template twice on a floor");
             foreach (RoomTemplate t in More) Assert.That(on.Rooms.ContainsKey(t), t.Name + " is drawn");
@@ -447,7 +451,7 @@ namespace Roguelike.Rules.Tests
             int combat = 0;
             for (ulong s = 0; s < 400; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, 2 + (int)(s % 4));
+                LevelLayout level = LevelGenerator.Generate(s, 2 + (int)(s % 4), On);
                 foreach (LevelRoom r in level.Rooms)
                 {
                     if (r.Template == null || r.Template.Template.For != RoomTemplateFor.Combat) continue;
@@ -466,7 +470,7 @@ namespace Roguelike.Rules.Tests
         [Explicit, Test, Timeout(3600000)]
         public void Measure_TheDraw_AThousandRuns()
         {
-            TestContext.WriteLine("MORERUNS " + Describe("with the second set", CountDraws(new LevelValues(), 1000)) + "\nMORERUNS " + Describe("without", CountDraws(SecondSetOff, 1000)));
+            TestContext.WriteLine("MORERUNS " + Describe("with the second set", CountDraws(On, 1000)) + "\nMORERUNS " + Describe("without", CountDraws(SecondSetOff, 1000)));
         }
 
         // ---------------- The measures ----------------
@@ -488,18 +492,18 @@ namespace Roguelike.Rules.Tests
         {
             var noTemplates = new LevelValues { Templates = false };
             double Ratio(ulong seed, LevelValues v) => KitPieces(LevelGenerator.Generate(seed, 5, v)) / (double)KitPieces(LevelGenerator.Generate(seed, 5, noTemplates));
-            double on42 = Ratio(42UL, new LevelValues()), off42 = Ratio(42UL, SecondSetOff);
+            double on42 = Ratio(42UL, On), off42 = Ratio(42UL, SecondSetOff);
             double sumOn = 0, sumOff = 0, mostOn = 0;
             const int seeds = 100;
             for (ulong s = 0; s < seeds; s++)
             {
-                double r = Ratio(s, new LevelValues());
+                double r = Ratio(s, On);
                 sumOn += r;
                 mostOn = Math.Max(mostOn, r);
                 sumOff += Ratio(s, SecondSetOff);
             }
             TestContext.WriteLine(string.Format(Inv, "MOREKIT floor 5, the plan's pieces against the templates off: seed 42 {0:0.00} times with the second set, {1:0.00} without ({2} pieces, {3} without, {4} with no templates); over {5} seeds {6:0.00} times on average with it (the most {7:0.00}), {8:0.00} without",
-                on42, off42, KitPieces(LevelGenerator.Generate(42UL, 5)), KitPieces(LevelGenerator.Generate(42UL, 5, SecondSetOff)), KitPieces(LevelGenerator.Generate(42UL, 5, noTemplates)),
+                on42, off42, KitPieces(LevelGenerator.Generate(42UL, 5, On)), KitPieces(LevelGenerator.Generate(42UL, 5, SecondSetOff)), KitPieces(LevelGenerator.Generate(42UL, 5, noTemplates)),
                 seeds, sumOn / seeds, mostOn, sumOff / seeds));
             Assert.That(on42, Is.LessThanOrEqualTo(1.6), "seed 42's floor 5 within the templates' budget");
             Assert.That(sumOn / seeds, Is.LessThanOrEqualTo(1.6), "on average within the templates' budget");
@@ -533,7 +537,7 @@ namespace Roguelike.Rules.Tests
                 double on = 0, off = 0;
                 for (ulong s = 0; s < (ulong)seeds; s++)
                 {
-                    on += PassagesTests.Walk(LevelGenerator.Generate(s, floor), out _);
+                    on += PassagesTests.Walk(LevelGenerator.Generate(s, floor, On), out _);
                     off += PassagesTests.Walk(LevelGenerator.Generate(s, floor, SecondSetOff), out _);
                 }
                 on /= seeds;

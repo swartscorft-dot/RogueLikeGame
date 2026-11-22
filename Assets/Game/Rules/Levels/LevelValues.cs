@@ -336,8 +336,10 @@ namespace Roguelike.Rules
         // rom-maler": eleven repeat quickly over five floors of eight combat rooms): on, the library's second set of templates
         // (RoomTemplateLibrary, the ones Since 17: rings, islands, halls, alcoves, arenas and more, and larger elite and exit
         // rooms) is drawn beside the first eleven, by the same weights and rules. Read only with Templates on. Off: every floor
-        // is version 16's, field for field, but for the version.
-        public bool MoreTemplates = true;
+        // is version 16's, field for field, but for the version. OFF by default (the producer, 2026-11-22: a room's form is
+        // judged by Kristian playing it in the greybox room lab, work order 084, before it goes into the floors; the second set
+        // has not been played, and the first PlayMode runs found rooms of it with floor cut off by their props).
+        public bool MoreTemplates = false;
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
