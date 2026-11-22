@@ -56,7 +56,7 @@ namespace Roguelike.Rules
         /// <summary>The line of keys under the rows: its height, and its key caps' height.</summary>
         public float HintHeight = 30f;
         /// <summary>The gap between the rows' column and the panels beside it, and the panels' width.</summary>
-        public float ColumnGap = 60f;
+        public float ColumnGap = 84f; // round 1: at 60 the selected row's slashes touched the panels
         public float SideWidth = 680f;
         /// <summary>A panel's padding inside its outline, its lean (a tall panel leans little), and the gap between two panels.</summary>
         public float PanelPad = 18f;
@@ -117,6 +117,8 @@ namespace Roguelike.Rules
 
         // ---------------- Between runs ----------------
 
+        /// <summary>The screen between runs' top: its heading in the middle across, clear of the fight's plate at the top left.</summary>
+        public float BetweenTop = 58f;
         /// <summary>A part's or a piece's card: its width and least height, the gap, the name plate's words and the text.</summary>
         public float CardWidth = 330f;
         public float CardHeight = 112f;

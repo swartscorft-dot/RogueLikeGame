@@ -925,12 +925,12 @@ namespace Roguelike
             _cardName.Add(name);
             _cardSub.Add(sub);
             _cardState.Add(state);
-            _cardText.Add(text);
+            _cardText.Add(!ChipFits(state) && state.Length > 0 ? state + ".  " + text : text); // round 2: a long state on the sub line ran past the card
             _cardStateKind.Add(kind);
             _cardSlotHead.Add(slotHead);
             bool chip = ChipFits(state);
             _cardChip.Add(chip ? state.ToUpperInvariant() : "");
-            _cardSubLine.Add(sub.Length > 0 ? (!chip && state.Length > 0 ? sub + "   ·   " + state : sub) : chip ? "" : state);
+            _cardSubLine.Add(sub);
         }
 
         const int RackColumns = 3;
@@ -938,7 +938,7 @@ namespace Roguelike
         float RackWidth(MenuValues m) => RackColumns * m.CardWidth + (RackColumns - 1) * m.CardGap;
         bool WeaponCards => _cardName.Count > _rackCards;
         float BetweenWidth(MenuValues m) => RackWidth(m) + (WeaponCards ? m.ColumnGap + m.CardWidth + 2f * m.PanelPad : 0f);
-        float BetweenGridTop(MenuValues m) => m.Top + m.HeadingHeight + m.HeadingGap + m.ButtonHeight + 24f;
+        float BetweenGridTop(MenuValues m) => m.BetweenTop + m.HeadingHeight + m.HeadingGap + m.ButtonHeight + 24f;
         float WeaponPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + _slotHeads.Count * 30f + (_cardName.Count - _rackCards) * (_cardH + m.CardGap);
         float BetweenLeft(MenuValues m) => (_bViewWidth - BetweenWidth(m)) * 0.5f;
 
@@ -977,6 +977,8 @@ namespace Roguelike
             {
                 float stateW = _cardChipW[i];
                 if (CardPad(v, m) + InterfaceStyle.Measure(_cardName[i], name).x + 12f + stateW > m.CardWidth) problems.Add("card " + _cardName[i] + ": its name and state are wider than the card");
+                if (_cardSubLine[i].Length > 0 && CardPad(v, m) + InterfaceStyle.Measure(_cardSubLine[i], InterfaceStyle.Text(true, m.CardTextSize - 1, TextAnchor.MiddleLeft)).x > m.CardWidth - 10f)
+                    problems.Add("card " + _cardName[i] + ": its kind and points are wider than the card");
             }
             if (HeadingPad(m) + InterfaceStyle.Measure(BetweenWord, InterfaceStyle.Text(true, m.HeadingSize, TextAnchor.MiddleLeft)).x + 16f > BetweenHeadingWidth(m)) problems.Add("the heading is wider than its plate");
             GUIStyle button = InterfaceStyle.Text(true, m.ButtonTextSize, TextAnchor.MiddleLeft);
@@ -1002,10 +1004,11 @@ namespace Roguelike
             float x0 = BetweenLeft(m);
 
             // The heading, "trial" beside it, and the currency as a block of numbers.
-            var heading = new Rect(x0 + m.HeadingHeight * m.HeadingSlant * 0.5f, m.Top, BetweenHeadingWidth(m), m.HeadingHeight);
+            // Round 2: the heading in the middle across, clear of the fight's plate at the top left, so the screen can start higher.
+            var heading = new Rect((_bViewWidth - BetweenHeadingWidth(m)) * 0.5f, m.BetweenTop, BetweenHeadingWidth(m), m.HeadingHeight);
             DrawHeadingPlate(heading, BetweenWord, v, m);
             InterfaceStyle.Label(new Rect(heading.x, heading.y, heading.width - 26f, heading.height - 8f), TrialWord, InterfaceStyle.Text(false, m.PanelSubSize + 3, TextAnchor.LowerRight), InterfaceStyle.C(v.Black, 0.7f));
-            var block = new Rect(x0 + BetweenWidth(m) - m.BlockWidth, m.Top, m.BlockWidth, m.HeadingHeight);
+            var block = new Rect(x0 + BetweenWidth(m) - m.BlockWidth, m.BetweenTop, m.BlockWidth, m.HeadingHeight);
             InterfaceStyle.InkedPlate(block, block.center.y, v.Slant, v.HeavyOutline, v.Depth * 2f, InterfaceStyle.C(v.Gold), 0.8f);
             InterfaceStyle.Leaning(block, block.center.y, v.Slant, InterfaceStyle.C(v.Black, 0.9f));
             InterfaceStyle.Label(new Rect(block.x + 22f, block.y + 4f, block.width - 30f, 24f), _bCurrencyName, InterfaceStyle.Text(true, m.BlockLabelSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Gold));
@@ -1013,7 +1016,7 @@ namespace Roguelike
 
             // The start: a white button with its keys on caps.
             Event e = Event.current;
-            var start = new Rect(x0, m.Top + m.HeadingHeight + m.HeadingGap, RackWidth(m), m.ButtonHeight);
+            var start = new Rect(x0, m.BetweenTop + m.HeadingHeight + m.HeadingGap, RackWidth(m), m.ButtonHeight);
             bool startOn = BetweenRunsSelected == 0;
             InterfaceStyle.InkedPlate(start, start.center.y, v.Slant, v.HeavyOutline, v.Depth * 2f, startOn ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White, 0.5f));
             InterfaceStyle.Leaning(start, start.center.y, v.Slant, InterfaceStyle.C(v.White));
