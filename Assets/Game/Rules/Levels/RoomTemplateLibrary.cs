@@ -137,6 +137,174 @@ namespace Roguelike.Rules
                 # # # I I # # #"),
         };
 
+        /// <summary>The generator's version that brought the second set (work order 072): drawn only with <see cref="LevelValues.MoreTemplates"/> on.</summary>
+        public const int MoreSince = 17;
+
+        // The second set (work order 072; Kristian, the evening of 2026-11-21, ticked "Flere rom-maler": eleven repeat quickly over
+        // five floors of eight combat rooms). Since that evening a room is a fight (work order 070: she steps in and the whole
+        // room comes at her at once) and a cave (work order 076: its walls go all the way up, a pillar hides what is behind it),
+        // so each is an arena for a whole pack entered at one door: cover to break a line of sight with, room to kite a loop in,
+        // places a shooter stands that she must go and get, no dead end inside the door, and no solid block more than two cells
+        // across, so the camera (from the south, whichever way the room is turned) never loses more than two cells behind one.
+        // Every room keeps work order 051's open square of 12 m round its middle, so a ring's island stands beside the middle,
+        // never on it. Weights 1, as the eleven's; families, first floors and themes are first guesses. After the eleven in the
+        // list, so with the second set off the draws are version 16's.
+        static readonly (string name, string family, RoomTemplateFor kind, int from, float weight, RoomTheme[] suits, bool farNotSouth, string grid)[] MoreGrids =
+        {
+            // A loop round a 2 x 2 island just past the middle: she kites round it, the shooters behind it lose her line; a
+            // lane 4 m wide runs behind the island to the far doors. 6 x 8 cells (24 x 32 m).
+            ("ring", "ring", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Shrine, RoomTheme.Ossuary }, false, @"
+                . O . . O .
+                . . # # . .
+                . h # # h .
+                . . . . . .
+                O . . . . O
+                . . . c . .
+                . . . . . .
+                . . I I . ."),
+            // Four L-shaped piers round an open chamber at the middle, a gap in each side: she fights in the chamber and steps
+            // out through a gap to break a line, the shooters stand outside the ring at the far corners. 7 x 8.
+            ("broken-ring", "ring", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.Ossuary, RoomTheme.TombHall }, false, @"
+                . h . O . h .
+                . # # . # # .
+                . # . . . # .
+                O . . . . . O
+                . # . . . # .
+                . # # . # # .
+                . . . . . . .
+                . . I I I . ."),
+            // Two islands 2 x 2 either side of the middle: a figure of eight to kite round, a shooter behind each island at the
+            // side doors. 9 x 6.
+            ("two-islands", "islands", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Archive, RoomTheme.Ossuary }, false, @"
+                . . . . O . . . .
+                O h . . . . . h O
+                . # # . . . # # .
+                . # # . c . # # .
+                . . . . . . . . .
+                . . . I I I . . ."),
+            // A hall of free-standing pillars in two rows, a clear aisle 12 m wide down the middle and a side aisle behind each
+            // row: up one side, down the other; the shooters stand behind the far pillars. 7 x 8.
+            ("pillared-hall", "hall", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.TombHall, RoomTheme.Shrine }, false, @"
+                . . . O . . .
+                h # . . . # h
+                O . . . . . O
+                . # . . . # .
+                . . . . . . .
+                . # . . . # .
+                . . . . . . .
+                . . I I I . ."),
+            // A tongue of rock 2 x 2 from the far wall splits the far end into two bays, a shooter in each and a way on at the end
+            // of each: whichever she goes for, the other has her back. 8 x 7.
+            ("horseshoe", "horseshoe", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Ossuary, RoomTheme.Archive }, false, @"
+                # . . # # . . #
+                O h . # # . h O
+                . . . . . . . .
+                . . . . . . . .
+                . . . c . . . .
+                . . . . . . . .
+                . . . I I . . ."),
+            // Two chambers side by side and a neck three cells (12 m) wide between them at the middle: she comes in to the one,
+            // the way on is from the other, and the neck is where the pack meets her. 9 x 6.
+            ("hourglass", "twin", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.TombHall, RoomTheme.Archive }, false, @"
+                # . . . # . O . #
+                . . . . # . . . .
+                . h . . . . . h O
+                . . . . . . . . .
+                . . . . . . . . .
+                # . I . # . . . #"),
+            // Two corners stepped, so the floor runs on a slant from the door in to the far corner: the pack comes down the slant,
+            // the shooter waits at its top. 8 x 7.
+            ("stepped", "stepped", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Archive, RoomTheme.TombHall }, false, @"
+                . . O O . . # #
+                O h . . . . . #
+                . . . . c . . .
+                . . . . . . . .
+                . . . . . . . .
+                # . . . . . . .
+                # # . . . I . ."),
+            // Three bays 8 m wide and deep along the far wall between piers, a shooter in each: she has to go into them, one by
+            // one, with the rest of the pack at her back. 8 x 6.
+            ("alcoves", "alcoves", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Archive, RoomTheme.Shrine }, false, @"
+                . h # h O # h .
+                . . # . . # . .
+                O . . . . . . O
+                . . . . . . . .
+                . . . . . . . .
+                . . . I I . . ."),
+            // A wide, shallow arena with a pillar near each corner: open ground to kite in, four pillars to duck behind. 9 x 5.
+            ("arena", "arena", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.TombHall, RoomTheme.Ossuary }, false, @"
+                . . . . O . . . .
+                . # . h . h . # .
+                O . . . . . . . O
+                . # . . . . . # .
+                . . . . I . . . ."),
+            // A dais at the far wall marked only by four pillars, its eye-catcher between the back two and the shooters on it:
+            // she must go up into it; a pier on each side wall halfway. 8 x 7.
+            ("dais", "pillars", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Shrine, RoomTheme.TombHall }, false, @"
+                . . # A A # . .
+                . . . h h . . .
+                O . # . . # . O
+                . . . . . . . .
+                # . . . . . . #
+                . . . . . . . .
+                . . . I I . . ."),
+            // Nothing alike on its two sides: a block 2 x 2 ahead on the right, a stub of wall with a shooter in the lane behind
+            // it far right, a lone pier far left. 8 x 7.
+            ("lopsided", "lopsided", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.Ossuary, RoomTheme.Archive }, false, @"
+                . . . O . . . .
+                O h . . . . # .
+                . . # . . . # h
+                . . . . . . . .
+                . . . . . # # .
+                . . . . . # # .
+                . I I . . . . ."),
+            // An arena for the elite: cut corners, four pillars round the middle where the elite stands, shooters before the far
+            // wall's eye-catcher; she circles the pillars round it. Larger than the first two (36 x 28 m). 9 x 7.
+            ("pit", "elite", RoomTemplateFor.Elite, 2, 1f, new[] { RoomTheme.Ossuary, RoomTheme.TombHall }, false, @"
+                # # . . A . . # #
+                # . . h . h . . #
+                . . # . . . # . .
+                O . . . e . . . O
+                . . # . . . # . .
+                # . . . . . . . #
+                # # . I . I . # #"),
+            // A long gallery for the elite: bays 8 m square between piers down both side walls, shooters in the far ones, the
+            // elite before the eye-catcher at the far end; side doors at the far end. 7 x 9 (28 x 36 m).
+            ("gallery", "elite", RoomTemplateFor.Elite, 1, 1f, new[] { RoomTheme.TombHall, RoomTheme.Shrine }, false, @"
+                # # . A . # #
+                . . . e . . .
+                O h . . . h O
+                # # . . . # #
+                . . . . . . .
+                . . . . . . .
+                # # . . . # #
+                . . . . . . .
+                . . . I . . ."),
+            // A great throne hall 36 m square: three pillars down each side, the corners cut, the throne at the far wall and the
+            // act boss's ground open round the middle. 9 x 9.
+            ("throne-pillars", "throne", RoomTemplateFor.Exit, 1, 1f, new[] { RoomTheme.ThroneRoom }, true, @"
+                # . . . A . . . #
+                . . . . . . . . .
+                . # . . . . . # .
+                . . . . . . . . .
+                . # . . . . . # .
+                . . . . . . . . .
+                . # . . . . . # .
+                . . . . . . . . .
+                # . . . I . . . #"),
+            // A wide throne hall, 40 m across, entered on its long side: two pillars either side of the boss's ground, the far
+            // corners cut round the throne. 10 x 8.
+            ("throne-wide", "throne", RoomTemplateFor.Exit, 1, 1f, new[] { RoomTheme.ThroneRoom }, true, @"
+                # # . . A A . . # #
+                # . . . . . . . . #
+                . . # . . . . # . .
+                . . . . . . . . . .
+                . . . . . . . . . .
+                . . # . . . . # . .
+                . . . . . . . . . .
+                # . . . I I . . . #"),
+        };
+
         static readonly List<string> s_errors = new List<string>();
 
         /// <summary>The library, in its order: every grid above that could be read.</summary>
@@ -148,17 +316,24 @@ namespace Roguelike.Rules
         static List<RoomTemplate> Build()
         {
             var list = new List<RoomTemplate>();
-            foreach (var g in Grids)
+            void Add(IEnumerable<(string name, string family, RoomTemplateFor kind, int from, float weight, RoomTheme[] suits, bool farNotSouth, string grid)> grids, int since)
             {
-                try
+                foreach (var g in grids)
                 {
-                    list.Add(RoomTemplate.Parse(g.name, g.family, g.kind, g.from, g.weight, g.suits, g.farNotSouth, g.grid));
-                }
-                catch (FormatException e)
-                {
-                    s_errors.Add(e.Message);
+                    try
+                    {
+                        RoomTemplate t = RoomTemplate.Parse(g.name, g.family, g.kind, g.from, g.weight, g.suits, g.farNotSouth, g.grid);
+                        t.Since = since;
+                        list.Add(t);
+                    }
+                    catch (FormatException e)
+                    {
+                        s_errors.Add(e.Message);
+                    }
                 }
             }
+            Add(Grids, 15);
+            Add(MoreGrids, MoreSince); // work order 072: after the eleven, so with the second set off the draws are version 16's
             return list;
         }
 
@@ -196,7 +371,9 @@ namespace Roguelike.Rules
             lock (s_usable)
             {
                 if (s_usable.TryGetValue(key, out IReadOnlyList<RoomTemplate> had)) return had;
-                IReadOnlyList<RoomTemplate> list = Current.Where(t => RoomTemplates.Faults(t, LevelGenerator.South, false, v, null) == 0).ToList();
+                // Work order 072: the second set only with LevelValues.MoreTemplates on; off, the list is the first eleven's, so the
+                // draws are version 16's.
+                IReadOnlyList<RoomTemplate> list = Current.Where(t => (v.MoreTemplates || t.Since < MoreSince) && RoomTemplates.Faults(t, LevelGenerator.South, false, v, null) == 0).ToList();
                 s_usable[key] = list;
                 return list;
             }
@@ -209,7 +386,7 @@ namespace Roguelike.Rules
             RoomSizeRange c = (v.Plan ?? new LevelPlan()).CombatSize;
             return string.Join("|", new object[]
             {
-                s_libraryVersion, v.CellSize, v.DoorWidth, v.GridCells, s.MiddleSquare, s.ExitMiddleSquare, s.TreasureMiddleSquare, s.DoorStraightIn,
+                s_libraryVersion, v.MoreTemplates, v.CellSize, v.DoorWidth, v.GridCells, s.MiddleSquare, s.ExitMiddleSquare, s.TreasureMiddleSquare, s.DoorStraightIn,
                 s.MostSolidShare, s.ExitMostSolidShare, t.MostSolidShare, t.MostDrawn, c.Min, c.Max,
             }.Select(o => Convert.ToString(o, CultureInfo.InvariantCulture)));
         }

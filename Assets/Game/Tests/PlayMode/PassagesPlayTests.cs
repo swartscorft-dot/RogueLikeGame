@@ -391,19 +391,19 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator SwitchOff_TheFloorsObjects_AreVersion15s()
         {
-            GeneratedLevel off = Build(42UL, 1, v => v.Passages = false);
+            GeneratedLevel off = Build(42UL, 1, v => { v.Passages = false; v.MoreTemplates = false; }); // work order 072: version 15 had none of the second set
             yield return Frames(2);
             Assert.That(off.Layout.Passages, Is.False);
             Assert.That(off.Layout.Rooms.Any(r => r.Kind == RoomKind.Passage), Is.False);
             Assert.That(off.Layout.GridCells, Is.EqualTo(48));
             // The floor's objects, name for name and place for place, as a floor built from the same seed's layout with the
             // passages off gives them (the generator with the passages off is version 15's: EditMode PassagesTests).
-            LevelLayout plain = LevelGenerator.Generate(off.Layout.Seed, 1, new LevelValues { Passages = false });
+            LevelLayout plain = LevelGenerator.Generate(off.Layout.Seed, 1, new LevelValues { Passages = false, MoreTemplates = false });
             Assert.That(plain.Describe(), Is.EqualTo(off.Layout.Describe()), "the same floor");
             string Objects(GeneratedLevel l) => string.Join(";", l.FloorBoxes.Concat(l.WallBoxes).Concat(l.KitPieces.Select(p => p.Object))
                 .Select(g => g.name + " " + g.transform.position.ToString("F3") + " " + g.transform.localScale.ToString("F3")));
             string first = Objects(off);
-            GeneratedLevel again = GeneratedLevel.Build(plain, new LevelValues { Passages = false, RoomMood = false }, null, null);
+            GeneratedLevel again = GeneratedLevel.Build(plain, new LevelValues { Passages = false, MoreTemplates = false, RoomMood = false }, null, null);
             yield return null;
             Assert.That(Objects(again), Is.EqualTo(first), "the same objects");
             Assert.That(again.KitPlan.Describe(), Is.EqualTo(off.KitPlan.Describe()));
