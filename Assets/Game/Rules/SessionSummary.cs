@@ -207,6 +207,8 @@ namespace Roguelike.Rules
         public int BlastKills;
         /// <summary>The frame times (work order 074): empty for a log from before them, and then the summary has no block of them.</summary>
         public FrameTimesStats Frames = new FrameTimesStats();
+        /// <summary>The room lab's rooms (work order 084, <see cref="LabRoomsSummary"/>): empty for a session without the lab.</summary>
+        public List<LabRoomRow> LabRooms = new List<LabRoomRow>();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -417,6 +419,7 @@ namespace Roguelike.Rules
             stats.Kit = ComputeKit(events, start, kit);
             ComputeBombers(events, stats); // work order 073
             stats.Frames = FrameTimesSummary.Compute(events); // work order 074
+            stats.LabRooms = LabRoomsSummary.Compute(events); // work order 084
             return stats;
         }
 
@@ -1277,6 +1280,7 @@ namespace Roguelike.Rules
                 gd.Write(sb);
             }
             WriteBombers(sb, stats); // work order 073
+            LabRoomsSummary.Write(sb, stats.LabRooms); // work order 084: nothing without the lab
             FrameTimesSummary.Write(sb, stats.Frames); // work order 074: its own block, under every line before it
             return sb.ToString();
         }

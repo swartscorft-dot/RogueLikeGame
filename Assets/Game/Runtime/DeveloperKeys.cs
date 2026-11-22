@@ -13,7 +13,9 @@ namespace Roguelike
     ///
     /// The developer's keys: F1 (the developer's text, <see cref="RunHud.DevTextKey"/>), F6 (the same run again,
     /// <see cref="GeneratedLevels.SameLevelKey"/>), F7 (the practice room, <see cref="GeneratedLevels.PracticeRoomKey"/>),
-    /// F8 to F12, C and B (the practice room's spawns and their clearing; B the bomber's since work order 073). Not the developer's, and working in every build:
+    /// F8 to F12, C and B (the practice room's spawns and their clearing; B the bomber's since work order 073), and since work
+    /// order 084 G (the greybox view, <see cref="GeneratedLevels.GreyboxKey"/>) and the room lab's L, N, . and , (a developer's
+    /// tool: <see cref="GeneratedLevels.LabKey"/>). Not the developer's, and working in every build:
     /// F5 (start a run, <see cref="GeneratedLevels.NewLevelKey"/>), Esc and the pause menu's lines, and everything of
     /// <see cref="InputBindings"/>; nor F2, F3 and F4 (the practice room's ways of the focus gauge, work order 025), which
     /// the friends' README of 2026-11-21 did not name as the developer's: they are left as they were.
@@ -29,6 +31,8 @@ namespace Roguelike
             RunHud.DevTextKey, GeneratedLevels.SameLevelKey, GeneratedLevels.PracticeRoomKey, GeneratedLevels.BossKey,
             GeneratedLevels.SwarmersKey, GeneratedLevels.ShooterKey, GeneratedLevels.GuardKey, GeneratedLevels.ClearSpawnsKey,
             GeneratedLevels.CasterKey, GeneratedLevels.BomberKey, // work order 073: B, the practice room's bomber
+            GeneratedLevels.GreyboxKey, // work order 084: G, the greybox view (the pause menu's line works in every build)
+            GeneratedLevels.LabKey, GeneratedLevels.LabNewSeedKey, GeneratedLevels.LabNextKey, GeneratedLevels.LabPreviousKey, // work order 084: the room lab's L, N, . and ,
         };
 
         static int s_fromStart = -1; // -1 not read yet, 0 off, 1 on
