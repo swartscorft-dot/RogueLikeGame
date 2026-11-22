@@ -233,6 +233,7 @@ namespace Roguelike
             if (_levels == null || !_levels.Paused) return false;
             BuildMenu();
             if (!_menu.Contains(line)) return false;
+            _pauseLinesStale = true; // work order 078: the rows' words are made with the lists (a setting's value may change)
             switch (line)
             {
                 case MenuLine.Resume: _levels.Resume(); break;
@@ -363,7 +364,13 @@ namespace Roguelike
             else if (enter) PickMenuLine(line);
         }
 
-        void LateUpdate()
+        void LateUpdate() => Tick();
+
+        /// <summary>
+        /// What it shows this frame, worked out (its LateUpdate; public for tests, work order 078: a frame with a menu up and
+        /// nothing changing allocates nothing).
+        /// </summary>
+        public void Tick()
         {
             Find();
             // Health.
@@ -378,10 +385,13 @@ namespace Roguelike
             bool dev = DevTextShown;
             if (_readout != null && _readout.enabled != dev) _readout.enabled = dev;
 
-            // The run box.
-            _runBox.Clear();
+            // The run box. Work order 078: under a screen (the game stopped) it is made once, not every frame.
             RunRecord record = _levels != null ? _levels.Record : null;
-            if (_levels != null && _levels.InRun && record != null)
+            bool screenUp = _levels != null && (_levels.Paused || _levels.Ending != GeneratedLevels.EndKind.None || _levels.BetweenRunsUp);
+            bool runBoxStands = screenUp && _runBoxUnderScreen;
+            _runBoxUnderScreen = screenUp;
+            if (!runBoxStands) _runBox.Clear();
+            if (!runBoxStands && _levels != null && _levels.InRun && record != null)
             {
                 _runBox.Add(record.FloorText);
                 if (_levels.CurrentRoom != null)
@@ -405,9 +415,13 @@ namespace Roguelike
             PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None ? s_StartPrompt : "";
             PauseLines(); // work order 055
 
-            // The end screen.
-            _endLines.Clear();
-            if (_levels != null && _levels.Ending != GeneratedLevels.EndKind.None && record != null)
+            // The end screen. Work order 078: made when it opens and again only when what it says changes (EndLinesStale).
+            if (EndLinesStale(record))
+            {
+                _endLines.Clear();
+                _endLinesWanted = true;
+            }
+            if (_endLinesWanted && _levels != null && _levels.Ending != GeneratedLevels.EndKind.None && record != null)
             {
                 bool died = _levels.Ending == GeneratedLevels.EndKind.Died;
                 _endLines.Add(died ? "You died" : "Act cleared");
@@ -421,7 +435,10 @@ namespace Roguelike
                 if (!died) _endLines.Add(string.Format(s_Inv, "Health left  {0} / {1}", record.HealthLeft, record.MaxHealth));
                 AddBetweenRunsEndLines(); // work order 029: nothing with the switch off
                 _endLines.Add("Run seed  " + record.Seed);
+                EndLinesMade++; // work order 078
+                _endLaidOut = false;
             }
+            _endLinesWanted = false;
             if (_levels != null && _levels.Paused) BuildMenu();
             BuildBetweenRunsLines(); // work order 029
             BuildWeaponLines(); // work order 060: nothing with the attachments off
@@ -469,21 +486,33 @@ namespace Roguelike
         }
 
         /// <summary>The keys as they are bound now, a line each: move, shoot, dash, each skill's key with its skill, focus, cover, interact.</summary>
-        public List<string> KeyLines()
+        public List<string> KeyLines() => KeyLines(null);
+
+        /// <summary>
+        /// The keys' lines; work order 078: and, where <paramref name="caps"/> is given, each line's key and words apart for the
+        /// concept's key caps (the lines' words are as before).
+        /// </summary>
+        List<string> KeyLines(List<MenuKey> caps)
         {
             var lines = new List<string>();
+            caps?.Clear();
             InputBindings b = _driver != null ? _driver.ActiveBindings : null;
             if (b == null) return lines;
             string K(Key k) => k == Key.None ? "-" : new InputBinding(k).Label;
-            lines.Add("Move  " + K(b.MoveUp) + " " + K(b.MoveLeft) + " " + K(b.MoveDown) + " " + K(b.MoveRight));
-            lines.Add("Shoot  " + b.Shoot.Label);
-            lines.Add("Dash  " + K(b.Dash) + (DashNow == DashDirection.TowardMovement ? "  (the way you move)" : "  (toward the cursor)"));
+            void Add(string word, string key, string note)
+            {
+                lines.Add(word + "  " + key + note);
+                caps?.Add(new MenuKey { Key = key.Replace(" ", ""), Words = word + (note.Length > 0 ? "  " + note.Trim() : "") });
+            }
+            Add("Move", K(b.MoveUp) + " " + K(b.MoveLeft) + " " + K(b.MoveDown) + " " + K(b.MoveRight), "");
+            Add("Shoot", b.Shoot.Label, "");
+            Add("Dash", K(b.Dash), DashNow == DashDirection.TowardMovement ? "  (the way you move)" : "  (toward the cursor)");
             // Work order 025: the way the gauge works, once one is picked (the run's choice, or the practice room's).
             FocusMode focus = _player != null ? _player.FocusMode : FocusMode.Today;
-            lines.Add("Focus  " + K(b.Focus) + (focus != FocusMode.Today ? "  (" + FocusModeRules.Name(focus) + ")" : ""));
-            lines.Add("Cover  " + K(b.TakeCover) + (_player != null && _player.QuickDuckOn ? "  (tap to duck by a low prop)" : "  (hold)")); // work order 047, as the help line words it
-            lines.Add("Interact  " + K(b.Interact));
-            lines.Add("Map  " + K(FloorMap.LargeKey) + "  (hold)"); // work order 041: the small map, large while held
+            Add("Focus", K(b.Focus), focus != FocusMode.Today ? "  (" + FocusModeRules.Name(focus) + ")" : "");
+            Add("Cover", K(b.TakeCover), _player != null && _player.QuickDuckOn ? "  (tap to duck by a low prop)" : "  (hold)"); // work order 047, as the help line words it
+            Add("Interact", K(b.Interact), "");
+            Add("Map", K(FloorMap.LargeKey), "  (hold)"); // work order 041: the small map, large while held
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;
             // A key and the skill on it are two things since work order 015: each key shows what sits on it now.
             int count = skills != null && b.Skills != null ? Mathf.Min(_player.KeyCount, b.Skills.Length) : 0;
@@ -492,8 +521,10 @@ namespace Roguelike
                 int slot = _player.SkillOnKey(key);
                 // Work order 017: the run's upgrades of the skill beside it.
                 List<string> upgrades = slot >= 0 && slot < skills.Count && _player.SkillUpgrades != null ? _player.SkillUpgrades.NamesFor(skills[slot].Name) : null;
-                lines.Add(b.SkillLabel(key) + "  " + (slot >= 0 && slot < skills.Count ? skills[slot].Name + TierAfter(skills[slot].Name) : "(empty)")
-                          + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : ""));
+                string words = (slot >= 0 && slot < skills.Count ? skills[slot].Name + TierAfter(skills[slot].Name) : "(empty)")
+                               + (upgrades != null && upgrades.Count > 0 ? "  (" + string.Join(", ", upgrades) + ")" : "");
+                lines.Add(b.SkillLabel(key) + "  " + words);
+                caps?.Add(new MenuKey { Key = b.SkillLabel(key), Words = words });
             }
             return lines;
         }
@@ -533,10 +564,11 @@ namespace Roguelike
             bool paused = _levels != null && _levels.Paused;
             if (paused && (!_pauseWasUp || _pauseLinesStale || _pauseKeys == null))
             {
-                _pauseKeys = KeyLines();
+                _pauseKeys = KeyLines(_keyCaps); // work order 078: the keys apart too, for the key caps
                 _pauseStats = StatLines();
                 _pauseLinesStale = false;
                 PauseListsMade++;
+                MakeMenuRows(); // work order 078 (RunHudMenus.cs): the rows' words and her stats read apart, made with the lists
             }
             _pauseWasUp = paused;
         }
@@ -622,7 +654,14 @@ namespace Roguelike
             if (!kinetic && (_skillBar == null || !_skillBar.isActiveAndEnabled)) DrawHealth();
             if (_runBox.Count > 0) { if (kinetic) DrawRunBoxKinetic(viewWidth); else DrawRunBox(viewWidth); }
             if (PromptText.Length > 0) { if (kinetic) DrawPromptKinetic(viewWidth); else DrawPrompt(viewWidth); }
-            if (_levels != null && _levels.EndScreenShown && _endLines.Count > 0) DrawEndScreen(viewWidth);
+            // Work order 078: the menus in the concept's style (RunHudMenus.cs), with the skin and MenuValues.Concept on.
+            if (kinetic && MenuConcept)
+            {
+                if (_levels != null && _levels.EndScreenShown && _endLines.Count > 0) DrawEndConcept();
+                else if (_levels != null && _levels.Paused) DrawPauseConcept();
+                else if (_levels != null && _levels.BetweenRunsUp) DrawBetweenRunsConcept(viewWidth);
+            }
+            else if (_levels != null && _levels.EndScreenShown && _endLines.Count > 0) DrawEndScreen(viewWidth);
             else if (_levels != null && _levels.Paused) DrawPause(viewWidth);
             else if (_levels != null && _levels.BetweenRunsUp) DrawBetweenRuns(viewWidth); // work order 029
 
