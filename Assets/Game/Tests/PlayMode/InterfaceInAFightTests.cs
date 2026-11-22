@@ -642,6 +642,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_cast.ComboState(1), Is.EqualTo(ComboZoneState.Open));
             Assert.That(_cast.ComboWindow(1), Is.EqualTo(_player.RecastWindowSeconds).Within(1e-5f), "its window the character's");
             Assert.That(_cast.ComboState(2), Is.EqualTo(ComboZoneState.Coming), "the third still ahead");
+            Assert.That(_cast.ComboTagOf(1), Does.StartWith("2").And.Contains("PRESS"), "the open zone's tag says its number (work order 068, round 4)");
             Assert.That(() => { for (int i = 0; i < 300; i++) _cast.Tick(); }, NotAllocating, "nothing allocated while the line is up");
 
             // The second press in its clean part: hit.

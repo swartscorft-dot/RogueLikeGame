@@ -134,6 +134,13 @@ namespace Roguelike.PlayModeTests
             _levels.Resume();
         }
 
+        [Test]
+        public void WorkOrder071sFocusEdge_IsUnderEveryPieceOfTheInterface()
+        {
+            Assert.That(FocusEdge.Depth, Is.EqualTo(InterfaceDepth.FocusEdge), "the one place of the depths knows the screen's teal edge");
+            Assert.That(InterfaceDepth.FocusEdge, Is.GreaterThan(InterfaceDepth.EnemyBars), "drawn first: under the enemies' bars and everything after them");
+        }
+
         // ---------------- 2. The plate and the strokes ----------------
 
         [UnityTest]

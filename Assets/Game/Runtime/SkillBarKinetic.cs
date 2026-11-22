@@ -311,8 +311,12 @@ namespace Roguelike
             HealthNumber = Health != null ? InterfaceStyle.Number(Mathf.Max(0, Health.Current)) : "";
             FocusShare = Mathf.Clamp01(Player.FocusBarFill);
             _focusBright = Player.IsEmpowered || Player.IsFocusFull;
-            _stateWord = Player.IsPrimed ? "PRIMED" : Player.IsSteadyHandWindow ? "STEADY HAND" : Player.IsEmpowered ? "EMPOWERED" : "";
+            // Work order 071's gains of spent focus (a Hair Trigger part's seconds among them) read under the gauge as BOOSTED
+            // and their seconds, where no other window says more (work order 068 draws what 071 gives).
+            bool boosted = !Player.IsPrimed && !Player.IsSteadyHandWindow && !Player.IsEmpowered && Player.IsFocusBoosted;
+            _stateWord = Player.IsPrimed ? "PRIMED" : Player.IsSteadyHandWindow ? "STEADY HAND" : Player.IsEmpowered ? "EMPOWERED" : boosted ? "BOOSTED" : "";
             _stateNumber = Player.IsPrimed ? InterfaceStyle.Cooldown(Player.PrimeRemaining)
+                         : boosted ? InterfaceStyle.Cooldown(Player.FocusBoostRemaining)
                          : _stateWord.Length > 0 ? InterfaceStyle.Cooldown(Player.EmpoweredRemaining) : "";
 
             TickPlate(v); // work order 068: the plate at the top left (SkillBarPlate.cs)

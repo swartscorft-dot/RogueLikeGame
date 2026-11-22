@@ -166,9 +166,10 @@ namespace Roguelike
 
         GUIStyle RightAligned(GUIStyle style)
         {
-            if (style == _big) return _rightBig ?? (_rightBig = new GUIStyle(_big) { alignment = TextAnchor.MiddleRight, wordWrap = false });
-            if (style == _small) return _rightSmall ?? (_rightSmall = new GUIStyle(_small) { alignment = TextAnchor.MiddleRight, wordWrap = false });
-            return _rightLabel ?? (_rightLabel = new GUIStyle(_label) { alignment = TextAnchor.MiddleRight, wordWrap = false });
+            // Work order 068 (round 4's picture: "Upgrades" read "Uparades", the g's tail cut at its 17-pixel line): not clipped.
+            if (style == _big) return _rightBig ?? (_rightBig = new GUIStyle(_big) { alignment = TextAnchor.MiddleRight, wordWrap = false, clipping = TextClipping.Overflow });
+            if (style == _small) return _rightSmall ?? (_rightSmall = new GUIStyle(_small) { alignment = TextAnchor.MiddleRight, wordWrap = false, clipping = TextClipping.Overflow });
+            return _rightLabel ?? (_rightLabel = new GUIStyle(_label) { alignment = TextAnchor.MiddleRight, wordWrap = false, clipping = TextClipping.Overflow });
         }
 
         /// <summary>The practice room's line as a prompt in the skin: "F5" on its plate, "start a run" after it.</summary>

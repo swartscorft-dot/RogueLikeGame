@@ -69,6 +69,9 @@ namespace Roguelike
         float _comboStart, _endedAt = float.NegativeInfinity, _comboAlpha;
         bool _chainLive;
         string _comboName = "", _comboKey = "", _comboTag = "PRESS";
+        readonly string[] _pressTags = new string[ComboLine.Most];
+        /// <summary>The tag over press <paramref name="press"/>'s zone while its window is open ("2  PRESS RMB").</summary>
+        public string ComboTagOf(int press) => Ok(press) && _pressTags[press] != null ? _pressTags[press] : "";
         CastBarKind _kindNow;
         CastBarView _comboView;
         bool _comboViewLit;
@@ -156,6 +159,8 @@ namespace Roguelike
             InputBindings bindings = p.GetComponent<PlayerInputDriver>() is PlayerInputDriver d ? d.ActiveBindings : null;
             _comboKey = bindings != null && key >= 0 ? bindings.SkillLabel(key) : "";
             _comboTag = _comboKey.Length > 0 ? "PRESS " + _comboKey : "PRESS"; // round 2: the concept's "PRESS ZONE", with the key; made when a chain starts
+            // Round 4's picture: the open zone's tag hid its number; the tag says it ("2  PRESS RMB"). Made when a chain starts.
+            for (int i = 0; i < ComboLine.Most; i++) _pressTags[i] = i >= 1 && i < count ? InterfaceStyle.Number(i + 1) + "  " + _comboTag : "";
         }
 
         void SetName(int slot)
@@ -325,12 +330,13 @@ namespace Roguelike
                 float mid = _presses[i].Clean.Any ? (ComboCleanFrom(i) + ComboCleanTo(i)) * 0.5f : (wf + wt) * 0.5f;
                 if (st == ComboZoneState.Open)
                 {
-                    float w = v.ComboTagSize * 0.62f * _comboTag.Length + 18f;
+                    string words = _pressTags[i] != null && _pressTags[i].Length > 0 ? _pressTags[i] : _comboTag;
+                    float w = v.ComboTagSize * 0.62f * words.Length + 18f;
                     UiBox tb = InterfacePlate.ComboTag(new UiBox(track.x, track.y, track.width, track.height), mid, w, v);
                     var t = new Rect(tb.X, tb.Y, tb.W, tb.H);
                     InterfaceStyle.HeavyPlate(t, t.center.y, s, 2f, 0f);
                     InterfaceStyle.Leaning(t, t.center.y, s, ComboLit ? InterfaceStyle.C(v.White, a) : InterfaceStyle.C(v.Teal, a));
-                    InterfaceStyle.Label(t, _comboTag, tag, InterfaceStyle.C(v.Black, a));
+                    InterfaceStyle.Label(t, words, tag, InterfaceStyle.C(v.Black, a));
                 }
                 else if (st == ComboZoneState.Early || st == ComboZoneState.Late)
                 {
