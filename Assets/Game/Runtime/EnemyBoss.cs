@@ -11,7 +11,8 @@ namespace Roguelike
     /// <see cref="BossValues"/>, what it decides <see cref="BossTactics"/>.
     ///
     /// It wakes when she enters its room (<see cref="InRoom"/>, set by the level), comes near or hurts it, and never
-    /// gives up while she is alive. Close it cleaves a wide cone in front of it or spins a circle round it, taking turns
+    /// gives up while she is alive. In a room's fight (work order 070, <see cref="Enemy.Fight"/>) it wakes with its room
+    /// instead, at the room's point a little way in from the door. Close it cleaves a wide cone in front of it or spins a circle round it, taking turns
     /// when both reach; farther, when it sees her (no wall or tall prop between, as the shooter's sight), it charges:
     /// a line toward where she stood when the windup began, shown and locked for the windup, cut at the first wall or
     /// tall prop and at the end of the walkable ground (a NavMesh raycast along it before it starts), a little short of
@@ -91,7 +92,8 @@ namespace Roguelike
 
         void Wake()
         {
-            if (IsAwake || Player == null || InRoom == null) return;
+            // Work order 070: in a room's fight it wakes with its room, at the room's point a little way in, not at the door.
+            if (IsAwake || Player == null || InRoom == null || Fight != null) return;
             if ((PlayerHealth == null || PlayerHealth.IsAlive) && InRoom(Player.Position)) Provoke();
         }
 

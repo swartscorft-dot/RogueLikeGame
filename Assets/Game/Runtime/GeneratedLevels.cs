@@ -342,6 +342,7 @@ namespace Roguelike
             EliteRoomEntered = false;
             EliteRoomDone = false;
             _roomHeals.Clear();
+            SetUpRoomFights(); // work order 070
 
             player.Teleport(_level.PlayerStart);
             Debug.Log(string.Format(s_Inv, "Generated floor {0} of {9} (seed {1}, generator version {2}, attempt {3}): {4} rooms, {5} enemies, {6} props{7}\n{8}",
@@ -394,6 +395,7 @@ namespace Roguelike
             Cleared = false;
             _entered.Clear();
             _chestsOpened.Clear();
+            ForgetRoomFights(); // work order 070
         }
 
         // ---------------- Runs (work order 012) ----------------
@@ -863,6 +865,7 @@ namespace Roguelike
                 return;
             }
             TrackRoom();
+            TickRoomFights(); // work order 070: after her room is tracked
             if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat; after the room is tracked (work order 033)
         }
 

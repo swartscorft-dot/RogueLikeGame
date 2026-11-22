@@ -20,7 +20,8 @@ namespace Roguelike.PlayModeTests
     /// metre at least from its edges at every path cell's middle; no floor box lies under a solid cell or outside the rooms;
     /// every side of a passage cell with neither a door nor a path cell beyond it has a wall collider; the kit's pieces and the
     /// lights on floor 5 against the passages off; she walks from the entrance through the first passage into the first combat
-    /// room and her room goes E, P, C; an enemy woken there reaches her in the passage; the signs at both ends of a passage to a
+    /// room and her room goes E, P, C; an enemy woken there reaches her in the passage (since work order 070 its hit wakes the
+    /// whole room, and the whole room goes home with it); the signs at both ends of a passage to a
     /// treasure room, lit from the right room, dimmed by the chest; the map one step ahead past a passage; the mood's air ahead,
     /// not behind; and with the switch off the floor's objects are version 15's. Writes what the passages cost ("PASSAGECOST").
     ///
@@ -280,8 +281,12 @@ namespace Roguelike.PlayModeTests
             // An enemy of the combat room, woken, comes into the passage to her.
             foreach (Enemy e in level.Enemies) e.gameObject.SetActive(true);
             yield return At(level, InPassage(level, passage), passage);
-            Enemy nearest = level.EnemiesByRoom[combat.Order].Where(e => e != null && !e.IsDead).OrderBy(e => Vector3.Distance(e.transform.position, _player.Position)).First();
+            List<Enemy> own = level.EnemiesByRoom[combat.Order].Where(e => e != null && !e.IsDead).ToList();
+            Enemy nearest = own.OrderBy(e => Vector3.Distance(e.transform.position, _player.Position)).First();
             nearest.GetComponent<Damageable>().TakeHit(1); // provoked: it chases her within its leash
+            // Work order 070 (a room is a fight): one hit wakes the whole room, every one of them, not the one alone.
+            yield return Until(() => own.All(e => e.IsAwake), 5);
+            Assert.That(own.All(e => e.IsAwake), "the hit woke the whole room (work order 070): " + string.Join(", ", own.Where(e => !e.IsAwake).Select(e => e.LogWord)));
             float until = Time.time + 12f;
             bool came = false;
             while (Time.time < until && !came)
@@ -303,6 +308,8 @@ namespace Roguelike.PlayModeTests
             }
             Assert.That(backHome, "the " + nearest.Kind + " walked home through the passage's door (it is " + Vector3.Distance(nearest.transform.position, home).ToString("0.0", Inv)
                                   + " m from home, in " + (level.RoomAt(nearest.transform.position)?.Letter.ToString() ?? "no room") + ", " + nearest.State + ")");
+            // Work order 070: and every one of its room gave up with it.
+            Assert.That(own.All(e => e.State == EnemyState.Idle), "the whole room went home: " + string.Join(", ", own.Where(e => e.State != EnemyState.Idle).Select(e => e.LogWord)));
         }
 
         // ---------------- The signs, the map, the mood ----------------
