@@ -55,7 +55,7 @@ namespace Roguelike.Rules.Tests
             float s = InterfaceRules.Fight(v); // work order 063: grown with the master scale
             Assert.That(health.Y, Is.EqualTo(feetY + v.UnderFeet * s).Within(1e-4f), "just under her feet");
             Assert.That(focus.Y, Is.EqualTo(health.Y), "side by side");
-            Assert.That(health.W, Is.EqualTo(v.StrokeWidth * s).Within(1e-4f));
+            Assert.That(health.W, Is.EqualTo(v.StrokeWidth * s * v.StrokeShrink).Within(1e-4f)); // work order 068: two thirds of 063's width
             Assert.That(health.H, Is.EqualTo(v.StrokeHeight * s).Within(1e-4f));
             Assert.That(focus.X, Is.EqualTo(health.Right + v.StrokeGap * s).Within(1e-4f), "health left, focus right, a gap between");
             Assert.That((health.X + focus.Right) * 0.5f, Is.EqualTo(feetX).Within(1e-3f), "centred on her");

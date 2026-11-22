@@ -41,16 +41,17 @@ namespace Roguelike
         void OnGUI()
         {
             if (!Showing || Event.current.type != EventType.Repaint) return;
+            GUI.depth = Rules.InterfaceDepth.Fight; // work order 068: under an offer and every screen
             if (InterfaceStyle.Kinetic)
             {
                 DrawKinetic(); // work order 045
                 return;
             }
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             Color colorBefore = GUI.color;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
             // Clear of the readout boxes in the top corners (330 wide and a margin, GeneratedLevels), on a narrow view too.
             float width = Mathf.Max(160f, Mathf.Min(MostWidth, viewWidth * 0.6f, viewWidth - 2f * CornerBoxes));
             float x = (viewWidth - width) * 0.5f;
@@ -86,7 +87,10 @@ namespace Roguelike
             float h = v.BossNameSize * 1.3f;
             InterfaceStyle.Label(new Rect(bar.x, bar.y - h - 2f, bar.width, h), _boss.Tuning.Title,
                                  InterfaceStyle.Text(true, v.BossNameSize, TextAnchor.LowerLeft), InterfaceStyle.C(v.White), true);
+            // Work order 068: the concept's language: a heavy black outline and its dark copy, halftone dots toward its end.
+            InterfaceStyle.HeavyPlate(bar, bar.center.y, v.Slant, v.HeavyOutline * 0.75f, v.Depth);
             InterfaceStyle.SlantedBar(bar, HealthShown, InterfaceStyle.C(v.Back), _boss.IsAngry ? s_AngryHealth : InterfaceStyle.C(v.Red));
+            InterfaceStyle.DotsAlong(bar, bar.center.y, v.Slant, 1f - v.PlateDots, InterfaceStyle.C(v.Black, 0.45f));
             bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
             var stagger = new Rect(bar.x - (v.BossHeight * 0.5f + 3f + v.BossStaggerHeight * 0.5f) * v.Slant, bar.yMax + 3f, bar.width, v.BossStaggerHeight);
             InterfaceStyle.SlantedBar(stagger, StaggerShown, flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Back),

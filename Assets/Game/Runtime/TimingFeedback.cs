@@ -637,8 +637,8 @@ namespace Roguelike
                 _style = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false, clipping = TextClipping.Overflow };
                 _style.normal.textColor = Color.white;
             }
-            GUI.depth = 1; // under the skill bar, the HUD and its screens
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            GUI.depth = InterfaceDepth.Words; // under the skill bar, the HUD and its screens (work order 068: the depths in one place)
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             Color before = GUI.color;
@@ -661,7 +661,7 @@ namespace Roguelike
             if (s.Alpha <= 0.001f) return;
             Vector3 p = cam.WorldToScreenPoint(s.World);
             if (p.z <= 0f) return;
-            float x = p.x / scale + side, y = (Screen.height - p.y) / scale - rise;
+            float x = p.x / scale + side, y = (InterfaceStyle.ScreenHeight - p.y) / scale - rise;
             _style.fontSize = Mathf.Max(8, Mathf.RoundToInt(s.FontSize * FeedbackRules.PopScale(s.Age, Values.Pop, Values.PopSeconds)));
             var content = new GUIContent(s.Text);
             Vector2 size = _style.CalcSize(content);

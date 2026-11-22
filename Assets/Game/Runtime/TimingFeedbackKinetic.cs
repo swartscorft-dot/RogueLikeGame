@@ -23,7 +23,7 @@ namespace Roguelike
 
         void DrawKinetic(Camera cam)
         {
-            GUI.depth = 1; // under the skill bar, the HUD and its screens
+            GUI.depth = InterfaceDepth.Words; // under the skill bar, the HUD and its screens (work order 068)
             InterfaceValues v = InterfaceStyle.V;
             Color before = GUI.color;
             InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
@@ -53,7 +53,7 @@ namespace Roguelike
             if (s.Alpha <= 0.001f || string.IsNullOrEmpty(s.Text)) return;
             Vector3 p = cam.WorldToScreenPoint(s.World);
             if (p.z <= 0f) return;
-            float x = p.x / scale + side, y = (Screen.height - p.y) / scale - rise;
+            float x = p.x / scale + side, y = (InterfaceStyle.ScreenHeight - p.y) / scale - rise;
             int baseSize = s.IsWord ? InterfaceRules.WordSize(s.Size, v) : InterfaceRules.NumberSize(s.Kind, v);
             int size = Mathf.Max(8, Mathf.RoundToInt(baseSize * FeedbackRules.PopScale(s.Age, Values.Pop, Values.PopSeconds)));
             GUIStyle style = InterfaceStyle.Text(true, size, TextAnchor.MiddleCenter);
@@ -106,7 +106,7 @@ namespace Roguelike
             HitNumberValues look = NumberLook;
             HitNumberRules.DriftAt(s.Age, s.Life, look, out float dx, out float dy);
             HitNumberRules.LaneOffset(s.Lane, look, out float lx, out float ly);
-            float x = p.x / scale + NumberSide * OldToLayout + dx + lx, y = (Screen.height - p.y) / scale + dy + ly;
+            float x = p.x / scale + NumberSide * OldToLayout + dx + lx, y = (InterfaceStyle.ScreenHeight - p.y) / scale + dy + ly;
             HitNumberLook kind = HitNumberRules.LookOf(s.Kind);
             int size = Mathf.Max(8, Mathf.RoundToInt(HitNumberRules.Size(s.Kind, look, v.NumberSize) * HitNumberRules.Pop(s.Age, look)));
             GUIStyle style = InterfaceStyle.Text(true, size, TextAnchor.MiddleCenter);
