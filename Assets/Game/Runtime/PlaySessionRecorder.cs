@@ -30,7 +30,7 @@ namespace Roguelike
     /// changes what the game does. Anything that goes wrong (a full disk, a locked file) stops the recording and is said
     /// once in the console, and nothing is thrown into the game.
     /// </summary>
-    public sealed class PlaySessionRecorder : MonoBehaviour
+    public sealed partial class PlaySessionRecorder : MonoBehaviour
     {
         public const string FolderName = "PlaySessions";
         /// <summary>How often she is sampled for whether she is moving, in seconds of game time.</summary>
@@ -145,6 +145,7 @@ namespace Roguelike
             {
                 try
                 {
+                    EndFramePart(FrameTimeEvents.PartPracticeRoom, 0, 0); // work order 074: the last part's frames
                     Add(new SessionEvent(Now(), SessionEventTypes.SessionEnd));
                     Flush();
                     _writer.Dispose();
@@ -200,6 +201,7 @@ namespace Roguelike
                     if (Time.unscaledTime >= _nextLook) LookForPlayer();
                     if (_player == null) return;
                 }
+                MeasureFrame(); // work order 074: the frame's time, while in play
 
                 float now = Time.time;
                 // The gauge, read once a frame: when it becomes full, and when the empowered mode ends.
@@ -941,6 +943,7 @@ namespace Roguelike
         public void NoteRunStarted(string runSeed)
         {
             Note(SessionEventTypes.RunStart, runSeed);
+            _frameRuns++; // work order 074: the frame times' parts say which run
             NoteShotInterval();
         }
 
@@ -961,7 +964,11 @@ namespace Roguelike
         }
 
         /// <summary>She entered floor <paramref name="floor"/> of the run, of this seed.</summary>
-        public void NoteFloorEntered(int floor, string seed) => Note(SessionEventTypes.FloorEnter, seed, "floor", Int(floor));
+        public void NoteFloorEntered(int floor, string seed)
+        {
+            EndFramePart(FrameTimeEvents.PartFloor, _frameRuns, floor); // work order 074: the part before ends, this floor's begins
+            Note(SessionEventTypes.FloorEnter, seed, "floor", Int(floor));
+        }
 
         /// <summary>The floor's exit room was cleared: how long the floor took (game time: a choice's pause does not count) and the health she had left.</summary>
         public void NoteFloorFinished(int floor, float seconds, int health) =>
@@ -1029,6 +1036,7 @@ namespace Roguelike
         /// <summary>The run ended: how (death, act cleared, left), where (floor, room from 1 and its kind), and when.</summary>
         public void NoteRunEnded(string how, int floor, int room, string kind, float seconds, string stats = null)
         {
+            EndFramePart(FrameTimeEvents.PartPracticeRoom, 0, 0); // work order 074: the floor's frames end with the run
             if (!_recording) return;
             try
             {

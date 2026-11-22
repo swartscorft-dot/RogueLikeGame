@@ -198,6 +198,8 @@ namespace Roguelike.Rules
         public bool HasDuck;
         /// <summary>True when she was stunned or pulled in the session (work order 035): the summary then gives its line.</summary>
         public bool HasHeld;
+        /// <summary>The frame times (work order 074): empty for a log from before them, and then the summary has no block of them.</summary>
+        public FrameTimesStats Frames = new FrameTimesStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -385,6 +387,7 @@ namespace Roguelike.Rules
             stats.Session.CoverSeconds = (float)Overlap(stats.CoverSpans, new List<KeyValuePair<double, double>> { new KeyValuePair<double, double>(0d, length) });
             stats.InFights.CoverSeconds = (float)Overlap(stats.CoverSpans, stats.FightSpans);
             stats.Kit = ComputeKit(events, start, kit);
+            stats.Frames = FrameTimesSummary.Compute(events); // work order 074
             return stats;
         }
 
@@ -1191,6 +1194,7 @@ namespace Roguelike.Rules
                        + (stats.GuardDamage > 0 ? Percent(stats.GuardDamageWhileDazed / (float)stats.GuardDamage) : "-") + ")");
                 gd.Write(sb);
             }
+            FrameTimesSummary.Write(sb, stats.Frames); // work order 074: its own block, under every line before it
             return sb.ToString();
         }
 
