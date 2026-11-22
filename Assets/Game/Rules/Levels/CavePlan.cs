@@ -30,6 +30,15 @@ namespace Roguelike.Rules
         public float RockJitter = 0.45f;   // m, at most, a facet's corner stands out from the wall's face (round 1's pictures: 0.3 read as a smooth slab)
         public Rgb Rock = new Rgb(0.52f, 0.47f, 0.43f); // the rock's colour at its foot, about the kit's stone; it darkens to black at its top (round 1's pictures: 0.34 read as black)
         public float RockFade = 1.3f;      // how it darkens up its height: 1 evenly, more sooner (round 2's pictures: 1.1 read as a grey roof)
+        // The rock round the room (the producer on round 2's pictures, the morning of 2026-11-22: "a lit floor floating in flat
+        // black, not a room cut out of rock"; the carved cells' dark-blue tops "look like a pit or water: in a cave those are
+        // rock too"): every cell that is no floor within LidReach cells of one gets a rough rock top at the full walls' height,
+        // lowered to the low walls' where the sight rule says (in front of a floor, toward the camera), darkening to the earth's
+        // black outwards. It covers the carved cells' tops too.
+        public bool RockLids = true;
+        public int LidReach = 2;           // cells from the nearest floor that get a rock top; past them, the earth's black
+        public float LidJitter = 0.3f;     // m, at most, a corner of the top's facets sinks under its height
+        public float LidShade = 0.3f;      // how far down the rock's fade the top starts at the wall (0 the rock's foot colour, 1 black)
 
         // 3. The treasure room's gold
         public bool NoGoldHeaps = true;    // the vault's two large coin heaps beside the chest's dais (work order 052) are not placed; the chest, its dais, its gold light, the code-made heaps on the dais and the spilled coins stay
@@ -113,21 +122,49 @@ namespace Roguelike.Rules
             return hy < 0 || hy > Ny || hx < 0 || hx >= Nx ? -1 : hy * Nx + hx;
         }
 
-        int SpaceAt(int x, int y)
+        /// <summary>The space (room or passage, by its place in the run) whose open cell this is; -1 for none, a carved cell or off the grid.</summary>
+        public int SpaceAt(int x, int y)
         {
             int cx = x - X0, cy = y - Y0;
             return cx < 0 || cy < 0 || cx >= Nx || cy >= Ny ? -1 : _cell[cy * Nx + cx];
         }
+
+        // The rock tops (CaveValues.RockLids): the height of each cell's, 0 for none (a floor cell, or too far from one).
+        readonly float[] _lid;
+
+        /// <summary>How high the rock top over the cell stands, in metres; 0 where there is none (a floor, or past the reach).</summary>
+        public float LidOf(int x, int y)
+        {
+            int cx = x - X0, cy = y - Y0;
+            return _lid == null || cx < 0 || cy < 0 || cx >= Nx || cy >= Ny ? 0f : _lid[cy * Nx + cx];
+        }
+
+        readonly bool[] _capped; // a carved cell walled in on every side: its top stays at the full walls' height
+
+        /// <summary>The lowest a rock top goes where even the low walls' height would stand in a line of sight: a rock floor, in metres.</summary>
+        public const float GroundTop = 0.05f;
+
+        /// <summary>Is the cell a carved one walled in on every side (it has a dark top today, and its rock top is never lowered)?</summary>
+        public bool IsCapped(int x, int y)
+        {
+            int cx = x - X0, cy = y - Y0;
+            return _capped != null && cx >= 0 && cy >= 0 && cx < Nx && cy < Ny && _capped[cy * Nx + cx];
+        }
+
+        /// <summary>The cells a rock top may stand over: the grid reaches this far round the rooms.</summary>
+        public int Margin => _margin;
+        readonly int _margin;
 
         CaveRise(LevelLayout layout, CaveValues v, float wallTop, float lowTop, float pitch, float distance)
         {
             Layout = layout;
             _v = v;
             CellRect b = layout.Bounds();
-            X0 = b.X - 1;
-            Y0 = b.Y - 1;
-            Nx = b.Width + 2;
-            Ny = b.Height + 2;
+            _margin = 1 + Math.Max(0, v.LidReach);
+            X0 = b.X - _margin;
+            Y0 = b.Y - _margin;
+            Nx = b.Width + 2 * _margin;
+            Ny = b.Height + 2 * _margin;
             WallTop = wallTop;
             LowTop = lowTop;
             double p = pitch * Math.PI / 180.0;
@@ -156,6 +193,52 @@ namespace Roguelike.Rules
                     int i = _todayV.Length + y * Nx + x;
                     _ownerA[i] = SpaceAt(x + X0, y + Y0 - 1);
                     _ownerB[i] = SpaceAt(x + X0, y + Y0);
+                }
+            if (!v.RockLids || v.LidReach < 1) return;
+            // Every cell that is no open floor, within the reach of one, gets a top at the full walls' height to begin with.
+            _lid = new float[Nx * Ny];
+            // The carved cells walled in on every side carry a dark top at the walls' height today (work order 051's caps, as
+            // GeneratedLevel.BuildSolidCaps finds them): their rock top stays at that height whatever the sight rule says, since it
+            // hides nothing they do not (the producer on round 3's pictures: lowered, they read "as bottomless holes in the floor").
+            _capped = new bool[Nx * Ny];
+            var seen = new bool[Nx * Ny];
+            var group = new List<int>();
+            var queue = new Queue<int>();
+            for (int start = 0; start < _cell.Length; start++)
+            {
+                int sx = start % Nx + X0, sy = start / Nx + Y0;
+                if (seen[start] || !layout.IsSolidCell(sx, sy)) continue;
+                group.Clear();
+                bool open = false;
+                seen[start] = true;
+                queue.Enqueue(start);
+                while (queue.Count > 0)
+                {
+                    int c = queue.Dequeue();
+                    group.Add(c);
+                    int cx = c % Nx + X0, cy = c / Nx + Y0;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        int nx = cx + (k == 0 ? 1 : k == 1 ? -1 : 0), ny = cy + (k == 2 ? 1 : k == 3 ? -1 : 0);
+                        if (layout.RoomRectAtCell(nx, ny) == null) { open = true; continue; }
+                        int gx = nx - X0, gy = ny - Y0;
+                        if (gx < 0 || gy < 0 || gx >= Nx || gy >= Ny) { open = true; continue; }
+                        int n = gy * Nx + gx;
+                        if (!seen[n] && layout.IsSolidCell(nx, ny)) { seen[n] = true; queue.Enqueue(n); }
+                    }
+                }
+                if (!open) foreach (int c in group) _capped[c] = true;
+            }
+            int reach = v.LidReach;
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                {
+                    if (_cell[y * Nx + x] >= 0) continue;
+                    bool near = false;
+                    for (int dy = -reach; dy <= reach && !near; dy++)
+                        for (int dx = -reach; dx <= reach && !near; dx++)
+                            near = SpaceAt(x + X0 + dx, y + Y0 + dy) >= 0;
+                    if (near) _lid[y * Nx + x] = wallTop;
                 }
         }
 
@@ -186,9 +269,10 @@ namespace Roguelike.Rules
                     r._riseH[i] = cave;
                 }
             }
-            if (v.TallWalls && rise > wallTop)
+            bool walls = v.TallWalls && rise > wallTop;
+            if (walls || r._lid != null) r.HoldDown();
+            if (walls)
             {
-                r.HoldDown();
                 // A rock the sight rule had to lower at all stands where lines of sight graze it: it is left out (today's wall
                 // alone), not cut to a height that the rule's samples only nearly bound.
                 for (int i = 0; i < r._riseV.Length; i++)
@@ -199,6 +283,7 @@ namespace Roguelike.Rules
             return r;
         }
 
+        // Her places: four a side of every cell (three a side let the rock hide floor from two places of the sight test's).
         static readonly double[] s_her = { 0.5, 1.5, 2.5, 3.5 };
         static readonly double[] s_floor = { 0.5, 2.0, 3.5 };
         // A cell past a door, to its edges: the floor beyond it is not guarded, so no other sample stands near its far side.
@@ -374,6 +459,41 @@ namespace Roguelike.Rules
                 if (v) _riseV[j] = to;
                 else _riseH[j] = to;
                 any = true;
+            }
+            // The rock tops over the cells the line passes over near the floor (every one taken as drawn), cell by cell from the
+            // floor point, each at the line's height where it enters the cell (its lowest over it): one that would stand within
+            // the margin of the line is lowered to the low walls' height, or to a rock floor if even that would.
+            if (_lid != null)
+            {
+                double lidFar = Math.Min(len, (WallTop + margin) / slope);
+                double px = t.X / cs, py = t.Y / cs;
+                int gx = (int)Math.Floor(px), gy = (int)Math.Floor(py);
+                int sx = ux > 0 ? 1 : -1, sy = uy > 0 ? 1 : -1;
+                double ax = Math.Abs(ux), ay = Math.Abs(uy);
+                double nextX = ax > 1e-12 ? (ux > 0 ? gx + 1 - px : px - gx) * cs / ax : double.MaxValue;
+                double nextY = ay > 1e-12 ? (uy > 0 ? gy + 1 - py : py - gy) * cs / ay : double.MaxValue;
+                double stepX = ax > 1e-12 ? cs / ax : double.MaxValue, stepY = ay > 1e-12 ? cs / ay : double.MaxValue;
+                for (double d = 0.0; d < lidFar;)
+                {
+                    int x = gx - X0, y = gy - Y0;
+                    if (nextX < nextY) { d = nextX; nextX += stepX; gx += sx; }
+                    else { d = nextY; nextY += stepY; gy += sy; }
+                    if (d >= lidFar) break;
+                    x = gx - X0;
+                    y = gy - Y0;
+                    if (x < 0 || y < 0 || x >= Nx || y >= Ny) continue;
+                    int i = y * Nx + x;
+                    float top = _lid[i];
+                    if (top <= GroundTop + 1e-4f || _capped[i]) continue; // a rock floor hides nothing; a capped cell hides no more than today
+                    double line = slope * d;
+                    // A top at the low walls' height keeps only a tenth of a metre under the line: it stands where they stand,
+                    // and the full margin would take away every top behind a low wall that a line passes just over.
+                    double lowMargin = Math.Min(margin, 0.1);
+                    if (top + (top <= LowTop + 1e-4f ? lowMargin : margin) <= line) continue;
+                    if (!lower) return true;
+                    _lid[i] = LowTop + lowMargin <= line ? Math.Min(top, LowTop) : GroundTop; // round 3's pictures: taken away, they read as chasms
+                    any = true;
+                }
             }
             return any;
         }

@@ -165,6 +165,31 @@ namespace Roguelike.EditModeTests
                 lines.Add(string.Format(Inv, "seed {0}: {1} full sections, {2} rise ({3} to the most, {4:0.0} m on average; {8} with round 2's rule), {5} rays, {6} lowered, {7:0} ms",
                                         seed, full, risen, all, risen > 0 ? sum / risen : 0, rise.Rays, rise.Lowered, ms, risenBefore));
 
+                // The rock tops round the rooms: never over an open floor cell; at the full walls' height, at the low walls', or none.
+                int lids = 0, tall = 0, lowLids = 0, cut = 0;
+                for (int y = rise.Y0; y < rise.Y0 + rise.Ny; y++)
+                    for (int x = rise.X0; x < rise.X0 + rise.Nx; x++)
+                    {
+                        float top = rise.LidOf(x, y);
+                        if (rise.SpaceAt(x, y) >= 0) { Assert.That(top, Is.EqualTo(0f), "no rock top over a floor"); continue; }
+                        bool near = false;
+                        for (int dy = -v.CaveRules.LidReach; dy <= v.CaveRules.LidReach; dy++)
+                            for (int dx = -v.CaveRules.LidReach; dx <= v.CaveRules.LidReach; dx++)
+                                near |= rise.SpaceAt(x + dx, y + dy) >= 0;
+                        if (!near) { Assert.That(top, Is.EqualTo(0f), "none past the reach"); continue; }
+                        lids++;
+                        if (rise.IsCapped(x, y)) Assert.That(top, Is.EqualTo(v.WallHeight), "a carved cell walled in keeps its top at the walls' height");
+                        if (top == v.WallHeight) tall++;
+                        else if (top == v.NearWallHeight) lowLids++;
+                        else { Assert.That(top, Is.EqualTo(CaveRise.GroundTop), "a top at the full walls' height, the low walls' or the ground's"); cut++; }
+                    }
+                Assert.That(tall, Is.GreaterThan(lids / 2), "most rock tops at the full walls' height, seed " + seed);
+                lines.Add(string.Format(Inv, "seed {0} tops: {1} cells within reach, {2} at the full walls' height, {3} at the low walls', {4} at the ground's", seed, lids, tall, lowLids, cut));
+                var noLids = new LevelValues();
+                noLids.CaveRules.RockLids = false;
+                CaveRise bare = Rise(l, noLids);
+                Assert.That(Enumerable.Range(bare.X0, bare.Nx).All(x => Enumerable.Range(bare.Y0, bare.Ny).All(y => bare.LidOf(x, y) == 0f)), "the tops off: none");
+
                 var off = new LevelValues();
                 off.CaveRules.TallWalls = false;
                 CaveRise none = Rise(l, off);
