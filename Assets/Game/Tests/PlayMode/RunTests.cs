@@ -100,7 +100,7 @@ namespace Roguelike.PlayModeTests
             string status = _levels.StatusText();
             StringAssert.Contains("run " + LevelSeed.ToText(RunSeed), status);
             StringAssert.Contains("floor 1 of 5", status);
-            StringAssert.Contains("room 1 of " + level.Layout.Rooms.Count, status);
+            StringAssert.Contains("room 1 of " + LevelGeometry.RoomCount(level.Layout), status); // changed deliberately (work order 077): the rooms without the passages
             StringAssert.Contains("F5 new run", status);
 
             // F6's intent: the same run again gives the same floor.
@@ -292,7 +292,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.InRun, Is.False, "death ends the run");
             Assert.That(_levels.Modifiers.Count, Is.EqualTo(0), "the upgrades are cleared");
             Assert.That(_player.Modifiers, Is.Null);
-            StringAssert.Contains("DIED on floor 1, room " + (room.Order + 1), _levels.LastRunLine);
+            StringAssert.Contains("DIED on floor 1, room " + (LevelGeometry.RoomNumber(_levels.Level.Layout, room) + 1) + " (", _levels.LastRunLine); // changed deliberately (work order 077): counted without the passages
             StringAssert.Contains(LevelSeed.ToText(RunSeed), _levels.LastRunLine);
 
             // Work order 018: she stays on the floor, the game stopped, until the death screen is answered.

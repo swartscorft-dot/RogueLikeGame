@@ -243,6 +243,39 @@ namespace Roguelike.PlayModeTests
                     StringAssert.EndsWith("  " + After(after, unit), "  " + nowValue, u.Short + ": the card's after, \"" + card.Numbers[line] + "\", is hers now: \"" + nowLine + "\"");
                 }
             }
+
+            // Work order 077 (the sixth review's first finding: the lines above hold a card against the card code's own sums):
+            // an Attack speed and a Reach card from her values as the game hands them to a card, against what PlayerCharacter
+            // itself gives once the card is taken, her interval and her reach; the stock gun, then with her pistols' parts fitted.
+            OfferContext Context() => new OfferContext
+            {
+                Modifiers = _levels.Modifiers, Run = _levels.RunValues, Feel = _player.Feel, Kit = _player.Kit, Identity = _player.Identity,
+                FocusValues = _player.FocusModeValues, FocusMode = _player.FocusMode, OwnMaxHealth = _health.MaxHealth, Health = _health.Current,
+                Equipped = Enumerable.Range(0, _player.Skills.Count).Where(_player.IsEquipped).Select(s => _player.Skills[s]).ToList(),
+            };
+            Assert.That(_player.Modifiers, Is.SameAs(_levels.Modifiers), "her run's modifiers");
+            for (int fitted = 0; fitted < 2; fitted++)
+            {
+                if (fitted == 1)
+                    foreach (string id in new[] { WeaponAttachments.LaserSight, WeaponAttachments.BullBarrel })
+                        _levels.Modifiers.Weapon.Add(WeaponRack.Find(_levels.MetaValues, id));
+                foreach (UpgradeKind kind in new[] { UpgradeKind.AttackSpeed, UpgradeKind.LongerBarrel })
+                {
+                    bool speed = kind == UpgradeKind.AttackSpeed;
+                    var step = new Upgrade { Kind = kind, Amount = speed ? 0.12f : 1f, Tiered = true, Tier = UpgradeTier.Rare };
+                    string Game() => speed ? (1.0 / _player.BasicShotInterval).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
+                                           : OfferTexts.Metres(_player.BasicShotRange);
+                    OfferCard shown = OfferTexts.ForUpgrade(step, Context());
+                    string was = Game();
+                    _levels.Modifiers.Take(step);
+                    string then = Game();
+                    _levels.Modifiers.TakeBack(step);
+                    Assert.That(shown.Numbers.First(), Is.EqualTo((speed ? "" : "reach  ") + was + OfferTexts.Arrow + then + (speed ? " shots a second" : "")),
+                                OfferTexts.Name(step) + (fitted == 1 ? ", a Laser Sight and a Bull Barrel fitted" : ", the stock gun") + ": the game's number now and once taken");
+                }
+            }
+            Assert.That(_player.BasicShotRange, Is.EqualTo(12f + _levels.Modifiers.BasicShotRangeBonus).Within(1e-4f), "the sight's 2 m are on her");
+            _levels.Modifiers.Weapon.Clear();
             _levels.BackToPracticeRoom();
         }
 

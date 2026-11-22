@@ -115,12 +115,34 @@ namespace Roguelike.Rules.Tests
             int before = c.Modifiers.Count;
             OfferCard card = OfferTexts.ForUpgrade(speed, c);
             Assert.That(c.Modifiers.Count, Is.EqualTo(before), "the card took its upgrade back");
-            var feel = new FeelValues();
-            string now = (1.0 / c.Stats.BasicShotInterval(feel.BasicShotStartup, feel.BasicShotActive, feel.BasicShotRecovery)).ToString("0.0", CultureInfo.InvariantCulture);
-            c.Modifiers.Take(speed);
-            string after = (1.0 / c.Stats.BasicShotInterval(feel.BasicShotStartup, feel.BasicShotActive, feel.BasicShotRecovery)).ToString("0.0", CultureInfo.InvariantCulture);
-            Assert.That(card.Numbers.Single(), Is.EqualTo(now + A + after + " shots a second"), "computed from her values now, not by hand");
+            // Changed deliberately (work order 077, the sixth review's first finding): "now" and "after" are reckoned as the
+            // game reckons her interval (GameRate), not with the card's own expression, and also with a Bull Barrel fitted.
+            for (int fitted = 0; fitted < 2; fitted++)
+            {
+                if (fitted == 1) c.Modifiers.Weapon.Add(WeaponRack.Find(new MetaValues(), WeaponAttachments.BullBarrel));
+                card = OfferTexts.ForUpgrade(speed, c);
+                string now = GameRate(c);
+                c.Modifiers.Take(speed);
+                string after = GameRate(c);
+                c.Modifiers.TakeBack(speed);
+                Assert.That(card.Numbers.Single(), Is.EqualTo(now + A + after + " shots a second"), "the interval the game gives her, " + (fitted == 1 ? "a Bull Barrel fitted" : "the stock gun"));
+            }
+            Assert.That(GameRate(c), Is.Not.EqualTo("3.8"), "the barrel's interval is not the stock gun's");
+            c.Modifiers.Weapon.Clear();
             Assert.That(OfferTexts.ForUpgrade(Step(UpgradeKind.CritChance, 0.04f), c).Numbers.Single(), Is.EqualTo("crit chance  13 %" + A + "17 %"));
+        }
+
+        /// <summary>
+        /// Her basic shot's rate, shots a second, as PlayerCharacter works it out (BasicShotInterval: startup, active, and
+        /// StatsRecovery, her attack speed's recovery of her pistols' recovery, WeaponRecovery), before any spent focus's gains
+        /// (work order 071), one decimal as a card writes it. The rule methods the game calls, never OfferTexts' expression.
+        /// </summary>
+        static string GameRate(OfferContext c)
+        {
+            var f = new FeelValues();
+            float recovery = c.Modifiers.Stats.BasicShotRecovery(f.BasicShotStartup, f.BasicShotActive,
+                                                                 c.Modifiers.Weapon.Recovery(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery));
+            return (1.0 / (f.BasicShotStartup + f.BasicShotActive + recovery)).ToString("0.0", CultureInfo.InvariantCulture);
         }
 
         [Test]
@@ -138,6 +160,61 @@ namespace Roguelike.Rules.Tests
             c.Identity = new IdentityValues { EmpoweredDamageScale = 1f, EmpoweredFireRate = 1f, EmpoweredCooldownRate = 1f, EmpoweredMoveShare = 0f };
             Assert.That(OfferTexts.ForUpgrade(u, c).Numbers.Single(), Is.EqualTo("a part primes for  4 s" + A + "4.4 s"), "with no gains, as before");
             Assert.That(OfferTexts.ForUpgrade(u, c).Sentence, Is.EqualTo("A part of focus primes your next skill for longer."));
+        }
+
+        /// <summary>
+        /// The fifth review's first fault (work order 077): with her pistols' parts fitted (work order 060) the chest cards read
+        /// the bare feel, so a Bull Barrel's slower, harder shot, a Laser Sight's reach and a Runner's Grip's share were not on
+        /// them. Each number here is reckoned as PlayerCharacter reckons it (StatsRecovery, ResolveBasicShot, BasicShotRange,
+        /// CurrentSpeedShare), never through OfferTexts.
+        /// </summary>
+        [Test]
+        public void WithHerPistolsPartsFitted_TheCardsNumbers_AreTheShotSheFires()
+        {
+            var values = new RunValues();
+            OfferContext c = Start();
+            var meta = new MetaValues();
+            var state = new MetaState { Currency = 1000 };
+            foreach (string id in new[] { WeaponAttachments.LaserSight, WeaponAttachments.BullBarrel, WeaponAttachments.RunnersGrip })
+                Assert.That(WeaponRack.Buy(state, meta, id), Is.EqualTo(MetaBuy.Bought), id);
+            WeaponRack.Apply(state, meta, c.Modifiers.Weapon);
+            AttachmentEffects w = c.Modifiers.Weapon;
+            Assert.That(w.Parts, Is.EqualTo(new[] { "Laser Sight", "Bull Barrel", "Runner's Grip" }));
+            var f = new FeelValues();
+            CultureInfo inv = CultureInfo.InvariantCulture;
+            Upgrade Row(UpgradeKind kind, UpgradeTier tier = UpgradeTier.Common) => AtTier(values.TieredUpgrades.First(r => r.Kind == kind), tier, values);
+
+            // Attack speed: PlayerCharacter's interval is startup + active + her attack speed's recovery of the barrel's recovery.
+            string Rate() => GameRate(c);
+            Upgrade speed = Row(UpgradeKind.AttackSpeed, UpgradeTier.Rare);
+            OfferCard card = OfferTexts.ForUpgrade(speed, c);
+            string now = Rate();
+            c.Modifiers.Take(speed);
+            string after = Rate();
+            c.Modifiers.TakeBack(speed);
+            Say(card.ToString().Replace("\n", "  |  "));
+            Assert.That(card.Numbers.Single(), Is.EqualTo(now + A + after + " shots a second"), "the barrel's interval, then her attack speed");
+            Assert.That(now, Is.Not.EqualTo("3.8"), "a Bull Barrel's shot is 35 % slower than the stock gun's 3.8 a second");
+
+            // Damage: the barrel's 35 % on the basic shot (40 to 54; with a step of 3, 43 to 58), a skill's untouched.
+            Assert.That(OfferTexts.ForUpgrade(Row(UpgradeKind.FlatDamage), c).Numbers,
+                        Is.EqualTo(new[] { "basic shot  54" + A + "58", "Scatter Blast  220" + A + "226" }));
+            Assert.That(OfferTexts.ForUpgrade(Row(UpgradeKind.Damage, UpgradeTier.Epic), c).Numbers,
+                        Is.EqualTo(new[] { "damage dealt  100 %" + A + "115 %", "basic shot  54" + A + "62" }));
+
+            // Reach: the sight's 2 m on the feel's 10, then the chest's metre.
+            Assert.That(OfferTexts.ForUpgrade(Row(UpgradeKind.LongerBarrel), c).Numbers, Is.EqualTo(new[] { "reach  12 m" + A + "13 m" }));
+
+            // Move speed while she shoots: the grip's 75 %, not the feel's 50 %.
+            Upgrade run = Row(UpgradeKind.RunSpeed);
+            string shooting = (f.RunSpeed * c.Stats.MoveSpeed * w.MovingShare(f.MovingShotSpeedShare)).ToString("0.0", inv);
+            Assert.That(w.MovingShare(f.MovingShotSpeedShare), Is.EqualTo(0.75f));
+            StringAssert.StartsWith("while you shoot  " + shooting + A, OfferTexts.ForUpgrade(run, c).Numbers[1]);
+
+            // Taken off, the cards read as at her start again.
+            w.Clear();
+            Assert.That(OfferTexts.ForUpgrade(Row(UpgradeKind.LongerBarrel), c).Numbers, Is.EqualTo(new[] { "reach  10 m" + A + "11 m" }));
+            Assert.That(OfferTexts.ForUpgrade(speed, c).Numbers, Is.EqualTo(new[] { "3.8" + A + "4.2 shots a second" }));
         }
 
         // ---------------- A floor's reward ----------------
