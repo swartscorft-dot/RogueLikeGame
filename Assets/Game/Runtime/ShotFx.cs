@@ -325,9 +325,17 @@ namespace Roguelike
             int segments = Mathf.Max(8, Mathf.CeilToInt(angle / 4f));
             bool closed = angle >= 359.9f;
             Vector3 forward = Direction.sqrMagnitude > 0f ? Direction : Vector3.forward;
-            var vertices = new Vector3[(segments + 1) * 4];
-            var colors = new Color[vertices.Length];
-            var triangles = new int[segments * 12];
+            // Work order 081: rebuilt every frame of its life, so its three arrays are made once for its size and every element
+            // written again each time (the mesh copies them), not made anew each frame.
+            if (_bandVertices == null || _bandVertices.Length != (segments + 1) * 4)
+            {
+                _bandVertices = new Vector3[(segments + 1) * 4];
+                _bandColors = new Color[_bandVertices.Length];
+                _bandTriangles = new int[segments * 12];
+            }
+            Vector3[] vertices = _bandVertices;
+            Color[] colors = _bandColors;
+            int[] triangles = _bandTriangles;
             int tri = 0;
             for (int i = 0; i <= segments; i++)
             {
@@ -351,6 +359,10 @@ namespace Roguelike
             }
             SetMesh(vertices, colors, triangles);
         }
+
+        Vector3[] _bandVertices;
+        Color[] _bandColors;
+        int[] _bandTriangles;
 
         void SetMesh(Vector3[] vertices, Color[] colors, int[] triangles)
         {

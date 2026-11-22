@@ -657,6 +657,8 @@ namespace Roguelike
             GUI.matrix = matrixBefore;
         }
 
+        readonly GUIContent _content = new GUIContent();
+
         void Draw(Camera cam, float scale, FeedbackShown s, float side, float rise)
         {
             if (s.Alpha <= 0.001f) return;
@@ -664,7 +666,8 @@ namespace Roguelike
             if (p.z <= 0f) return;
             float x = p.x / scale + side, y = (InterfaceStyle.ScreenHeight - p.y) / scale - rise;
             _style.fontSize = Mathf.Max(8, Mathf.RoundToInt(s.FontSize * FeedbackRules.PopScale(s.Age, Values.Pop, Values.PopSeconds)));
-            var content = new GUIContent(s.Text);
+            GUIContent content = _content; // work order 081: one content with its text set, not a new one for every word at every repaint
+            content.text = s.Text;
             Vector2 size = _style.CalcSize(content);
             var r = new Rect(x - size.x * 0.5f, y - size.y * 0.5f, size.x, size.y);
             // A dark outline, so it reads over a bright floor and in a crowd.

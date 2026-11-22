@@ -754,6 +754,55 @@ namespace Roguelike.PlayModeTests
             StringAssert.Contains("between runs     equipped Steady Start;  earned 25 (elite room 15, floor 10)", SessionSummary.Format(stats));
         }
 
+        /// <summary>
+        /// Work order 081 (noted by work order 077): the screen's lines are made when it opens and when what they say changes,
+        /// not every frame it is up: thirty frames with nothing changed make none; a piece bought, a change to the save made
+        /// outside the screen, and a turn of the struck-out skill each make them once more; they say what changed; closed, none.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheScreensLines_AreMadeAsItOpensAndOncePerChange_NotEveryFrame()
+        {
+            On();
+            Rich(500);
+            Assert.That(_levels.OpenBetweenRuns(), Is.True);
+            yield return null;
+            int made = _hud.BetweenRunsLinesMade;
+            Assert.That(made, Is.GreaterThan(0), "made as the screen opened");
+            Assert.That(_hud.BetweenRunsLines[1], Is.EqualTo("Echoes  500"));
+            string text = _hud.BetweenRunsText;
+            for (int i = 0; i < 30; i++) yield return null;
+            Assert.That(_hud.BetweenRunsLinesMade, Is.EqualTo(made), "thirty frames with nothing changed: not made again");
+            Assert.That(_hud.BetweenRunsText, Is.EqualTo(text));
+
+            Assert.That(_levels.BuyPiece(MetaPieces.HeavyHand), Is.EqualTo(MetaBuy.Bought));
+            for (int i = 0; i < 5; i++) yield return null;
+            Assert.That(_hud.BetweenRunsLinesMade, Is.EqualTo(made + 1), "a piece bought: made once");
+            Assert.That(_hud.BetweenRunsText, Is.Not.EqualTo(text), "and they say so");
+            Assert.That(_hud.BetweenRunsLines[1], Is.Not.EqualTo("Echoes  500"), "the currency spent");
+
+            _levels.BetweenRunsState.Currency = 4321; // a change to the save the screen did not make
+            for (int i = 0; i < 5; i++) yield return null;
+            Assert.That(_hud.BetweenRunsLinesMade, Is.EqualTo(made + 2), "the save changed: made once");
+            Assert.That(_hud.BetweenRunsLines[1], Is.EqualTo("Echoes  4321"));
+
+            BuyAndEquip(MetaPieces.SecondLook, MetaPieces.NotThatOne);
+            yield return null;
+            int afterEquip = _hud.BetweenRunsLinesMade;
+            string struck = _levels.StruckOutSkill;
+            string next = _levels.ChangeStruckOut(1);
+            Assume.That(next, Is.Not.EqualTo(struck), "the pool has more than one skill");
+            for (int i = 0; i < 5; i++) yield return null;
+            Assert.That(_hud.BetweenRunsLinesMade, Is.EqualTo(afterEquip + 1), "the struck-out skill turned: made once");
+            StringAssert.Contains("Struck out:  " + next, _hud.BetweenRunsText);
+
+            Assert.That(_levels.LeaveBetweenRuns(), Is.True);
+            yield return null;
+            Assert.That(_hud.BetweenRunsLines, Is.Empty, "closed: no lines");
+            int closed = _hud.BetweenRunsLinesMade;
+            for (int i = 0; i < 5; i++) yield return null;
+            Assert.That(_hud.BetweenRunsLinesMade, Is.EqualTo(closed), "none made while it is closed");
+        }
+
         /// <summary>Last by name: after every other test of the class, the game's own save is as it was.</summary>
         [Test]
         public void Z_TheGamesOwnSave_IsNeverTouchedByTheseTests()

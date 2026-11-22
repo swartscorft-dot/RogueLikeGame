@@ -141,8 +141,9 @@ namespace Roguelike
             _verts.Add(new Vector3(x1, halfHeight, z));
             _verts.Add(new Vector3(x1, -halfHeight, z));
             for (int i = 0; i < 4; i++) _colors.Add(color);
-            _tris.AddRange(new[] { b, b + 1, b + 2, b, b + 2, b + 3 });
-            _tris.AddRange(new[] { b, b + 2, b + 1, b, b + 3, b + 2 });
+            // Work order 081: the same twelve indices in the same order, added one by one (no two arrays made at every rebuild).
+            _tris.Add(b); _tris.Add(b + 1); _tris.Add(b + 2); _tris.Add(b); _tris.Add(b + 2); _tris.Add(b + 3);
+            _tris.Add(b); _tris.Add(b + 2); _tris.Add(b + 1); _tris.Add(b); _tris.Add(b + 3); _tris.Add(b + 2);
         }
 
         static Color Drawn(Color picked, float glow)

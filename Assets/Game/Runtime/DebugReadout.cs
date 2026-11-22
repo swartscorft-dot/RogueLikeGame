@@ -17,6 +17,9 @@ namespace Roguelike
         void OnGUI()
         {
             if (!DeveloperKeys.On) return; // work order 066: the developer's text, never shown while his keys are off
+            // Work order 081: a box with no button takes nothing from the layout or input events: its text is made once a frame,
+            // for the repaint, not for every event of the frame.
+            if (Event.current.type != EventType.Repaint) return;
             if (_player == null) _player = FindAnyObjectByType<PlayerCharacter>();
             if (_style == null) _style = new GUIStyle(GUI.skin.box) { fontSize = 12, alignment = TextAnchor.UpperLeft };
 
