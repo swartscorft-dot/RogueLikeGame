@@ -39,6 +39,17 @@ namespace Roguelike.Rules
         WayOpens,      // a combat room was cleared (not the exit room: that is FloorCleared)
         Crit,          // a hit of hers was a crit that no clean tick of its own marks
         RareOffer,     // a choice opened with a rare or an epic card: one bell, two rising for epic
+        // Work order 080 (Kristian's tick of 2026-11-22, "Lyd og følelse i kamp": weight in hits, kills and clean presses),
+        // each with the combat weight's switch on (CombatWeightValues); off, the morning's EnemyHit, Crit and EnemyDies:
+        HitBasic,      // her basic shot landed on an enemy: a light dry impact, in four variations
+        HitHeavy,      // a skill's hit landed: a deeper, thicker impact
+        HitCrit,       // a crit of hers landed: a hard, bright crack (in place of the morning's hit tick and crit tick)
+        HitCleanEdge,  // over the impact of a hit from a press in its clean part: a bright glassy edge
+        Kill,          // an enemy died by her hand: a punchy pop and a short crumble, its own, not the hit's
+        RoomWon,       // her kill emptied its room: a longer pop that opens into a bright rising pair of notes
+        CleanTick,     // a press of a recast chain in its clean part: a short pitched tick, a step higher for each in a row
+        ChainTop,      // the last press of a chain clean all through: a clear top note
+        OffTick,       // a press of a chain off its clean part: a dull tick (silent unless ChainTickValues.DullTickWhenOff)
     }
 
     /// <summary>
@@ -53,6 +64,9 @@ namespace Roguelike.Rules
         // others' strike); ProjectileStopped one ending on a wall, a pillar or a prop; CombatRoomCleared a combat room's last
         // enemy dead (not the exit room's); HerCrit a crit of hers; RareOffered a choice up with a rare or an epic card.
         Loosed, ProjectileStopped, Ducked, HerStunned, HerPulled, DropLanded, DropTaken, CombatRoomCleared, HerCrit, RareOffered,
+        // Work order 080: her hit landing by its weight, a clean press's hit, her kill and the one that empties its room, a
+        // press of a recast chain in its clean part, the last of a chain clean all through, and a press off its clean part.
+        HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -144,6 +158,17 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.WayOpens, 0.3f, 2),
             new PlaceholderSoundSetting(PlaceholderSound.Crit, 0.25f, 12),
             new PlaceholderSoundSetting(PlaceholderSound.RareOffer, 0.35f, 2),
+            // Work order 080, first guesses: under the guns, the light impact barely over the morning's hit tick, the room
+            // won the loudest of them; the caps over the impacts' own limits (HitWeightValues), as a last guard.
+            new PlaceholderSoundSetting(PlaceholderSound.HitBasic, 0.22f, 12),
+            new PlaceholderSoundSetting(PlaceholderSound.HitHeavy, 0.28f, 10),
+            new PlaceholderSoundSetting(PlaceholderSound.HitCrit, 0.3f, 10),
+            new PlaceholderSoundSetting(PlaceholderSound.HitCleanEdge, 0.22f, 8),
+            new PlaceholderSoundSetting(PlaceholderSound.Kill, 0.3f, 8),
+            new PlaceholderSoundSetting(PlaceholderSound.RoomWon, 0.4f, 2),
+            new PlaceholderSoundSetting(PlaceholderSound.CleanTick, 0.3f, 10),
+            new PlaceholderSoundSetting(PlaceholderSound.ChainTop, 0.35f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.OffTick, 0.2f, 10),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -217,6 +242,16 @@ namespace Roguelike.Rules
                 case SoundMoment.CombatRoomCleared: return PlaceholderSound.WayOpens;
                 case SoundMoment.HerCrit: return PlaceholderSound.Crit;
                 case SoundMoment.RareOffered: return PlaceholderSound.RareOffer;
+                // Work order 080.
+                case SoundMoment.HerHitLanded: return PlaceholderSound.HitBasic;
+                case SoundMoment.HerHeavyHitLanded: return PlaceholderSound.HitHeavy;
+                case SoundMoment.HerCritLanded: return PlaceholderSound.HitCrit;
+                case SoundMoment.HerCleanHitLanded: return PlaceholderSound.HitCleanEdge;
+                case SoundMoment.HerKill: return PlaceholderSound.Kill;
+                case SoundMoment.HerKillWonTheRoom: return PlaceholderSound.RoomWon;
+                case SoundMoment.CleanPress: return PlaceholderSound.CleanTick;
+                case SoundMoment.ChainAllClean: return PlaceholderSound.ChainTop;
+                case SoundMoment.PressOff: return PlaceholderSound.OffTick;
                 default: return null;
             }
         }
@@ -295,6 +330,12 @@ namespace Roguelike.Rules
         public int Asked;
         /// <summary>Times its volume: the loudest of those that asked (her hurt sound for a bigger hit), louder for a merge.</summary>
         public float Gain;
+        /// <summary>Work order 080: times its pitch, as the first ask of the frame gave it (a variation, a step of a chain); 1 for none.</summary>
+        public float Pitch;
+        /// <summary>Work order 080: the variation it plays (from 1), or the chain's step; 0 for none.</summary>
+        public int Variant;
+        /// <summary>Work order 080: played at exactly <see cref="Pitch"/>, with none of the small differences (a step of a chain is a note).</summary>
+        public bool Exact;
     }
 
     /// <summary>
@@ -307,6 +348,9 @@ namespace Roguelike.Rules
     {
         readonly int[] _asked = new int[PlaceholderSoundRules.All.Length];
         readonly float[] _gain = new float[PlaceholderSoundRules.All.Length];
+        readonly float[] _pitch = new float[PlaceholderSoundRules.All.Length];   // work order 080
+        readonly int[] _variant = new int[PlaceholderSoundRules.All.Length];
+        readonly bool[] _exact = new bool[PlaceholderSoundRules.All.Length];
         readonly List<float>[] _played = new List<float>[PlaceholderSoundRules.All.Length];
         readonly List<SoundPlay> _out = new List<SoundPlay>();
 
@@ -316,10 +360,22 @@ namespace Roguelike.Rules
         }
 
         /// <summary>A sound is asked for this frame, at <paramref name="gain"/> times its volume.</summary>
-        public void Ask(PlaceholderSound sound, float gain = 1f)
+        public void Ask(PlaceholderSound sound, float gain = 1f) => Ask(sound, gain, 1f, 0, false);
+
+        /// <summary>
+        /// As above, at <paramref name="pitch"/> times its pitch, as variation or step <paramref name="variant"/> (work order
+        /// 080); <paramref name="exact"/>: with none of the small differences. Merged with others of the frame, the first's pitch holds.
+        /// </summary>
+        public void Ask(PlaceholderSound sound, float gain, float pitch, int variant, bool exact)
         {
             int i = (int)sound;
             if (i < 0 || i >= _asked.Length) return;
+            if (_asked[i] == 0)
+            {
+                _pitch[i] = pitch > 0f ? pitch : 1f;
+                _variant[i] = variant;
+                _exact[i] = exact;
+            }
             _gain[i] = _asked[i] == 0 ? gain : Math.Max(_gain[i], gain);
             _asked[i]++;
         }
@@ -355,6 +411,7 @@ namespace Roguelike.Rules
                 {
                     Sound = sound, Asked = asked,
                     Gain = _gain[i] * PlaceholderSoundRules.Merged(asked, values.MergeStep, values.MergeMost),
+                    Pitch = _pitch[i] > 0f ? _pitch[i] : 1f, Variant = _variant[i], Exact = _exact[i], // work order 080
                 });
             }
             return _out;

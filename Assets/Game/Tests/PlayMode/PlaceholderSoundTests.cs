@@ -52,6 +52,7 @@ namespace Roguelike.PlayModeTests
             ShotSounds.Requested += Voice;
             yield return Load();
             _sounds = PlaceholderSounds.Ensure();
+            _sounds.Weight.On = false; // work order 080: these pin the morning's sounds, which its switch off gives back
             yield return null;
             _played.Clear();
             _voiced.Clear();
@@ -616,6 +617,7 @@ namespace Roguelike.PlayModeTests
                 return path == "Sounds/Placeholders/Hurt" ? recorded : null;
             };
             _sounds = PlaceholderSounds.Ensure();
+            _sounds.Weight.On = false; // work order 080: these pin the morning's sounds, which its switch off gives back
             yield return null;
             Assert.That(looked, Is.EquivalentTo(PlaceholderSoundRules.All.Select(s => "Sounds/Placeholders/" + s)), "each sound looked for under its name");
             Assert.That(_sounds.IsRecorded(PlaceholderSound.Hurt), Is.True);

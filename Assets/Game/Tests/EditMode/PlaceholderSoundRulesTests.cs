@@ -31,6 +31,10 @@ namespace Roguelike.Rules.Tests
             { PlaceholderSound.Stunned, 0.45f }, { PlaceholderSound.Pulled, 0.18f }, { PlaceholderSound.DropLands, 0.35f },
             { PlaceholderSound.DropTaken, 0.2f }, { PlaceholderSound.WayOpens, 0.6f }, { PlaceholderSound.Crit, 0.06f },
             { PlaceholderSound.RareOffer, 0.5f },
+            // Changed deliberately (work order 080): the nine sounds of weight in a hit, a kill and a clean press.
+            { PlaceholderSound.HitBasic, 0.07f }, { PlaceholderSound.HitHeavy, 0.12f }, { PlaceholderSound.HitCrit, 0.1f },
+            { PlaceholderSound.HitCleanEdge, 0.08f }, { PlaceholderSound.Kill, 0.2f }, { PlaceholderSound.RoomWon, 0.45f },
+            { PlaceholderSound.CleanTick, 0.05f }, { PlaceholderSound.ChainTop, 0.3f }, { PlaceholderSound.OffTick, 0.04f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;
