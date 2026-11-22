@@ -581,8 +581,10 @@ namespace Roguelike.Rules.Tests
                     foreach (char c in r.Template?.ToString() ?? "-") h = Mix(h, c);
                 }
             }
-            // With the pin at 0 the test fails and says the number it found: the pin is taken from the first Unity run.
-            const ulong pinned = 0UL;
+            // With the pin at 0 the test fails and says the number it found: the pin is taken from the first Unity run. Pinned
+            // from the filtered Unity EditMode run of 2026-11-22 (work order 072); on .NET these floors fold to
+            // 0xC1B46D643FD6BB04UL, as version 16's own code (fd83dfe) with its defaults does.
+            const ulong pinned = 0x5852E0964A18277EUL;
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("MOREOFFPRINT " + found);
             if (pinned == 0UL) Assert.Fail("the pin is to be taken from the first Unity run: this run found " + found + " for the two thousand floors of version 16 (the second set off)");
