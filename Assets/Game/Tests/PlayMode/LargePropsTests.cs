@@ -195,6 +195,12 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator OnAFloor_TheBlockingOnesHaveColliders_AndNoNavMesh_TheDaisIsWalkedOver_AndTheBannerHangs()
         {
+            // The eight include the vault's large coin heap, which the cave leaves out (work order 076, CaveValues.NoGoldHeaps:
+            // Kristian, of the heap by the chest: "litt unødvendig"). The heap is still a prop of the game with that off, and
+            // this test is about all eight on a floor: so the heaps are placed here. (Found by the full PlayMode run on the
+            // morning's combination of 2026-11-22: with the heaps gone no floor holds all eight.)
+            Action<LevelValues> heaps = v => v.CaveRules.NoGoldHeaps = false;
+            heaps(_levels.Values);
             var seen = new Dictionary<PropModel, int>();
             // Two floors of the mood's seed, and the first floor 3 from seed 1 on that holds every one of the eight.
             var floors = new List<(int floor, ulong seed)> { (5, Seed), (1, Seed) };
@@ -210,7 +216,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(floors.Count, Is.EqualTo(3), "a floor holding all eight");
             foreach ((int floor, ulong seed) in floors)
             {
-                GeneratedLevel level = Build(floor, null, seed);
+                GeneratedLevel level = Build(floor, heaps, seed);
                 yield return Frames(2);
                 string where = "seed " + level.Layout.SeedText + " floor " + floor;
                 Assert.That(level.LargePropsPlan, Is.Not.Null, where);
