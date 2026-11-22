@@ -59,9 +59,10 @@ namespace Roguelike.Rules
         public bool DoorPostsStand = true; // the posts at the two ends of a door in a near wall keep the kit's height, so that the door reads (the order: "the door's frame may stand taller than the lip")
         public float FarSightMargin = 0.2f; // m a far wall stays under any line from the camera to her own room's floor, her body or her doors that today's walls leave free; held, it stays at the kit's height
         public float FarReach = 0.35f;     // m from its line into the room that a far wall is taken to reach, for that rule: the kit's wall and its stacked piece are about 0.3 m either side
-        public float UpperTint = 0.6f;     // the stacked stone over the kit's wall: the kit's own texture times this, no glow
-        public float FadeFrom = 1.6f;      // m: up to here a far wall is as lit as the kit's; from here it darkens to black at its top
-        public float FadePower = 1.4f;     // how it darkens up its height: 1 evenly, more sooner
+        public float UpperTint = 0.85f;    // the stacked stone over the kit's wall: the kit's own texture times this, no glow (round 1's pictures: 0.6 under the veil read as black)
+        public float FadeFrom = 2.4f;      // m: up to here a far wall is as lit as the kit's; from here it darkens to black at its top (round 1's pictures: from 1.6 the face read as a black band, not as stone)
+        public float FadePower = 1f;       // how it darkens up its height: 1 evenly, more sooner (round 1: 1.4)
+        public float BlockTop = 0.5f;      // the tops of the carved cells walled in on every side (work order 051's caps) in the kit's stone times this, not the earth's black (round 1's pictures: black, they read as pits; round 2: 0.3 still read dark as a hole); 0 black
         public float CapBack = 0.6f;       // m the black cap reaches past a wall's back where nothing stands behind it ("a flat black cap that runs back into the darkness")
         public float Falloff = 0.62f;      // the falloff's reach: how far out from the picture's middle it stays as lit as the game draws it, a share of the half-diagonal (1: no falloff)
         public float FalloffDark = 0.85f;  // how dark the picture's corners go (0 not at all, 1 black)

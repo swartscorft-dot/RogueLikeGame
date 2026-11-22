@@ -215,6 +215,8 @@ namespace Roguelike.PlayModeTests
                     suffix = "-" + look;
                     _levels.Values.CaveRules.Look = look == "rock" ? CaveLook.Rock : look.StartsWith("dark") ? CaveLook.Dark : CaveLook.Before;
                     int step = look == "dark25" ? 1 : look == "dark22" ? 2 : 0;
+                    if (look == "darktall") _levels.Values.CaveRules.FarHeight = 4f * _levels.Values.CaveRules.HerHeight; // the order's "try 2.5 to 4"
+                    if (look == "darklow") _levels.Values.CaveRules.FarHeight = 2.5f * _levels.Values.CaveRules.HerHeight;
                     GameSettings.SetCameraDistanceStep(step, false);
                     log.Add("look " + look + ": Cave " + _levels.Values.Cave + ", Look " + _levels.Values.CaveRules.Look + ", camera distance "
                             + GameSettings.CameraDistance(new FeelValues().CameraDistance).ToString(Inv) + " m");

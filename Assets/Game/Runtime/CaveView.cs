@@ -329,6 +329,20 @@ namespace Roguelike
             // a Simple Lit material of the earth's colour while the cave is on, and their own back when it goes.
             if (_level.KitPlan != null && _level.SolidCaps.Count > 0)
             {
+                if (_capMaterial == null && LookBuilt == CaveLook.Dark && V.BlockTop > 0f)
+                {
+                    // Work order 083, round 1's pictures: the black tops read as pits; in the dark look they are the kit's stone, dark.
+                    _capMaterial = CryptKit.MakeMaterial(CryptPiece.Wall, _values.Crypt ?? new CryptKitValues());
+                    _capMaterial.name = "Cave_BlockTop";
+                    _capMaterial.DisableKeyword("_EMISSION");
+                    if (_capMaterial.HasProperty("_EmissionColor")) _capMaterial.SetColor("_EmissionColor", Color.black);
+                    Color stone = Color.white * Mathf.Clamp01(V.BlockTop);
+                    stone.a = 1f;
+                    _capMaterial.color = stone;
+                    if (_capMaterial.HasProperty("_BaseColor")) _capMaterial.SetColor("_BaseColor", stone);
+                    _capsStone = true;
+                    _owned.Add(_capMaterial);
+                }
                 if (_capMaterial == null)
                 {
                     _capMaterial = MoodShapes.MakeLit(null);
@@ -351,9 +365,11 @@ namespace Roguelike
         Material _capMaterial;
         readonly List<Material> _capWas = new List<Material>();
 
+        bool _capsStone; // work order 083: the dark look's block tops keep their stone colour
+
         void SetCaps(Color c)
         {
-            if (_capMaterial == null) return;
+            if (_capMaterial == null || _capsStone) return;
             _capMaterial.color = c;
             if (_capMaterial.HasProperty("_BaseColor")) _capMaterial.SetColor("_BaseColor", c);
         }
