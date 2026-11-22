@@ -406,6 +406,9 @@ namespace Roguelike.Rules
         public bool CardNamePlate = true;
         /// <summary>The bar over an enemy: a thicker black outline (layout pixels of the bars' own 720 layout).</summary>
         public float EnemyOutline = 1.5f;
+
+        /// <summary>The menus (pause, the run's end, between runs) in the concept's style: work order 078's values (InterfaceMenus.cs).</summary>
+        public MenuValues Menus = new MenuValues();
     }
 
     /// <summary>

@@ -687,7 +687,7 @@ namespace Roguelike
             Upgrade u = _offeredUpgrades[index];
             Modifiers.Take(u);
             FindPlayer()?.RefreshDashCharges(); // work order 065: a second dash is held at once
-            Record?.TakeUpgrade(u.Short);
+            Record?.TakeUpgrade(u.Short, u.Tiered ? u.Tier : UpgradeTier.Common); // work order 078: with its tier, for the end screen
             if (_health != null)
             {
                 _health.RefreshMax();

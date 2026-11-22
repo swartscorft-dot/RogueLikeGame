@@ -98,13 +98,26 @@ namespace Roguelike.Rules
             if (IsOver) return;
             _skills.Add(name ?? "?");
             _skillsWith.Add(SkillTiers.WithText(tier, change));
+            _skillTiers.Add(tier); // work order 078: the end screen's chips in the tier's colour
         }
 
         readonly List<string> _skillsWith = new List<string>();
+        readonly List<UpgradeTier> _skillTiers = new List<UpgradeTier>();
+        readonly List<UpgradeTier> _upgradeTiers = new List<UpgradeTier>();
 
-        public void TakeUpgrade(string shortForm)
+        /// <summary>Skill <paramref name="index"/> of <see cref="Skills"/> with what it came with, "Long Shot (epic, Overcharge)" (work order 078).</summary>
+        public string SkillNamed(int index) => index >= 0 && index < _skills.Count ? SkillTiers.Named(_skills[index], _skillsWith[index]) : "";
+
+        /// <summary>The tier skill <paramref name="index"/> was taken at, and upgrade <paramref name="index"/>'s (work order 078: common when not said).</summary>
+        public UpgradeTier SkillTierAt(int index) => index >= 0 && index < _skillTiers.Count ? _skillTiers[index] : UpgradeTier.Common;
+        public UpgradeTier UpgradeTierAt(int index) => index >= 0 && index < _upgradeTiers.Count ? _upgradeTiers[index] : UpgradeTier.Common;
+
+        /// <summary>A chest upgrade taken, in short form; work order 078: with its tier (common when not said), for the end screen's colours.</summary>
+        public void TakeUpgrade(string shortForm, UpgradeTier tier = UpgradeTier.Common)
         {
-            if (!IsOver) _upgrades.Add(shortForm ?? "?");
+            if (IsOver) return;
+            _upgrades.Add(shortForm ?? "?");
+            _upgradeTiers.Add(tier);
         }
 
         /// <summary>A skill upgrade taken from an elite room (work order 017), by its full name.</summary>
