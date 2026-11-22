@@ -86,7 +86,9 @@ namespace Roguelike
         {
             if (!GameSettings.Greybox || _level == null) return;
             text.Append('\n').Append(GreyboxRules.Legend);
-            if (CurrentRoom != null) text.Append("\n  here: ").Append(GreyboxRules.RoomWords(CurrentRoom, _level.Layout.CellSize));
+            if (CurrentRoom == null) return;
+            text.Append("\n  here: ").Append(GreyboxRules.RoomWords(CurrentRoom, _level.Layout.CellSize));
+            if (GreyboxRules.NotInTheFloors(CurrentRoom, Values)) text.Append("\n  ").Append(RoomLab.NotInTheFloors); // work order 072's second set, off in the floors
         }
     }
 }

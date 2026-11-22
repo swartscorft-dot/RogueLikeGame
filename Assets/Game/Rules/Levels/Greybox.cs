@@ -159,5 +159,13 @@ namespace Roguelike.Rules
                 : "drawn: " + RoomShapes.Word(room.Shape);
             return string.Format(CultureInfo.InvariantCulture, "{0}, {1:0.#} x {2:0.#} m", what, room.Rect.Width * cellSize, room.Rect.Height * cellSize);
         }
+
+        /// <summary>
+        /// Is the room's template one the floors made with these values do not hold (work order 072's second set while
+        /// <see cref="LevelValues.MoreTemplates"/> is off: a room of the room lab)? The box then says <see cref="RoomLab.NotInTheFloors"/>
+        /// on the line under the room's (the room's own line is as long as the box is wide).
+        /// </summary>
+        public static bool NotInTheFloors(LevelRoom room, LevelValues v) =>
+            room?.Template != null && !RoomLab.InTheFloors(room.Template.Template, v);
     }
 }

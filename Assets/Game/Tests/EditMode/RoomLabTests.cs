@@ -24,17 +24,46 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheEntries_AreEveryUsableTemplate_InTheLibrarysOrder_ThenTheDrawnShapes_AndTheTreasureRoom()
         {
+            // The default values: work order 072's second set off in the floors (since 2026-11-22), and in the lab all the same.
             var v = new LevelValues();
+            Assume.That(v.MoreTemplates, Is.False, "the second set off in the floors by default");
             List<LabEntry> entries = RoomLab.Entries(v);
-            IReadOnlyList<RoomTemplate> usable = RoomTemplateLibrary.Usable(v);
-            Assert.That(entries.Where(e => e.Template != null).Select(e => e.Template), Is.EqualTo(usable), "every template the generator may draw, in its order");
+            IReadOnlyList<RoomTemplate> usable = RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true });
+            Assert.That(entries.Where(e => e.Template != null).Select(e => e.Template), Is.EqualTo(usable), "every template of the library the generator could draw, in its order, both sets");
             Assert.That(usable.Count(t => t.Since >= RoomTemplateLibrary.MoreSince), Is.GreaterThan(0), "work order 072's second set among them");
+            Assert.That(RoomTemplateLibrary.Usable(v).All(t => t.Since < RoomTemplateLibrary.MoreSince), Is.True, "the floors' own list: the first eleven only");
             foreach (LabEntry e in entries.Where(x => x.Template != null))
+            {
                 Assert.That(e.Kind, Is.EqualTo(RoomLab.KindFor(e.Template.For)), e.Name + ": the room it is for");
+                bool second = e.Template.Since >= RoomTemplateLibrary.MoreSince;
+                Assert.That(e.InFloors, Is.EqualTo(!second), e.Name + ": in the floors only if of the first set");
+                Assert.That(e.Label, Is.EqualTo(second ? e.Name + " (not in the floors yet)" : e.Name), "the picker's words");
+            }
+            Assert.That(v.MoreTemplates, Is.False, "the floors' values as they were");
             Assert.That(entries.Where(e => e.Template == null).Select(e => e.Kind), Is.EqualTo(new[] { LabKind.Ordinary, LabKind.Elite, LabKind.Exit, LabKind.Treasure }));
+            Assert.That(entries.Where(e => e.Template == null).All(e => e.InFloors), Is.True);
             Assert.That(RoomLab.EntriesOf(LabKind.Treasure, v).Single().Name, Is.EqualTo("treasure room"));
-            var off = new LevelValues { MoreTemplates = false };
-            Assert.That(RoomLab.Entries(off).Count(e => e.Template != null), Is.EqualTo(RoomTemplateLibrary.Usable(off).Count), "the second set off: the first eleven");
+            // With the second set on in the floors: the same list, nothing marked.
+            var on = new LevelValues { MoreTemplates = true };
+            Assert.That(RoomLab.Entries(on).Select(e => e.Template), Is.EqualTo(entries.Select(e => e.Template)));
+            Assert.That(RoomLab.Entries(on).All(e => e.InFloors), Is.True, "the second set on: nothing marked");
+        }
+
+        [Test]
+        public void ASecondSetRoom_IsBuiltWithTheDefaultValues_AndTheFloorsStayWithoutTheSecondSet()
+        {
+            var v = new LevelValues();
+            LabEntry second = RoomLab.Entries(v).First(e => e.Template != null && !e.InFloors);
+            LevelLayout lab = RoomLab.Build(second, RoomLab.Mixes[1], 0x5EC0DUL, v);
+            Assert.That(lab.Rooms[1].Template.Template, Is.SameAs(second.Template));
+            Assert.That(RoomLab.Faults(lab, RoomLab.Mixes[1], v), Is.Empty);
+            Assert.That(v.MoreTemplates, Is.False, "the floors' values as they were");
+            for (ulong seed = 1; seed <= 6; seed++)
+                Assert.That(LevelGenerator.Generate(seed, 1 + (int)(seed % 5), v).Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since < RoomTemplateLibrary.MoreSince),
+                            Is.True, "a floor of the default values holds none of the second set, lab room or not");
+            var room = new LevelRoom { Kind = RoomKind.Combat, Template = second.Template.Oriented(LevelGenerator.South, false), Shape = RoomShape.Template };
+            Assert.That(GreyboxRules.NotInTheFloors(room, v), Is.True, "the greybox box says it too");
+            Assert.That(GreyboxRules.NotInTheFloors(room, new LevelValues { MoreTemplates = true }), Is.False);
         }
 
         [Test]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 
 namespace Roguelike.Rules
 {
@@ -35,17 +36,27 @@ namespace Roguelike.Rules
     {
         public readonly RoomTemplate Template;
         public readonly LabKind Kind;
+        /// <summary>
+        /// The floors of a run may hold this room with the values it was listed by: false for a template of work order 072's
+        /// second set while <see cref="LevelValues.MoreTemplates"/> is off (since 2026-11-22: in the code, not in the floors,
+        /// until he has played its rooms in the lab). Always true without a template.
+        /// </summary>
+        public readonly bool InFloors;
 
-        public LabEntry(RoomTemplate template, LabKind kind)
+        public LabEntry(RoomTemplate template, LabKind kind, bool inFloors = true)
         {
             Template = template;
             Kind = kind;
+            InFloors = template == null || inFloors;
         }
 
         /// <summary>The template's name, or what the generator draws without one.</summary>
         public string Name => Template != null ? Template.Name : Kind == LabKind.Treasure ? "treasure room" : "drawn shape";
 
-        public override string ToString() => Name + " (" + RoomLab.Word(Kind) + ")";
+        /// <summary>Its name for the picker and the developer's box: <see cref="RoomLab.NotInTheFloors"/> after a room the floors do not hold yet.</summary>
+        public string Label => InFloors ? Name : Name + " " + RoomLab.NotInTheFloors;
+
+        public override string ToString() => Label + " (" + RoomLab.Word(Kind) + ")";
     }
 
     /// <summary>
@@ -92,23 +103,50 @@ namespace Roguelike.Rules
         /// <summary>The lab's kind of a template's room.</summary>
         public static LabKind KindFor(RoomTemplateFor f) => f == RoomTemplateFor.Elite ? LabKind.Elite : f == RoomTemplateFor.Exit ? LabKind.Exit : LabKind.Ordinary;
 
+        /// <summary>The words after a room the floors of a run do not hold yet (work order 072's second set with <see cref="LevelValues.MoreTemplates"/> off).</summary>
+        public const string NotInTheFloors = "(not in the floors yet)";
+
         /// <summary>
-        /// Every room the lab can build, in order: every template the generator may draw with these values
-        /// (<see cref="RoomTemplateLibrary.Usable"/>: the first eleven and work order 072's second set with
-        /// <see cref="LevelValues.MoreTemplates"/> on), in the library's order, each of the room it is for; then the generator's
-        /// drawn shapes (no template: the carve of work order 051, its shape drawn by the seed) for an ordinary, the elite and
-        /// the exit room; then the treasure room (no template is for one).
+        /// The values the lab lists its templates by: a copy of the floors' (<paramref name="v"/>, field for field, its parts
+        /// shared and never changed) with <see cref="LevelValues.MoreTemplates"/> on, so the lab offers EVERY template of the
+        /// library whatever the floors say: playing the second set's rooms in the lab is how they come into the floors (his rule
+        /// of 2026-11-22). The floors' values are never changed.
+        /// </summary>
+        public static LevelValues LabValues(LevelValues v)
+        {
+            v = v ?? new LevelValues();
+            if (v.MoreTemplates) return v;
+            var copy = new LevelValues();
+            foreach (FieldInfo f in typeof(LevelValues).GetFields(BindingFlags.Public | BindingFlags.Instance))
+                if (!f.IsInitOnly && !f.IsLiteral) f.SetValue(copy, f.GetValue(v));
+            copy.MoreTemplates = true;
+            return copy;
+        }
+
+        /// <summary>
+        /// Every room the lab can build, in order: every template of the library the generator could draw (its check of
+        /// <see cref="RoomTemplateLibrary.Usable"/> passed, with <see cref="LabValues"/>: the first eleven and work order 072's
+        /// second set, whatever <see cref="LevelValues.MoreTemplates"/> says in the floors), in the library's order, each of the
+        /// room it is for and marked when the floors with <paramref name="v"/> do not hold it (<see cref="LabEntry.InFloors"/>);
+        /// then the generator's drawn shapes (no template: the carve of work order 051, its shape drawn by the seed) for an
+        /// ordinary, the elite and the exit room; then the treasure room (no template is for one).
         /// </summary>
         public static List<LabEntry> Entries(LevelValues v)
         {
+            v = v ?? new LevelValues();
             var list = new List<LabEntry>();
-            foreach (RoomTemplate t in RoomTemplateLibrary.Usable(v)) list.Add(new LabEntry(t, KindFor(t.For)));
+            foreach (RoomTemplate t in RoomTemplateLibrary.Usable(LabValues(v)))
+                list.Add(new LabEntry(t, KindFor(t.For), InTheFloors(t, v)));
             list.Add(new LabEntry(null, LabKind.Ordinary));
             list.Add(new LabEntry(null, LabKind.Elite));
             list.Add(new LabEntry(null, LabKind.Exit));
             list.Add(new LabEntry(null, LabKind.Treasure));
             return list;
         }
+
+        /// <summary>Do the floors made with these values hold this template? Not one of work order 072's second set while <see cref="LevelValues.MoreTemplates"/> is off.</summary>
+        public static bool InTheFloors(RoomTemplate t, LevelValues v) =>
+            t == null || t.Since < RoomTemplateLibrary.MoreSince || (v ?? new LevelValues()).MoreTemplates;
 
         /// <summary>The entries of one kind, in the order of <see cref="Entries"/>.</summary>
         public static List<LabEntry> EntriesOf(LabKind kind, LevelValues v) => Entries(v).Where(e => e.Kind == kind).ToList();

@@ -16,8 +16,9 @@ namespace Roguelike
     /// switch of the developer's keys (work order 066): off in a built player.
     ///
     /// In the practice room (and in the lab) <see cref="LabKey"/> opens a small picker in the developer's plain box: the room's
-    /// KIND (ordinary, elite, treasure, exit), the ROOM of that kind (every template of the library the generator may draw, or
-    /// the generator's drawn shapes, <see cref="RoomLab.Entries"/>) and the ENEMY MIX (<see cref="RoomLab.Mixes"/>: the floors'
+    /// KIND (ordinary, elite, treasure, exit), the ROOM of that kind (every template of the library, work order 072's second set
+    /// too whatever <see cref="LevelValues.MoreTemplates"/> says, marked "(not in the floors yet)" while the floors do not hold
+    /// it; or the generator's drawn shapes, <see cref="RoomLab.Entries"/>) and the ENEMY MIX (<see cref="RoomLab.Mixes"/>: the floors'
     /// own numbers); up and down choose a line, left and right change it, Enter builds, <see cref="LabKey"/> closes it. The room
     /// is built alone (<see cref="RoomLab.Build"/>, the generator's stages) with a short passage on its door in, by the floor's
     /// level builder (<see cref="Build"/>, so <see cref="GeneratedLevel"/> with the kit, the mood, the cave, the door signs and
@@ -296,7 +297,7 @@ namespace Roguelike
             sb.Append("ROOM LAB     up/down a line   left/right change   Enter builds   ").Append(LabKey).Append(" closes\n");
             LabEntry room = _pickerRooms.Count > 0 ? _pickerRooms[Mathf.Clamp(PickerRoom, 0, _pickerRooms.Count - 1)] : null;
             sb.Append(PickerLine == 0 ? "> " : "   ").Append("Kind:     < ").Append(RoomLab.Word(PickerKind)).Append(" >\n");
-            sb.Append(PickerLine == 1 ? "> " : "   ").Append("Room:    < ").Append(room != null ? room.Name : "-")
+            sb.Append(PickerLine == 1 ? "> " : "   ").Append("Room:    < ").Append(room != null ? room.Label : "-") // work order 072's second set marked: not in the floors yet
               .Append(string.Format(CultureInfo.InvariantCulture, " >   ({0} of {1})", PickerRoom + 1, _pickerRooms.Count));
             if (room?.Template != null) sb.Append(string.Format(CultureInfo.InvariantCulture, "  {0} x {1} m", room.Template.Width * Values.CellSize, room.Template.Height * Values.CellSize));
             sb.Append('\n');
@@ -340,7 +341,8 @@ namespace Roguelike
         void AppendLab(StringBuilder text)
         {
             if (!InLab || LabEntry == null) return;
-            text.Append("\nROOM LAB  ").Append(LabEntry.ToString());
+            text.Append("\nROOM LAB  ").Append(RoomLab.Word(LabEntry.Kind)).Append(": ").Append(LabEntry.Name);
+            if (!LabEntry.InFloors) text.Append("\n  ").Append(RoomLab.NotInTheFloors); // work order 072's second set, off in the floors
             text.Append(string.Format(CultureInfo.InvariantCulture, "\n  {0}, seed {1}, built in {2:0} ms{3}", RoomLab.Mixes[LabMix].Name, LevelSeed.ToText(LabSeed), LabBuiltMs,
                                       LabCleared ? ", cleared" : ""));
             text.Append('\n').Append(s_labKeys);
@@ -367,7 +369,7 @@ namespace Roguelike
             Matrix4x4 before = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             float viewWidth = InterfaceStyle.ScreenWidth / scale;
-            const float width = 560f, height = 118f;
+            const float width = 640f, height = 118f; // wide enough for a room's name with "(not in the floors yet)" after it
             GUI.Box(new Rect((viewWidth - width) * 0.5f, SkillBar.LayoutHeight * 0.22f, width, height), _levels.PickerText, _style);
             GUI.matrix = before;
         }

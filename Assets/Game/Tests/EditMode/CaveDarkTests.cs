@@ -114,12 +114,14 @@ namespace Roguelike.EditModeTests
         [Test]
         public void NoTallWall_EverHidesHer_HerRoomsFloor_OrItsDoors_ManyRooms_AndTheTemplates()
         {
-            var v = new LevelValues();
             double[] fine = { 0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75 };
             long asked = 0, rays = 0, heads = 0;
             int rooms = 0, templates = 0, moreTemplates = 0;
             var watch = Stopwatch.StartNew();
             var faults = new List<string>();
+            // The floors as the default values make them (work order 072's second set off in the floors since 2026-11-22), and
+            // with the second set on, so the rule stays asked on its rooms' outlines too (they are built in the room lab).
+            foreach (LevelValues v in new[] { new LevelValues(), new LevelValues { MoreTemplates = true } })
             foreach (ulong seed in new[] { 42UL, 7UL, 1234UL, 5UL })
                 foreach (int floor in new[] { 1, 4 })
                 {
@@ -159,7 +161,7 @@ namespace Roguelike.EditModeTests
             Assert.That(faults, Is.Empty, "the dark look's tall walls hide what its other walls leave seen");
             Assert.That(templates, Is.GreaterThan(0), "rooms drawn by templates were asked about");
             Assert.That(moreTemplates, Is.GreaterThan(0), "and some of work order 072's");
-            TestContext.WriteLine(string.Format(Inv, "CAVEDARKSIGHT 4 seeds x floors 1 and 4: {0} rooms and passages ({1} by templates, {2} of 072's), {3} lines to the floor and the doors and {4} places' feet and head asked, none hidden; the rule asked {5} rays, {6:0} ms in all",
+            TestContext.WriteLine(string.Format(Inv, "CAVEDARKSIGHT 4 seeds x floors 1 and 4, the second set off and on: {0} rooms and passages ({1} by templates, {2} of 072's), {3} lines to the floor and the doors and {4} places' feet and head asked, none hidden; the rule asked {5} rays, {6:0} ms in all",
                                                 rooms, templates, moreTemplates, asked, heads, rays, watch.Elapsed.TotalMilliseconds));
         }
 

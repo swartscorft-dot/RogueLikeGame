@@ -151,7 +151,9 @@ namespace Roguelike.PlayModeTests
             var times = new List<float>();
             var faults = new List<string>();
             List<LabEntry> entries = RoomLab.Entries(_levels.Values);
-            Assert.That(entries.Count(e => e.Template != null), Is.EqualTo(RoomTemplateLibrary.Usable(_levels.Values).Count));
+            // Every template of the library, both sets, whatever the floors' values say (work order 072's second set off in them by default).
+            Assert.That(entries.Count(e => e.Template != null), Is.EqualTo(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true }).Count));
+            Assert.That(entries.Count(e => e.Template != null && e.Template.Since >= RoomTemplateLibrary.MoreSince), Is.GreaterThan(0), "the second set among them");
             foreach (LabEntry entry in entries)
             {
                 int mix = entry.Kind == LabKind.Elite ? 2 : entry.Kind == LabKind.Exit ? 1 : 0;
@@ -176,6 +178,47 @@ namespace Roguelike.PlayModeTests
             Debug.Log(string.Format(Inv, "LABBUILD {0} lab rooms built in the Editor's player: fastest {1:0} ms, median {2:0} ms, slowest {3:0} ms",
                                     times.Count, times[0], times[times.Count / 2], times[times.Count - 1]));
             Assert.That(faults, Is.Empty, "every lab room is a room of a floor");
+        }
+
+        [UnityTest]
+        public IEnumerator ASecondSetRoom_IsBuiltAndPlayedWithTheDefaultValues_AndARunsFloorAfterItHoldsNoneOfTheSecondSet()
+        {
+            _levels.Values = new LevelValues();
+            Assume.That(_levels.Values.MoreTemplates, Is.False, "the second set off in the floors by default");
+            LabEntry second = RoomLab.Entries(_levels.Values).First(e => e.Template != null && e.Kind == LabKind.Ordinary && !e.InFloors);
+            GeneratedLevel level = Lab(second, 1);
+            yield return Frames(2);
+            LevelRoom room = RoomOf(level);
+            Assert.That(room.Template.Template, Is.SameAs(second.Template));
+            Assert.That(RoomLab.Faults(level.Layout, RoomLab.Mixes[1], _levels.Values), Is.Empty);
+            Assert.That(_levels.LabEntry.Label, Does.EndWith("(not in the floors yet)"), "marked as not in the floors");
+            StringAssert.Contains("(not in the floors yet)", _levels.StatusText(), "the developer's box says so");
+            // It plays: past its line the room wakes, cleared it heals her.
+            RoomFight fight = _levels.FightOf(room);
+            _player.Teleport(AtDepth(level, _levels.Values.Fights.PointIn + 1.0));
+            yield return Until(() => fight.On, 30);
+            Assert.That(fight.On, Is.True, "the room wakes");
+            GameSettings.SetGreybox(true, keep: false);
+            yield return Frames(2);
+            StringAssert.Contains("(not in the floors yet)", _levels.StatusText().Substring(_levels.StatusText().IndexOf("here:", StringComparison.Ordinal)), "the greybox legend's room line says so too");
+            GameSettings.SetGreybox(false, keep: false);
+            Kill(level.EnemiesByRoom[room.Order]);
+            yield return Until(() => _levels.LabCleared, 60);
+            Assert.That(_levels.LabCleared, Is.True);
+            _levels.BackToPracticeRoom();
+            yield return Frames(2);
+
+            // The floors' values as they were: a run after the lab holds none of the second set.
+            Assert.That(_levels.Values.MoreTemplates, Is.False, "the lab left the floors' values as they were");
+            for (int run = 0; run < 3; run++)
+            {
+                GeneratedLevel floor = _levels.StartRun(0x0840C0DEUL + (ulong)run);
+                yield return null;
+                Assert.That(floor.Layout.Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since < RoomTemplateLibrary.MoreSince), Is.True,
+                            "a run's floor of the default values holds no second-set template");
+            }
+            _levels.BackToPracticeRoom();
+            yield return Frames(2);
         }
 
         // ---------------- It plays as a floor's room ----------------
