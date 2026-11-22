@@ -36,8 +36,11 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The widening, at its edges ----------------
 
+        // Work order 082 (review 6, finding 5): the three tests that read CleanPart.Of(kit, 0.6, false) pin Triple Tap's part with
+        // the chain rhythm off (KitValues.ChainRhythm, on by default since work order 069): renamed to say so. With it on, the
+        // rhythm's presses are WithTheChainRhythmOn_TripleTapsPresses_... below.
         [Test]
-        public void TheStatAtZero_IsTodaysPartsExactly_Backstep003To023_TripleTap010To030_LongShot08To1()
+        public void ChainRhythmOff_TheStatAtZero_IsTodaysPartsExactly_Backstep003To023_TripleTap010To030_LongShot08To1()
         {
             var kit = new KitValues();
             SkillDefinition step = Skill("Backstep"), tap = Skill("Triple Tap"), shot = Skill("Long Shot");
@@ -104,7 +107,7 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void HerWideWindow_StopsAtItsCap_AndIsNothingWithTheSwitchOff()
+        public void ChainRhythmOff_HerWideWindow_StopsAtItsCap_AndIsNothingWithTheSwitchOff()
         {
             var values = new RunValues();
             RunModifiers m = StatsDpsModel.Start(values);
@@ -119,13 +122,60 @@ namespace Roguelike.Rules.Tests
             Assert.That(m.Stats.SkillLayer.Any, Is.False);
         }
 
+        /// <summary>
+        /// Work order 082 (review 6, finding 5): Triple Tap's presses as she plays them, the chain rhythm on (work order 069):
+        /// the quick press clean at 0.12 to 0.30 s of its 0.45 s, the last at 0.42 to 0.66 s of its 0.80 s, and Wide window at
+        /// its +50 % cap widening each round its middle inside its own window (the last 0.36 to 0.72 s); the cast blade and the
+        /// strip's box read each press's part at the same shares.
+        /// </summary>
+        [TestCase(0f)]
+        [TestCase(0.25f)]
+        [TestCase(0.5f)]
+        public void WithTheChainRhythmOn_TripleTapsPresses_AreTodaysParts_WideWindowWidensEach_AndTheReadersAgree(float wide)
+        {
+            var kit = new KitValues();
+            Assert.That(kit.ChainRhythm, Is.True, "on by default since work order 069");
+            SkillDefinition tap = Skill("Triple Tap");
+            RecastBeat second = RecastRhythm.Press(kit, tap, 2, 0f), last = RecastRhythm.Press(kit, tap, 3, 0f);
+            Assert.That(second.Window, Is.EqualTo(0.45f).Within(Eps), "the quick press's window");
+            Assert.That(second.Clean.From, Is.EqualTo(0.12f).Within(Eps));
+            Assert.That(second.Clean.To, Is.EqualTo(0.30f).Within(Eps));
+            Assert.That(last.Window, Is.EqualTo(0.80f).Within(Eps), "the last press's window, a beat later");
+            Assert.That(last.Clean.From, Is.EqualTo(0.42f).Within(Eps));
+            Assert.That(last.Clean.To, Is.EqualTo(0.66f).Within(Eps));
+            RecastBeat lastAtCap = RecastRhythm.Press(kit, tap, 3, 0.5f);
+            Assert.That(lastAtCap.Clean.From, Is.EqualTo(0.36f).Within(Eps), "+50 %: 0.06 s earlier");
+            Assert.That(lastAtCap.Clean.To, Is.EqualTo(0.72f).Within(Eps), "and 0.06 s later");
+
+            var line = new RecastBeat[RecastRhythm.MostPresses];
+            int n = RecastRhythm.Line(tap, kit, wide, line);
+            Assert.That(n, Is.EqualTo(tap.RecastCount - 1), "a beat for each recast press");
+            for (int i = 0; i < n; i++)
+            {
+                RecastBeat beat = line[i];
+                Assert.That(beat.Clean, Is.EqualTo(WideWindow.Widen(RecastRhythm.Press(kit, tap, beat.Press, 0f).Clean, beat.Window, wide)), "press " + beat.Press + ": widened round its middle");
+                for (float since = 0f; since <= beat.Window; since += 0.0025f)
+                {
+                    bool inPart = since >= beat.Clean.From && since <= beat.Clean.To;
+                    bool edge = Math.Abs(since - beat.Clean.From) <= 1e-4f || Math.Abs(since - beat.Clean.To) <= 1e-4f;
+                    CastBarView blade = CastBarRules.Recast(0.2f, beat.Window, 0.2f + since, since, beat.Clean);
+                    if (!edge) Assert.That(blade.MarkerInZone, Is.EqualTo(inPart), "the blade, press " + beat.Press + " at " + since);
+                    Assert.That(InterfaceRules.RecastShares(beat.Window, since, beat.Clean.From, beat.Clean.To, out float now, out float bandFrom, out float bandTo), Is.True);
+                    Assert.That(bandFrom, Is.EqualTo(beat.Clean.From / beat.Window).Within(1e-6f), "the box, press " + beat.Press);
+                    Assert.That(bandTo, Is.EqualTo(beat.Clean.To / beat.Window).Within(1e-6f));
+                    if (!edge) Assert.That(now >= bandFrom && now <= bandTo, Is.EqualTo(inPart), "the box at " + since);
+                }
+            }
+        }
+
         // ---------------- Every reader gives the same part ----------------
 
+        // Work order 082 (review 6, finding 5): with the chain rhythm off (the part handed to each reader is CleanPart.Of's).
         [TestCase(0f)]
         [TestCase(0.10f)]
         [TestCase(0.25f)]
         [TestCase(0.5f)]
-        public void EveryReaderOfTheCleanPart_GivesTheSamePart_TheJudgeTheBladeAndTheBox(float wide)
+        public void ChainRhythmOff_EveryReaderOfTheCleanPart_GivesTheSamePart_TheJudgeTheBladeAndTheBox(float wide)
         {
             var kit = new KitValues();
             foreach (bool hop in new[] { true, false })
@@ -283,6 +333,10 @@ namespace Roguelike.Rules.Tests
             }
             run.Take(Row("Powder Keg", "Big Keg"));
             IReadOnlyList<SkillDefinition> view = run.View(settings, off);
+            // Work order 082 (review 6, finding 24): the lines above hold by construction (a layer that is off is the same
+            // object); the numbers themselves pinned: the settings' keg 2.5 m, Big Keg's a third wider, 3.333 m, with both off.
+            Assert.That(settings.Single(s => s.Name == "Powder Keg").Radius, Is.EqualTo(2.5f).Within(1e-4f), "the keg as written");
+            Assert.That(view.Single(s => s.Name == "Powder Keg").Radius, Is.EqualTo(3.3333f).Within(1e-3f), "Big Keg, a third wider, and no Blast with the switch off");
             for (int i = 0; i < settings.Length; i++)
                 Assert.That(Fields(view[i]), Is.EqualTo(Fields(run.View(settings)[i])), settings[i].Name + ": as the view without a layer");
             // The stats on and none taken: still the settings' own.

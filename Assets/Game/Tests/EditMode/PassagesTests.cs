@@ -231,7 +231,11 @@ namespace Roguelike.Rules.Tests
             Assert.That(h, Is.EqualTo(pinned), "the two thousand floors of version 15, found " + found);
         }
 
-        /// <summary>The descriptions of three hundred floors with the passages off, to compare to the byte with version 15's (run by name).</summary>
+        /// <summary>
+        /// The switch off, or the line off, gives a floor without passages, and the floor's first line says which (seed 42). Work
+        /// order 082 (review 6, finding 32): the comment here promised three hundred floors compared to the byte; the floors of
+        /// version 15 are held by SwitchOff_TwoThousandFloors_... and the golden maps.
+        /// </summary>
         [Test]
         public void SwitchOff_OrTheLineOff_GiveNoPassages()
         {

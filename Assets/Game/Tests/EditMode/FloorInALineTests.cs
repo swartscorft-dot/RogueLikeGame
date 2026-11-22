@@ -312,6 +312,10 @@ namespace Roguelike.Rules.Tests
             string map = LevelMap.Draw(level);
             // Work order 059: a passage's label is its letter alone.
             foreach (LevelRoom r in level.Rooms) Assert.That(map, Does.Contain(r.Kind == RoomKind.Passage ? "P" : r.Letter + r.Order.ToString(s_Inv)), map);
+            // Work order 082 (review 6, finding 31): a P for each passage, not one P anywhere for all of them.
+            int passages = level.Rooms.Count(r => r.Kind == RoomKind.Passage);
+            Assert.That(passages, Is.GreaterThan(0));
+            Assert.That(map.Count(ch => ch == 'P'), Is.EqualTo(passages), "a P for each of the " + passages + " passages\n" + map);
             Assert.That(map, Does.Contain("version " + LevelGenerator.Version + " "));
             Assert.That(level.Describe(), Does.Contain(" in a line with passages\n"));
             Assert.That(LevelGenerator.Generate(42UL, new LevelValues { Passages = false }).Describe(), Does.Contain(" in a line\n"));

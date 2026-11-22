@@ -429,7 +429,7 @@ namespace Roguelike.Rules.Tests
                         // middle of the A cells on the far wall (FarMarkAlong; null would send them to the wall's middle).
                         Assert.That(RoomTemplates.FarMarkAlong(room, far, cs), Is.EqualTo(along).Within(1e-9), "the A's place along its far wall: " + name);
                         // An A away from its wall's middle, where the altar's place from the mark differs from the wall's middle it
-                        // falls back to. On 2026-11-22 there was none in 9642 rooms: every template's A is at its wall's middle, so
+                        // falls back to. On 2026-11-22 there was none (9642 rooms; 8767 with work order 072's second set): every template's A is at its wall's middle, so
                         // the sweep cannot tell the mark from the fallback (said in work order 082's report).
                         double wallMiddle = far == LevelGenerator.North || far == LevelGenerator.South ? (room.Rect.X + room.Rect.Right) * 0.5 * cs : (room.Rect.Y + room.Rect.Top) * 0.5 * cs;
                         bool offMiddle = Math.Abs(along - wallMiddle) > cs;

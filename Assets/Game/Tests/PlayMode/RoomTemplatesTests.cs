@@ -83,7 +83,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TenSeeds_EveryTemplatedRoom_HasAWayFromItsDoorInToItsDoorOutAndToEveryEnemy_AndNoNavMeshOverASolidCell()
         {
-            int rooms = 0, ways = 0, triangles = 0;
+            int rooms = 0, ways = 0, triangles = 0, solidCells = 0;
             var path = new NavMeshPath();
             foreach (int floor in new[] { 1, 5 })
                 for (ulong seed = 0; seed < 10; seed++)
@@ -111,6 +111,14 @@ namespace Roguelike.PlayModeTests
                         if (room.Template == null) continue;
                         rooms++;
                         string name = room.Letter + room.Order + " (" + room.Template + ", " + RoomShapes.Word(room.Shape) + ") " + where;
+                        // Work order 082 (review 6, finding 32): a triangle's middle is not all of it; the NavMesh sampled at the
+                        // middle of every solid cell too, a quarter of a metre round it.
+                        foreach ((int x, int y) in room.SolidList)
+                        {
+                            Vector3 solid = level.ToWorld(new LevelPoint((x + 0.5) * cs, (y + 0.5) * cs));
+                            Assert.That(NavMesh.SamplePosition(solid, out _, 0.25f, NavMesh.AllAreas), Is.False, "NavMesh at the middle of solid cell " + (x, y) + ": " + name);
+                            solidCells++;
+                        }
                         LevelDoor wayIn = LevelGeometry.EntryDoor(layout, room), wayOut = LevelGeometry.ExitDoor(layout, room);
                         Assert.That(NavMesh.SamplePosition(InsideDoor(level, room, wayIn), out NavMeshHit from, 1.9f, NavMesh.AllAreas), "NavMesh inside the door in: " + name);
                         var targets = new List<(string what, Vector3 at)>();
@@ -134,6 +142,7 @@ namespace Roguelike.PlayModeTests
             Debug.Log(line);
             TestContext.WriteLine(line);
             Assert.That(rooms, Is.GreaterThan(20 * 3), "the elite room, the exit room and some combat rooms of every floor");
+            Assert.That(solidCells, Is.GreaterThan(100), "solid cells sampled");
         }
 
         /// <summary>What the templates cost the kit on floor 5 of seed 42, against the same floor with them off (written, not judged: 051's budgets are RoomShapesPlayTests').</summary>

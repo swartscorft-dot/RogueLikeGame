@@ -233,7 +233,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ASkillPutOnCooldownAndWaitedOut_KicksAndFlashesItsBoxOnce_AndNoOther()
         {
             int quick = Slot("Quick Shot"), key = _player.KeyOfSkill(quick);
-            Assume.That(key, Is.GreaterThanOrEqualTo(0), "Quick Shot on a key");
+            Assert.That(key, Is.GreaterThanOrEqualTo(0), "Quick Shot on a key");
             _player.Teleport(NearA);
             yield return null;
             _bar.Tick();
@@ -298,25 +298,26 @@ namespace Roguelike.PlayModeTests
             yield return UntilFree();
             Assert.That(_player.PressSkill(quick, _player.Position + Vector3.forward * 3f), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.SkillCooldownRemaining(quick) > 0f, 2f);
+            // Work order 082 (review 6, finding 11): four seconds left, so it is still running on the new floor whatever the
+            // machine's frames cost, and the check below runs every time.
+            _player.SpendCooldownForTests(quick, 4f);
             total = _bar.ReadyFlashes;
             _levels.FinishFloorForTests();
             yield return Until(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward, 3f);
-            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward));
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward));
             Assert.That(_levels.PickReward(0), Is.True);
             if (_levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice) _levels.PickFocusChoice(0); // after floor 1 (work order 025)
             yield return null;
             yield return null;
             _bar.Tick();
-            Assume.That(_levels.Floor, Is.EqualTo(2));
+            Assert.That(_levels.Floor, Is.EqualTo(2));
             Assert.That(_bar.ReadyFlashes, Is.EqualTo(total), "no flash at the floor's change");
             int key = _player.KeyOfSkill(quick);
-            if (_player.SkillCooldownRemaining(quick) > 0f)
-            {
-                int on = _bar.ReadyFlashesOn(key);
-                yield return Until(() => _player.SkillCooldownRemaining(quick) <= 0f, 6f);
-                _bar.Tick();
-                Assert.That(_bar.ReadyFlashesOn(key), Is.EqualTo(on + 1), "one when it runs out on the new floor");
-            }
+            Assert.That(_player.SkillCooldownRemaining(quick), Is.GreaterThan(0f), "a floor change does not reset it");
+            int on = _bar.ReadyFlashesOn(key);
+            yield return Until(() => _player.SkillCooldownRemaining(quick) <= 0f, 6f);
+            _bar.Tick();
+            Assert.That(_bar.ReadyFlashesOn(key), Is.EqualTo(on + 1), "one when it runs out on the new floor");
         }
 
         [UnityTest]
@@ -442,7 +443,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             map.Tick();
             _bar.Tick();
-            Assume.That(map.Shown, Is.True, "the map in a floor");
+            Assert.That(map.Shown, Is.True, "the map in a floor");
             InterfaceValues v = InterfaceStyle.V;
             float width = Screen.width / InterfaceStyle.Scale;
             UiBox whole = InterfaceRules.WholeStrip(_bar.SlotCount, width, v);
@@ -475,7 +476,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _bar.Tick();
             InterfaceValues v = InterfaceStyle.V;
-            Assume.That(InterfaceStyle.Heavy, Is.Not.Null, "the font");
+            Assert.That(InterfaceStyle.Heavy, Is.Not.Null, "the font");
             Rect face = _bar.SlotOf(0).Face, plate = new Rect(face.x, _bar.SlotOf(0).Box.yMax - InterfaceRules.KeyPlateHeight(v), face.width, InterfaceRules.KeyPlateHeight(v));
             GUIStyle number = InterfaceStyle.Text(true, InterfaceRules.CooldownFont(v), TextAnchor.MiddleCenter);
             foreach (string n in new[] { "12", "99", "9.9", "3.2", "0.1" })
@@ -514,7 +515,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator BackstepsWindow_LightsItsBox_WithTheBandAtTheCleanPartsShares_AndNothingWhileClosed()
         {
             int slot = Slot("Backstep"), key = _player.KeyOfSkill(slot);
-            Assume.That(key, Is.GreaterThanOrEqualTo(0), "Backstep on a key");
+            Assert.That(key, Is.GreaterThanOrEqualTo(0), "Backstep on a key");
             _player.Teleport(NearA);
             yield return UntilFree();
             _bar.Tick();
@@ -547,7 +548,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator BackstepsBand_IsLitExactlyWhenTheJudgeCallsThePressClean_BeforeInAndAfter()
         {
-            Assume.That(Slot("Backstep"), Is.GreaterThanOrEqualTo(0));
+            Assert.That(Slot("Backstep"), Is.GreaterThanOrEqualTo(0));
             var moments = new Func<float, float, float, float>[] { Before, In, After };
             string[] names = { "before", "in", "after" };
             for (int m = 0; m < 3; m++)
@@ -680,7 +681,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator WithWideWindowTaken_BackstepsWiderPart_IsShownAndJudgedAlike_JustPastTheOldPartCleanAndFurtherNot()
         {
-            Assume.That(_player.KeyOfSkill(Slot("Backstep")), Is.GreaterThanOrEqualTo(0), "Backstep on a key");
+            Assert.That(_player.KeyOfSkill(Slot("Backstep")), Is.GreaterThanOrEqualTo(0), "Backstep on a key");
             // With no stat, today's part (0.03 to 0.23 s after the hop): a press at 0.265 s is late.
             yield return BackstepWindowOpen();
             Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.03f).Within(1e-5f), "today's part");

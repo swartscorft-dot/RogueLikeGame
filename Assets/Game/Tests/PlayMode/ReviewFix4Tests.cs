@@ -218,11 +218,11 @@ namespace Roguelike.PlayModeTests
             _levels.StartRun(RunSeed);
             yield return null;
             List<GeneratedLevel.PlacedProp> chests = _levels.Chests();
-            Assume.That(chests.Count, Is.GreaterThan(0), "a chest on floor 1");
+            Assert.That(chests.Count, Is.GreaterThan(0), "a chest on floor 1");
             Assert.That(_levels.OpenChest(chests[0]), Is.True);
-            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.Chest));
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.Chest));
             IReadOnlyList<Upgrade> offer = _levels.OfferedUpgrades;
-            Assume.That(offer.Count, Is.GreaterThanOrEqualTo(2));
+            Assert.That(offer.Count, Is.GreaterThanOrEqualTo(2));
             // The two longest of the stats' cards, in this frame, before any card is made of the offer.
             offer[0].Kind = UpgradeKind.LongerBarrel;
             offer[0].Amount = 1f;
@@ -260,7 +260,7 @@ namespace Roguelike.PlayModeTests
 
             _levels.FinishEliteRoomForTests();
             yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.SkillUpgrade);
-            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade on floor 2");
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade on floor 2");
             EveryCardHoldsItsText("a skill upgrade");
             for (int i = 0; i < _levels.CardCount; i++)
                 StringAssert.Contains(_levels.OfferedSkillUpgrades[i].Line, _levels.CardText(i));
@@ -438,7 +438,7 @@ namespace Roguelike.PlayModeTests
             _health.Untouchable = true;
             GeneratedLevel level = _levels.Level;
             LevelRoom room = level.Layout.EliteRoom;
-            Assume.That(room, Is.Not.Null, "an elite room on floor 1");
+            Assert.That(room, Is.Not.Null, "an elite room on floor 1");
             List<GeneratedLevel.PlacedProp> props = BuiltProps(level);
             int before = props.Count;
             float cs = level.Layout.CellSize;
@@ -465,11 +465,11 @@ namespace Roguelike.PlayModeTests
             _health.Untouchable = true;
             GeneratedLevel level = _levels.Level;
             LevelRoom room = level.Layout.EliteRoom;
-            Assume.That(room, Is.Not.Null, "an elite room on floor 1");
+            Assert.That(room, Is.Not.Null, "an elite room on floor 1");
             List<GeneratedLevel.PlacedProp> props = BuiltProps(level);
             int before = props.Count;
             List<Enemy> alive = level.EliteRoomEnemies.Where(e => e != null && !e.IsDead).ToList();
-            Assume.That(alive.Count, Is.GreaterThan(0));
+            Assert.That(alive.Count, Is.GreaterThan(0));
             Block(props, level, room, level.Middle(room), 2f);
             foreach (Enemy e in alive) Block(props, level, room, e.transform.position, 1f);
             try
@@ -503,7 +503,7 @@ namespace Roguelike.PlayModeTests
                 level = _levels.Build(seed * 7919UL + 55UL, 1 + (int)(seed % 5));
                 yield return null;
             }
-            Assume.That(level != null && level.LargeProps.Any(p => p.Prop.Model == PropModel.Dais), Is.True, "a floor with a dais");
+            Assert.That(level != null && level.LargeProps.Any(p => p.Prop.Model == PropModel.Dais), Is.True, "a floor with a dais");
             float clearance = _levels.DropValues.Clearance, cs = level.Layout.CellSize;
             int landed = 0;
             foreach (LevelRoom room in level.LargeProps.Select(p => p.Room).Distinct())
@@ -553,7 +553,7 @@ namespace Roguelike.PlayModeTests
                         break;
                     }
             }
-            Assume.That(carved, Is.Not.Null, "an elite or exit room that is a cross, an octagon or a template");
+            Assert.That(carved, Is.Not.Null, "an elite or exit room that is a cross, an octagon or a template");
             _levels.Values = new LevelValues();
             GeneratedLevel level = _levels.Build(seed, floor);
             LevelRoom here = level.Layout.Rooms.First(r => r.Order == carved.Order);
@@ -572,7 +572,7 @@ namespace Roguelike.PlayModeTests
             fog.Simulate(6f, true, true);
             var all = new ParticleSystem.Particle[fog.main.maxParticles];
             int n = fog.GetParticles(all);
-            Assume.That(n, Is.GreaterThan(10), "fog was made");
+            Assert.That(n, Is.GreaterThan(10), "fog was made");
             int outside = 0;
             for (int i = 0; i < n; i++)
                 if (level.RoomAt(Flat(all[i].position)) != here) outside++;
@@ -614,7 +614,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             UseKeyboardAndMouse();
             InputBindings b = _driver.ActiveBindings;
-            Assume.That(b.MoveLeft != Key.None && b.MoveRight != Key.None && b.MoveUp != Key.None && b.TakeCover != Key.None);
+            Assert.That(b.MoveLeft != Key.None && b.MoveRight != Key.None && b.MoveUp != Key.None && b.TakeCover != Key.None);
             yield return Press(b.MoveLeft, b.MoveUp);
             yield return null;
             yield return Press(b.MoveLeft, b.MoveUp, b.TakeCover); // the tap, left and up held
@@ -648,7 +648,7 @@ namespace Roguelike.PlayModeTests
                 Texture2D icon = InterfaceStyle.Icon("Quick Shot"), pips = InterfaceStyle.Pips;
                 GUIStyle button = InterfaceStyle.Button(20);
                 Texture2D normal = button.normal.background, hover = button.hover.background, active = button.active.background;
-                Assume.That(icon != null && pips != null && normal != null && hover != null && active != null, Is.True, "the textures made");
+                Assert.That(icon != null && pips != null && normal != null && hover != null && active != null, Is.True, "the textures made");
                 reset.Invoke(null, null); // as a new Play session begins, with domain reload off
                 Assert.That(InterfaceStyle.Shared.Kinetic, Is.True, "the values as they start");
                 Assert.That(icon == null, Is.True, "the icon destroyed");
@@ -669,7 +669,7 @@ namespace Roguelike.PlayModeTests
         {
             SkillBar bar = Object.FindAnyObjectByType<SkillBar>();
             int onDisk = Resources.LoadAll<TextAsset>(InterfaceStyle.V.IconFolder.TrimEnd('/')).Length;
-            Assume.That(onDisk, Is.GreaterThan(10), "the icons on disk");
+            Assert.That(onDisk, Is.GreaterThan(10), "the icons on disk");
             InterfaceStyle.ForgetIcons();
             _levels.StartRun(RunSeed); // in the same frame: no tick of the skill bar between
             Assert.That(InterfaceStyle.IconsLoaded, Is.EqualTo(onDisk), "every icon on disk, before any frame of play");
@@ -727,14 +727,14 @@ namespace Roguelike.PlayModeTests
             _health.Untouchable = true;
             for (int floor = 1; floor < _levels.Values.FloorsPerAct; floor++) yield return OnToTheNextFloor();
             List<Enemy> alive = _levels.Level.EliteRoomEnemies.Where(e => e != null && !e.IsDead).ToList();
-            Assume.That(alive.Count, Is.GreaterThan(0), "an elite room on the last floor");
+            Assert.That(alive.Count, Is.GreaterThan(0), "an elite room on the last floor");
             foreach (Enemy e in alive) e.Body.TakeHit(100000000);
             yield return Frames(() => _levels.EliteDrop != null || _levels.Choice != GeneratedLevels.ChoiceKind.None);
-            Assume.That(_levels.EliteDrop, Is.Not.Null, "the elite's drop lies");
+            Assert.That(_levels.EliteDrop, Is.Not.Null, "the elite's drop lies");
             _played.Clear();
             _levels.FinishFloorForTests();
             yield return Frames(() => _levels.Choice != GeneratedLevels.ChoiceKind.None || _levels.ActCleared);
-            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade first");
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade first");
             for (int i = 0; i < 3; i++) yield return null;
             Assert.That(_played.Count(r => r.Sound == PlaceholderSound.ActCleared), Is.Zero, "not yet: the act has not ended");
             Assert.That(_levels.PickSkillUpgrade(0), Is.True);
@@ -754,10 +754,10 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _levels.RunValues.Stats.ChestOdds = new[] { 0f, 0f, 100f };
             List<GeneratedLevel.PlacedProp> chests = _levels.Chests();
-            Assume.That(chests.Count, Is.GreaterThan(0));
+            Assert.That(chests.Count, Is.GreaterThan(0));
             _voiced.Clear();
             Assert.That(_levels.OpenChest(chests[0]), Is.True);
-            Assume.That(_levels.OfferedUpgrades.Any(u => u.Tiered && u.Tier == UpgradeTier.Epic), Is.True, "an epic card on offer");
+            Assert.That(_levels.OfferedUpgrades.Any(u => u.Tiered && u.Tier == UpgradeTier.Epic), Is.True, "an epic card on offer");
             yield return Until(() => _voiced.Count(v => v.Clip == bell) >= 1, 2f);
             Assert.That(_voiced.Count(v => v.Clip == bell), Is.EqualTo(1), "the first bell");
             _levels.BackToPracticeRoom(); // F7, inside the guard
@@ -776,7 +776,7 @@ namespace Roguelike.PlayModeTests
                 level = _levels.Build(seed * 104729UL + 5UL, 3);
                 yield return null;
             }
-            Assume.That(level != null && level.LargeProps.Count > 0, Is.True, "a floor with large props");
+            Assert.That(level != null && level.LargeProps.Count > 0, Is.True, "a floor with large props");
             RoomMood mood = level.Mood;
             int builds = mood.Builds;
             level.Values.LargeProps = false; // unticked in the Inspector
@@ -864,7 +864,7 @@ namespace Roguelike.PlayModeTests
                     }
                 }
             }
-            Assume.That(room, Is.Not.Null, "a carved block with open floor two cells deep beside it");
+            Assert.That(room, Is.Not.Null, "a carved block with open floor two cells deep beside it");
             int keg = Slot("Powder Keg");
             _player.EquipSkill(keg);
             _player.Teleport(stand);
