@@ -583,11 +583,18 @@ namespace Roguelike
                         });
                         break;
                     case PlayerReportKind.RecastPressed:
-                        Add(new SessionEvent(t, SessionEventTypes.RecastPress, SkillName(r.Slot))
+                    {
+                        var press = new SessionEvent(t, SessionEventTypes.RecastPress, SkillName(r.Slot))
                         {
                             Slot = r.Slot, Shot = r.Shot, Clean = r.Clean, Focus = r.Clean ? r.Focus : (float?)null,
-                        });
+                        };
+                        // Work order 069: how it fell by its own window's clean part, and the window's clock at the press (s after the
+                        // shot before went off; for a press that waited, when it fired), so that the clean parts can be set from his presses.
+                        press.AddExtra("timing", r.Timing.ToString().ToLowerInvariant());
+                        press.AddExtra("since", r.Seconds.ToString("0.000", CultureInfo.InvariantCulture));
+                        Add(press);
                         break;
+                    }
                     case PlayerReportKind.ChainEnded:
                         Add(new SessionEvent(t, SessionEventTypes.ChainEnd, SkillName(r.Slot))
                         {

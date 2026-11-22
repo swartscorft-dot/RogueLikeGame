@@ -259,6 +259,7 @@ namespace Roguelike.PlayModeTests
         {
             Assert.That(_levels.SetPracticeFocus(FocusMode.HairTrigger), Is.True, "F2");
             FocusModeValues ways = _player.FocusModeValues;
+            ways.PartBoostSeconds = 0f; // changed deliberately for work order 071: a part's gains off, this is the cut's and the priming's test (FocusFeltTests has the gains)
             _player.Teleport(NearA);
             yield return null;
             Assert.That(_player.PressSkill(Scatter, _a.transform.position), Is.EqualTo(IntentResult.Started));
@@ -306,6 +307,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator HairTrigger_APrimedLongShot_LetGoAtHalfACharge_IsPerfect()
         {
             Assert.That(_levels.SetPracticeFocus(FocusMode.HairTrigger), Is.True);
+            _player.FocusModeValues.PartBoostSeconds = 0f; // changed deliberately for work order 071: a part's gains off, this is the priming's test
             SkillDefinition shot = _player.Skills[Long];
             Assume.That(shot.PerfectFrom, Is.GreaterThan(0.6f), "half a charge is short of the band");
             _player.Teleport(NearA);

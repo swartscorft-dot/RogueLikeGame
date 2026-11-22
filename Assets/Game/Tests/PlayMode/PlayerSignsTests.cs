@@ -183,7 +183,9 @@ namespace Roguelike.PlayModeTests
             {
                 yield return Until(() => _player.IsRecastWindowOpen, 2f);
                 _signs.Tick();
-                Assert.That(_signs.ChainSignUp, Is.False, "press " + press + " cannot be clean: no ring for its window");
+                if (V.CleanWindow || V.KeyStrip) // with both switches off nothing of the sign exists, as before
+                    Assert.That(_signs.ChainSignUp, Is.True, "press " + press + ": work order 069, its own clean part and its ring (until then none: it could not be clean)");
+                Assert.That(_signs.BandLit, Is.False, "not lit the instant its window opens");
                 Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "press " + press);
             }
             yield return null;

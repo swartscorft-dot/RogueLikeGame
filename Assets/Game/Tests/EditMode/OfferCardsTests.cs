@@ -132,8 +132,12 @@ namespace Roguelike.Rules.Tests
             Assert.That(OfferTexts.ForUpgrade(u, c).Numbers.Single(), Is.EqualTo("focus window  10 s" + A + "11 s"));
             c.FocusMode = FocusMode.HairTrigger;
             OfferCard hair = OfferTexts.ForUpgrade(u, c);
-            Assert.That(hair.Numbers.Single(), Is.EqualTo("a part primes for  4 s" + A + "4.4 s"));
-            Assert.That(hair.Sentence, Is.EqualTo("A part of focus primes your next skill for longer."));
+            // Changed deliberately for work order 071: a part's gains (2 s) last longer with it too, and the card says so.
+            Assert.That(hair.Numbers, Is.EqualTo(new[] { "a part primes for  4 s" + A + "4.4 s", "a part powers you up for  2 s" + A + "2.2 s" }));
+            Assert.That(hair.Sentence, Is.EqualTo("A part of focus primes your next skill, and powers you up, for longer."));
+            c.Identity = new IdentityValues { EmpoweredDamageScale = 1f, EmpoweredFireRate = 1f, EmpoweredCooldownRate = 1f, EmpoweredMoveShare = 0f };
+            Assert.That(OfferTexts.ForUpgrade(u, c).Numbers.Single(), Is.EqualTo("a part primes for  4 s" + A + "4.4 s"), "with no gains, as before");
+            Assert.That(OfferTexts.ForUpgrade(u, c).Sentence, Is.EqualTo("A part of focus primes your next skill for longer."));
         }
 
         // ---------------- A floor's reward ----------------
@@ -226,7 +230,9 @@ namespace Roguelike.Rules.Tests
             Say(hair.ToString().Replace("\n", "  |  "));
             Say(steady.ToString().Replace("\n", "  |  "));
             Assert.That(hair.Name, Is.EqualTo("Hair Trigger"));
-            Assert.That(hair.Numbers, Is.EqualTo(new[] { "Z spends  the full gauge" + A + "one part of 3", "cooldowns cut by  40 %" + A + "15 %", "next skill primed  no" + A + "for 4 s" }));
+            // Changed deliberately for work order 071: the fourth line, the gains for a part's 2 s instead of the window's 6 s.
+            Assert.That(hair.Numbers, Is.EqualTo(new[] { "Z spends  the full gauge" + A + "one part of 3", "cooldowns cut by  40 %" + A + "15 %", "next skill primed  no" + A + "for 4 s",
+                                                         "powered up for  6 s" + A + "2 s a part" }));
             Assert.That(hair.Cost, Is.Not.Empty, "what it takes away");
             Assert.That(steady.Numbers, Is.EqualTo(new[] { "window  6 s" + A + "10 s", "Triple Tap in it  3" + A + "5 taps", "Scatter Blast in it  1" + A + "2 blasts" }));
             Assert.That(steady.Sentence.Length, Is.LessThanOrEqualTo(80));
