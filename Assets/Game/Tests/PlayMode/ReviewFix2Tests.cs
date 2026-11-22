@@ -751,7 +751,9 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => !_a.IsAlive && !_b.IsAlive, 3f);
             Assume.That(!_a.IsAlive && !_b.IsAlive, Is.True, "a kill on each blast");
             float full = _player.CooldownOf(sb);
-            Assert.That(_player.SkillCooldownRemaining(sb), Is.GreaterThan(full * 0.5f - 0.6f), "half off once, not twice");
+            // Changed deliberately for work order 071: in the window the cooldown runs faster (the gains), so the 0.6 s the
+            // two blasts may take are that many times as long on it.
+            Assert.That(_player.SkillCooldownRemaining(sb), Is.GreaterThan(full * 0.5f - 0.6f * _player.FocusCooldownRate(sb)), "half off once, not twice");
             Assert.That(_player.SkillChargesReady(sb), Is.EqualTo(0), "not ready again at once");
         }
 

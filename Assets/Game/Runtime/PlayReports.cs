@@ -22,7 +22,7 @@ namespace Roguelike
         // Decision 0005, the kit:
         MarkAdded,      // Slot (-1 for the basic shot), Target, Marks (added), MarksAfter
         MarksSpent,     // Slot, Target, Marks (taken), Damage (of that hit), Focus (gained from the marks)
-        RecastPressed,  // Slot, Shot (which shot of the chain: 2, 3), Clean, Focus (gained from a clean tap)
+        RecastPressed,  // Slot, Shot (which shot of the chain: 2, 3), Clean, Focus (gained from a clean tap), Late, Timing and Seconds (work order 069)
         ChainEnded,     // Slot, Shot (shots it fired), Early (short of its count)
         CooldownsCut,   // Cuts (seconds cut per skill slot), DashCut
         // Taking cover (Kristian 2026-11-19, an experiment):
@@ -95,6 +95,9 @@ namespace Roguelike
         public DuckEnd DuckEnd;       // DuckEnded: how the duck ended
         // Work order 050.
         public bool Crit;             // Hit: the hit was a crit (rolled, or a clean press's or a perfect release's)
+        // Work order 069 (and Seconds above): RecastPressed's timing by its own window's clean part (a press before the last
+        // in its clean part is Clean here, in rhythm, though not a clean tap), and Seconds its window's clock at the press.
+        public RecastTiming Timing;
     }
 
     /// <summary>

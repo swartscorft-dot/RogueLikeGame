@@ -91,9 +91,11 @@ namespace Roguelike.Rules.Tests
 
     public class FocusGaugeTests
     {
+        // Changed deliberately for work order 071: the gains' damage (EmpoweredDamageScale, 1.35 by default) set to none, so
+        // these tests see the window's own multiplier alone, as before; FocusGainsTests check the gains.
         static readonly IdentityValues Values = new IdentityValues
         {
-            MaxFocus = 100f, FocusPerDamage = 0.05f, EmpoweredDuration = 8f, EmpoweredDamage = 1.5f,
+            MaxFocus = 100f, FocusPerDamage = 0.05f, EmpoweredDuration = 8f, EmpoweredDamage = 1.5f, EmpoweredDamageScale = 1f,
         };
 
         [Test]

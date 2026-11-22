@@ -195,8 +195,8 @@ namespace Roguelike.PlayModeTests
             _bar.Tick();
             KineticSlot second = _bar.SlotOf(_player.KeyOfSkill(slot));
             Assert.That(second.Recast, Is.True, "the second press's window lights the box");
-            Assert.That(second.CleanShare, Is.Zero, "with no band: the second press cannot be clean");
-            Assert.That(second.CleanLit, Is.False);
+            Assert.That(second.CleanShare, Is.GreaterThan(0f), "work order 069: the second press's own band (until then none: it could not be clean)");
+            Assert.That(second.CleanLit, Is.False, "not lit the instant its window opens: its clean part comes 0.12 s in");
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.RecastCleanTo, Is.GreaterThan(_player.RecastCleanFrom), "the last press can be clean");
@@ -712,27 +712,28 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator WithWideWindowTaken_TripleTapsWiderPart_IsShownAndJudgedAlike_JustOutsideTheOldPartCleanAndFurtherNot()
         {
-            // With no stat, today's part (0.10 to 0.30 s): a press at 0.075 s is early.
+            // With no stat, today's part of the last press (work order 069: 0.42 to 0.66 s; until then 0.10 to 0.30 s): a press at
+            // 0.39 s is early.
             yield return TripleTapLastWindowOpen();
-            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.10f).Within(1e-5f), "today's part");
-            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.30f).Within(1e-5f));
-            yield return PressAndAgree("Triple Tap", 0.075f, false, 0.10f, 0.30f, "no stat, at 0.075 s");
-            // Taken at its cap: 0.05 to 0.35 s, 0.05 s more at either edge.
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f), "today's part");
+            Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f));
+            yield return PressAndAgree("Triple Tap", 0.39f, false, 0.42f, 0.66f, "no stat, at 0.39 s");
+            // Taken at its cap: 0.36 to 0.72 s, 0.06 s more at either edge, inside its 0.80 s window.
             TakeWideWindow();
-            float[] at = { 0.075f, 0.025f, 0.325f, 0.375f };
+            float[] at = { 0.39f, 0.33f, 0.69f, 0.75f };
             bool[] clean = { true, false, true, false };
             string[] what = { "just before the old part", "further before", "just after the old part", "further after" };
             for (int i = 0; i < at.Length; i++)
             {
                 yield return TripleTapLastWindowOpen();
-                Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.05f).Within(1e-5f));
-                Assert.That(_player.RecastCleanTo, Is.EqualTo(0.35f).Within(1e-5f));
+                Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.36f).Within(1e-5f));
+                Assert.That(_player.RecastCleanTo, Is.EqualTo(0.72f).Within(1e-5f));
                 _bar.Tick();
                 KineticSlot s = _bar.SlotOf(_player.KeyOfSkill(Slot("Triple Tap")));
                 float window = _player.RecastWindowSeconds;
-                Assert.That(s.Band.xMin, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.05f / window).Within(1f), "the box's band at the wider part's shares");
-                Assert.That(s.Band.xMax, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.35f / window).Within(1f));
-                yield return PressAndAgree("Triple Tap", at[i], clean[i], 0.05f, 0.35f, what[i]);
+                Assert.That(s.Band.xMin, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.36f / window).Within(1f), "the box's band at the wider part's shares");
+                Assert.That(s.Band.xMax, Is.EqualTo(s.RecastBar.x + s.RecastBar.width * 0.72f / window).Within(1f));
+                yield return PressAndAgree("Triple Tap", at[i], clean[i], 0.36f, 0.72f, what[i]);
             }
         }
 

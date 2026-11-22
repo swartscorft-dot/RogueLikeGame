@@ -275,7 +275,10 @@ namespace Roguelike.Rules
                 case UpgradeKind.MarkedPrey: return "Your hits deal more to an enemy that carries marks.";
                 case UpgradeKind.Mending: return "Each room you clear heals you more.";
                 case UpgradeKind.LongFocus:
-                    return c != null && c.FocusMode == FocusMode.HairTrigger ? "A part of focus primes your next skill for longer." : "Your focus window lasts longer.";
+                    // Work order 071: with Hair Trigger a part's gains last longer too, and the card says so.
+                    return c != null && c.FocusMode == FocusMode.HairTrigger
+                        ? (HairTriggerGains(c) ? "A part of focus primes your next skill, and powers you up, for longer." : "A part of focus primes your next skill for longer.")
+                        : "Your focus window lasts longer.";
                 case UpgradeKind.SecondDash: return "Hold one more dash before it must recharge.";
                 case UpgradeKind.WideWindow: return "The clean part of a window and the perfect band are wider."; // work order 067, the order's words
                 case UpgradeKind.Blast: return "Your area skills hit a wider area.";
@@ -370,7 +373,11 @@ namespace Roguelike.Rules
                 case UpgradeKind.LongFocus:
                 {
                     FocusModeValues fv = c.FocusValues ?? new FocusModeValues();
-                    if (c.FocusMode == FocusMode.HairTrigger) Add("a part primes for", Sec(fv.PrimeSeconds * s.LongFocus));
+                    if (c.FocusMode == FocusMode.HairTrigger)
+                    {
+                        Add("a part primes for", Sec(fv.PrimeSeconds * s.LongFocus));
+                        if (HairTriggerGains(c)) Add("a part powers you up for", Sec(FocusGains.PartSeconds(fv, s.LongFocus))); // work order 071
+                    }
                     else Add("focus window", Sec((c.FocusMode == FocusMode.SteadyHand ? fv.WindowSeconds : (c.Identity ?? new IdentityValues()).EmpoweredDuration) * s.LongFocus));
                     break;
                 }
@@ -710,6 +717,8 @@ namespace Roguelike.Rules
                 card.Numbers.Add(Line("Z spends", "the full gauge", "one part of " + Math.Max(1, v.Parts).ToString(s_Inv)));
                 card.Numbers.Add(Line("cooldowns cut by", Pct(id.CooldownCut), Pct(v.PartCooldownCut)));
                 card.Numbers.Add(Line("next skill primed", "no", "for " + Sec(v.PrimeSeconds * longer)));
+                // Work order 071: the gains come for a part's seconds instead of the window's.
+                if (HairTriggerGains(c)) card.Numbers.Add(Line("powered up for", Sec(id.EmpoweredDuration * longer), Sec(FocusGains.PartSeconds(v, longer)) + " a part"));
                 card.Cost = "No window in which every basic shot marks.";
             }
             else if (mode == FocusMode.SteadyHand)
@@ -723,10 +732,17 @@ namespace Roguelike.Rules
             }
             else
             {
-                card.Sentence = "A full gauge: Z cuts every running cooldown, and basic shots mark for a while.";
+                // Work order 071: today's gauge powers her up for its window.
+                card.Sentence = FocusGains.Any(id) ? "A full gauge: Z cuts cooldowns and powers you up while basic shots mark."
+                                                   : "A full gauge: Z cuts every running cooldown, and basic shots mark for a while.";
+                if (FocusGains.Any(id)) card.Numbers.Add(FocusGains.Words(id));
             }
             return card;
         }
+
+        /// <summary>Work order 071: Hair Trigger's parts give the gains (a part's seconds above 0 and a gain set).</summary>
+        static bool HairTriggerGains(OfferContext c) =>
+            FocusGains.Any(c?.Identity ?? new IdentityValues()) && (c?.FocusValues ?? new FocusModeValues()).PartBoostSeconds > 0f;
     }
 
     /// <summary>
