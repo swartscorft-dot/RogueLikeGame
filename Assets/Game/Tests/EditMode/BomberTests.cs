@@ -231,7 +231,7 @@ namespace Roguelike.Rules.Tests
         /// Work order 073's rule with its own values: the bombers on from floor 2, and the warders off (work order 087 turned both
         /// on in the floors, the bomber from floor 4 and the warder from floor 3: ActPlanTests test the defaults).
         /// </summary>
-        static LevelValues On() => new LevelValues { Bombers = true, Warders = false, BomberFloors = new BomberFloorValues { FromFloor = 2 } };
+        static LevelValues On() => new LevelValues { Bombers = true, Warders = false, BomberFloors = new BomberFloorValues { FromFloor = 2, MostInRoom = new[] { 1, 1, 2 } } }; // 087's follow-up: 073's caps counted from floor 2
 
         /// <summary>The same with the bombers off (work order 073's "off", the default until work order 087).</summary>
         static LevelValues Off() => new LevelValues { Bombers = false, Warders = false };

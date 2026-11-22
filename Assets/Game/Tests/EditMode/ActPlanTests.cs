@@ -38,7 +38,7 @@ namespace Roguelike.Rules.Tests
             var shooter = new ShooterValues();
             var lines = new List<string> { "ACTPLANTABLE floor  guards  casters (exit)  caster elite  warders  bombers (exit)  shooter's fan  act boss" };
             int[] guards = { 0, 1, 1, 1, 1 }, casters = { 0, 0, 1, 1, 2 }, castersExit = { 0, 0, 2, 2, 3 };
-            int[] warders = { 0, 0, 1, 1, 1 }, bombers = { 0, 0, 0, 2, 2 }, bombersExit = { 0, 0, 0, 3, 3 };
+            int[] warders = { 0, 0, 1, 1, 1 }, bombers = { 0, 0, 0, 1, 2 }, bombersExit = { 0, 0, 0, 2, 3 }; // 087's follow-up: one on its first floor, two after
             for (int f = 1; f <= 5; f++)
             {
                 int i = f - 1;
@@ -85,7 +85,9 @@ namespace Roguelike.Rules.Tests
             // The bomber: BomberFloors.FromFloor.
             v = new LevelValues();
             v.BomberFloors.FromFloor = 3;
-            Assert.That(LevelBombers.Most(v, RoomKind.Combat, 3, false), Is.EqualTo(1), "moved down to floor 3: one a room there (073's table)");
+            Assert.That(LevelBombers.Most(v, RoomKind.Combat, 3, false), Is.EqualTo(1), "moved down to floor 3: one a room there, its first floor");
+            Assert.That(LevelBombers.Most(v, RoomKind.Combat, 4, false), Is.EqualTo(2), "and two from the floor after: the caps move with it");
+            Assert.That(new BomberFloorValues().MostInRoom, Is.EqualTo(new[] { 1, 2 }), "counted from its first floor (087's follow-up)");
             // The fan: ShooterValues.FanFromFloor.
             var s = new ShooterValues { FanFromFloor = 3 };
             Assert.That(ShooterTactics.IsFan(s.FanEvery, 3, false, s), Is.True);

@@ -81,7 +81,7 @@ namespace Roguelike.Rules
         /// <summary>
         /// The enemy mixes (the order's presets, the floors' own numbers): floor 1's, floor 3's, floor 5's (with the elite room:
         /// "floor 5 elite"; with the exit room the act boss and its room), and floor 4's with its bombers (work order 073 is in
-        /// this branch: the most a room of floor 4 holds, 2, or 3 in the exit room; floor 3's before work order 087 put the
+        /// this branch: the most a room of floor 4 holds, 1, or 2 in the exit room; floor 3's before work order 087 put the
         /// bomber's first floor at 4, where a room of floor 3 holds none).
         /// </summary>
         public static readonly LabMix[] Mixes =
@@ -162,8 +162,7 @@ namespace Roguelike.Rules
             RoomKind k = KindOf(kind);
             BomberFloorValues b = v?.BomberFloors ?? new BomberFloorValues();
             if (k != RoomKind.Combat && k != RoomKind.Exit) return 0;
-            if (mix.Floor < b.FromFloor || b.MostInRoom == null || b.MostInRoom.Length == 0) return 0;
-            int room = Math.Max(0, b.MostInRoom[Math.Max(0, Math.Min(b.MostInRoom.Length - 1, mix.Floor - 1))]);
+            int room = b.MostOnFloor(mix.Floor); // work order 087's follow-up: the floors' table, counted from the bomber's first floor
             return k == RoomKind.Exit && room > 0 ? room + Math.Max(0, b.MoreInExit) : room;
         }
 

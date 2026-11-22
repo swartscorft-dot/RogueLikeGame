@@ -100,11 +100,11 @@ namespace Roguelike.Rules.Tests
                         if (!mix.Bombers) Assert.That(bombers, Is.Zero);
                     }
             // The bombers' most is the floors' (work order 073's table, with their switch on): floor 4 (work order 087; floor 3 before,
-            // one and two), two in a combat room, three in the exit.
+            // one and two), its first floor: one in a combat room, two in the exit (087's follow-up: two and three before it).
             var bomberFloors = new LevelValues { Bombers = true };
             LabMix withBombers = RoomLab.Mixes[3];
-            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Combat, 4, false)).And.EqualTo(2));
-            Assert.That(RoomLab.BombersIn(LabKind.Exit, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Exit, 4, false)).And.EqualTo(3));
+            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Combat, 4, false)).And.EqualTo(1));
+            Assert.That(RoomLab.BombersIn(LabKind.Exit, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Exit, 4, false)).And.EqualTo(2));
             Assert.That(RoomLab.Groups(LabKind.Treasure, withBombers, LevelRandom.Stream(1, "x"), v), Is.Empty, "nothing in a treasure room");
         }
 
