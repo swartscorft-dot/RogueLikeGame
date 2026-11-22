@@ -125,7 +125,8 @@ namespace Roguelike.Rules
     /// it off every floor is version 15's, field for field, but for the version.
     /// Version 17 (work order 072; Kristian, the evening of 2026-11-21, asked what more to build, ticked "Flere rom-maler": the
     /// eleven templates repeat quickly over five floors of eight combat rooms): with <see cref="LevelValues.MoreTemplates"/> on
-    /// (the default, read with the templates on) the library's second set (<see cref="RoomTemplateLibrary.MoreSince"/>: eleven
+    /// (read with the templates on; OFF by default until Kristian has played its rooms in the room lab, so the default floors
+    /// are version 16's) the library's second set (<see cref="RoomTemplateLibrary.MoreSince"/>: eleven
     /// combat rooms, two elite rooms and two exit rooms, made for a room that is a fight and a cave) is drawn beside the first
     /// eleven, by the same weights, families and rules, after them in the library's order. The enemies are what they were
     /// (<see cref="FightsOf"/> is untouched: every room holds the same seed's groups, room for room); from the first room that
@@ -157,7 +158,8 @@ namespace Roguelike.Rules
         // 16: work order 059, passages between the rooms (LevelValues.Passages, on: the rooms of the row apart, a passage one
         // cell wide between every two, on the stream "passages"; off, every floor is version 15's).
         // 17: work order 072, more rooms drawn by hand (LevelValues.MoreTemplates, on: the library's second set of fifteen
-        // templates drawn beside the first eleven; off, every floor is version 16's).
+        // templates drawn beside the first eleven; off, every floor is version 16's; off by default since 2026-11-22, so the
+        // default floors are version 16's until Kristian has played the second set in the room lab).
         public const int Version = 17;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 

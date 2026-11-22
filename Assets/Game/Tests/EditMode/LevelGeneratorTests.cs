@@ -241,12 +241,12 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Golden seeds ----------------
 
-        // These maps are what the generator of version 17 makes with its defaults (work order 072, Kristian's "Flere rom-maler"
-        // of the evening of 2026-11-21: the library's second set of templates drawn beside the first eleven,
-        // LevelValues.MoreTemplates; the rooms hold the same enemies as version 16's floor of the seed, whose maps are kept below
-        // as GoldenMoreTemplatesOff, and from the first room that draws another template on stand elsewhere). A change that
-        // changes them must raise LevelGenerator.Version and paste the new maps here, on purpose.
-        static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
+        // Work order 072 (version 17): these maps are what the generator of version 17 makes with the second set of templates
+        // turned on (LevelValues.MoreTemplates, Kristian's "Flere rom-maler" of the evening of 2026-11-21: the library's second
+        // set drawn beside the first eleven; the rooms hold the same enemies as the default floor of the seed, and from the first
+        // room that draws another template on stand elsewhere). The switch is off by default (2026-11-22, until Kristian has
+        // played the second set in the room lab), so the default maps are Golden's below.
+        static readonly Dictionary<string, string> GoldenSecondSetOn = new Dictionary<string, string>
         {
             ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 17  17 rooms  57 enemies  124 x 132 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner-long, C4 pillared-hall, L8 knights-apse, C10 alcoves, C14 corner, X16 throne-arcade
                                                   +-+-+-+-+
@@ -544,14 +544,16 @@ namespace Roguelike.Rules.Tests
 ",
         };
 
-        // Work order 072 (version 17): with the second set off (LevelValues.MoreTemplates false) the floor is version 16's, so the
-        // maps are, but for the version number. These are what the generator of version 16 made with its defaults (work order
-        // 059, Kristian's choice of 2026-11-21, "Ganger mellom rommene": the rooms of the row apart, a passage P one cell wide
-        // between every two, LevelValues.Passages; the rooms hold the enemies and, on the same attempt, the templates of version
-        // 15's floor of the seed, whose maps are kept below as GoldenPassagesOff, and stand elsewhere).
-        static readonly Dictionary<string, string> GoldenMoreTemplatesOff = new Dictionary<string, string>
+        // These maps are what the generator of version 17 makes with its defaults: with the second set of templates off by
+        // default (work order 072, 2026-11-22) the floors are version 16's, field for field, so the maps are version 16's but
+        // for the version number. Version 16's were (work order 059, Kristian's choice of 2026-11-21, "Ganger mellom rommene"):
+        // the rooms of the row apart, a passage P one cell wide between every two, LevelValues.Passages; the rooms hold the
+        // enemies and, on the same attempt, the templates of version 15's floor of the seed, whose maps are kept below as
+        // GoldenPassagesOff, and stand elsewhere. A change that changes them must raise LevelGenerator.Version and paste the new
+        // maps here, on purpose.
+        static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 16  17 rooms  57 enemies  176 x 68 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 shrine, T12 archive, C14 archive, X16 throne room  templates C2 nave-apse, C4 corner-long, L8 knights-apse, C10 colonnade, C14 nave, X16 throne-nave
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 17  17 rooms  57 enemies  176 x 68 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 shrine, T12 archive, C14 archive, X16 throne room  templates C2 nave-apse, C4 corner-long, L8 knights-apse, C10 colonnade, C14 nave, X16 throne-nave
     +-+-+-+-+
     |X16*   |
 +-+-+       +-+-+                             +-+-+-+-+-+
@@ -588,7 +590,7 @@ namespace Roguelike.Rules.Tests
                                           |   iAi   |     |     |
                                           +-+-+-+-+-+     +-+-+-+
 ",
-            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 16  17 rooms  94 enemies  116 x 128 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner, C4 twin, L8 knights-apse, C10 transept, C14 nave-apse, X16 throne-nave
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 17  17 rooms  94 enemies  116 x 128 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner, C4 twin, L8 knights-apse, C10 transept, C14 nave-apse, X16 throne-nave
             +-+-+     +-+-+-+-+-+-+-+
             |E0*|     |C2           |
         +-+-+   +-+-+ +          p  +
@@ -655,7 +657,7 @@ namespace Roguelike.Rules.Tests
             |     | |     |   |     |   |   | |   u | |   |
             +-+-+-+ +-+-+-+   +-+-+-+   +-+-+ +-+-+-+ +-+-+
 ",
-            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 16  17 rooms  58 enemies  132 x 108 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 nave-apse, C4 corner-long, L8 knights-apse, C10 corner, X16 throne-nave
+            ["RUNNER42/1"] = @"seed RUNNER42  floor 1  version 17  17 rooms  58 enemies  132 x 108 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 nave-apse, C4 corner-long, L8 knights-apse, C10 corner, X16 throne-nave
                                         +-+-+-+
                                         |L8^~~|
                                       +-+ e   +-+
@@ -712,7 +714,7 @@ namespace Roguelike.Rules.Tests
   |             |
   +-+-+-+-+-+-+-+
 ",
-            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 16  17 rooms  96 enemies  136 x 136 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 shrine, T12 vault, C14 archive, X16 throne room  templates C2 nave-apse, C4 twin, L8 cross-hall, C10 corner-long, X16 throne-nave
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 17  17 rooms  96 enemies  136 x 136 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 shrine, T12 vault, C14 archive, X16 throne room  templates C2 nave-apse, C4 twin, L8 cross-hall, C10 corner-long, X16 throne-nave
                                         +-+-+
                                         |E0 |
                                       +-+   +
@@ -2510,20 +2512,20 @@ namespace Roguelike.Rules.Tests
             Assert.That(map, Is.EqualTo(Golden[key].Replace("\r\n", "\n")), "map of seed " + key + "\n" + map);
         }
 
-        // Work order 072 (version 17): with the second set of templates off the floor is version 16's, so the maps are, but for
-        // the version number.
+        // Work order 072 (version 17): with the second set of templates turned on, its own maps (off by default since
+        // 2026-11-22; the default floors keep none of it: GoldenSeeds_KeepTheirMaps).
         [TestCase("WALKTHRU", 1)]
         [TestCase("WALKTHRU", 5)]
         [TestCase("RUNNER42", 1)]
         [TestCase("RUNNER42", 5)]
-        public void GoldenSeeds_WithTheSecondSetOff_KeepVersion16sMaps(string seedText, int floor)
+        public void GoldenSeeds_WithTheSecondSetOn_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { MoreTemplates = false });
-            Assert.That(level.Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "none of the second set");
-            string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 16 ");
+            Assert.That(LevelGenerator.Generate(seed, floor).Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "the default floor: none of the second set");
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { MoreTemplates = true }));
             string key = seedText + "/" + floor;
-            Assert.That(map, Is.EqualTo(GoldenMoreTemplatesOff[key].Replace("\r\n", "\n")), "map of seed " + key + " with the second set off\n" + map);
+            TestContext.WriteLine("GOLDEN SECOND SET " + key + "\n" + map);
+            Assert.That(map, Is.EqualTo(GoldenSecondSetOn[key].Replace("\r\n", "\n")), "map of seed " + key + " with the second set on\n" + map);
         }
 
         // Work order 059 (version 16): with the passages off the floor is version 15's, so the maps are, but for the version
