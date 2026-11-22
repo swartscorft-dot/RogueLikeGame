@@ -22,6 +22,7 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static readonly LevelValues Off = new LevelValues { Passages = false };
+        static readonly LevelValues Version15 = new LevelValues { Passages = false, MoreTemplates = false }; // work order 072
 
         static string Groups(LevelRoom r) => string.Join(",", r.EnemyGroups.Select(g => g.ToString()));
 
@@ -209,7 +210,7 @@ namespace Roguelike.Rules.Tests
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, Off);
+                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, Version15); // work order 072: version 15 had none of the second set
                 Assert.That(level.Passages, Is.False);
                 Assert.That(level.Rooms.All(r => r.Kind != RoomKind.Passage), "no passage, seed " + level.SeedText);
                 Assert.That(level.Describe(), Does.Not.Contain("passages"));
@@ -241,7 +242,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(on.Passages, Is.True);
             Assert.That(on.Describe().Split('\n')[0], Does.EndWith(" in a line with passages"));
             Assert.That(LevelGenerator.Generate(42UL, 1, Off).Describe().Split('\n')[0], Does.Not.Contain("passages"));
-            Assert.That(on.Version, Is.EqualTo(16));
+            Assert.That(on.Version, Is.EqualTo(17)); // work order 072
         }
 
         // ---------------- The streams ----------------
@@ -421,7 +422,8 @@ namespace Roguelike.Rules.Tests
         /// passage can use (an I on the wall she comes in by, an O on another), stamped on a floor with passages with a passage two
         /// cells deep at each door and a small room beyond each: no gate (the passage is the threshold), and work order 051's rules
         /// (<see cref="RoomShapes.Faults"/>, no filling) and work order 058's (<see cref="RoomTemplates.Check"/>) hold. What lies
-        /// beside the door in is written out: the cells either side of it inside the room, by the template's own marks.
+        /// beside the door in is written out: the cells either side of it inside the room, by the template's own marks. Work order
+        /// 072: the library holds the second set too, so every one of it is held here as well (1096 cases with the eleven).
         /// </summary>
         [Test]
         public void EveryTemplate_WithAPassageAtEachEnd_KeepsTheRules_InEveryCase()
@@ -467,7 +469,7 @@ namespace Roguelike.Rules.Tests
                     }
             TestContext.WriteLine("PASSAGETEMPLATES " + cases + " cases, all keep the rules; beside the door in (the cells a gate would take, as the template has them): "
                                   + string.Join(", ", beside.OrderBy(k => k.Key).Select(k => k.Key + " x" + k.Value)));
-            Assert.That(cases, Is.GreaterThan(500));
+            Assert.That(cases, Is.GreaterThan(1096), "work order 072: the eleven's 1096 cases and the second set's"); // 1656 on 2026-11-21
         }
 
         /// <summary>A floor with passages round one stamped template room: a 3 x 3 room two cells off its door in and one two cells off its door out, a passage straight between.</summary>
