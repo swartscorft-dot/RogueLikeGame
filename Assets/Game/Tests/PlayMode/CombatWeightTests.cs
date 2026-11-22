@@ -120,6 +120,7 @@ namespace Roguelike.PlayModeTests
             var shooter = (EnemyShooter)made[0];
             shooter.Values.MoveSpeed = 0f;
             Assert.That(shooter.GetComponent<NavMeshAgent>().Warp(at), Is.True, "on the NavMesh at " + at);
+            shooter.HealthOverride = health; // its Start gives it its start health: this, not its kind's
             shooter.Body.SetMaxHealth(health);
             return shooter;
         }
@@ -140,6 +141,7 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(NearA);
             yield return null;
             yield return UntilFree();
+            enemy.Body.SetMaxHealth(1); // after its Start: one point, her next hit kills it
             _player.Shoot(enemy.transform.position);
             yield return Until(() => enemy.IsDead, 2f);
             Assert.That(enemy.IsDead, Is.True, "her shot killed it");
