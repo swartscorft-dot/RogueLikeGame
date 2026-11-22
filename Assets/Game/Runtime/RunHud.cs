@@ -454,6 +454,7 @@ namespace Roguelike
         /// <summary>The keys as they are bound now, a line each: move, shoot, dash, each skill's key with its skill, focus, cover, interact.</summary>
         public List<string> KeyLines()
         {
+            KeyAndStatListsMade++; // work order 082: for tests
             var lines = new List<string>();
             InputBindings b = _driver != null ? _driver.ActiveBindings : null;
             if (b == null) return lines;
@@ -506,6 +507,8 @@ namespace Roguelike
 
         /// <summary>How many times the pause screen's lists of keys and stats were made (work order 055). For tests.</summary>
         public int PauseListsMade { get; private set; }
+        /// <summary>For tests (work order 082): how many lists of keys or of stats were made, wherever asked for (KeyLines, StatLines).</summary>
+        public int KeyAndStatListsMade { get; private set; }
 
         /// <summary>
         /// The pause screen's lists of keys and of her stats, made when it opens and when a setting it shows changes, not on
@@ -530,6 +533,7 @@ namespace Roguelike
         /// </summary>
         public List<string> StatLines()
         {
+            KeyAndStatListsMade++; // work order 082: for tests
             RunModifiers m = _player != null ? _player.Modifiers : null;
             if (m == null || !m.StatsAndTiers || _levels == null || !_levels.InRun) return WithWeaponLine(new List<string>(), m); // work order 060
             FeelValues f = _player.Feel;

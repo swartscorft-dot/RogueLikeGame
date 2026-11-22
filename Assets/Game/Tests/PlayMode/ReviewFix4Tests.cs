@@ -705,6 +705,18 @@ namespace Roguelike.PlayModeTests
             Assert.That(_hud.Escape(), Is.True);
             for (int i = 0; i < 3; i++) yield return null;
             Assert.That(_hud.PauseListsMade, Is.EqualTo(made + 2), "and once more when it opens again");
+
+            // Work order 082 (review 6, finding 18): the count above goes up behind PauseLines' own guard, and a batch run sends no
+            // OnGUI, so the drawing itself was never watched. The pause screen drawn by hand (ImguiByHand, work order 068) five
+            // times: no list of keys or stats is made by the drawing.
+            Assert.That(ImguiByHand.Available, Is.True, "the engine's IMGUI entry points");
+            int lists = _hud.KeyAndStatListsMade;
+            for (int i = 0; i < 5; i++)
+            {
+                List<ImguiByHand.Drawn> drawn = ImguiByHand.Draw(null);
+                Assert.That(drawn.Any(d => d.Piece == _hud && string.IsNullOrEmpty(d.Error)), Is.True, "the pause screen drawn: " + ImguiByHand.Describe(drawn));
+            }
+            Assert.That(_hud.KeyAndStatListsMade, Is.EqualTo(lists), "five drawings of the pause screen make no list");
             Assert.That(_hud.Escape(), Is.True);
         }
 
