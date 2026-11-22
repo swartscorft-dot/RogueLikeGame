@@ -353,6 +353,16 @@ namespace Roguelike.Rules
         // rooms) is drawn beside the first eleven, by the same weights and rules. Read only with Templates on. Off: every floor
         // is version 16's, field for field, but for the version.
         public bool MoreTemplates = true;
+        // A room is a fight (work order 070; Kristian after his evening session of 2026-11-21: "nå rman kommer i et rom, så er
+        // man i en combat ... man trenger et punkt in i rommet der alle flyr på"): on, every room of a floor in a line that holds
+        // enemies has a point a little way in from the door she came by (Fights, RoomFightRules); crossing it, or any waking of
+        // one of its enemies before it, wakes every enemy of the room at once, and the room stays one fight until it is cleared
+        // or she has got away from all of them. Here, beside the other switches of how a floor's rooms are built and played,
+        // because it is a rule of a floor's rooms (it is measured on a room's cells and doors, and the practice room, which has
+        // none, is not touched) and is read where a floor is built; RunValues holds what a run gives and takes. The generator
+        // never reads it. Off: every enemy wakes on its own, by its range, a hurt or a pack, exactly as before.
+        public bool RoomFights = true;
+        public RoomFightValues Fights = new RoomFightValues();
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();

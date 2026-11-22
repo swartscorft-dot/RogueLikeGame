@@ -151,18 +151,23 @@ namespace Roguelike.Rules
         /// Picks the attack for a distance in the chase (work order 014: the boss's own choice); null, every other kind,
         /// takes <see cref="AttackFor"/>.
         /// </param>
+        /// <param name="held">
+        /// Its room's fight is on (work order 070, <see cref="RoomFight"/>): it wakes from home wherever she is, with no range
+        /// asked, and gives up for no distance; only her death sends it home. False, every enemy outside a room's fight: as
+        /// before work order 070.
+        /// </param>
         public bool Step(float now, float distance, bool playerAlive, bool provoked, EnemyValues values, bool mayAttack = true,
-                         Func<float, EnemyValues, EnemyAttackDefinition> choose = null)
+                         Func<float, EnemyValues, EnemyAttackDefinition> choose = null, bool held = false)
         {
             switch (State)
             {
                 case EnemyState.Idle:
-                    if (playerAlive && distance <= values.LeashRange && (distance <= values.AggroRange || provoked))
+                    if (playerAlive && (held || (distance <= values.LeashRange && (distance <= values.AggroRange || provoked))))
                         Enter(EnemyState.Chase, now);
                     return false;
 
                 case EnemyState.Chase:
-                    if (!playerAlive || distance > values.LeashRange)
+                    if (!playerAlive || (!held && distance > values.LeashRange))
                     {
                         Attack = null;
                         Enter(EnemyState.Idle, now);
@@ -199,6 +204,17 @@ namespace Roguelike.Rules
             if (State == EnemyState.Idle) return;
             Attack = null;
             Enter(EnemyState.Chase, now);
+        }
+
+        /// <summary>
+        /// Gives up and goes home at once, whatever it was doing (work order 070): its room's fight ended, and every enemy of
+        /// the room goes home together. Nothing when it stands at home.
+        /// </summary>
+        public void GoHome(float now)
+        {
+            if (State == EnemyState.Idle) return;
+            Attack = null;
+            Enter(EnemyState.Idle, now);
         }
 
         /// <summary>

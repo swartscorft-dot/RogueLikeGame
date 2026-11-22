@@ -1018,6 +1018,15 @@ namespace Roguelike
             Note(SessionEventTypes.RoomHeal, null, "floor", Int(floor), "room", Int(room), "elite", elite ? "true" : "false", "healed", Int(healed), "health", Int(health));
 
         /// <summary>
+        /// A room's fight started (work order 070): every enemy of the room woke at once. The floor, the room counted from 1
+        /// without the passages (as the run box counts), its place in the floor, its kind (combat, elite, exit), how it started
+        /// (point, seen, hit, provoked), whether she was inside the room then, and how many woke.
+        /// </summary>
+        public void NoteRoomFight(int floor, int room, int order, string kind, string how, bool inside, int woke) =>
+            Note(SessionEventTypes.RoomFight, how, "floor", Int(floor), "room", Int(room), "order", Int(order), "kind", kind,
+                 "inside", inside ? "true" : "false", "woke", Int(woke));
+
+        /// <summary>
         /// A chest opened: what it offered, and what was taken (short forms). Work order 050: for a tiered pick also its
         /// stat, tier and size (its amount, and its heal when it heals), and her stats after it in one line.
         /// </summary>

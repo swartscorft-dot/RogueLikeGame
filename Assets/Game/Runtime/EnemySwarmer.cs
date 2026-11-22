@@ -9,7 +9,8 @@ namespace Roguelike
     ///
     /// It runs at her and, near enough, winds up one short strike on a circle around it (<see cref="SwarmerValues"/>).
     /// They come in packs: when one wakes, every swarmer within <see cref="SwarmerValues.PackWakeRange"/> of it wakes
-    /// too. They do not stack on one point: each frame a swarmer nearer another than
+    /// too (on a floor's room with its fight, work order 070, the whole room wakes instead, and no pack is woken through a
+    /// wall). They do not stack on one point: each frame a swarmer nearer another than
     /// <see cref="SwarmerValues.Spacing"/> steps half the shortfall away from it, so a crowd stands spread round her.
     ///
     /// Melee you read (decision 0010; work order 035, 2026-11-20; <see cref="MeleeEnemy"/>): with the switch on it runs at
@@ -37,6 +38,8 @@ namespace Roguelike
         protected override void OnWoke()
         {
             base.OnWoke();
+            // Work order 070: one of a room's fight wakes its whole room, and no swarmer of another room through a wall.
+            if (Fight != null) return;
             Vector3 here = transform.position;
             foreach (Enemy e in All)
             {
