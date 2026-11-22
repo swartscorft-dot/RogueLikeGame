@@ -18,14 +18,20 @@ namespace Roguelike
         int _distanceTextStep = -1;
         float _distanceTextFeel = -1f;
         CameraRig _distanceRig;
+        int _distanceRigLooked = -1;
+        static readonly float s_feelDistance = new FeelValues().CameraDistance; // the code's default, when the scene's camera has no settings asset
 
         /// <summary>The feel's own distance (the asset's, or the code's default): what step 0 is.</summary>
         float FeelDistance
         {
             get
             {
-                if (_distanceRig == null) _distanceRig = FindAnyObjectByType<CameraRig>();
-                return _distanceRig != null && _distanceRig.Settings != null ? _distanceRig.Settings.Values.CameraDistance : new FeelValues().CameraDistance;
+                if (_distanceRig == null && Time.frameCount != _distanceRigLooked)
+                {
+                    _distanceRigLooked = Time.frameCount; // looked for once a frame at most: the words are asked for every frame the menu is up
+                    _distanceRig = FindAnyObjectByType<CameraRig>();
+                }
+                return _distanceRig != null && _distanceRig.Settings != null ? _distanceRig.Settings.Values.CameraDistance : s_feelDistance;
             }
         }
 

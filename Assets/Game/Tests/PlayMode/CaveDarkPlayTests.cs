@@ -128,7 +128,7 @@ namespace Roguelike.PlayModeTests
             }
             string cost = string.Format(Inv, "CAVEDARKCOST seed 42 floor 1: far sections raised {0}, held {1}; near sections cut {2}; stacked pieces {3} ({4} renderers, {5} triangles); veil and cap meshes {6} ({7} triangles); kit pieces {8}",
                                         cave.Raised, cave.Held, cave.Lips, cave.Stacked.Count, cave.Stacked.Sum(g => g.GetComponentsInChildren<Renderer>().Length),
-                                        cave.Stacked.Sum(g => g.GetComponentsInChildren<MeshFilter>().Sum(f => (long)f.sharedMesh.triangles.Length / 3)),
+                                        cave.Stacked.Sum(g => g.GetComponentsInChildren<MeshFilter>().Sum(f => (long)f.sharedMesh.GetIndexCount(0) / 3)),
                                         cave.DarkMeshes.Count, cave.DarkMeshes.Sum(r => r.GetComponent<MeshFilter>().sharedMesh.triangles.Length / 3), dark.KitPieces.Count);
             Debug.Log(cost);
             TestContext.WriteLine(cost);
@@ -200,12 +200,21 @@ namespace Roguelike.PlayModeTests
             Assert.That(() => { for (int i = 0; i < 300; i++) cave.Tick(); }, AllocExt.AllocatingGCMemory(Is.Not), "the cave's frame allocates nothing");
             Assert.That(() => { for (int i = 0; i < 50; i++) cave.Look(i % 2 == 0 ? b.Order : a.Order); }, AllocExt.AllocatingGCMemory(Is.Not), "a change of room allocates nothing");
             // The falloff is sized as the camera begins to draw: drawn again without a change, nothing is made.
+            // Into a texture of its own (without a window there is no screen to draw to: drawn there, the engine falls over).
             Camera cam = Camera.main;
+            var rt = new RenderTexture(320, 180, 24);
+            RenderTexture was = cam.targetTexture;
+            cam.targetTexture = rt;
             cam.Render();
             Vector3 scale = cave.Falloff.transform.localScale;
             cam.Render();
+            float aspect = cam.pixelWidth / (float)cam.pixelHeight;
+            cam.targetTexture = was;
+            rt.Release();
+            Object.Destroy(rt);
             Assert.That(cave.Falloff.transform.localScale, Is.EqualTo(scale));
-            Assert.That(scale.x / scale.y, Is.EqualTo(cam.pixelWidth / (float)cam.pixelHeight).Within(1e-3f), "it fills the picture's shape");
+            Assert.That(scale.x / scale.y, Is.EqualTo(aspect).Within(1e-3f), "it fills the picture's shape");
+            Assert.That(aspect, Is.EqualTo(320f / 180f).Within(1e-3f));
         }
 
         [UnityTest]
@@ -253,6 +262,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(hud.ChangeSetting(RunHud.MenuLine.CameraDistance, -1), Is.True);
             Assert.That(GameSettings.CameraDistanceStep, Is.EqualTo(1), "the left arrow steps back");
             Assert.That(PlayerPrefs.GetInt(GameSettings.CameraDistanceKey, -1), Is.EqualTo(1));
+            Assert.That(hud.MenuText(RunHud.MenuLine.CameraDistance), Is.EqualTo("Camera distance:  25 m")); // made once for the new step
             Assert.That(() => { hud.MenuText(RunHud.MenuLine.CameraDistance); }, AllocExt.AllocatingGCMemory(Is.Not), "the line's words are made once a step");
             hud.Escape();
             Object.Destroy(hud.gameObject);
