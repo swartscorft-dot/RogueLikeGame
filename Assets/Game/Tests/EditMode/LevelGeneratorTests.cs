@@ -248,74 +248,72 @@ namespace Roguelike.Rules.Tests
         // changes them must raise LevelGenerator.Version and paste the new maps here, on purpose.
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 17  17 rooms  57 enemies  116 x 136 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner-long, C4 pillared-hall, L8 knights-apse, C10 alcoves, C14 corner, X16 throne-arcade
-                                              +-+-+-+-+
-                                              |X16Y H |
-                                            +-+       +-+
-                                            |#         #|
-                                          +-+     p     +-+
-                                          |          p    |
-                                          +               +
-                                          |               |
-                                          +               +
-                                          |           B   |
-    +-+-+                                 +   +-+   +-+   +
-    |E0 |                                 |   | |   | |   |
-+-+-+  *+     +-+-+-+-+-+-+-+             +-+ +-+   +-+ +-+
-|       |     |C2  ki      k|               |#         #|
-+   @   +-+-+-+          : u+               +-+-+   +-+-+
-|        P              B   |                   |   |
-+-+     +-+-+-+             +                   + +-+
-  |    *|     |      %      |                   |P|
-  +-+-+-+     +-+           +                   + +
-                |           |                   | |
-                +-+-+       +                   + +-+-+-+
-                    |       |                   |C14    |
-                    +  p   u+                   +       +
-                    |       |                   |    h  |
-                    +      k+                 +-+   #  i+
-                    |    h  |                 |#     oiA|
-                    +       +               +-+         +
-                    |       |               |          B|
-                    + +-+-+-+   +-+-+-+   +-+           +
-                    |P|         |T12  |   |          #  |
-                  +-+ +         + i$i +-+-+ #    #    p +
-                  |   |         |      P                |
-                  + +-+         +     +-+-+             +
-                  | |           |     |   |             |
-          +-+-+-+-+ +-+-+       +-+ +-+   +-+-+-+-+-+-+-+
-          |C4           |         |P|
-          + b           +         + +
-          |             |         | |
-          + +-+   # +-+ + +-+-+ +-+ + +-+-+
-          | | |#    | | | |C10| |h  | |i  |
-          + +-+ p   +-+ + +   + +   + +   +
-          |          #  | |   | |   | |   |
-          + +-+     +-+ + +   +-+   +-+ :k+
-          | | |     | | | | %             |
-          + +-+     +-+ + +           p   +
-          |   #         | |    p          |
-          + +-+   # +-+ + +            B i+
-          | | |  p o| | | |              k|
-          + +-+    *+-+h+ +               +
-          |         A*  | |              u|
-          +-+-+-+ +-+-+-+ +-+-+-+ +-+-+-+-+
-                |P|             |P|
-                + +             + +
-                | |             | |
-                + +       +-+-+-+ +-+
-                | |       |L8 !     |
-              +-+ +-+     +   +-+   +-+
-              |T6   |     |   | |  h  |
-              +k    +-+-+-+   +-+     +-+
-              |k     P        =         |
-              +  $  +-+-+-+         =   +
-              |    u|     | #  B     e  |
-              +-+-+-+     +             +
-                          |   [   # [  !|
-                          + p +-+     +-+
-                          |   | |     |
-                          +&p +-+   +-+
+            ["WALKTHRU/1"] = @"seed WALKTHRU  floor 1  version 17  17 rooms  57 enemies  124 x 132 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner-long, C4 pillared-hall, L8 knights-apse, C10 alcoves, C14 corner, X16 throne-arcade
+                                                  +-+-+-+-+
+                                                  |X16    |
+                                                +-+    H  +-+
+                                                |#         #|
+                                              +-+        p  +-+
+                                              |  p            |
+                                              +               +
+                                              |               |
+                                              +               +
+                                              |               |
+                                              +   +-+   +-+   +
+                                              |  B| |   | |   |
+    +-+-+                                     +-+ +-+   +-+ +-+
+    |E0 |                                       |#         #|
++-+-+  *+     +-+-+-+-+-+-+-+                   +-+-+   +-+-+
+|       |     |C2kiki       |                       |   |
++   @   +-+-+-+          : u+                       +-+ +
+|        P              B   |                         |P|
++-+     +-+-+-+             +                         + +
+  |    *|     |      %      |                         | |
+  +-+-+-+     +-+           +                       +-+ +-+-+
+                |           |                       |C14    |
+                +-+-+       +                       +       +
+                    |       |                       |#   h  |
+                    +  p   k+                     +-+       +
+                    |       |                     |      #  |
+                    +       +     +-+-+-+       +-+        *+
+                    |    h  |     |T12  |       |#       o A|
+                    +       +     + i$i +-+-+-+-+    B     *+
+                    |       |     |      P                  |
+                    + +-+-+-+     +k    +-+-+-+         #   +
+                    |P|           |     |     |    #        |
+                  +-+ +           +-+ +-+     +           p +
+                  |   |             |P|       |             |
+                  + +-+             + +       +-+-+-+-+-+-+-+
+                  | |               | |
+          +-+-+-+-+ +-+-+ +-+-+ +-+-+ +-+ +-+-+
+          |C4           | |C10| |       | |u  |
+          + b           + +   + +       + + h +
+          |             | |   | |       | |   |
+          + +-+   # +-+ + +   +-+       +-+   +
+          | | |#    | | | |      B     %   p  |
+          + +-+ p   +-+ + +   p              k+
+          |          #  | |                   |
+          + +-+     +-+ + +i                  +
+          | | |     | | | |k             u    |
+          + +-+     +-+ + +-+-+-+-+ +-+-+-+-+-+
+          |   #         |         |P|
+          + +-+   # +-+ +       +-+ +
+          | | |  p o| | |       |   |
+          + +-+    *+-+h+       + +-+
+          |         A*  |       | |
+          +-+-+-+ +-+-+-+ +-+-+-+ +-+
+                |P|       |L8 [     |
+                + +       +   +-+   +-+
+                | |       |   | |  h  |
+                + +       +   +-+     +-+
+                | |       |   =         |
+              +-+ +-+     +         =   +
+              |T6   |     | #  B     e  |
+              +k    +-+-+-+           # +
+              |k     P         p    [  !|
+              +  $  +-+-+-+   +-+ p   +-+
+              |    u|     |   | |     |
+              +-+-+-+     +&  +-+   +-+
                           |         |
                           +-+-+-+-+-+
 ",

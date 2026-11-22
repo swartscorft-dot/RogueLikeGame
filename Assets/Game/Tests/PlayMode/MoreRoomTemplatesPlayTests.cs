@@ -29,10 +29,11 @@ namespace Roguelike.PlayModeTests
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
         // Seeds and floors whose rooms hold every template of the second set between them, stamped (found on .NET with the
-        // defaults of version 17: 39's floor 3 two-islands, lopsided, pit, ring, hourglass, throne-wide; 49's floor 3 alcoves,
-        // stepped, gallery, pillared-hall, broken-ring; 9's floor 3 dais, horseshoe, arena; 2's floor 1 throne-pillars). The test
-        // says so if one is missing.
-        static readonly (ulong seed, int floor)[] Floors = { (39UL, 3), (49UL, 3), (9UL, 3), (2UL, 1) };
+        // defaults of version 17: 39's floor 2 two-islands, lopsided, gallery, ring, hourglass, throne-wide; 84's floor 1
+        // pillared-hall, stepped, dais, alcoves, throne-pillars; 3's floor 2 horseshoe, broken-ring, pit, arena); and 39's floor
+        // 3, whose hourglass the first Unity run of 2026-11-22 found closed to a squeeze by its props before the template was
+        // changed. The test says so if one is missing.
+        static readonly (ulong seed, int floor)[] Floors = { (39UL, 2), (84UL, 1), (3UL, 2), (39UL, 3) };
 
         PlayerCharacter _player;
         GeneratedLevels _levels;
