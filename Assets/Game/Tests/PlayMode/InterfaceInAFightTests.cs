@@ -613,8 +613,12 @@ namespace Roguelike.PlayModeTests
                 frames++;
                 float headX = Camera.main.WorldToScreenPoint(_player.Position + Vector3.up * (float)herTop.GetValue(_cast)).x / InterfaceStyle.Scale;
                 worstPlace = Mathf.Max(worstPlace, Mathf.Abs(_cast.Blade.center.x - headX));
-                CastBarView want = CastBarRules.Recast(_player.RecastLead, _player.RecastWindowSeconds, _player.RecastSincePress, _player.RecastSinceOpened, _player.RecastCleanPart);
-                worstMarker = Mathf.Max(worstMarker, Mathf.Abs(_cast.View.Marker - want.Marker));
+                // Work order 082 (review 6, finding 20): the marker as the rule says it is, written out here, not CastBarRules
+                // called again: the lead dimmed, then the share of the window gone since it opened.
+                float lead = Mathf.Max(0f, _player.RecastLead), window = Mathf.Max(0f, _player.RecastWindowSeconds), total = lead + window;
+                float wantMarker = _player.RecastSinceOpened >= 0f ? (lead + Mathf.Min(window, _player.RecastSinceOpened)) / total
+                                                                   : Mathf.Clamp(_player.RecastSincePress, 0f, lead) / total;
+                worstMarker = Mathf.Max(worstMarker, Mathf.Abs(_cast.View.Marker - wantMarker));
                 if (first == null) first = _player.Position;
                 last = _player.Position;
             };

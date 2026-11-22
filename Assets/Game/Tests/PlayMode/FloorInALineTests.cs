@@ -200,6 +200,9 @@ namespace Roguelike.PlayModeTests
             DoorSigns.Sign sign = signs.SignInto(treasure.Order);
             LevelRoom before = level.Layout.Rooms[sign.Before]; // work order 082: with the passages on, the passage itself
             Assert.That(before.Kind == RoomKind.Passage, Is.EqualTo(passages));
+            // With the passages on she comes into the passage from the room before it, as she walks (the map shows the room
+            // past a passage one step ahead once the room before the passage is entered: FloorMapRules.Before).
+            if (passages) yield return Into(level, level.Layout.Rooms[before.Order - 1]);
             yield return Into(level, before);
             Assert.That(sign.Lit, Is.True);
             Assert.That(_map.RoomShown(treasure.Order), Is.EqualTo(MapShown.Ahead));

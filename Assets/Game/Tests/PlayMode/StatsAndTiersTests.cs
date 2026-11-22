@@ -278,13 +278,16 @@ namespace Roguelike.PlayModeTests
             Assert.That(offer.Select(u => u.Stat).Distinct().Count(), Is.EqualTo(3), "three different stats");
             Assert.That(offer.All(u => u.TierWord == "common" || u.TierWord == "rare" || u.TierWord == "epic"), Is.True);
 
-            Upgrade u0 = offer[0];
+            // Work order 082 (review 6, finding 8): the first card whose stat is her steps' own sum, so the pick is held to its
+            // amount (on 2026-11-22 this seed's first card was a Mend, whose health is checked below); else the first.
+            int pick = Enumerable.Range(0, offer.Count).Where(i => ByItsAmount(offer[i].Kind)).DefaultIfEmpty(0).First();
+            Upgrade u0 = offer[pick];
             HerStats stats = _levels.Modifiers.Stats;
             float before = Measure(u0, stats);
             float takenBefore = _levels.Modifiers.Total(u0.Kind, u0.Skill);
             int maxBefore = _health.Max, healthBefore = _health.Current;
             TestContext.WriteLine("082: the first card " + u0.Kind + " " + u0.TierWord + " " + u0.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " (" + u0.Short + ")");
-            Assert.That(_levels.PickUpgrade(0), Is.True);
+            Assert.That(_levels.PickUpgrade(pick), Is.True);
             float after = Measure(u0, stats);
             // Work order 082 (review 6, finding 8): the step taken once, at its own tier's amount (not twice, not another tier's),
             // and where the stat is her step's own sum, the stat moved by exactly that amount.
