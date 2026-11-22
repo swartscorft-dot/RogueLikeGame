@@ -203,14 +203,17 @@ namespace Roguelike.Rules
                 . . . c . . . .
                 . . . . . . . .
                 . . . I I . . ."),
-            // Two chambers side by side and a neck three cells (12 m) wide between them at the middle: she comes in to the one,
-            // the way on is from the other, and the neck is where the pack meets her. 9 x 6.
-            ("hourglass", "twin", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.TombHall, RoomTheme.Archive }, false, @"
+            // Two chambers side by side and a neck three cells (12 m) wide between them at the middle (work order 051's open
+            // square round the middle needs the three): she comes in to the one, the way on is from the other, and the neck is
+            // where the pack meets her. Its cover marks draw the floor's props to the chambers' outer sides, away from the neck's
+            // mouths, and the tomb hall is not a theme it suits (the first Unity run of 2026-11-22 found a tomb hall's coffin row
+            // and two pillars closing the neck to a squeeze). 9 x 6.
+            ("hourglass", "twin", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.Archive, RoomTheme.Ossuary }, false, @"
                 # . . . # . O . #
-                . . . . # . . . .
+                . c . . # . . . .
                 . h . . . . . h O
                 . . . . . . . . .
-                . . . . . . . . .
+                . . . . . . . c .
                 # . I . # . . . #"),
             // Two corners stepped, so the floor runs on a slant from the door in to the far corner: the pack comes down the slant,
             // the shooter waits at its top. 8 x 7.
@@ -222,15 +225,16 @@ namespace Roguelike.Rules
                 . . . . . . . .
                 # . . . . . . .
                 # # . . . I . ."),
-            // Three bays 8 m wide and deep along the far wall between piers, a shooter in each: she has to go into them, one by
-            // one, with the rest of the pack at her back. 8 x 6.
+            // Three bays 8 m deep along the far wall between piers, a shooter in each: she has to go into them, one by one, with
+            // the rest of the pack at her back. The side bays are 8 m wide, the middle one 16 m, so the eye-catcher at the far
+            // wall's middle (a shrine's altar, basin and candles) has room round it (the first Unity run of 2026-11-22 found the
+            // shrine's set in a middle bay 8 m wide leaving a pocket of floor no one could reach). 10 x 5 (40 x 20 m).
             ("alcoves", "alcoves", RoomTemplateFor.Combat, 1, 1f, new[] { RoomTheme.Archive, RoomTheme.Shrine }, false, @"
-                . h # h O # h .
-                . . # . . # . .
-                O . . . . . . O
-                . . . . . . . .
-                . . . . . . . .
-                . . . I I . . ."),
+                . h # h . O h # h .
+                . . # . . . . # . .
+                O . . . . . . . . O
+                . . . . . . . . . .
+                . . . . I I . . . ."),
             // A wide, shallow arena with a pillar near each corner: open ground to kite in, four pillars to duck behind. 9 x 5.
             ("arena", "arena", RoomTemplateFor.Combat, 2, 1f, new[] { RoomTheme.TombHall, RoomTheme.Ossuary }, false, @"
                 . . . . O . . . .

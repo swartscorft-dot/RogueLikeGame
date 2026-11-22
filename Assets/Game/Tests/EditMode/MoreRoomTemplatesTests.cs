@@ -88,10 +88,10 @@ namespace Roguelike.Rules.Tests
             ("hourglass", RoomTemplateFor.Combat, "twin", 2, new[]
             {
                 "# . . . # . O . #",
-                ". . . . # . . . .",
+                ". c . . # . . . .",
                 ". h . . . . . h O",
                 ". . . . . . . . .",
-                ". . . . . . . . .",
+                ". . . . . . . c .",
                 "# . I . # . . . #",
             }),
             ("stepped", RoomTemplateFor.Combat, "stepped", 1, new[]
@@ -106,12 +106,11 @@ namespace Roguelike.Rules.Tests
             }),
             ("alcoves", RoomTemplateFor.Combat, "alcoves", 1, new[]
             {
-                ". h # h O # h .",
-                ". . # . . # . .",
-                "O . . . . . . O",
-                ". . . . . . . .",
-                ". . . . . . . .",
-                ". . . I I . . .",
+                ". h # h . O h # h .",
+                ". . # . . . . # . .",
+                "O . . . . . . . . O",
+                ". . . . . . . . . .",
+                ". . . . I I . . . .",
             }),
             ("arena", RoomTemplateFor.Combat, "arena", 2, new[]
             {
@@ -504,8 +503,9 @@ namespace Roguelike.Rules.Tests
                 seeds, sumOn / seeds, mostOn, sumOff / seeds));
             Assert.That(on42, Is.LessThanOrEqualTo(1.6), "seed 42's floor 5 within the templates' budget");
             Assert.That(sumOn / seeds, Is.LessThanOrEqualTo(1.6), "on average within the templates' budget");
-            // Measured on .NET (2026-11-21): seed 42 1.31 times with the second set, 1.23 without; over the hundred seeds 1.26 on
-            // average with it, 1.15 without, the most 1.60. Held to the range found, with a little room.
+            // Measured on .NET (2026-11-22, with the alcoves and the hourglass as changed after the first Unity run): seed 42 1.29
+            // times with the second set, 1.23 without; over the hundred seeds 1.27 on average with it, 1.15 without, the most
+            // 1.61. Held to the range found, with a little room.
             Assert.That(sumOn / seeds, Is.LessThanOrEqualTo(sumOff / seeds * 1.15), "the second set costs the kit at most about a seventh more than the eleven");
         }
 
