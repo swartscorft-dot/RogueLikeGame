@@ -305,14 +305,18 @@ namespace Roguelike.Rules
             {
                 case UpgradeKind.FlatDamage:
                 {
-                    Add("basic shot", Int(m.ScaleDamage(c.BasicShotDamage + s.FlatFor(null))));
+                    Add("basic shot", Int(m.ScaleDamage(m.Weapon.ShotDamage(c.BasicShotDamage + s.FlatFor(null), false)))); // the fifth review: her pistols' parts, as PlayerCharacter deals it
                     SkillDefinition heavy = Heaviest(c);
                     if (heavy != null) Add(heavy.Name, Int(m.ScaleDamage(heavy.Damage + s.FlatFor(heavy))));
                     break;
                 }
                 case UpgradeKind.AttackSpeed:
                 {
-                    float interval = s.BasicShotInterval(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery);
+                    // The fifth review (work order 077): her pistols' parts first (a barrel's longer recovery), then her attack
+                    // speed, as PlayerCharacter.StatsRecovery reckons it. The gains of spent focus (work order 071) last a window
+                    // only and are not on the card.
+                    float interval = s.BasicShotInterval(f.BasicShotStartup, f.BasicShotActive,
+                                                         m.Weapon.Recovery(f.BasicShotStartup, f.BasicShotActive, f.BasicShotRecovery));
                     Add("", One(interval > 0f ? 1.0 / interval : 0.0), "shots a second");
                     break;
                 }
@@ -336,7 +340,7 @@ namespace Roguelike.Rules
                     break;
                 case UpgradeKind.RunSpeed:
                     Add("run speed", One(f.RunSpeed * s.MoveSpeed), "m a second");
-                    Add("while you shoot", One(f.RunSpeed * s.MoveSpeed * f.MovingShotSpeedShare), "m a second");
+                    Add("while you shoot", One(f.RunSpeed * s.MoveSpeed * m.Weapon.MovingShare(f.MovingShotSpeedShare)), "m a second"); // the fifth review: a grip's share
                     break;
                 case UpgradeKind.Cooldown:
                 {
@@ -351,14 +355,14 @@ namespace Roguelike.Rules
                     if (longest != null) Add(longest.Name + " cooldown", Sec(longest.Cooldown * s.CooldownShare(longest.Name)));
                     break;
                 }
-                case UpgradeKind.LongerBarrel: Add("reach", Metres(f.BasicShotRange + s.Reach)); break;
+                case UpgradeKind.LongerBarrel: Add("reach", Metres(m.Weapon.Reach(f.BasicShotRange) + s.Reach)); break; // the fifth review: a sight's metres, as PlayerCharacter.BasicShotRange
                 case UpgradeKind.HeavyHits: Add("stagger dealt", Pct(s.Stagger)); break;
                 case UpgradeKind.DashCooldown: Add("dash cooldown", Sec(f.DashCooldown * s.DashCooldownShare)); break;
                 case UpgradeKind.LastingMarks: Add("marks last", Sec((c.Kit ?? new KitValues()).MarkLifetime + m.MarkLifetimeBonus)); break;
                 case UpgradeKind.KeenFocus: Add("focus gained", Pct(m.FocusGainShare)); break;
                 case UpgradeKind.Damage:
                     Add("damage dealt", Pct(s.DamageShare));
-                    Add("basic shot", Int(m.ScaleDamage(c.BasicShotDamage + s.FlatFor(null))));
+                    Add("basic shot", Int(m.ScaleDamage(m.Weapon.ShotDamage(c.BasicShotDamage + s.FlatFor(null), false)))); // the fifth review: her pistols' parts
                     break;
                 case UpgradeKind.CleanPress: Add("clean and perfect hits", Plus(s.CleanPress - 1f)); break;
                 case UpgradeKind.MarkedPrey: Add("hits on a marked enemy", Plus(s.MarkedPrey - 1f)); break;

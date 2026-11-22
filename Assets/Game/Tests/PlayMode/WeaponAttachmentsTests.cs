@@ -981,6 +981,54 @@ namespace Roguelike.PlayModeTests
 
         static object s_junk;
 
+        /// <summary>
+        /// The fifth review of 2026-11-21 (work order 077): the weapon's lines of the screen between runs are made when it opens
+        /// and again only when what they say changes (a part bought, fitted or taken off, the currency), not every frame it is
+        /// up, as the pause screen's lists (<see cref="RunHud.PauseListsMade"/>).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheScreensWeaponLines_AreMadeOnceWhileItIsUp_AndAgainOnlyWhenWhatTheySayChanges()
+        {
+            Directory.CreateDirectory(_folder);
+            Assert.That(MetaSaveFile.Save(SavePath, new MetaState { Currency = 100 }, out string error), Is.True, error);
+            On();
+            Attach();
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(0), "nothing made before the screen");
+            Assert.That(_levels.OpenBetweenRuns(), Is.True);
+            yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(1), "made when it opens");
+            StringAssert.Contains("Laser Sight   price 30 Echoes", _hud.WeaponText);
+            for (int i = 0; i < 30; i++) yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(1), "30 frames up, nothing changed: made once");
+
+            int part = WeaponRack.InSlotOrder(_levels.MetaValues).FindIndex(p => p.Id == WeaponAttachments.LaserSight);
+            Assert.That(_hud.PickWeaponLine(part), Is.True, "bought and fitted");
+            yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(2), "made again when a part is bought");
+            StringAssert.Contains("Laser Sight   FITTED", _hud.WeaponText);
+            StringAssert.Contains("Bull Barrel   price 40 Echoes", _hud.WeaponText, "70 left");
+            for (int i = 0; i < 30; i++) yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(2));
+
+            Assert.That(_hud.PickWeaponLine(part), Is.True, "taken off");
+            yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(3), "made again when a part comes off");
+            StringAssert.Contains("Laser Sight   owned", _hud.WeaponText);
+
+            _levels.BetweenRunsState.Currency = 10; // the currency changed from elsewhere: seen too
+            yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(4));
+            StringAssert.Contains("Bull Barrel   40 Echoes, 30 more", _hud.WeaponText);
+
+            Assert.That(_levels.LeaveBetweenRuns(), Is.True);
+            yield return null;
+            Assert.That(_hud.WeaponLines, Is.Empty, "gone with the screen");
+            Assert.That(_levels.OpenBetweenRuns(), Is.True);
+            yield return null;
+            Assert.That(_hud.WeaponListsMade, Is.EqualTo(5), "made afresh when it opens again");
+            Assert.That(_hud.WeaponLines, Is.Not.Empty);
+        }
+
         /// <summary>Last by name: after every other test of the class, the game's own save is as it was, its bytes and its time.</summary>
         [Test]
         public void Z_TheGamesOwnSave_IsNeverTouchedByTheseTests()
