@@ -89,14 +89,65 @@ namespace Roguelike
             else if (enter) PickBetweenRunsLine(BetweenRunsSelected);
         }
 
-        /// <summary>The screen's lines, worked out every frame it is up (also without a window, for tests).</summary>
+        /// <summary>How many times the screen's lines were made (work order 081): once as it opens, then once for each change of what they say; for tests.</summary>
+        public int BetweenRunsLinesMade { get; private set; }
+        long _betweenSignature;
+
+        /// <summary>
+        /// What the screen's lines are made of, folded into one number without allocating (work order 081): the save's currency,
+        /// pieces owned and equipped, feats and struck-out skill, the seed and the note, and each piece's name, price, points and
+        /// whether it is sold. A change to any of them changes the number (the strings by their identity: each change makes a new
+        /// one or puts another in its place).
+        /// </summary>
+        long BetweenRunsSignature()
+        {
+            MetaState s = _levels.BetweenRunsState;
+            MetaValues v = _levels.MetaValues;
+            unchecked
+            {
+                long h = 17;
+                void Add(long x) => h = h * 1000003L + x;
+                long Id(object o) => o == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(o);
+                Add(Id(_levels)); Add(Id(s)); Add(Id(v)); Add(Id(v.CurrencyName));
+                Add(s.Currency);
+                Add(s.Owned.Count); for (int i = 0; i < s.Owned.Count; i++) Add(Id(s.Owned[i]));
+                Add(s.Equipped.Count); for (int i = 0; i < s.Equipped.Count; i++) Add(Id(s.Equipped[i]));
+                Add(s.Feats.Count); for (int i = 0; i < s.Feats.Count; i++) Add(Id(s.Feats[i]));
+                Add(Id(s.StruckOut));
+                Add(_levels.BetweenRunsSeed.HasValue ? (long)_levels.BetweenRunsSeed.Value : -1L);
+                Add(Id(_levels.BetweenRunsNote));
+                MetaPiece[] pieces = Pieces;
+                Add(Id(pieces)); Add(pieces.Length);
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    MetaPiece p = pieces[i];
+                    if (p == null) { Add(0); continue; }
+                    Add(Id(p.Name)); Add(Id(p.Line)); Add(p.Price); Add(p.Points); Add(p.Sold ? 1 : 2);
+                }
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// The screen's lines (also without a window, for tests). Work order 081 (noted by work order 077): made as the screen
+        /// opens and again only when what they say changes (<see cref="BetweenRunsSignature"/>), not every frame it is up.
+        /// </summary>
         void BuildBetweenRunsLines()
         {
-            _betweenLines.Clear();
             bool up = _levels != null && _levels.BetweenRunsUp;
-            if (up && !_betweenWasUp) BetweenRunsSelected = 0;
+            bool opened = up && !_betweenWasUp;
+            if (opened) BetweenRunsSelected = 0;
             _betweenWasUp = up;
-            if (!up) return;
+            if (!up)
+            {
+                if (_betweenLines.Count > 0) _betweenLines.Clear();
+                return;
+            }
+            long signature = BetweenRunsSignature();
+            if (!opened && signature == _betweenSignature && _betweenLines.Count > 0) return;
+            _betweenSignature = signature;
+            BetweenRunsLinesMade++;
+            _betweenLines.Clear();
             MetaState s = _levels.BetweenRunsState;
             MetaValues v = _levels.MetaValues;
             _betweenLines.Add("Between runs (trial)");
