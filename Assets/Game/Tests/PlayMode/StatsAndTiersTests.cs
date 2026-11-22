@@ -221,6 +221,7 @@ namespace Roguelike.PlayModeTests
             // Work order 064: the clean tap's scale (1.75 in the code, the asset's until it is set) folded, then the sure crit:
             // 105 at 1.5 as before, 123 at 1.75; never the scale paid on top of the crit.
             int clean = CritRules.Apply(Mathf.RoundToInt(damage * CritRules.Folded(_player.Kit.CleanDamage, m.StatValues)), m.StatValues.StartCritDamage);
+            Assert.That(clean, Is.EqualTo(123), "work order 082 (review 6, finding 23): the clean tap pinned, 123 at 1.75 (the kit's clean scale " + _player.Kit.CleanDamage + ")");
             Assert.That(taps.Select(h => h.Damage), Is.EqualTo(new[] { damage, damage, clean }),
                         "the clean tap's scale is folded into the crit, not paid twice");
 
@@ -277,14 +278,23 @@ namespace Roguelike.PlayModeTests
             Assert.That(offer.Select(u => u.Stat).Distinct().Count(), Is.EqualTo(3), "three different stats");
             Assert.That(offer.All(u => u.TierWord == "common" || u.TierWord == "rare" || u.TierWord == "epic"), Is.True);
 
-            Upgrade u0 = offer[0];
+            // Work order 082 (review 6, finding 8): the first card whose stat is her steps' own sum, so the pick is held to its
+            // amount (on 2026-11-22 this seed's first card was a Mend, whose health is checked below); else the first.
+            int pick = Enumerable.Range(0, offer.Count).Where(i => ByItsAmount(offer[i].Kind)).DefaultIfEmpty(0).First();
+            Upgrade u0 = offer[pick];
             HerStats stats = _levels.Modifiers.Stats;
             float before = Measure(u0, stats);
+            float takenBefore = _levels.Modifiers.Total(u0.Kind, u0.Skill);
             int maxBefore = _health.Max, healthBefore = _health.Current;
-            Assert.That(_levels.PickUpgrade(0), Is.True);
+            TestContext.WriteLine("082: the first card " + u0.Kind + " " + u0.TierWord + " " + u0.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " (" + u0.Short + ")");
+            Assert.That(_levels.PickUpgrade(pick), Is.True);
             float after = Measure(u0, stats);
+            // Work order 082 (review 6, finding 8): the step taken once, at its own tier's amount (not twice, not another tier's),
+            // and where the stat is her step's own sum, the stat moved by exactly that amount.
+            Assert.That(_levels.Modifiers.Total(u0.Kind, u0.Skill) - takenBefore, Is.EqualTo(u0.Amount).Within(1e-5f), u0.Short + ": its tier's step, taken once");
             if (u0.Kind == UpgradeKind.MaxHealth) Assert.That(_health.Max, Is.EqualTo(maxBefore + (int)u0.Amount), "her maximum by the step");
             else if (u0.Kind == UpgradeKind.Mend) Assert.That(_health.Current, Is.EqualTo(Mathf.Min(maxBefore, healthBefore + u0.Heal)));
+            else if (ByItsAmount(u0.Kind)) Assert.That(after - before, Is.EqualTo(u0.Amount).Within(1e-4f), u0.Short + ": the stat it names moved by its step");
             else Assert.That(after, Is.Not.EqualTo(before), u0.Short + ": the stat it names moved");
 
             SessionEvent chest = _recorder.Events.Last(e => e.Type == SessionEventTypes.ChestOpen);
@@ -298,6 +308,11 @@ namespace Roguelike.PlayModeTests
             SessionEvent end = _recorder.Events.Last(e => e.Type == SessionEventTypes.RunEnd);
             StringAssert.StartsWith("dmg +", end.ExtraValue("stats"), "her final stats when the run ended");
         }
+
+        /// <summary>Work order 082: the kinds whose stat is the sum of her steps (below its cap at a run's first chest), so a step moves it by its amount.</summary>
+        static bool ByItsAmount(UpgradeKind k) =>
+            k == UpgradeKind.FlatDamage || k == UpgradeKind.CritChance || k == UpgradeKind.CritDamage || k == UpgradeKind.Luck || k == UpgradeKind.AllCooldowns
+            || k == UpgradeKind.CleanPress || k == UpgradeKind.MarkedPrey || k == UpgradeKind.LongFocus || k == UpgradeKind.WideWindow || k == UpgradeKind.Blast;
 
         /// <summary>The number a step of this kind moves.</summary>
         float Measure(Upgrade u, HerStats s)
@@ -325,6 +340,9 @@ namespace Roguelike.PlayModeTests
                 case UpgradeKind.Mending: return s.Mending;
                 case UpgradeKind.LongFocus: return s.LongFocus;
                 case UpgradeKind.SecondDash: return _player.DashMaxCharges;
+                // Work order 082 (review 6, finding 8): work order 067's two, which read 0 here before.
+                case UpgradeKind.WideWindow: return s.WideWindow;
+                case UpgradeKind.Blast: return s.Blast;
                 default: return 0f;
             }
         }

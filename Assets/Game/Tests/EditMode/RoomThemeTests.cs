@@ -91,6 +91,7 @@ namespace Roguelike.Rules.Tests
             var byTheme = new Dictionary<string, Tally>();
             var counts = new Dictionary<string, int>();
             int repeats = 0, throneNorth = 0, throneFar = 0, throneElsewhere = 0, throneNone = 0, wallPieces = 0;
+            int throneTemplated = 0, throneTemplatedNotNorth = 0, throneTemplatedMissed = 0;
             double slowest = 0, total = 0;
             ulong slowestSeed = 0;
             var timer = new Stopwatch();
@@ -173,7 +174,24 @@ namespace Roguelike.Rules.Tests
                         int side = throne != null ? throne.Footprint.NearestSide(r.Rect, level.CellSize, out _) : -1;
                         // Work order 058: in an exit room drawn by hand its far wall (its A's, never the south one) is the throne's.
                         int wanted = r.Template != null ? r.Template.FarWall : LevelGenerator.North;
-                        if (side == wanted || side == LevelGenerator.North)
+                        // Work order 082 (review 6, finding 16): a templated room's throne at its template's far wall, the north
+                        // wall no longer passing for it (the north wall's own check below is for a room without a template).
+                        if (r.Template != null)
+                        {
+                            throneTemplated++;
+                            if (wanted != LevelGenerator.North) throneTemplatedNotNorth++;
+                            if (side != wanted) throneTemplatedMissed++;
+                            if (side == wanted)
+                            {
+                                throneNorth++;
+                                if (wanted != LevelGenerator.North) throneFar++;
+                                LevelPoint inward = PropRules.Inward(side);
+                                Assert.That(throne.Front.X * inward.X + throne.Front.Y * inward.Y, Is.GreaterThan(0.99), "the throne faces into the room from its far wall: " + where);
+                            }
+                            else if (throne == null) throneNone++;
+                            else throneElsewhere++;
+                        }
+                        else if (side == wanted)
                         {
                             throneNorth++;
                             if (side == wanted && wanted != LevelGenerator.North) throneFar++;
@@ -207,10 +225,15 @@ namespace Roguelike.Rules.Tests
                 floor, string.Join(", ", counts.OrderBy(k => k.Key).Select(k => k.Key + " " + k.Value)), repeats, throneNorth, throneElsewhere, throneNone,
                 wallPieces, slowest, slowestSeed, total / 1000, again, throneFar));
             foreach (KeyValuePair<string, Tally> t in byTheme.OrderBy(k => k.Key)) TestContext.WriteLine("THEMESTATS " + t.Value.Say(t.Key));
+            TestContext.WriteLine(string.Format(s_Inv, "THEMESTATS floor {0}: templated exit rooms {1} ({2} with a far wall not the north), the throne off its far wall in {3}",
+                floor, throneTemplated, throneTemplatedNotNorth, throneTemplatedMissed));
 
             Assert.That(repeats, Is.EqualTo(0), "no combat theme twice in a row (with four there is always another)");
             Assert.That(again, Is.LessThan(SlowestAllowedMs), "slowest generation with themes, ms (seed " + slowestSeed + ", timed again)");
-            Assert.That(throneNorth, Is.GreaterThan(950), "the throne at the north wall nearly always");
+            Assert.That(throneNorth, Is.GreaterThan(950), "the throne at the north wall (its template's far wall) nearly always");
+            // Work order 082: the far wall that is not the north one is seen and held.
+            if (throneTemplatedNotNorth > 0) Assert.That(throneFar, Is.GreaterThan(0), "a throne at a far wall that is not the north one");
+            Assert.That(throneTemplatedMissed, Is.LessThanOrEqualTo(throneTemplated / 20), "a templated room's throne off its far wall in at most 1 room of 20");
         }
 
         // The sums for the fights (work order 028): each theme's cover and floor against the combat rooms of before (the

@@ -277,7 +277,9 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void TheChargesAndTheCooldownBuffer_AsTheyWere()
+        // Work order 082 (review 6, finding 26): renamed from TheChargesAndTheCooldownBuffer_AsTheyWere: it reads the buffer's value
+        // and which skills have a chain or a band; no charge is looked at and no buffered press judged here.
+        public void TheCooldownBuffersValue_AndWhichSkillsHaveAChainOrABand_AsTheyWere()
         {
             var kit = new KitValues();
             Assert.That(kit.CooldownBuffer, Is.EqualTo(0.25f), "work order 066's buffer");

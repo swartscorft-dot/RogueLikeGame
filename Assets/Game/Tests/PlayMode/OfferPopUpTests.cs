@@ -122,7 +122,7 @@ namespace Roguelike.PlayModeTests
         IEnumerator OpenAChest(int which = 0)
         {
             List<GeneratedLevel.PlacedProp> chests = _levels.Chests();
-            Assume.That(chests.Count, Is.GreaterThan(which), "a chest on the floor");
+            Assert.That(chests.Count, Is.GreaterThan(which), "a chest on the floor");
             Assert.That(_levels.OpenChest(chests[which]), Is.True);
             yield return null;
             Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.Chest));
@@ -274,6 +274,18 @@ namespace Roguelike.PlayModeTests
                                 OfferTexts.Name(step) + (fitted == 1 ? ", a Laser Sight and a Bull Barrel fitted" : ", the stock gun") + ": the game's number now and once taken");
                 }
             }
+            // Work order 082 (the sixth review's first finding, what 077 left): a Cooldown card against CooldownOf, the game's own
+            // reader of a skill's cooldown, now and once taken.
+            int slot = Enumerable.Range(0, _player.Skills.Count).First(s => _player.IsEquipped(s) && _player.Skills[s].Cooldown > 0f);
+            string skillName = _player.Skills[slot].Name;
+            var cut = new Upgrade { Kind = UpgradeKind.Cooldown, Amount = 0.1f, Skill = skillName, Tiered = true, Tier = UpgradeTier.Rare };
+            OfferCard cooldownCard = OfferTexts.ForUpgrade(cut, Context());
+            string cooldownWas = OfferTexts.Sec(_player.CooldownOf(slot));
+            _levels.Modifiers.Take(cut);
+            string cooldownThen = OfferTexts.Sec(_player.CooldownOf(slot));
+            _levels.Modifiers.TakeBack(cut);
+            Assert.That(cooldownWas, Is.Not.EqualTo(cooldownThen), "the cut moves it");
+            Assert.That(cooldownCard.Numbers.First(), Is.EqualTo(skillName + " cooldown  " + cooldownWas + OfferTexts.Arrow + cooldownThen), "a Cooldown card: the game's cooldown now and once taken");
             Assert.That(_player.BasicShotRange, Is.EqualTo(12f + _levels.Modifiers.BasicShotRangeBonus).Within(1e-4f), "the sight's 2 m are on her");
             _levels.Modifiers.Weapon.Clear();
             _levels.BackToPracticeRoom();
@@ -371,7 +383,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             _levels.FinishEliteRoomForTests();
             yield return Frames(() => _levels.Choice == GeneratedLevels.ChoiceKind.SkillUpgrade);
-            Assume.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade on floor 2");
+            Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.SkillUpgrade), "the elite's upgrade on floor 2");
             CardsInTheMiddle("a skill upgrade", 1920f, _levels.OfferedSkillUpgrades.Count);
             for (int i = 0; i < _levels.CardCount; i++)
             {
@@ -442,7 +454,7 @@ namespace Roguelike.PlayModeTests
             _a.TakeMarks();
             Assert.That(_player.PressSkill(tap, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return RealTime(() => _player.RecastPressWouldBeClean, 2f);
-            Assume.That(_player.RecastPressWouldBeClean, Is.True, "the clean part of the last window");
+            Assert.That(_player.RecastPressWouldBeClean, Is.True, "the clean part of the last window");
             _a.TakeMarks();
             Assert.That(_player.PressSkill(tap, _a.transform.position), Is.EqualTo(IntentResult.Started));
             yield return RealTime(() => Hits(tap).Count >= 3, 2f);

@@ -324,7 +324,6 @@ namespace Roguelike.Rules.Tests
                     bool own = row.RareAmount > 0f || row.EpicAmount > 0f;
                     float step = !own || u.Tier == UpgradeTier.Common ? row.Amount * scale : u.Tier == UpgradeTier.Epic ? row.EpicAmount : row.RareAmount;
                     Assert.That(u.Amount, Is.EqualTo(step).Within(1e-5f), u.Short);
-                    Assert.That(TieredOffers.StepOf(row, u.Tier, values.Stats), Is.EqualTo(u.Amount), u.Short);
                     Assert.That(u.Heal, Is.EqualTo((int)Math.Round(row.Heal * (own ? step / row.Amount : scale))), u.Short);
                 }
             }

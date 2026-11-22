@@ -926,6 +926,8 @@ namespace Roguelike
         public bool IsInvulnerable => _dash.IsInvulnerable(Time.time);
         public float DashCooldownRemaining => _dash.CooldownRemaining(Time.time);
         public bool HasBufferedPress => _buffer.HasItem;
+        /// <summary>For tests (work order 082): the skill whose press waits in the buffer now, or -1 (a dash's, or none).</summary>
+        public int BufferedSkillSlot => _buffer.TryPeek(out Press waiting) && waiting.Kind == PressKind.Skill ? waiting.Slot : -1;
         /// <summary>True while a click waits for its shot.</summary>
         public bool HasPendingShot => _clicks.Waiting;
         /// <summary>True while a basic shot is fired on the move: the move order goes on under it.</summary>

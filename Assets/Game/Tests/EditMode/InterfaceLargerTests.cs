@@ -37,8 +37,9 @@ namespace Roguelike.Rules.Tests
             Assert.That(v.Halftone, Is.InRange(0.01f, 1f), "a halftone accent");
             Assert.That(v.CellEdge, Is.InRange(0.01f, 1f), "the boxes edged apart on the plate");
             Assert.That(v.DepthInk.R + v.DepthInk.G + v.DepthInk.B, Is.LessThan(0.2f), "the plate is the palette's black");
-            InterfaceValues m = Morning();
-            Assert.That(m.Depth + m.Outline + m.Slash + m.Halftone + m.CellEdge, Is.Zero, "every one at 0 is this morning's flat look");
+            // Work order 082 (review 6, finding 21): the line that summed the values Morning() had just set to 0 is gone; this
+            // morning's sizes are held against hard numbers by WithTheScalesAt1_..._TheRectanglesAreThisMorningsExactly, which
+            // calls the rules with Morning().
         }
 
         [TestCase(1920f, 1080f)]
@@ -175,7 +176,10 @@ namespace Roguelike.Rules.Tests
 
         [TestCase(1920f, 1080f)]
         [TestCase(1280f, 720f)]
-        public void TheStrokesTop_IsUnderHerBodysLowestDrawnPoint_ByTheGap(float w, float h)
+        // Work order 082 (review 6, finding 21): renamed from TheStrokesTop_IsUnderHerBodysLowestDrawnPoint_ByTheGap: this is the
+        // test's own camera sum against two constants measured once, with the gap rule; the bar's own drawing
+        // (SkillBarKinetic) is held by its PlayMode twin in InterfaceInAFightTests.
+        public void TheUnderFeetGap_OnTheTestsOwnCameraSum_IsUnderHerMeasuredLowestPoint(float w, float h)
         {
             InterfaceValues v = V;
             float under = StrokesUnderHerPoint(h, v, out float boots);

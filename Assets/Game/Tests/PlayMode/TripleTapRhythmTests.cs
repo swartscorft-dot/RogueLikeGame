@@ -215,7 +215,7 @@ namespace Roguelike.PlayModeTests
             SkillDefinition tap = _player.Skills[Triple];
             Assert.That(_player.PressSkill(Triple, At), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.RecastSincePress >= tap.Startup - 0.05f, 2f);
-            Assume.That(_player.IsRecastWindowOpen, Is.False, "the first shot has not gone off");
+            Assert.That(_player.IsRecastWindowOpen, Is.False, "the first shot has not gone off");
             Assert.That(_player.PressSkill(Triple, At), Is.EqualTo(IntentResult.Buffered), "it waits, as before");
             yield return Until(() => _recasts.Count > 0, 2f);
             Assert.That(_recasts.Count, Is.EqualTo(1), "it fired: not lost");
@@ -224,7 +224,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_recasts[0].Seconds, Is.LessThan(0.02f), "the instant the window opened (until work order 069 it waited out the shot's free recovery: 0.1 s)");
             // The same for the third press, 0.05 s before the second shot goes off.
             yield return Until(() => _player.RecastSincePress >= tap.Startup - 0.05f, 2f);
-            Assume.That(_player.IsRecastWindowOpen, Is.False, "the second shot has not gone off");
+            Assert.That(_player.IsRecastWindowOpen, Is.False, "the second shot has not gone off");
             Assert.That(_player.PressSkill(Triple, At), Is.EqualTo(IntentResult.Buffered));
             yield return Until(() => _recasts.Count > 1, 2f);
             Assert.That(_recasts.Count, Is.EqualTo(2), "the third went too");

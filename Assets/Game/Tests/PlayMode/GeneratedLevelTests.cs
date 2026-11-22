@@ -62,6 +62,15 @@ namespace Roguelike.PlayModeTests
             return level;
         }
 
+        /// <summary>A passage's middle cell of its path, on the ground (as PassagesPlayTests).</summary>
+        static Vector3 InPassage(GeneratedLevel level, LevelRoom passage)
+        {
+            List<(int x, int y)> path = Passages.PathOf(level.Layout, passage);
+            (int x, int y) c = path[path.Count / 2];
+            double cs = level.Layout.CellSize;
+            return level.ToWorld(new LevelPoint((c.x + 0.5) * cs, (c.y + 0.5) * cs));
+        }
+
         static float Flat(Vector3 a, Vector3 b) => Vector2.Distance(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
 
         [UnityTest]
@@ -104,14 +113,17 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator SheCanWalk_FromTheStart_ToEveryRoom_ButNotThroughAWall()
+        public IEnumerator SheCanWalk_FromTheStart_ToEveryRoom_ButNotThroughAWall([Values(false, true)] bool passages)
         {
             // Work order 059: the rooms touching, so a wall cell beside a door has open floor on both sides (beside a passage's
-            // door lies its solid cells); the way through every passage is PassagesPlayTests'.
-            GeneratedLevels.Ensure().Values = new LevelValues { Passages = false };
+            // door lies its solid cells); the way through every passage is PassagesPlayTests'. Work order 082 (review 6,
+            // finding 2): the walk to every room also on the floor he plays, with the passages on (into every passage too);
+            // the wall beside a door only with them off, where it has open floor on both sides.
+            GeneratedLevels.Ensure().Values = new LevelValues { Passages = passages };
             GeneratedLevel level = Build();
             yield return null;
             LevelLayout layout = level.Layout;
+            Assert.That(layout.Rooms.Any(r => r.Kind == RoomKind.Passage), Is.EqualTo(passages));
             Vector3 Ground(Vector3 p)
             {
                 Assert.That(NavMesh.SamplePosition(p, out NavMeshHit hit, 1f, NavMesh.AllAreas), "NavMesh at " + p + "\n" + LevelMap.Draw(layout));
@@ -122,8 +134,14 @@ namespace Roguelike.PlayModeTests
             var path = new NavMeshPath();
             foreach (LevelRoom r in layout.Rooms)
             {
-                Assert.That(NavMesh.CalculatePath(start, Ground(level.Middle(r)), NavMesh.AllAreas, path), "a path to " + r.Letter + r.Order);
+                Vector3 to = r.Kind == RoomKind.Passage ? InPassage(level, r) : level.Middle(r);
+                Assert.That(NavMesh.CalculatePath(start, Ground(to), NavMesh.AllAreas, path), "a path to " + r.Letter + r.Order);
                 Assert.That(path.status, Is.EqualTo(NavMeshPathStatus.PathComplete), "the whole way to " + r.Letter + r.Order + "\n" + LevelMap.Draw(layout));
+            }
+            if (passages)
+            {
+                Assert.That(NavMesh.SamplePosition(new Vector3(500f, 0f, -300f), out _, 5f, NavMesh.AllAreas), Is.False, "nothing far outside");
+                yield break;
             }
 
             // At each door, the wall cell beside it: 1.5 m either side of the wall, the straight line is blocked and the

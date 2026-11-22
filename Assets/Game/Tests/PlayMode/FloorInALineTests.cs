@@ -22,6 +22,11 @@ namespace Roguelike.PlayModeTests
     /// inside the budget on floor 5; nothing is allocated in their frames; and each switch off removes its part.
     ///
     /// Frames without a window are short (about 0.3 ms): the waits here count frames, and nothing hangs on a frame's length.
+    ///
+    /// Work order 082 (review 6, finding 2): the tests of the signs, the map and their frames run both with the passages
+    /// off (the rooms touching, as they were built for) and on (the floor he plays, each signed room's sign at both ends of
+    /// its passage). Kept one way, and why: the map's step-ahead (on: PassagesPlayTests), floor 5's light budget (on:
+    /// PassagesPlayTests.Floor5_...) and the switches.
     /// </summary>
     public class FloorInALineTests
     {
@@ -71,21 +76,32 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < most && !condition(); i++) yield return null;
         }
 
-        GeneratedLevel StartRun(Action<LevelValues> change = null)
+        GeneratedLevel StartRun(Action<LevelValues> change = null) => StartRun(false, change);
+
+        GeneratedLevel StartRun(bool passages, Action<LevelValues> change = null)
         {
             // Work order 059: the rooms touching, as the row's doors, signs and map were built for them (each sign on the door
-            // into its room, one room ahead on the map); past a passage, PassagesPlayTests.
-            _levels.Values = new LevelValues { Passages = false };
+            // into its room, one room ahead on the map); work order 082: and with the passages on, the floor he plays.
+            _levels.Values = new LevelValues { Passages = passages };
             change?.Invoke(_levels.Values);
             GeneratedLevel level = _levels.StartRun(RunSeed);
             Assert.That(level, Is.Not.Null);
             return level;
         }
 
-        /// <summary>She stands in the middle of a room, and the run has seen her there.</summary>
+        /// <summary>A passage's middle cell of its path, on the ground (as PassagesPlayTests): where she stands "in the passage".</summary>
+        static Vector3 InPassage(GeneratedLevel level, LevelRoom passage)
+        {
+            List<(int x, int y)> path = Passages.PathOf(level.Layout, passage);
+            (int x, int y) c = path[path.Count / 2];
+            double cs = level.Layout.CellSize;
+            return level.ToWorld(new LevelPoint((c.x + 0.5) * cs, (c.y + 0.5) * cs));
+        }
+
+        /// <summary>She stands in the middle of a room (of a passage's path), and the run has seen her there.</summary>
         IEnumerator Into(GeneratedLevel level, LevelRoom room)
         {
-            _player.Teleport(level.Middle(room));
+            _player.Teleport(room.Kind == RoomKind.Passage ? InPassage(level, room) : level.Middle(room));
             yield return Until(() => _levels.CurrentRoom == room, 30);
             yield return Frames(2);
             Assert.That(_levels.CurrentRoom, Is.SameAs(room), "she is in " + room.Letter + room.Order);
@@ -96,12 +112,14 @@ namespace Roguelike.PlayModeTests
         static bool Violet(Color c) => c.b > c.g + 0.3f && c.r > c.g;
 
         [UnityTest]
-        public IEnumerator ABuiltFloor_IsOneRow_WithNoSideRoom()
+        public IEnumerator ABuiltFloor_IsOneRow_WithNoSideRoom([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = StartRun();
+            GeneratedLevel level = StartRun(passages);
             yield return null;
             LevelLayout layout = level.Layout;
             Assert.That(layout.InALine, Is.True);
+            Assert.That(layout.Passages, Is.EqualTo(passages));
+            Assert.That(layout.Rooms.Any(r => r.Kind == RoomKind.Passage), Is.EqualTo(passages));
             Assert.That(layout.Version, Is.EqualTo(LevelGenerator.Version));
             Assert.That(layout.Rooms.Count(r => r.Kind == RoomKind.Treasure), Is.EqualTo(2));
             for (int i = 0; i < layout.Rooms.Count; i++)
@@ -116,14 +134,14 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TheDoorOn_ShowsTheNextRoomsSign_InItsColour_AndTheDoorBackIsDim()
+        public IEnumerator TheDoorOn_ShowsTheNextRoomsSign_InItsColour_AndTheDoorBackIsDim([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = StartRun();
+            GeneratedLevel level = StartRun(passages);
             yield return null;
             LevelLayout layout = level.Layout;
             var signs = level.GetComponent<DoorSigns>();
             Assert.That(signs, Is.Not.Null, "on by default");
-            Assert.That(signs.Signs.Count, Is.EqualTo(4), "two treasure rooms, the elite room and the exit room");
+            Assert.That(signs.Signs.Count, Is.EqualTo(passages ? 8 : 4), "two treasure rooms, the elite room and the exit room (at both ends of a passage)");
             Assert.That(signs.Root.GetComponentsInChildren<Collider>(true), Is.Empty, "a picture only");
 
             // In the entrance: its door on leads to a combat room, so nothing is lit and no light is made.
@@ -139,43 +157,53 @@ namespace Roguelike.PlayModeTests
                      })
             {
                 LevelRoom next = layout.Rooms.First(which);
-                LevelRoom before = layout.Rooms[next.Order - 1];
-                yield return Into(level, before);
-                DoorSigns.Sign sign = signs.SignInto(next.Order);
-                Assert.That(sign, Is.Not.Null, kind.ToString());
-                Assert.That(sign.Kind, Is.EqualTo(kind));
-                Assert.That(sign.Lit, Is.True, "the door on, from " + before.Letter + before.Order + ", says " + kind);
-                Assert.That(sign.Filter.sharedMesh, Is.SameAs(sign.LitMesh));
-                Assert.That(colour(sign.Colour), "its colour: " + sign.Colour);
-                Assert.That(signs.Signs.Count(s => s.Lit), Is.EqualTo(1), "only the door on");
-                Light light = signs.DoorLight;
-                Assert.That(light, Is.Not.Null);
-                Assert.That(light.enabled, Is.True, "its light spills from the doorway");
-                Assert.That(colour(light.color), "the light in its colour: " + light.color);
-                Assert.That(light.shadows, Is.EqualTo(LightShadows.None));
-                Assert.That(level.RoomAt(light.transform.position), Is.SameAs(before), "on her side of the doorway");
-                Assert.That(level.RoomAt(sign.Object.transform.position), Is.SameAs(before), "the sign over the arch, a little on her side");
-                Assert.That(sign.Object.transform.position.y, Is.GreaterThan(level.Values.WallHeight), "over the arch");
+                // Work order 082: each of its signs in the order she meets them (one; with the passages on, the passage's
+                // mouth and then its far end), each lit from the room before its door and dim once she is through.
+                List<DoorSigns.Sign> its = signs.Signs.Where(s => s.For == next.Order).OrderBy(s => s.Before).ToList();
+                Assert.That(its.Count, Is.EqualTo(passages ? 2 : 1), kind + ": a sign at each end of its passage");
+                Assert.That(its.Last(), Is.SameAs(signs.SignInto(next.Order)));
+                foreach (DoorSigns.Sign sign in its)
+                {
+                    LevelRoom before = layout.Rooms[sign.Before];
+                    yield return Into(level, before);
+                    Assert.That(sign.Kind, Is.EqualTo(kind));
+                    Assert.That(sign.Lit, Is.True, "the door on, from " + before.Letter + before.Order + ", says " + kind);
+                    Assert.That(sign.Filter.sharedMesh, Is.SameAs(sign.LitMesh));
+                    Assert.That(colour(sign.Colour), "its colour: " + sign.Colour);
+                    Assert.That(signs.Signs.Count(s => s.Lit), Is.EqualTo(1), "only the door on");
+                    Light light = signs.DoorLight;
+                    Assert.That(light, Is.Not.Null);
+                    Assert.That(light.enabled, Is.True, "its light spills from the doorway");
+                    Assert.That(colour(light.color), "the light in its colour: " + light.color);
+                    Assert.That(light.shadows, Is.EqualTo(LightShadows.None));
+                    Assert.That(level.RoomAt(light.transform.position), Is.SameAs(before), "on her side of the doorway");
+                    Assert.That(level.RoomAt(sign.Object.transform.position), Is.SameAs(before), "the sign over the arch, a little on her side");
+                    Assert.That(sign.Object.transform.position.y, Is.GreaterThan(level.Values.WallHeight), "over the arch");
 
-                // Through the door: the way back is dim, and the light goes with the lit door.
-                yield return Into(level, next);
-                Assert.That(sign.Lit, Is.False, "the door she came in by is dim");
-                Assert.That(sign.Filter.sharedMesh, Is.SameAs(sign.DimMesh));
+                    // Through the door: the way back is dim, and the light goes with the lit door.
+                    yield return Into(level, layout.Rooms[sign.Beyond]);
+                    Assert.That(sign.Lit, Is.False, "the door she came in by is dim");
+                    Assert.That(sign.Filter.sharedMesh, Is.SameAs(sign.DimMesh));
+                }
             }
             // On floor 5 the exit room's door says the boss.
             Assert.That(DoorSignRules.SignOf(layout.ExitRoom, 5, level.Values.FloorsPerAct), Is.EqualTo(DoorSign.Boss));
         }
 
         [UnityTest]
-        public IEnumerator OpeningAChest_TakesTheGoldOffItsDoor_AndOffTheMap_AndNothingShowsUnderTheChoice()
+        public IEnumerator OpeningAChest_TakesTheGoldOffItsDoor_AndOffTheMap_AndNothingShowsUnderTheChoice([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = StartRun();
+            GeneratedLevel level = StartRun(passages);
             yield return null;
             var signs = level.GetComponent<DoorSigns>();
             LevelRoom treasure = level.Layout.Rooms.First(r => r.Kind == RoomKind.Treasure);
-            LevelRoom before = level.Layout.Rooms[treasure.Order - 1];
-            yield return Into(level, before);
             DoorSigns.Sign sign = signs.SignInto(treasure.Order);
+            LevelRoom before = level.Layout.Rooms[sign.Before]; // work order 082: with the passages on, the passage itself
+            Assert.That(before.Kind == RoomKind.Passage, Is.EqualTo(passages));
+            // With the passages on she comes into the passage from the room before it, as she walks (the map shows the room
+            // past a passage one step ahead once the room before the passage is entered: FloorMapRules.Before).
+            if (passages) yield return Into(level, level.Layout.Rooms[before.Order - 1]);
+            yield return Into(level, before);
             Assert.That(sign.Lit, Is.True);
             Assert.That(_map.RoomShown(treasure.Order), Is.EqualTo(MapShown.Ahead));
             Assert.That(_map.SignOf(treasure.Order), Is.EqualTo(DoorSign.Treasure));
@@ -197,22 +225,30 @@ namespace Roguelike.PlayModeTests
 
             Assert.That(sign.BeyondDone, Is.True, "the chest is opened: the room is done");
             Assert.That(sign.Lit, Is.False, "the door's gold goes dim");
+            Assert.That(signs.Signs.Where(s => s.For == treasure.Order).All(s => s.BeyondDone && !s.Lit), "every sign of the room, at both ends of its passage");
             Assert.That(signs.DoorLight == null || !signs.DoorLight.enabled, "and its light goes out");
             Assert.That(_map.RoomDone(treasure.Order), Is.True);
             Assert.That(_map.SignStrength(treasure.Order), Is.EqualTo(0f), "the map loses its gold");
         }
 
         [UnityTest]
-        public IEnumerator ClearingARoom_DimsItsDoor_AndItsRoomOnTheMap()
+        public IEnumerator ClearingARoom_DimsItsDoor_AndItsRoomOnTheMap([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = StartRun();
+            GeneratedLevel level = StartRun(passages);
             yield return null;
             var signs = level.GetComponent<DoorSigns>();
             LevelLayout layout = level.Layout;
             LevelRoom elite = layout.EliteRoom;
-            LevelRoom before = layout.Rooms[elite.Order - 1];
-            yield return Into(level, before);
-            Assert.That(signs.SignInto(elite.Order).Lit, Is.True);
+            // Work order 082 (review 6, finding 2): every sign of the elite room, each seen from the room before its door
+            // (with the passages on, the passage's mouth from the room before it and its far end from inside it).
+            List<DoorSigns.Sign> its = signs.Signs.Where(s => s.For == elite.Order).OrderBy(s => s.Before).ToList();
+            Assert.That(its.Count, Is.EqualTo(passages ? 2 : 1));
+            LevelRoom before = layout.Rooms[its[0].Before];
+            foreach (DoorSigns.Sign s in its)
+            {
+                yield return Into(level, layout.Rooms[s.Before]);
+                Assert.That(s.Lit, Is.True, "lit from " + layout.Rooms[s.Before].Letter + s.Before + " before the room is cleared");
+            }
             yield return Into(level, elite);
             _levels.FinishEliteRoomForTests();
             yield return Until(() => _levels.Choice != GeneratedLevels.ChoiceKind.None || _levels.EliteRoomDone);
@@ -227,22 +263,28 @@ namespace Roguelike.PlayModeTests
             Assert.That(_map.RoomShown(elite.Order), Is.EqualTo(MapShown.Here));
             Assert.That(_map.RoomDim(elite.Order), Is.False, "lit while she is in it");
 
+            foreach (DoorSigns.Sign s in its)
+            {
+                yield return Into(level, layout.Rooms[s.Before]);
+                Assert.That(s.BeyondDone, Is.True, "cleared, seen from " + layout.Rooms[s.Before].Letter + s.Before);
+                Assert.That(s.Lit, Is.False, "a cleared room's door is dim, even seen from the room before it (" + layout.Rooms[s.Before].Letter + s.Before + ")");
+            }
             yield return Into(level, before);
-            Assert.That(signs.SignInto(elite.Order).Lit, Is.False, "a cleared room's door is dim, even seen from the room before it");
             Assert.That(_map.RoomShown(elite.Order), Is.EqualTo(MapShown.Entered));
             Assert.That(_map.RoomDim(elite.Order), Is.True, "and it is filled dim on the map");
             Assert.That(_map.SignStrength(elite.Order), Is.EqualTo(level.Values.Signs.DimShare).Within(1e-6f), "its sign dim");
 
-            // An ordinary combat room too.
-            LevelRoom first = layout.Rooms[1];
+            // An ordinary combat room too (the first; with the passages on, past the entrance's passage).
+            LevelRoom first = layout.Rooms.First(r => r.Kind == RoomKind.Combat && !r.Elite);
             yield return Into(level, first);
             Assert.That(_map.RoomDone(first.Order), Is.False);
             foreach (Enemy e in level.EnemiesByRoom[first.Order]) e.GetComponent<Damageable>().TakeHit(100000000);
             yield return Frames(3);
             Assert.That(_map.RoomDone(first.Order), Is.True);
-            yield return Into(level, layout.Rooms[2]);
+            LevelRoom after = layout.Rooms[first.Order + 1];
+            yield return Into(level, after);
             Assert.That(_map.RoomDim(first.Order), Is.True, "entered and cleared: dim");
-            Assert.That(_map.RoomDim(2), Is.False, "the room she is in is not");
+            Assert.That(_map.RoomDim(after.Order), Is.False, "the room she is in is not");
         }
 
         [UnityTest]
@@ -286,10 +328,10 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TheMap_IsNotDrawn_UnderThePauseMenu_OrAnEndScreen_AndThePauseMenuNamesItsKey()
+        public IEnumerator TheMap_IsNotDrawn_UnderThePauseMenu_OrAnEndScreen_AndThePauseMenuNamesItsKey([Values(false, true)] bool passages)
         {
             _hud = RunHud.Ensure();
-            StartRun();
+            StartRun(passages);
             yield return Frames(2);
             Assert.That(_map.Shown, Is.True);
             Assert.That(_levels.Pause(), Is.True);
@@ -350,13 +392,14 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TheirFrames_AllocateNothing()
+        public IEnumerator TheirFrames_AllocateNothing([Values(false, true)] bool passages)
         {
-            GeneratedLevel level = StartRun();
+            GeneratedLevel level = StartRun(passages);
             yield return null;
             LevelRoom treasure = level.Layout.Rooms.First(r => r.Kind == RoomKind.Treasure);
-            yield return Into(level, level.Layout.Rooms[treasure.Order - 1]);
             var signs = level.GetComponent<DoorSigns>();
+            yield return Into(level, level.Layout.Rooms[signs.SignInto(treasure.Order).Before]);
+            Assert.That(signs.Signs.Count(x => x.Lit), Is.EqualTo(1), "a sign lit while the frames are measured");
             signs.Tick();
             _map.Tick();
             Assert.That(() => { for (int i = 0; i < 300; i++) signs.Tick(); }, AllocExt.AllocatingGCMemory(Is.Not), "the signs' frame allocates nothing");

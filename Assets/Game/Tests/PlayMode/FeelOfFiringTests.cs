@@ -124,11 +124,11 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.RecastSlot == -1, 2f); // the window runs out: the chain is over, the cooldown runs
             Time.timeScale = 4f; // the waits are in game time
             yield return Until(() => _player.SkillCooldownRemaining(Backstep) <= 0.5f, 6f);
-            Assume.That(_player.SkillCooldownRemaining(Backstep), Is.GreaterThan(kit.CooldownBuffer + 0.02f));
+            Assert.That(_player.SkillCooldownRemaining(Backstep), Is.GreaterThan(kit.CooldownBuffer + 0.02f));
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Rejected), "0.5 s before: refused, as before");
             yield return Until(() => _player.SkillCooldownRemaining(Backstep) <= kit.CooldownBuffer * 0.6f, 4f);
             float left = _player.SkillCooldownRemaining(Backstep);
-            Assume.That(left, Is.GreaterThan(0f));
+            Assert.That(left, Is.GreaterThan(0f));
             float pressedAt = Time.time;
             Assert.That(_player.PressSkill(Backstep, _a.transform.position), Is.EqualTo(IntentResult.Buffered), left.ToString("0.000") + " s before: it waits");
             Assert.That(_player.HasBufferedPress, Is.True);
@@ -154,7 +154,7 @@ namespace Roguelike.PlayModeTests
                 int fired = _player.SkillShotsFired;
                 Assert.That(_player.PressSkill(Quick, _a.transform.position), Is.EqualTo(IntentResult.Started));
                 yield return Until(() => _player.SkillShotsFired > fired && _player.Action == ActionKind.None, 2f);
-                Assume.That(_player.SkillGateRemaining, Is.GreaterThan(0f), "in Quick Shot's free recovery");
+                Assert.That(_player.SkillGateRemaining, Is.GreaterThan(0f), "in Quick Shot's free recovery");
                 IntentResult r = _player.PressSkill(Backstep, _a.transform.position);
                 Assert.That(r, Is.EqualTo(cuts ? IntentResult.Started : IntentResult.Buffered), cuts ? "the hop cuts it" : "the morning's: it waits it out");
                 yield return Until(() => _player.RecastSlot == -1 && _player.Action == ActionKind.None, 3f);
@@ -201,7 +201,10 @@ namespace Roguelike.PlayModeTests
         // ---------------- 3. The weight of a shot ----------------
 
         [UnityTest]
-        public IEnumerator TheMuzzleLight_IsOnForItsTime_ThenOff_NeverMoreThanItsMost_AndNoneLeftAfterTheSceneGoes()
+        // Work order 082 (review 6, finding 29): renamed from ..._AndNoneLeftAfterTheSceneGoes: no light is left after a load by
+        // the light's own 0.05 s life (the wait below is 0.1 s), not by anything the scene does; the check stays, the name no
+        // longer claims it.
+        public IEnumerator TheMuzzleLight_IsOnForItsTime_ThenOff_NeverMoreThanItsMost()
         {
             _weight = FiringWeight.Ensure();
             _player.Teleport(NearA);
@@ -230,7 +233,7 @@ namespace Roguelike.PlayModeTests
         {
             _weight = FiringWeight.Ensure();
             Camera cam = Camera.main;
-            Assume.That(cam != null && cam.GetComponent<CameraRig>() != null, Is.True);
+            Assert.That(cam != null && cam.GetComponent<CameraRig>() != null, Is.True);
             _player.Teleport(NearA);
             yield return null;
             _player.Shoot(_a.transform.position);
@@ -250,6 +253,40 @@ namespace Roguelike.PlayModeTests
             Assert.That(measured.Most, Is.LessThanOrEqualTo(_weight.Values.BasicKick + 1e-4f), "never added up");
             Assert.That(measured.Most, Is.GreaterThan(0f), "it kicked");
             Assert.That(measured.Drift, Is.LessThan(1e-4f), "outside its drawing the camera is where the rig put it: the cursor's ray never moves");
+        }
+
+        /// <summary>
+        /// Work order 082 (review 6, finding 9): the camera itself while the kick is on it. The two tests above read the kick's
+        /// own sum (KickOffset) and the camera between frames, where it is always back; the camera is moved only inside the
+        /// render pipeline's beginCameraRendering and put back in endCameraRendering, which the windowless batch run never
+        /// calls (work order 082's probe), and Camera.Render() there crashes Unity. So FiringWeight's two hooks are called here
+        /// as the pipeline calls them: while it draws the camera stands at the rig's place plus the kick, and after it the
+        /// rig's place again, so the cursor's ray never moves.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheCameraKick_IsOnTheCameraWhileItDraws_AndTheRigsPlaceAfter()
+        {
+            _weight = FiringWeight.Ensure();
+            Camera cam = Camera.main;
+            Assert.That(cam != null && cam.GetComponent<CameraRig>() != null, Is.True, "the rig's camera");
+            const System.Reflection.BindingFlags Own = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            System.Reflection.MethodInfo begin = typeof(FiringWeight).GetMethod("OnBeginCamera", Own), end = typeof(FiringWeight).GetMethod("OnEndCamera", Own);
+            Assert.That(begin != null && end != null, Is.True, "FiringWeight's two camera hooks");
+            _player.Teleport(NearA);
+            yield return null;
+            _player.Shoot(_a.transform.position);
+            yield return Until(() => _player.BasicShotsFired >= 1, 2f);
+            yield return null; // a frame on: the kick has begun
+            Vector3 kick = _weight.KickOffset;
+            Assert.That(kick.magnitude, Is.GreaterThan(0f), "a kick runs");
+            Vector3 rig = cam.transform.position;
+            var context = default(UnityEngine.Rendering.ScriptableRenderContext);
+            begin.Invoke(_weight, new object[] { context, cam });
+            Vector3 drawn = cam.transform.position;
+            end.Invoke(_weight, new object[] { context, cam });
+            Vector3 after = cam.transform.position;
+            Assert.That(Vector3.Distance(drawn, rig + kick), Is.LessThan(1e-4f), "while it draws: the rig's place plus the kick (" + kick.magnitude.ToString("0.0000") + " m)");
+            Assert.That(Vector3.Distance(after, rig), Is.LessThan(1e-5f), "after it drew: the rig's place");
         }
 
         [UnityTest]
@@ -354,7 +391,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator FourBasicShotsInARow_AreNeverTheSameVariationTwiceRunning_AndQuieter()
         {
-            Assume.That(_player.Sounds != null && _player.ShotLooks != null && _player.ShotLooks.Basic.Sound != null, Is.True, "the basic shot has a sound");
+            Assert.That(_player.Sounds != null && _player.ShotLooks != null && _player.ShotLooks.Basic.Sound != null, Is.True, "the basic shot has a sound");
             _player.SeedShotVariations(64UL);
             _player.Teleport(NearA);
             yield return null;

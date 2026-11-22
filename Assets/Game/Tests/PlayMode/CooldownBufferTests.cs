@@ -82,8 +82,8 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(Spot);
             yield return null;
             _player.SpendCooldownForTests(slot, left);
-            Assume.That(_player.SkillCooldownRemaining(slot), Is.EqualTo(left).Within(1e-3f));
-            Assume.That(_player.SkillChargesReady(slot), Is.EqualTo(0));
+            Assert.That(_player.SkillCooldownRemaining(slot), Is.EqualTo(left).Within(1e-3f));
+            Assert.That(_player.SkillChargesReady(slot), Is.EqualTo(0));
         }
 
         // ---------------- The twelve ----------------
@@ -147,6 +147,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.PressSkill(Scatter, AimFirst), Is.EqualTo(IntentResult.Buffered));
             _player.ReleaseSkill(Scatter);
             Assert.That(_player.PressSkill(Breaker, AimFirst), Is.EqualTo(IntentResult.Buffered), "a newer press of another skill");
+            // Work order 082 (review 6, finding 30): the one waiting press is the newer one, seen in the buffer itself (the
+            // older Scatter press, kept, would be dropped as too old anyway, so the end of this test cannot tell).
+            Assert.That(_player.BufferedSkillSlot, Is.EqualTo(Breaker), "the newer press replaced the older");
             _player.ReleaseSkill(Breaker);
             yield return Until(() => Started(Breaker), 3f);
             Assert.That(Started(Breaker), Is.True, "the newer one went");
