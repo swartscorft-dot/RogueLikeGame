@@ -6,9 +6,9 @@ using System.Linq;
 namespace Roguelike.Rules
 {
     /// <summary>
-    /// Where warders stand in the floors (work order 079), with <see cref="LevelValues.Warders"/> on; off by default, and then
-    /// nothing here is read and every floor is what it was, field for field (no version of the generator is taken: the
-    /// producer turns them on with a version of its own after the developer has met the warder in the practice room). Beside
+    /// Where warders stand in the floors (work order 079), with <see cref="LevelValues.Warders"/> on; built off, and turned on
+    /// by work order 087 with the act's plan (<see cref="LevelValues.ActPlan"/>, the generator's version 18), from floor 3:
+    /// with either off nothing here is read (<see cref="LevelValues.WardersInFloors"/>). Beside
     /// the bombers' rules (<see cref="LevelBombers"/>), and drawn after them.
     ///
     /// From <see cref="WarderFloorValues.FromFloor"/>, in a floor in a line (the default), never in the floor's first combat
@@ -34,7 +34,7 @@ namespace Roguelike.Rules
         public static int Most(LevelValues v, RoomKind kind, int floor, bool firstCombatRoom, int others)
         {
             WarderFloorValues w = v?.WarderFloors;
-            if (v == null || !v.Warders || w == null || floor < w.FromFloor || firstCombatRoom) return 0;
+            if (v == null || !v.WardersInFloors || w == null || floor < w.FromFloor || firstCombatRoom) return 0; // work order 087: and the act's plan on
             if (kind != RoomKind.Combat && kind != RoomKind.Exit) return 0;
             if (others < w.OthersAtLeast) return 0;
             return Math.Max(0, w.MostInRoom);
@@ -46,7 +46,7 @@ namespace Roguelike.Rules
         /// </summary>
         public static void Put(List<List<EnemyGroup>> fights, ulong seed, int floor, LevelValues v)
         {
-            if (fights == null || v == null || !v.Warders) return;
+            if (fights == null || v == null || !v.WardersInFloors) return;
             LevelRandom rng = LevelRandom.Stream(seed, Stage, floor);
             for (int i = 0; i < fights.Count; i++)
             {
@@ -116,7 +116,9 @@ namespace Roguelike.Rules
     [Serializable]
     public sealed class WarderFloorValues
     {
-        public int FromFloor = 2;       // none on floor 1: she meets it first in the practice room, then from floor 2
+        // Work order 087 (Kristian, 2026-11-22: the warder from floor 3, at most one a room; the producer's proposal, his to move
+        // after meeting it in a run): floor 3. 2 before (079: she met it first in the practice room, then from floor 2).
+        public int FromFloor = 3;
         public int MostInRoom = 1;      // at most one a room (work order 079)
         public int OthersAtLeast = 3;   // only in a room with at least three other enemies (work order 079)
     }

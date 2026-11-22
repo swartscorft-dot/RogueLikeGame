@@ -6,9 +6,9 @@ using System.Linq;
 namespace Roguelike.Rules
 {
     /// <summary>
-    /// Where bombers stand in the floors (work order 073), with <see cref="LevelValues.Bombers"/> on; off by default, and
-    /// then nothing here is read and every floor is what it was, field for field (no version of the generator is taken: the
-    /// producer turns them on with a version of its own after the developer has met the bomber in the practice room).
+    /// Where bombers stand in the floors (work order 073), with <see cref="LevelValues.Bombers"/> on; built off, and turned on
+    /// by work order 087 with the act's plan (<see cref="LevelValues.ActPlan"/>, the generator's version 18), from floor 4:
+    /// with either off nothing here is read (<see cref="LevelValues.BombersInFloors"/>).
     ///
     /// From <see cref="BomberFloorValues.FromFloor"/>, in a floor in a line (the default), never in the floor's first combat
     /// room (she comes in to her first fight without one), at most <see cref="BomberFloorValues.MostInRoom"/> of the floor in a
@@ -34,10 +34,9 @@ namespace Roguelike.Rules
         public static int Most(LevelValues v, RoomKind kind, int floor, bool firstCombatRoom)
         {
             BomberFloorValues b = v?.BomberFloors;
-            if (v == null || !v.Bombers || b == null || floor < b.FromFloor || firstCombatRoom) return 0;
+            if (v == null || !v.BombersInFloors || b == null || floor < b.FromFloor || firstCombatRoom) return 0; // work order 087: and the act's plan on
             if (kind != RoomKind.Combat && kind != RoomKind.Exit) return 0;
-            if (b.MostInRoom == null || b.MostInRoom.Length == 0) return 0;
-            int room = Math.Max(0, b.MostInRoom[Math.Max(0, Math.Min(b.MostInRoom.Length - 1, floor - 1))]);
+            int room = b.MostOnFloor(floor);
             return kind == RoomKind.Exit && room > 0 ? room + Math.Max(0, b.MoreInExit) : room;
         }
 
@@ -47,7 +46,7 @@ namespace Roguelike.Rules
         /// </summary>
         public static void Put(List<List<EnemyGroup>> fights, ulong seed, int floor, LevelValues v)
         {
-            if (fights == null || v == null || !v.Bombers) return;
+            if (fights == null || v == null || !v.BombersInFloors) return;
             LevelRandom rng = LevelRandom.Stream(seed, Stage, floor);
             for (int i = 0; i < fights.Count; i++)
             {
@@ -109,8 +108,22 @@ namespace Roguelike.Rules
     [Serializable]
     public sealed class BomberFloorValues
     {
-        public int FromFloor = 2;                  // none on floor 1: she meets them first in the practice room, then from floor 2
-        public int[] MostInRoom = { 0, 1, 1, 2, 2 }; // by floor number, from 1; past the end its last: as the casters'
+        // Work order 087 (Kristian, 2026-11-22: the bomber from floor 4, with the shooter's fan; the producer's proposal, his to
+        // move after meeting it in a run): floor 4. 2 before (073: she met them first in the practice room, then from floor 2).
+        public int FromFloor = 4;
+        // The most bombers in a combat room, counted from FromFloor: its first entry for the floor that brings the bomber, the next
+        // for the floor after, and so on; past the end its last (work order 087's follow-up, the producer for Kristian, to be
+        // corrected by him: at most 1 a room on the floor that introduces it, 2 from the floor after; so floor 4 one, floor 5
+        // two). Counted from its first floor so that moving FromFloor moves the caps with it. Before: { 0, 1, 1, 2, 2 } by floor
+        // number from 1 (work order 073, written for a bomber from floor 2: one on its first two floors, two after).
+        public int[] MostInRoom = { 1, 2 };
         public int MoreInExit = 1;                 // the exit room one more
+
+        /// <summary>The most bombers in a combat room of this floor: 0 before <see cref="FromFloor"/>, else <see cref="MostInRoom"/> counted from it.</summary>
+        public int MostOnFloor(int floor)
+        {
+            if (floor < FromFloor || MostInRoom == null || MostInRoom.Length == 0) return 0;
+            return Math.Max(0, MostInRoom[Math.Min(MostInRoom.Length - 1, floor - FromFloor)]);
+        }
     }
 }

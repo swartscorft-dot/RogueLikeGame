@@ -23,6 +23,13 @@ namespace Roguelike.Rules
         public const string BoneSpikes = "Bone Spikes";
         public const string GraveRain = "Grave Rain";
 
+        /// <summary>
+        /// The farthest it casts from, every cast of it (Bone Spikes, Grave Rain, the bone orb, the orb fan; the warder's bolt is
+        /// the orb, <see cref="WarderValues.Bolt"/>): 11 m (work order 087; Kristian, 2026-11-22: "Trekk fiendene nærmere", the
+        /// screen showing 11.3 m ahead of her). 15 m before. It casts from 4 m, as before.
+        /// </summary>
+        public const float CastsFrom = 11f;
+
         public EnemyValues Enemy = new EnemyValues
         {
             Health = 800, MoveSpeed = 2.6f, AggroRange = 14f, LeashRange = 26f, RespawnDelay = 4f,
@@ -31,13 +38,13 @@ namespace Roguelike.Rules
                 new EnemyAttackDefinition
                 {
                     // Recovery: from the burst to its next cast.
-                    Name = BoneSpikes, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = 15f,
+                    Name = BoneSpikes, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = CastsFrom,
                     Windup = 1.0f, Recovery = 1.3f, Damage = 25, Radius = 2.4f,
                 },
                 new EnemyAttackDefinition
                 {
                     // Windup: the first circle's, to the first burst; Recovery: from the first burst.
-                    Name = GraveRain, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = 15f,
+                    Name = GraveRain, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = CastsFrom,
                     Windup = 1.4f, Recovery = 1.6f, Damage = 20, Radius = 2.2f, Counterable = true,
                 },
             },
@@ -53,8 +60,10 @@ namespace Roguelike.Rules
         public float LeadSeconds = 0.8f;    // s of her velocity
         public float LeadMost = 5f;         // m at most
         public float MovingOver = 0.5f;     // m/s: she counts as moving above this; slower, no lead
-        public float KeepNear = 9f;         // m: it backs off to at least this far
-        public float KeepFar = 13f;         // m: it walks closer when she is farther than this
+        // Work order 087 ("Trekk fiendene nærmere"): it keeps 7.5 to 10 m, inside the 11.3 m the screen shows ahead of her (9 to
+        // 13 m before).
+        public float KeepNear = 7.5f;       // m: it backs off to at least this far (9 before)
+        public float KeepFar = 10f;         // m: it walks closer when she is farther than this (13 before)
         public float BackOffUnder = 6f;     // m: it starts to back off when she is nearer than this
         public float SightHeight = 0.5f;    // m over the ground of the line it sees her along, as the shooter's
         public float GroundSearch = 0.3f;   // m: a circle is placed only where the walkable ground is at most this far from its middle
@@ -78,12 +87,12 @@ namespace Roguelike.Rules
         {
             new EnemyAttackDefinition
             {
-                Name = BoneOrb, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = 15f,
+                Name = BoneOrb, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = CastsFrom,
                 Windup = 1.0f, Recovery = 1.3f, Damage = 40, Radius = 0.9f,
             },
             new EnemyAttackDefinition
             {
-                Name = OrbFan, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = 15f,
+                Name = OrbFan, Shape = EnemyAttackShape.Circle, MinDistance = 4f, MaxDistance = CastsFrom,
                 Windup = 1.4f, Recovery = 1.6f, Damage = 35, Radius = 0.9f, Counterable = true,
             },
         };

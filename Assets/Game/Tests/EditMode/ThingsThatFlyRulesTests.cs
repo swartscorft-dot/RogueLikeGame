@@ -328,7 +328,7 @@ namespace Roguelike.Rules.Tests
             }
             Assert.That(shot.Recovery, Is.EqualTo(1.5f).Within(1e-4f), "the switch's off position as before");
             Assert.That(fan.Windup, Is.GreaterThan(arrow.Windup), "a fan's draw is a little longer");
-            Assert.That(arrow.MaxDistance, Is.EqualTo(14f), "it shoots at 13 m, not at 16");
+            Assert.That(arrow.MaxDistance, Is.EqualTo(11f), "work order 087: it shoots from 11 m, inside the 11.3 m the screen shows ahead of her (14 m before, 17 m in 036)");
         }
 
         // ---------------- The caster ----------------

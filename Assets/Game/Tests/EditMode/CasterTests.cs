@@ -42,10 +42,10 @@ namespace Roguelike.Rules.Tests
             var v = new CasterValues();
             var tactics = new CasterTactics();
             Assert.That(tactics.Choose(3f, v), Is.Null, "nearer than 4 m");
-            Assert.That(tactics.Choose(16f, v), Is.Null, "farther than 15 m");
+            Assert.That(tactics.Choose(12f, v), Is.Null, "farther than 11 m (work order 087; 15 m before)");
             Assert.That(tactics.Casts, Is.EqualTo(0));
             Assert.That(tactics.Choose(4f, v).Name, Is.EqualTo(CasterValues.BoneSpikes));
-            Assert.That(tactics.Choose(15f, v).Name, Is.EqualTo(CasterValues.BoneSpikes));
+            Assert.That(tactics.Choose(11f, v).Name, Is.EqualTo(CasterValues.BoneSpikes));
             Assert.That(tactics.Next(v), Is.EqualTo(CasterValues.GraveRain));
         }
 
@@ -59,9 +59,9 @@ namespace Roguelike.Rules.Tests
             Assert.That(new LevelValues().HealthOf(EnemyKind.Caster), Is.EqualTo(500), "500 on a generated floor");
             Assert.That(v.Enemy.MoveSpeed, Is.EqualTo(2.6f));
             Assert.That((v.BodyRadius, v.BodyHeight), Is.EqualTo((0.35f, 1.9f)));
-            Assert.That((v.BackOffUnder, v.KeepNear, v.KeepFar), Is.EqualTo((6f, 9f, 13f)));
+            Assert.That((v.BackOffUnder, v.KeepNear, v.KeepFar), Is.EqualTo((6f, 7.5f, 10f)), "work order 087: 7.5 to 10 m (9 to 13 before)");
             Assert.That((spikes.Radius, spikes.Windup, spikes.Recovery, spikes.Damage), Is.EqualTo((2.4f, 1.0f, 1.3f, 25)));
-            Assert.That((spikes.MinDistance, spikes.MaxDistance), Is.EqualTo((4f, 15f)));
+            Assert.That((spikes.MinDistance, spikes.MaxDistance), Is.EqualTo((4f, 11f)), "work order 087: from 4 to 11 m (15 before)");
             Assert.That(PoolRules.IsCounterable(spikes), Is.False);
             Assert.That((rain.Radius, rain.Windup, rain.Recovery, rain.Damage), Is.EqualTo((2.2f, 1.4f, 1.6f, 20)));
             Assert.That(PoolRules.IsCounterable(rain), Is.True, "Grave Rain is its blue attack");
@@ -210,8 +210,11 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The floors ----------------
 
-        /// <summary>The casters switched on (work order 034: they were off by default; work order 054: on by default), the rest as the defaults.</summary>
-        static LevelValues On() => new LevelValues { Casters = true };
+        /// <summary>
+        /// The casters switched on (work order 034: they were off by default; work order 054: on by default), the rest as the defaults
+        /// but the act's plan off (work order 087: these are work order 027's rules, version 17's floors; the plan's are ActPlanTests').
+        /// </summary>
+        static LevelValues On() => new LevelValues { Casters = true, ActPlan = false };
 
         [Test]
         public void TheMixesPerFloor_HoldCastersFromFloor2_AsData_AndTheCapsAreAsTheOrderSays()
@@ -269,7 +272,7 @@ namespace Roguelike.Rules.Tests
         /// </summary>
         static LevelValues NoCasters()
         {
-            var v = new LevelValues { Casters = true, CastersMostInRoom = new[] { 0 }, EliteCasterFromFloor = 99 };
+            var v = new LevelValues { Casters = true, CastersMostInRoom = new[] { 0 }, EliteCasterFromFloor = 99, ActPlan = false }; // 087: version 17's rules
             foreach (FloorEnemies f in v.Floors)
                 foreach (EnemyMix m in f.Mixes) m.Casters = 0;
             return v;
@@ -363,7 +366,7 @@ namespace Roguelike.Rules.Tests
             room.EnemyGroups[i] = new EnemyGroup(EnemyKind.Caster);
             Assert.That(LevelValidator.Validate(level, on).Any(f => f.Contains("casters, floor 1 at most 0")), string.Join("\n", LevelValidator.Validate(level, on)));
 
-            on = new LevelValues { Casters = true, Passages = false }; // work order 059: the rooms of version 15 on this seed hold two such enemies near each other
+            on = new LevelValues { Casters = true, Passages = false, ActPlan = false }; // work order 059: the rooms of version 15 on this seed hold two such enemies near each other
             LevelLayout four = LevelGenerator.Generate(42UL, 4, on);
             Assume.That(LevelValidator.Validate(four, on), Is.Empty);
             // Two enemies standing alone in a room of floor 4 made casters, the nearest two such: nearer than 8 m, a fault.
@@ -402,7 +405,7 @@ namespace Roguelike.Rules.Tests
         public void TheSwitchOff_GivesNoCaster_AndTheFloorsOfTheRulesWithTheCasterCodeBypassed(int floor)
         {
             Assert.That(new LevelValues().Casters, Is.True, "on by default (work order 054)");
-            var off = new LevelValues { Casters = false };
+            var off = new LevelValues { Casters = false, ActPlan = false }; // 087: version 17's rules
             LevelValues bypassed = NoCasters();
             for (int f = 1; f <= 5; f++)
             {
@@ -416,7 +419,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(level.Describe(props: false), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassed).Describe(props: false)), "seed " + s);
                 if (s % 10 == 0)
                 {
-                    var themesOff = new LevelValues { Themes = false, Casters = false };
+                    var themesOff = new LevelValues { Themes = false, Casters = false, ActPlan = false };
                     var bypassedThemesOff = NoCasters();
                     bypassedThemesOff.Themes = false;
                     Assert.That(LevelGenerator.Generate(s, floor, themesOff).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassedThemesOff).Describe()),

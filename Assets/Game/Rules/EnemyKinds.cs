@@ -120,6 +120,13 @@ namespace Roguelike.Rules
     [Serializable]
     public sealed class ShooterValues
     {
+        /// <summary>
+        /// The farthest it shoots from, every shot of it (the Shot, the arrow, the fan, the elite's volley): 11 m (work order 087;
+        /// Kristian, 2026-11-22, told that the ranged enemies fight from off screen, the camera showing 11.3 m ahead of her and
+        /// 7.7 m behind: "Trekk fiendene nærmere"; an attack must be read on the enemy's body, and the body on screen). 14 m before.
+        /// </summary>
+        public const float ShootsFrom = 11f;
+
         public EnemyValues Enemy = new EnemyValues
         {
             Health = 800, MoveSpeed = 3f, AggroRange = 14f, LeashRange = 26f, RespawnDelay = 4f,
@@ -128,13 +135,15 @@ namespace Roguelike.Rules
                 new EnemyAttackDefinition
                 {
                     // Recovery: the time after a shot before it aims again, so 2.4 s from shot to shot.
-                    Name = "Shot", Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                    Name = "Shot", Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = ShootsFrom,
                     Windup = 0.9f, Recovery = 1.5f, Damage = 15, Length = 14f, HalfWidth = 0.5f,
                 },
             },
         };
-        public float KeepNear = 8f;         // m: it backs off to at least this far
-        public float KeepFar = 12f;         // m: it walks closer when she is farther than this
+        // Work order 087 ("Trekk fiendene nærmere", above): it keeps 7 to 10 m, inside the 11.3 m the screen shows ahead of her
+        // (8 to 12 m before).
+        public float KeepNear = 7f;         // m: it backs off to at least this far (8 before)
+        public float KeepFar = 10f;         // m: it walks closer when she is farther than this (12 before)
         public float BackOffUnder = 6f;     // m: it starts to back off when she is nearer than this
         public float SightHeight = 0.5f;    // m over the ground of the line it sees her along, under the low walls' top
         public float BodyRadius = 0.3f;     // m, the capsule: thin
@@ -150,7 +159,7 @@ namespace Roguelike.Rules
         /// Its shots with things that fly on, in place of the Shot of its <see cref="Enemy"/> values (which stays, for the switch off): an
         /// arrow that leaves the bow at the release and flies; the fan's draw is a little longer; the volley is an elite's
         /// ordinary shot. Shot's damage and windup and its band of 14 m (036 had raised it to 17 m only for a test case at
-        /// 16 m; work order 039 put it back and tests at 8 m and 13 m). The recovery is 1.2 s, the Shot's 1.5 s before
+        /// 16 m; work order 039 put it back and tests at 8 m and 13 m; work order 087: 11 m, <see cref="ShootsFrom"/>). The recovery is 1.2 s, the Shot's 1.5 s before
         /// (work order 039, which asked about 1.1 s): a moving player now steps out of most arrows, so it shoots a little
         /// more often to keep the air busy, about 2.1 s from shot to shot. 1.1 s measured the same on average but kept time
         /// with a run back and forth over 12 m (2 s a leg), so that a run of releases in a row fell where she turned back
@@ -164,18 +173,18 @@ namespace Roguelike.Rules
         {
             new EnemyAttackDefinition
             {
-                Name = Arrow, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                Name = Arrow, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = ShootsFrom,
                 Windup = 0.9f, Recovery = 1.8f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
             new EnemyAttackDefinition
             {
-                Name = ArrowFan, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                Name = ArrowFan, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = ShootsFrom,
                 Windup = 1.2f, Recovery = 1.8f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
             new EnemyAttackDefinition
             {
                 // Recovery: from the first arrow; the second leaves VolleyGap into it.
-                Name = Volley, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = 14f,
+                Name = Volley, Shape = EnemyAttackShape.Line, MinDistance = 0f, MaxDistance = ShootsFrom,
                 Windup = 0.9f, Recovery = 1.8f, Damage = 15, Length = 30f, HalfWidth = 0.35f,
             },
         };

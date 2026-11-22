@@ -545,7 +545,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_TwoThousandFloors_AreVersion14s_FieldForField()
         {
-            var off = new LevelValues { Templates = false, Passages = false, MoreTemplates = false }; // work order 059: version 14 had no passages; 072: nor the second set
+            var off = new LevelValues { Templates = false, Passages = false, MoreTemplates = false, ActPlan = false }; // work order 059: version 14 had no passages; 072: nor the second set; 087: nor the act's plan
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {
