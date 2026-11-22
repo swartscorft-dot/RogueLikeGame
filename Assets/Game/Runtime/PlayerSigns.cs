@@ -625,8 +625,8 @@ namespace Roguelike
             bool word = WordShowing && WordText.Length > 0 && _player != null;
             bool line = LineShowing;
             if (!word && !line) return;
-            GUI.depth = 1; // under the skill bar, the HUD and its screens, as the timing feedback's words
-            float scale = Screen.height / SkillBar.LayoutHeight;
+            GUI.depth = InterfaceDepth.Words; // under the skill bar, the HUD and its screens, as the timing feedback's words (work order 068)
+            float scale = InterfaceStyle.ScreenHeight / SkillBar.LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             Color before = GUI.color;
@@ -634,7 +634,7 @@ namespace Roguelike
             else
             {
                 if (word) DrawWord(scale);
-                if (line) DrawLine(Screen.width / scale);
+                if (line) DrawLine(InterfaceStyle.ScreenWidth / scale);
             }
             GUI.color = before;
             GUI.matrix = matrixBefore;
@@ -657,7 +657,7 @@ namespace Roguelike
             Vector3 p = cam.WorldToScreenPoint(_player.Position + Vector3.up * _wordHeight);
             if (p.z <= 0f) return;
             float rise = look.WordRise * Mathf.Clamp01(WordAge / life);
-            float x = p.x / scale, y = (Screen.height - p.y) / scale - rise;
+            float x = p.x / scale, y = (InterfaceStyle.ScreenHeight - p.y) / scale - rise;
             _wordStyle.fontSize = Mathf.Max(8, Mathf.RoundToInt(look.BigWordSize * FeedbackRules.PopScale(WordAge, look.Pop, look.PopSeconds)));
             _content.text = WordText;
             Vector2 size = _wordStyle.CalcSize(_content);

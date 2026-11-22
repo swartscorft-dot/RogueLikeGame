@@ -56,6 +56,7 @@ namespace Roguelike
         {
             if (Player == null) Player = FindAnyObjectByType<PlayerCharacter>();
             if (Player == null) return;
+            GUI.depth = InterfaceDepth.Fight; // work order 068: under an offer and every screen, always (it had none: 0, as the offer's)
             if (Health == null) Health = Player.GetComponent<PlayerHealth>();
             if (_box == null)
             {
@@ -68,10 +69,10 @@ namespace Roguelike
                 return;
             }
 
-            float scale = Screen.height / LayoutHeight;
+            float scale = InterfaceStyle.ScreenHeight / LayoutHeight;
             Matrix4x4 matrixBefore = GUI.matrix;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-            float viewWidth = Screen.width / scale;
+            float viewWidth = InterfaceStyle.ScreenWidth / scale;
             Color before = GUI.color;
 
             IReadOnlyList<SkillDefinition> skills = Player.Skills;

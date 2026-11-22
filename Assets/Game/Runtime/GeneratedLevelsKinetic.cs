@@ -21,6 +21,12 @@ namespace Roguelike
     /// </summary>
     public sealed partial class GeneratedLevels
     {
+        /// <summary>
+        /// The IMGUI depth it draws at (work order 068, item 1: the strokes were drawn over the offer's cards, both at depth
+        /// 0, their order chance): an offer's while a choice is up, over everything of the fight's interface; else the fight's.
+        /// </summary>
+        public int GuiDepth => InterfaceDepth.Levels(Choice != ChoiceKind.None);
+
         /// <summary>True when the choice on screen is drawn as the skin's cards (the switch on, a choice up).</summary>
         public bool ChoiceKinetic => InterfaceStyle.Kinetic && Choice != ChoiceKind.None;
         /// <summary>The cards of the choice on screen now: how many, and each one's place (layout pixels of a view 1080 high), title and text.</summary>
@@ -115,7 +121,7 @@ namespace Roguelike
                 return 0;
             }
             InterfaceValues v = InterfaceStyle.V;
-            float viewWidth = ViewWidthForTests > 0f ? ViewWidthForTests : Screen.width / Mathf.Max(1e-4f, InterfaceStyle.Scale); // work order 065: a test's view
+            float viewWidth = ViewWidthForTests > 0f ? ViewWidthForTests : InterfaceStyle.ScreenWidth / Mathf.Max(1e-4f, InterfaceStyle.Scale); // work order 065: a test's view
             int count = Choice == ChoiceKind.FloorReward ? _offeredSkills.Count : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count
                       : Choice == ChoiceKind.FocusChoice ? FocusModeRules.Options.Length : _offeredUpgrades.Count;
             if (SameCards(count) && Mathf.Approximately(_cardsWidth, viewWidth) && _cardsPopUp == OfferPopUp) return count;
@@ -445,7 +451,7 @@ namespace Roguelike
             Matrix4x4 before = GUI.matrix;
             InterfaceStyle.BeginLayout(out Matrix4x4 _);
             float scale = Mathf.Max(1e-4f, InterfaceStyle.Scale);
-            InterfaceStyle.Prompt(screen.x / scale, (Screen.height - screen.y) / scale, InteractKeyLabel(), "open chest");
+            InterfaceStyle.Prompt(screen.x / scale, (InterfaceStyle.ScreenHeight - screen.y) / scale, InteractKeyLabel(), "open chest");
             GUI.color = colorBefore;
             GUI.matrix = before;
         }

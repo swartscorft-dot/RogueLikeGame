@@ -275,6 +275,168 @@ namespace Roguelike.Rules
         public float Halftone = 0.6f;
         /// <summary>The halftone patch's size, at the strip's scale of 1.</summary>
         public float HalftoneSize = 40f;
+
+        // ---------------- 10. The concept's style, built by looking at it (work order 068) ----------------
+        // His words of the evening of 2026-11-21: "healthbar og focuc er øvert, så upgrade kommer under de. syntes de også er
+        // for store. fortsatt ikke samme stil som konsept UIet (de to barene altså). skuffet. det føles fortsatt litt flat, ikke
+        // nok anime slik som i konseptet"; "må tydliggjøre den combo baren"; asked, "Begge: plate oppe, små under". The target
+        // is ui_b_kinetic_anime.png; these numbers were set by looking at pictures of the game beside it (decision 0011's note
+        // on taking pictures). Layout pixels of a view 1080 high.
+
+        /// <summary>The plate at the top left (her health as a number on a red plate, focus under it): on; off, only the strokes at her feet, as this morning.</summary>
+        public bool TopPlate = true;
+        /// <summary>The top plate's own lean (the concept's plates lean much harder than the strip's boxes: about 0.6 of their height).</summary>
+        public float PlateSlant = 0.6f;
+        /// <summary>
+        /// The dark wedge in the screen's corner where a portrait would stand (none is drawn; room is kept): its width and
+        /// height. The morning of 2026-11-22 (the producer, from round 4: "a large black wedge that covers the screen's
+        /// corner"; the concept's dark shapes are compact): 120 by 150, the plate moved left with it (round 4's: 190 by 176,
+        /// the plate at 214, the bar at 300).
+        /// </summary>
+        public float CornerWidth = 120f;
+        public float CornerHeight = 150f;
+        /// <summary>The red health plate: its left edge (at its middle line), top, width and height.</summary>
+        public float HealthPlateX = 160f;
+        public float HealthPlateY = 40f;
+        public float HealthPlateWidth = 330f;
+        public float HealthPlateHeight = 62f;
+        /// <summary>The number on it ("72 / 100"), the heavy italic.</summary>
+        public int PlateNumberSize = 54;
+        /// <summary>The black outline round every plate of the concept's style, at a scale of 1 (much heavier than <see cref="Outline"/>).</summary>
+        public float HeavyOutline = 4f;
+        /// <summary>
+        /// The stroke outside the black outline (white or teal), at a scale of 1: the concept's panels have a heavy black edge
+        /// with a light line outside it (the producer, from round 4: "line weight is most of what anime means here"). 0: the
+        /// black outline alone, as round 4.
+        /// </summary>
+        public float OuterStroke = 2.5f;
+        /// <summary>The share of the red plate, from its right end, the halftone dots fade across.</summary>
+        public float PlateDots = 0.42f;
+        /// <summary>The word FOCUS and the bar under the red plate: the word's size, the bar's left (at its middle line), top, width and height.</summary>
+        public int FocusWordSize = 26;
+        public float FocusBarX = 246f;
+        public float FocusBarY = 116f;
+        public float FocusBarWidth = 230f;
+        public float FocusBarHeight = 20f;
+        /// <summary>A full gauge's pulse: how fast (per second) and how far (0 to 1) its white edge breathes.</summary>
+        public float FullPulseRate = 3.2f;
+        public float FullPulse = 0.5f;
+        /// <summary>A hit she takes: the plate flashes white and shakes for this many real seconds, this many layout pixels.</summary>
+        public float HitFlashSeconds = 0.22f;
+        public float HitShake = 7f;
+
+        /// <summary>
+        /// The strokes at her feet this many times work order 063's width ("syntes de også er for store"; his choice: small
+        /// strokes under her as well as the plate): 2/3, no taller; 1 is 063's. No number beside them (<see cref="StrokeNumber"/>).
+        /// </summary>
+        public float StrokeShrink = 2f / 3f;
+        /// <summary>The health number beside the strokes (063's); off with the plate on: the number is on the plate.</summary>
+        public bool StrokeNumber = false;
+        /// <summary>
+        /// The strokes drawn in the plate's language (work order 068, the morning of 2026-11-22: round 3's picture showed them
+        /// as two thin flat lines, the focus one black and gone while the gauge was empty): leaning by <see cref="StrokeSlant"/>,
+        /// the heavy black outline <see cref="StrokeOutline"/> (at the strip's scale) round each, red and teal with a white
+        /// inner edge, an empty gauge's slot a dim teal. Off: work order 063's drawing.
+        /// </summary>
+        public bool StrokeConcept = true;
+        public float StrokeSlant = 0.5f;
+        public float StrokeOutline = 2f;
+
+        /// <summary>
+        /// The combo bar (the concept's "BLADE TIMING" bar): THE place a recast chain, a charge, a hold and a cast are read, wide
+        /// at the bottom middle over the strip; on. Off: none, and the blade over her head as before.
+        /// </summary>
+        public bool ComboBar = true;
+        /// <summary>The combo bar's width and height, and its bottom this far over the strip's plate.</summary>
+        public float ComboWidth = 860f;
+        public float ComboHeight = 30f;
+        public float ComboOverStrip = 34f;
+        /// <summary>The plate on its left with the skill's name, its width, and the name's size.</summary>
+        public float ComboLabelWidth = 210f;
+        public int ComboLabelSize = 26;
+        /// <summary>The press numbers over the zones, and the tag over the open one ("PRESS" and its key).</summary>
+        public int ComboTagSize = 19;
+        /// <summary>
+        /// The press numbers ("1", "2", "3") over the combo bar's zones, the heavy italic (work order 068, the morning of
+        /// 2026-11-22: in round 3's pictures, at the tag's 19, they read as specks; the concept's numerals are large).
+        /// </summary>
+        public int ComboNumberSize = 30;
+        /// <summary>The combo bar's own lean.</summary>
+        public float ComboSlant = 0.5f;
+        /// <summary>How long it stays after the last press or the run-out, showing what was hit and missed, and its fade, in real seconds.</summary>
+        public float ComboLinger = 0.6f;
+        public float ComboFade = 0.25f;
+        /// <summary>How long a hit zone flashes white, in real seconds.</summary>
+        public float ComboHitFlash = 0.3f;
+        /// <summary>The blade over her head (work order 045) while the combo bar is on: off (one place to read); on, both.</summary>
+        public bool BladeWithCombo = false;
+
+        /// <summary>The skill strip's boxes outlined in the heavy black (<see cref="HeavyOutline"/>) and its key plates white under each, as in the concept.</summary>
+        public float StripOutline = 2.5f;
+        /// <summary>
+        /// The icon in a strip box this share of the face's height (the concept's icons fill their box); 063's was 34 px. The
+        /// morning of 2026-11-22: 1.05 (round 4's 0.86 still read small: the icons' own art has a margin), never wider than
+        /// 0.95 of the face.
+        /// </summary>
+        public float IconFill = 1.05f;
+        /// <summary>The key on its white plate under each strip box this many times 063's (the concept's keys are large, bold letters); 1 is 063's.</summary>
+        public float StripKeyGrow = 1.25f;
+        /// <summary>
+        /// The strip as the concept's (the producer, from round 4: "every box FULL of a large cyan icon on black, a bright white
+        /// key cap under it, white outlines between the boxes; a box on cooldown grey with the number large; ours: small thin
+        /// white icons in mostly black boxes, empty slots black voids"): a ready skill's icon teal (off: white, as round 4);
+        /// the white line outside each box's black outline this thick at the strip's scale (0: none); a box cooling on a grey
+        /// face this opaque; an empty slot a dim outlined box, its outline white this opaque.
+        /// </summary>
+        public bool IconTeal = true;
+        public float StripWhiteEdge = 2f;
+        public float CoolingFace = 0.32f;
+        public float EmptyEdge = 0.35f;
+        /// <summary>
+        /// The run box at the top right as a compact plate (the producer, from round 4: "a large black area with small thin
+        /// text"): its dark plate behind the head and this many lines under it only; the lines after (the time, the upgrades,
+        /// the run's code) smaller, on no plate. A large number: the whole box on its plate, as round 4.
+        /// </summary>
+        public int RunPlateLines = 2;
+
+        /// <summary>
+        /// The cards of an offer in the concept's style: the name on a white plate in black italic, the numeral white on black in
+        /// a teal frame. (The concept's numerals as tall as half the card would move the offer's layout of work order 065: not done.)
+        /// </summary>
+        public bool CardNamePlate = true;
+        /// <summary>The bar over an enemy: a thicker black outline (layout pixels of the bars' own 720 layout).</summary>
+        public float EnemyOutline = 1.5f;
+    }
+
+    /// <summary>
+    /// Which piece of the interface is drawn over which (work order 068, item 1: "healthbar og focuc er øvert, så upgrade
+    /// kommer under de"): the IMGUI depths, said in one place. A lower depth is drawn later, over a higher one. Everything of
+    /// the fight's interface (the strip, the strokes, the plate, the combo bar, the enemies' bars, the numbers and words, the
+    /// signs, the run box, the map) is under an offer, and an offer is under the pause menu and every screen.
+    /// </summary>
+    public static class InterfaceDepth
+    {
+        /// <summary>
+        /// The teal frame at the screen's edges while she is empowered (work order 071's FocusEdge, which draws at 20): the
+        /// deepest of all, under every piece of the interface.
+        /// </summary>
+        public const int FocusEdge = 20;
+        /// <summary>The bars over the enemies: under everything else of hers.</summary>
+        public const int EnemyBars = 10;
+        /// <summary>The words, the numbers, the signs at her figure, the cast blade and the combo bar.</summary>
+        public const int Words = 2;
+        /// <summary>The skill strip, the strokes and the top plate, the map, the run box, a prompt.</summary>
+        public const int Fight = 1;
+        /// <summary>An offer (a chest's, a floor's, the elite's, the focus choice) and the notices with it.</summary>
+        public const int Offer = -5;
+        /// <summary>The pause menu, the end screens and the screen between runs.</summary>
+        public const int Screens = -10;
+
+        /// <summary>The run's screens' piece (GeneratedLevels): an offer when one is up, else the fight's (its chest prompt, a notice).</summary>
+        public static int Levels(bool offerUp) => offerUp ? Offer : Fight;
+
+        /// <summary>The HUD's piece (RunHud): a screen when one is up, else the fight's (its run box and prompt).</summary>
+        public static int Hud(bool screenUp) => screenUp ? Screens : Fight;
     }
 
     /// <summary>A rectangle of the interface, in pixels with 0,0 at the top left (a GUI rectangle without the engine).</summary>
@@ -348,7 +510,7 @@ namespace Roguelike.Rules
         public static int CooldownFont(InterfaceValues v) => Size(v.CooldownSize, Strip(v) * Math.Max(0.1f, v.CooldownGrow));
 
         /// <summary>The key's label on the strip: readable but small, with the master scale only.</summary>
-        public static int KeyFont(InterfaceValues v) => Size(v.KeySize, Fight(v));
+        public static int KeyFont(InterfaceValues v) => Size(v.KeySize, Fight(v) * Math.Max(0.1f, v.StripKeyGrow));
 
         /// <summary>The height of the white plate a key sits on, under each box's face.</summary>
         public static float KeyPlateHeight(InterfaceValues v) => KeyFont(v) * 1.25f;
@@ -372,9 +534,12 @@ namespace Roguelike.Rules
         public static UiBox HealthStroke(float feetX, float feetY, float under, InterfaceValues v)
         {
             float s = Fight(v);
-            float w = v.StrokeWidth * s, total = 2f * w + v.StrokeGap * s;
+            float w = v.StrokeWidth * s * StrokeShrink(v), total = 2f * w + v.StrokeGap * s; // work order 068: 2/3 of 063's width, no taller
             return new UiBox(feetX - total * 0.5f, feetY + under, w, v.StrokeHeight * s);
         }
+
+        /// <summary>The strokes' width factor over work order 063's (<see cref="InterfaceValues.StrokeShrink"/>), 0.1 to 4.</summary>
+        public static float StrokeShrink(InterfaceValues v) => Math.Max(0.1f, Math.Min(4f, v.StrokeShrink));
 
         public static UiBox FocusStroke(float feetX, float feetY, InterfaceValues v) => FocusStroke(feetX, feetY, v.UnderFeet * Fight(v), v);
 
