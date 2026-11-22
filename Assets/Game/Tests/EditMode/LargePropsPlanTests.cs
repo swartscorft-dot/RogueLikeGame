@@ -257,7 +257,11 @@ namespace Roguelike.Rules.Tests
             Assert.That(Placed("ossuary"), Is.GreaterThan(0.75), "the bone wall");
             Assert.That(banners, Is.GreaterThan(combat), "banners in the combat rooms");
             Assert.That(greatBraziers, Is.GreaterThan(daisThrones), "great braziers by the dais");
-            Assert.That(heaps, Is.GreaterThanOrEqualTo(vaults * 9 / 10), "coin heaps in the vaults");
+            // Changed deliberately (work order 076, Kristian of the treasure room's gold: "litt unødvendig"): with the cave on, the
+            // vault's large coin heaps are not placed (CaveValues.NoGoldHeaps; CavePlanTests counts them gone and the chest seen);
+            // with it off, as before, at least nine vaults in ten have them.
+            if (values.Cave && values.CaveRules.NoGoldHeaps) Assert.That(heaps, Is.EqualTo(0), "no large coin heap in the vaults");
+            else Assert.That(heaps, Is.GreaterThanOrEqualTo(vaults * 9 / 10), "coin heaps in the vaults");
             Assert.That(clusters, Is.GreaterThan(0));
         }
 
