@@ -52,6 +52,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _levels = GeneratedLevels.Ensure();
+            // Work order 085's follow-up: lamplit C is the default now; these tests judge the mood's own light, as before.
+            GameSettings.SetLightStep(LightSteps.AsBefore, keep: false);
         }
 
         [TearDown]
@@ -63,6 +65,7 @@ namespace Roguelike.PlayModeTests
                 Object.Destroy(_levels.gameObject);
             }
             _levels = null;
+            GameSettings.Unload(); // the light's step back to the default
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = true;
         }

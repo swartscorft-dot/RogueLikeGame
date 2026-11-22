@@ -9,21 +9,26 @@ namespace Roguelike.Rules
     /// The pause menu's "Light" line (work order 085; Kristian, 2026-11-22, having played work order 083's dark cave: "en ting
     /// jeg ser for meg vi bør ha, er at det er mørkere i rommet. sånn at vi får sett mere flashing når man skyter, ikke standar
     /// lys over alt, men at lysilider rundt er hovedkilden til sol. så får vi mere hule følelse. vi må seff ha en grunnlys
-    /// styurke da som gjør at det ikke blir helt bekmørkt."): four steps, "as before" (the default: the floors lit as on main
+    /// styurke da som gjør at det ikke blir helt bekmørkt."): four steps, "as before" (the floors lit as on main
     /// 6adfc56) and three lamplit levels from mild to dark (<see cref="LamplitValues"/>). Kept in PlayerPrefs by the game's
-    /// settings; switchable in the middle of a run; the greybox view wins over it. Plain data: no engine.
+    /// settings; switchable in the middle of a run; the greybox view wins over it. Since he played it the default is lamplit C (<see cref="Default"/>). Plain data: no engine.
     /// </summary>
     public static class LightSteps
     {
         /// <summary>The steps: 0 as before, 1 lamplit A, 2 lamplit B, 3 lamplit C.</summary>
         public const int Count = 4;
         public const int AsBefore = 0;
+        /// <summary>
+        /// The step a player gets who has none stored: lamplit C (Kristian, 2026-11-22, having played the four: "C er best"). As
+        /// before stays a step of the line; a test that judges today's light chooses it itself.
+        /// </summary>
+        public const int Default = 3;
 
         /// <summary>The words of each step on the menu's line.</summary>
         public static readonly string[] Names = { "as before", "lamplit A", "lamplit B", "lamplit C" };
 
-        /// <summary>A stored step made safe: anything not a step is "as before".</summary>
-        public static int Step(int stored) => stored < 0 || stored >= Count ? AsBefore : stored;
+        /// <summary>A stored step made safe: anything not a step is the default (lamplit C).</summary>
+        public static int Step(int stored) => stored < 0 || stored >= Count ? Default : stored;
 
         /// <summary>One step on, round to "as before" after C (Enter, a click, the right arrow).</summary>
         public static int Next(int step) => (Step(step) + 1) % Count;
@@ -71,6 +76,19 @@ namespace Roguelike.Rules
         // 3. Her shots: times every flash's intensity (LampValues: the muzzle, a hit, a blast)
         public float FlashLevel;
 
+        // 4. The fog (the mood's low fog along the walls, MoodValues.Fog). Kristian, 2026-11-22, having played C: "noe rart med
+        // tåken når man går til den. liker den, men den må være litt mer subtil", and asked what: "det blir som et rart lag man
+        // kommer inn i, det skal jo være litt gjennomsiktig". Its particles ADD a fixed grey (MoodValues.FogColour, unlit): on
+        // the floor as before that is a faint haze, on C's dark floor it is brighter than the floor itself, a milky sheet over
+        // the floor, her feet and the telegraphs. At a lamplit level it adds only this share of that grey, and nothing round her
+        // or round an enemy's telegraph, so what lies under it reads through it. Its place, amount and movement are as before.
+        public float FogLevel = 1f;         // times the fog's grey (as before 1)
+        public float FogClearNear = 0f;     // m on the ground round her (and an enemy that telegraphs) with no fog added at all
+        public float FogClearFar = 0f;      // m from her where the fog is back to its share; between, it rises smoothly
+
+        /// <summary>Does this level change the fog at all? (Level 1 with no clearing leaves it exactly as before.)</summary>
+        public bool ChangesFog => FogLevel != 1f || FogClearFar > 0f;
+
         /// <summary>Level A: clearly darker than as before, the lamps' pools plain.</summary>
         public static LamplitValues A() => new LamplitValues
         {
@@ -78,6 +96,7 @@ namespace Roguelike.Rules
             AmbientLevel = 0.2f, KeyLevel = 0.2f, EnemyLightFloor = 0.3f,
             HerLightIntensity = 2.8f, HerLightRange = 5f, HerLightHeight = 2.2f, HerLightBack = 0.8f,
             LampLevel = 1f, FlashLevel = 1f,
+            FogLevel = 0.75f, FogClearNear = 1.5f, FogClearFar = 4f,
         };
 
         /// <summary>Level B: the producer's best guess at what he means: the lamps carry the room, dim floor between them.</summary>
@@ -87,6 +106,7 @@ namespace Roguelike.Rules
             AmbientLevel = 0.12f, KeyLevel = 0.09f, EnemyLightFloor = 0.36f,
             HerLightIntensity = 3.2f, HerLightRange = 4.8f, HerLightHeight = 2.2f, HerLightBack = 0.8f,
             LampLevel = 1.15f, FlashLevel = 1.2f,
+            FogLevel = 0.6f, FogClearNear = 1.5f, FogClearFar = 4.5f,
         };
 
         /// <summary>Level C: as dark as the base allows while she, every telegraph and every enemy still read.</summary>
@@ -96,6 +116,7 @@ namespace Roguelike.Rules
             AmbientLevel = 0.07f, KeyLevel = 0.04f, EnemyLightFloor = 0.42f,
             HerLightIntensity = 3.6f, HerLightRange = 4.5f, HerLightHeight = 2.2f, HerLightBack = 0.8f,
             LampLevel = 1.3f, FlashLevel = 1.4f,
+            FogLevel = 0.5f, FogClearNear = 1.5f, FogClearFar = 5f,
         };
     }
 

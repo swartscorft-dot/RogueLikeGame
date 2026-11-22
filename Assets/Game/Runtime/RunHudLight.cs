@@ -7,7 +7,7 @@ namespace Roguelike
     /// hovedkilden til sol"), as part of <see cref="RunHud"/>: a line under the greybox view, beside the camera's lines, that steps
     /// "as before", "lamplit A", "lamplit B", "lamplit C" and back (<see cref="LightSteps"/>), kept in PlayerPrefs as the camera's
     /// lines are (<see cref="GameSettings.LightStep"/>). The floor she is on follows it at once (<see cref="LamplitView"/>); the
-    /// default is as before.
+    /// default is lamplit C (Kristian, 2026-11-22, having played the four: "C er best").
     /// </summary>
     public sealed partial class RunHud
     {

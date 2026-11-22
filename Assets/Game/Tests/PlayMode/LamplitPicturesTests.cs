@@ -35,6 +35,7 @@ namespace Roguelike.PlayModeTests
     public class LamplitPicturesTests
     {
         const string FolderVariable = "ROGUELIKE_CAPTURE_085";
+        const string FogVariable = "ROGUELIKE_CAPTURE_085_FOG"; // the fog at lamplit C, before and after (the follow-up)
         const int W = 1280, H = 720;
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
@@ -46,8 +47,11 @@ namespace Roguelike.PlayModeTests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            _folder = Environment.GetEnvironmentVariable(FolderVariable);
-            if (string.IsNullOrEmpty(_folder)) Assert.Ignore("pictures are taken only when " + FolderVariable + " names a folder (work order 085)");
+            // The fog's round (the follow-up of 2026-11-22) has its own folder: only the test of the variable set runs.
+            bool fog = TestContext.CurrentContext.Test.Name.Contains("Fog");
+            string variable = fog ? FogVariable : FolderVariable;
+            _folder = Environment.GetEnvironmentVariable(variable);
+            if (string.IsNullOrEmpty(_folder)) Assert.Ignore("pictures are taken only when " + variable + " names a folder (work order 085)");
             Directory.CreateDirectory(_folder);
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false;
@@ -77,6 +81,7 @@ namespace Roguelike.PlayModeTests
             if (CombatEffects.Current != null) Object.Destroy(CombatEffects.Current.gameObject);
             if (FiringWeight.Current != null) Object.Destroy(FiringWeight.Current.gameObject);
             if (ThingsThatFly.Current != null) Object.Destroy(ThingsThatFly.Current.gameObject);
+            if (_fogWas != null) { LamplitValues c = LightSteps.Of(3); c.FogLevel = _fogWas[0]; c.FogClearNear = _fogWas[1]; c.FogClearFar = _fogWas[2]; _fogWas = null; } // C's fog values back, whatever happened
             Time.timeScale = 1f;
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
@@ -295,6 +300,92 @@ namespace Roguelike.PlayModeTests
             _log.Add(line);
             TestContext.WriteLine(line);
             UnityEngine.Debug.Log(line);
+        }
+
+        float[] _fogWas;
+
+        /// <summary>
+        /// The fog at lamplit C (the follow-up of 2026-11-22: "det blir som et rart lag man kommer inn i, det skal jo være litt
+        /// gjennomsiktig"): in the nave, a patch of fog (the particle with the most others within 3 m), she far from it, walking up
+        /// to it and standing in it; each moment one frame (the game held still) drawn twice: the fog as it was in 3772aa7 (C's fog
+        /// values set to change nothing) and as it is now.
+        /// </summary>
+        [UnityTest, Timeout(600000)]
+        public IEnumerator TheFog_AtLamplitC_FarFromAPatch_WalkingUpToIt_StandingInIt_BeforeAndAfter()
+        {
+            Camera game = Camera.main;
+            _log.Add($"{DateTime.Now:yyyy-MM-dd HH:mm} batch {Application.isBatchMode} device {SystemInfo.graphicsDeviceType}; {W}x{H}; work order 085's fog round, lamplit C");
+            GeneratedLevel level = StyleRoom();
+            LevelRoom nave = level.Layout.Rooms[1];
+            _player.Teleport(AtDepth(level, 3.0));
+            yield return new WaitForSecondsRealtime(1.5f);
+            LightNow(3);
+            RoomMood.RoomParts parts = level.Mood.Of(nave.Order);
+            var buffer = new ParticleSystem.Particle[level.Values.Mood.FogMostPerRoom];
+            int n = parts.Fog.GetParticles(buffer);
+            Assert.That(n, Is.GreaterThan(0), "fog in the nave");
+            Vector3 patch = buffer[0].position;
+            int most = -1;
+            // A patch the camera sees: not by the south wall (the near lip and its black cap stand between the camera and it).
+            float south = level.ToWorld(new LevelPoint(0, nave.Rect.Y * level.Layout.CellSize)).z + 8f;
+            for (int i = 0; i < n; i++)
+            {
+                if (buffer[i].position.z < south) continue;
+                int near = 0;
+                for (int k = 0; k < n; k++) if ((buffer[k].position - buffer[i].position).sqrMagnitude < 9f) near++;
+                if (near > most) { most = near; patch = buffer[i].position; }
+            }
+            Vector3 middle = level.ToWorld(nave.Middle(level.Layout.CellSize));
+            Vector3 toMiddle = new Vector3(middle.x - patch.x, 0f, middle.z - patch.z).normalized;
+            Vector3 Spot(float metres)
+            {
+                Vector3 p = new Vector3(patch.x, 0f, patch.z) + toMiddle * metres;
+                for (float r = 0.5f; r <= 6f; r += 0.5f)
+                    if (UnityEngine.AI.NavMesh.SamplePosition(p, out UnityEngine.AI.NavMeshHit hit, r, UnityEngine.AI.NavMesh.AllAreas) && level.RoomAt(hit.position) == nave) return new Vector3(hit.position.x, 0f, hit.position.z);
+                return p;
+            }
+            _log.Add(string.Format(Inv, "the patch: {0} of the nave's {1} fog particles within 3 m of ({2:0.0}, {3:0.0}); fog particles {4:0.0} to {5:0.0} m across, {6:0.00} m over the floor, added (unlit), the fog's grey {7}",
+                                   most, n, patch.x, patch.z, level.Values.Mood.FogSize * 0.7f, level.Values.Mood.FogSize * 1.3f, level.Values.Mood.FogHeight, level.Values.Mood.FogColour));
+            LamplitValues c = LightSteps.Of(3);
+            _fogWas = new[] { c.FogLevel, c.FogClearNear, c.FogClearFar };
+            Time.timeScale = 0f; // held still: the two pictures of a moment are the same frame
+            foreach ((string name, float metres, string what) in new[] { ("1-far", 9f, "she far from the patch (9 m)"), ("2-walking-up", 3.5f, "she walking up to it (3.5 m)"), ("3-in-it", 0f, "she standing in it") })
+            {
+                _player.Teleport(Spot(metres));
+                yield return null;
+                yield return null;
+                foreach (bool after in new[] { false, true })
+                {
+                    c.FogLevel = after ? _fogWas[0] : 1f;
+                    c.FogClearNear = after ? _fogWas[1] : 0f;
+                    c.FogClearFar = after ? _fogWas[2] : 0f;
+                    level.Mood.Tick();
+                    Save(game, name + (after ? "-after" : "-before"), "lamplit C, " + what + ", " + (after ? string.Format(Inv, "the fog now: {0:0.##} of its grey, none within {1:0.#} m of her, all of its share from {2:0.#} m", c.FogLevel, c.FogClearNear, c.FogClearFar) : "the fog as it was in 3772aa7"));
+                }
+            }
+            // What is what (a check, not for him): at the last moment, the before's fog, then the fog's renderers off, then the
+            // mood's glow (the pools, the flames and the cold pool over each room's middle) off.
+            c.FogLevel = 1f; c.FogClearNear = 0f; c.FogClearFar = 0f;
+            level.Mood.Tick();
+            var fogRenderers = level.Mood.Rooms.Where(r => r.Fog != null).Select(r => r.Fog.GetComponent<ParticleSystemRenderer>()).ToList();
+            foreach (ParticleSystemRenderer r in fogRenderers) r.enabled = false;
+            Save(game, "check-in-it-fog-off", "a check: as 3-in-it-before, the fog not drawn at all");
+            foreach (ParticleSystemRenderer r in fogRenderers) r.enabled = true;
+            var glows = level.Mood.Rooms.Where(r => r.Glow != null).Select(r => r.Glow).ToList();
+            foreach (MeshRenderer r in glows) r.enabled = false;
+            Save(game, "check-in-it-glow-off", "a check: as 3-in-it-before, the mood's pools, flames and the cold pool over each room's middle not drawn");
+            foreach (MeshRenderer r in glows) r.enabled = true;
+            c.FogLevel = 5f; // where the fog lies, made five times as bright
+            level.Mood.Tick();
+            Save(game, "check-in-it-fog-x5", "a check: as 3-in-it-before, the fog five times as bright, to show where its particles lie");
+            c.FogLevel = 1f;
+            level.Mood.Tick();
+            n = parts.Fog.GetParticles(buffer);
+            int close = 0;
+            for (int i = 0; i < n; i++) if (new Vector2(buffer[i].position.x - _player.Position.x, buffer[i].position.z - _player.Position.z).magnitude < 4f) close++;
+            _log.Add(string.Format(Inv, "a check: {0} fog particles in the nave, {1} within 4 m of her where she stands in it; the fog's material {2}, queue {3}", n, close,
+                                   parts.Fog.GetComponent<ParticleSystemRenderer>().sharedMaterial.shader.name, parts.Fog.GetComponent<ParticleSystemRenderer>().sharedMaterial.renderQueue));
+            Time.timeScale = 1f;
         }
     }
 }
