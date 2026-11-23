@@ -49,6 +49,8 @@ namespace Roguelike
 
         /// <summary>Metres the NavMesh is looked for under a landing, and how far from it the NavMesh's point may lie.</summary>
         const float LandingSample = 0.3f, LandingOff = 0.15f;
+        /// <summary>How far from a jump's landing the floor is looked for as she comes down (the second review of 2026-11-23).</summary>
+        const float LandingRecover = 1f;
 
         // ---------------- For the readout and the tests ----------------
 
@@ -226,7 +228,7 @@ namespace Roguelike
         {
             if (!_jumping) return;
             EndJump();
-            _agent.Warp(_jumpTo);
+            PutDownAtLanding();
             FeelValues feel = Feel;
             if (_staggerOnLanding)
             {
@@ -243,6 +245,20 @@ namespace Roguelike
                 _airPull = false;
                 Pull(_airPullTo, _airPullSeconds, _airPullBy);
             }
+        }
+
+        /// <summary>
+        /// The agent is put down at the jump's landing: on the floor nearest it (the landing was looked at as she took off, up to
+        /// <see cref="LandingOff"/> from the floor), and, if there is no floor there any more (carved away while she was in the air)
+        /// or the agent will not go there, back where she took off. So a jump never leaves her off the floor (the second review of
+        /// 2026-11-23).
+        /// </summary>
+        void PutDownAtLanding()
+        {
+            Vector3 to = _jumpTo;
+            if (NavMesh.SamplePosition(to, out NavMeshHit hit, LandingRecover, NavMesh.AllAreas)) to = new Vector3(hit.position.x, to.y, hit.position.z);
+            if (_agent.Warp(to) && _agent.isOnNavMesh) return;
+            _agent.Warp(_jumpFrom);
         }
 
         /// <summary>The jump is over (landed, or a teleport): the agent moves her again. What waited for the landing is dropped here.</summary>

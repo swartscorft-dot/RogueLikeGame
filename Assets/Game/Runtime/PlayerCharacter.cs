@@ -472,7 +472,7 @@ namespace Roguelike
             if (_jumping) // a jump of the sprint is put down where it was going, with nothing kept for its landing (work order 092)
             {
                 DropJump();
-                _agent.Warp(_jumpTo);
+                PutDownAtLanding();
             }
             _dash.Clear();
             _cooldowns.Clear(); // made again, ready, when next asked for
