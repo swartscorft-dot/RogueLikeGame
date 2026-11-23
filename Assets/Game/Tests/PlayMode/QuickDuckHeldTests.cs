@@ -268,7 +268,7 @@ namespace Roguelike.PlayModeTests
             EnemyShooter far1 = Spawn<EnemyShooter>(EnemyKind.Shooter, Stand + _ahead * 9f);
             EnemyShooter far2 = Spawn<EnemyShooter>(EnemyKind.Shooter, Stand + _ahead * 10f + _side * 0.8f);
             EnemyShooter aside = Spawn<EnemyShooter>(EnemyKind.Shooter, Stand + _side * 8f - _ahead * 2f);
-            EnemyCaster caster = Spawn<EnemyCaster>(EnemyKind.Caster, Stand + _ahead * 11f - _side * 0.6f);
+            EnemyCaster caster = Spawn<EnemyCaster>(EnemyKind.Caster, Stand + _ahead * 10f - _side * 0.6f);
             var heldFrom = new float[1];
             var across = new List<EnemyReport>();
             var sideways = new List<EnemyReport>();
@@ -303,6 +303,96 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.ShotsStoppedByDuck, Is.EqualTo(across.Count), "and nothing else was stopped");
             TestContext.WriteLine("HELDDUCK five seconds: across the prop " + across.Count + " (all stopped), from the side " + sideways.Count + ", caster " + orbs.Count
                                   + " (" + string.Join(", ", orbs.Select(o => o.Attack + " " + o.Outcome)) + ")");
+        }
+
+        /// <summary>
+        /// In a built room of a fixed seed (the first that work order 088's <c>UsableRoomsPlayTests</c> finds: a low prop the
+        /// generator placed on a shooter's line for the duck), she goes down behind it as the shooter starts its windup and holds the
+        /// key: the arrow comes, she is still down, and it is stopped; she takes nothing.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator InABuiltRoom_HeldDownBehindAPlacedLowProp_TheArrowIsStopped_WhileTheKeyIsHeld()
+        {
+            _levels = GeneratedLevels.Ensure();
+            _levels.Values = new LevelValues { RoomFights = false }; // one shooter, provoked alone, as in 088's test
+            Assert.That(FindLow(_levels.Values, out ulong seed, out int floor, out int order, out LevelPoint spot, out LevelPoint q), Is.True, "a placed low cover on a shooter's line");
+            GeneratedLevel level = _levels.Build(seed, floor);
+            yield return Frames(2);
+            LevelRoom room = level.Layout.Rooms[order];
+            EnemyShooter shooter = null;
+            if (level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list))
+                shooter = list.OfType<EnemyShooter>().OrderBy(e => Flat(e.transform.position - level.ToWorld(q)).sqrMagnitude).FirstOrDefault();
+            Assert.That(shooter, Is.Not.Null, "the room's shooter");
+            foreach (List<Enemy> enemies in level.EnemiesByRoom.Values)
+                foreach (Enemy e in enemies)
+                    if (e != null && e != shooter) Object.Destroy(e.gameObject);
+            shooter.Values.MoveSpeed = 0f;
+            yield return Frames(2);
+            Assert.That(shooter.GetComponent<NavMeshAgent>().Warp(level.ToWorld(q)), Is.True);
+            _player.Teleport(level.ToWorld(spot));
+            yield return Frames(2);
+            var strikes = new List<EnemyReport>();
+            var at = new List<float>();
+            shooter.Reported += r => { if (r.Kind == EnemyReportKind.Struck) { strikes.Add(r); at.Add(Time.time); } };
+            int health = _health.Current;
+            shooter.Provoke();
+            yield return Until(() => shooter.State == EnemyState.Windup, 8f);
+            Assert.That(shooter.State, Is.EqualTo(EnemyState.Windup), "its windup began (seed " + LevelSeed.ToText(seed) + " floor " + floor + " room " + order + ")");
+            _player.HoldCover(true);
+            Assert.That(_player.IsQuickDucking, Is.True, "down behind the placed low prop");
+            float pressed = Time.time;
+            yield return Until(() => strikes.Count > 0, 6f);
+            Assert.That(strikes.Count, Is.GreaterThan(0), "the arrow came");
+            Assert.That(_player.IsQuickDucking, Is.True, "she is still down, the key held");
+            Assert.That(strikes[0].Outcome, Is.EqualTo(StrikeOutcome.StoppedByCover), "stopped by the prop she is down behind");
+            Assert.That(_health.Current, Is.EqualTo(health), "she took nothing");
+            TestContext.WriteLine("HELDDUCK built room: seed " + LevelSeed.ToText(seed) + " floor " + floor + " room " + order + ", the arrow came "
+                                  + (at[0] - pressed).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " s after she went down");
+            _player.HoldCover(false);
+        }
+
+        /// <summary>The first seed (floors 2 and 3) whose combat room has a low cover the generator added for the duck against a shooter within 10.5 m of her spot (088's UsableRoomsPlayTests.FindLow).</summary>
+        static bool FindLow(LevelValues v, out ulong seed, out int floor, out int order, out LevelPoint spot, out LevelPoint shooter)
+        {
+            for (ulong s = 1; s < 200; s++)
+                foreach (int f in new[] { 2, 3 })
+                {
+                    LevelLayout l = LevelGenerator.Generate(s, f, v);
+                    foreach (LevelRoom r in l.Rooms)
+                    {
+                        if (r.Kind != RoomKind.Combat) continue;
+                        FightFrame frame = FightCover.FrameOf(l, r, v);
+                        if (frame == null || !frame.HasShooters) continue;
+                        foreach (LevelProp p in r.Props.Where(x => x.Fight && FightCover.IsLow(x)))
+                            foreach (LevelPoint q in frame.Shooters)
+                            {
+                                if (!FightCover.LowServes(l, frame, p, q, v)) continue;
+                                double dx = p.Position.X - q.X, dy = p.Position.Y - q.Y, len = Math.Sqrt(dx * dx + dy * dy);
+                                PropFootprint fp = p.Footprint;
+                                double reach = 0;
+                                foreach (LevelPoint c in fp.Corners()) reach = Math.Max(reach, ((c.X - p.Position.X) * dx + (c.Y - p.Position.Y) * dy) / len);
+                                if (p.Shape == PropShape.Circle) reach = p.Radius;
+                                double out1 = reach + v.CoverRules.DuckSpot;
+                                var at = new LevelPoint(p.Position.X + dx / len * out1, p.Position.Y + dy / len * out1);
+                                if (at.DistanceTo(q) > 10.5) continue;
+                                seed = s;
+                                floor = f;
+                                order = r.Order;
+                                spot = at;
+                                shooter = q;
+                                return true;
+                            }
+                    }
+                }
+            seed = 0;
+            floor = order = 0;
+            spot = shooter = default;
+            return false;
+        }
+
+        static IEnumerator Frames(int n)
+        {
+            for (int i = 0; i < n; i++) yield return null;
         }
 
         // ---------------- No press, no duck ----------------
