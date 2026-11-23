@@ -61,6 +61,7 @@ namespace Roguelike
 
         void ForgetRoomFights()
         {
+            ForgetRoomUse(); // work order 097: a fight followed ends with the floor (GeneratedLevelsRoomUse.cs)
             if (_fightsOf != null) _fightsOf.EnemyCalled -= OnCalledIntoAFight;
             _fightsOf = null;
             _fights.Clear();
@@ -102,7 +103,9 @@ namespace Roguelike
                 if (!f.On) continue;
                 int alive = AliveOf(f.Room);
                 bool within = alive > 0 && AnyWithinLeash(f.Room);
-                if (RoomFightRules.Ends(herAlive, alive, here != null && here.Order == f.Room, within)) f.End();
+                if (!RoomFightRules.Ends(herAlive, alive, here != null && here.Order == f.Room, within)) continue;
+                f.End();
+                NoteRoomUseEnded(f, herAlive, alive); // work order 097 (GeneratedLevelsRoomUse.cs)
             }
             TickRoomDoors(); // work order 086: after the fights, the doors that close behind her and open as the room is cleared
         }
@@ -119,6 +122,7 @@ namespace Roguelike
             bool inside = CurrentRoom != null && CurrentRoom.Order == f.Room;
             PlaySessionRecorder.Current?.NoteRoomFight(Floor > 0 ? Floor : _level.Layout.Floor, LevelGeometry.RoomNumber(_level.Layout, room) + 1, room.Order,
                                                        kind, RoomFightRules.Word(f.StartedBy), inside, woke);
+            NoteRoomUseBegan(f, room, Floor > 0 ? Floor : _level.Layout.Floor, kind); // work order 097: the room as she meets it (GeneratedLevelsRoomUse.cs)
         }
 
         /// <summary>The enemies of a room's fight still alive: the room's own, and the swarmers the boss called into it.</summary>

@@ -241,6 +241,8 @@ namespace Roguelike.Rules
         public FrameTimesStats Frames = new FrameTimesStats();
         /// <summary>The room lab's rooms (work order 084, <see cref="LabRoomsSummary"/>): empty for a session without the lab.</summary>
         public List<LabRoomRow> LabRooms = new List<LabRoomRow>();
+        /// <summary>Work order 097: each room's fight with her places, and its measures (SessionSummaryRoomUse.cs); empty for a log from before.</summary>
+        public List<RoomUseRow> RoomUse = new List<RoomUseRow>();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -465,6 +467,7 @@ namespace Roguelike.Rules
             ComputeWarders(events, stats); // work order 079
             stats.Frames = FrameTimesSummary.Compute(events); // work order 074
             stats.LabRooms = LabRoomsSummary.Compute(events); // work order 084
+            stats.RoomUse = ComputeRoomUse(events); // work order 097
             return stats;
         }
 
@@ -491,6 +494,8 @@ namespace Roguelike.Rules
             if (stats.LevelsBuilt > 0)
                 sb.Append("Generated level ").Append(Empty(stats.LevelSeedText)).Append("   rooms entered ").Append(stats.LevelRoomsEntered)
                   .Append(" of ").Append(stats.LevelRooms).Append("   levels built ").Append(stats.LevelsBuilt).AppendLine();
+            string roomUse = OneLine(stats.RoomUse); // work order 097: the three numbers form orders are judged against
+            if (roomUse != null) sb.Append("Room use ").AppendLine(roomUse);
             // The runs (work order 012): a short block each.
             foreach (RunRow run in stats.Runs)
             {
@@ -677,6 +682,7 @@ namespace Roguelike.Rules
             WriteWarders(sb, stats); // work order 079
             LabRoomsSummary.Write(sb, stats.LabRooms); // work order 084: nothing without the lab
             FrameTimesSummary.Write(sb, stats.Frames); // work order 074: its own block, under every line before it
+            WriteRoomUse(sb, stats.RoomUse); // work order 097: its own block, at the end
             return sb.ToString();
         }
 
