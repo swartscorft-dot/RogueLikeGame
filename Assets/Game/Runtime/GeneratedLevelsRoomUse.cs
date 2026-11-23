@@ -21,6 +21,20 @@ namespace Roguelike
         {
             PlaySessionRecorder recorder = PlaySessionRecorder.Current;
             if (recorder == null || !recorder.IsRecording || room == null || _level == null || _player == null) return;
+            try
+            {
+                TellRoomUse(recorder, f, room, floor, kind);
+            }
+            catch (System.Exception e) // a measure must never stop a room's fight: the fight goes on unfollowed
+            {
+                _usedFight = null;
+                _useProps.Clear();
+                Debug.LogWarning("[RoomUse] the room's fight is not followed: " + e.Message);
+            }
+        }
+
+        void TellRoomUse(PlaySessionRecorder recorder, RoomFight f, LevelRoom room, int floor, string kind)
+        {
             LevelLayout layout = _level.Layout;
             LevelDoor door = CurrentRoom == room && _fightDoor != null ? _fightDoor : RoomFightRules.DoorSheCameBy(layout, room, _level.ToLevel(_player.Position));
             RoomFrame frame = RoomUseRules.FrameOf(layout, room, door);

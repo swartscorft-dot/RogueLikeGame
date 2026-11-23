@@ -144,7 +144,7 @@ namespace Roguelike.EditorTools
         /// follow catch their own faults and log them as a Warning, "[TheirName] " and the exception (their <c>Safely</c>, the focus
         /// feel's <c>Tick</c>, the strike drawer, the recorded clips). Such a warning counts as a fault; every other warning is listed.
         /// </summary>
-        static readonly string[] CaughtFaultPrefixes = { "[CombatEffects] ", "[PlaceholderSounds] ", "[TimingFeedback] ", "[FocusFeel] " };
+        static readonly string[] CaughtFaultPrefixes = { "[CombatEffects] ", "[PlaceholderSounds] ", "[TimingFeedback] ", "[FocusFeel] ", "[RoomUse] ", "Play session recorder stopped" };
 
         static bool IsCaughtFault(string message) => message != null && CaughtFaultPrefixes.Any(p => message.StartsWith(p, StringComparison.Ordinal));
 
