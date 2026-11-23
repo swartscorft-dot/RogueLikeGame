@@ -27,6 +27,8 @@ namespace Roguelike
             public RoomFight Fight;
             /// <summary>The doors of the layout that join the room: the way in and the way on.</summary>
             public readonly List<LevelDoor> Doors = new List<LevelDoor>();
+            /// <summary>Its door in (else its first door), from which its line is measured: where a pulled-in enemy may be put.</summary>
+            public LevelDoor Entry;
             /// <summary>Their blocks, one a door in the same order, made the first time they close; empty before.</summary>
             public readonly List<RoomDoor> Blocks = new List<RoomDoor>();
             /// <summary>True while they are shut.</summary>
@@ -39,6 +41,12 @@ namespace Roguelike
             public int Closings, PulledIn;
             /// <summary>True while a block is rising or sinking.</summary>
             public bool Moving;
+            /// <summary>The second review: when a failed pull is tried again (open), and the next look for one outside (shut); game time.</summary>
+            public float NextPullAt = float.NegativeInfinity, NextCheckAt = float.NegativeInfinity;
+            /// <summary>Since when an enemy of the fight has been outside the shut doors and not put back in; minus one when none.</summary>
+            public float OutsideSince = -1f;
+            /// <summary>Pulls that left one outside (the doors stayed open), and times the doors opened for one outside.</summary>
+            public int PullsFailed, OpenedForOneOutside;
         }
 
         readonly Dictionary<int, RoomDoors> _doors = new Dictionary<int, RoomDoors>();
@@ -70,6 +78,7 @@ namespace Roguelike
                 var d = new RoomDoors { Room = room, Fight = f };
                 RoomDoorRules.DoorsOf(layout, room, d.Doors);
                 if (d.Doors.Count == 0) continue;
+                d.Entry = LevelGeometry.EntryDoor(layout, room) ?? d.Doors[0];
                 _doors[room.Order] = d;
                 _doorList.Add(d);
             }
@@ -105,6 +114,7 @@ namespace Roguelike
                 if (d.Shut)
                 {
                     DoorOpened? why = RoomDoorRules.OpensNow(d.Fight.On, InPlayOf(d.Room.Order), herAlive, hereIsIt);
+                    if (!why.HasValue) why = OneOutside(d, v, now); // the second review: never shut in with one of them outside
                     if (why.HasValue) OpenDoors(d, why.Value, now);
                 }
                 else
@@ -119,10 +129,22 @@ namespace Roguelike
                     }
                     else d.WaitingSince = -1f;
                     DoorStep step = RoomDoorRules.WhenOpen(on, fightOn, herAlive, inside, notInside, d.WaitingSince >= 0f ? now - d.WaitingSince : 0f, v.DoorPullAfter);
+                    // The second review of work order 086: a pull is tried (again only every DoorPullRetry), then counted again,
+                    // and the doors close only if every one of them is inside now; never on a pull that failed.
                     if (step == DoorStep.PullIn)
                     {
-                        PullIn(d, v);
-                        step = DoorStep.Close;
+                        if (RoomDoorRules.PullDue(now, d.NextPullAt))
+                        {
+                            PullIn(d, v);
+                            step = RoomDoorRules.AfterPull(EnemiesNotInside(d, v.DoorClear));
+                            _notInside.Clear();
+                            if (step != DoorStep.Close)
+                            {
+                                d.PullsFailed++;
+                                d.NextPullAt = now + Mathf.Max(0f, v.DoorPullRetry);
+                            }
+                        }
+                        else step = DoorStep.Wait;
                     }
                     if (step == DoorStep.Close) CloseDoors(d, v, now);
                 }
@@ -163,29 +185,84 @@ namespace Roguelike
         }
 
         /// <summary>
-        /// The enemies of the fight not inside are put inside at once (work order 086): each 1 m past the doors' clearance, in from
-        /// the door nearest it, a metre apart along it, on the NavMesh. One that cannot be put there (no NavMesh) stays: the doors
-        /// close all the same, it is on the other side of no door she can reach.
+        /// The enemies of the fight not inside (in <see cref="_notInside"/>) are put inside at once (work order 086), each at the
+        /// first of these places that is on the NavMesh and inside the room for its doors (<see cref="TryPutInside"/>). One that
+        /// cannot be put anywhere stays where it is; the caller counts again, and the doors close only if none is left outside.
         /// </summary>
         void PullIn(RoomDoors d, RoomFightValues v)
         {
-            LevelLayout layout = _level.Layout;
             for (int i = 0; i < _notInside.Count; i++)
-            {
-                Enemy e = _notInside[i];
-                LevelDoor door = RoomDoorRules.NearestOf(layout, d.Doors, _level.ToLevel(e.transform.position));
-                if (door == null) continue;
-                double along = (i % 2 == 0 ? 1 : -1) * ((i + 1) / 2);
-                LevelPoint p = RoomDoorRules.PullInPlace(layout, d.Room, door, v.DoorClear + 1.0, along);
-                if (layout.RoomAt(p.X, p.Y) != d.Room) p = RoomDoorRules.PullInPlace(layout, d.Room, door, v.DoorClear + 1.0, 0d);
-                if (!NavMesh.SamplePosition(_level.ToWorld(p), out NavMeshHit hit, 1f, NavMesh.AllAreas)) continue;
-                if (e.TryGetComponent(out NavMeshAgent agent) && agent.enabled && agent.Warp(hit.position))
+                if (TryPutInside(d, v, _notInside[i], i))
                 {
                     d.PulledIn++;
-                    Debug.Log("Room doors: " + e.LogWord + " " + e.name + " pulled in to " + d.Room.Letter + d.Room.Order + " before its doors closed");
+                    Debug.Log("Room doors: " + _notInside[i].LogWord + " " + _notInside[i].name + " put inside " + d.Room.Letter + d.Room.Order);
                 }
-            }
             _notInside.Clear();
+        }
+
+        /// <summary>
+        /// Puts one enemy of the fight inside its room, on the NavMesh and clear of the doors (the second review of work order 086).
+        /// The places, the first that works: 1 m past the doors' clearance in from the door nearest it (a metre along it for the
+        /// second, the third...); the same straight in from the door's middle; the fight's line, 5 m in from the door in; the room's
+        /// middle; and the room's middle sampled wider (4 m). It fails, true to it, when its agent is off or none of them is on the
+        /// NavMesh inside: then it stays where it is. Allocates nothing.
+        /// </summary>
+        bool TryPutInside(RoomDoors d, RoomFightValues v, Enemy e, int index)
+        {
+            if (e == null || !e.TryGetComponent(out NavMeshAgent agent) || !agent.enabled) return false;
+            LevelLayout layout = _level.Layout;
+            LevelDoor door = RoomDoorRules.NearestOf(layout, d.Doors, _level.ToLevel(e.transform.position));
+            LevelDoor entry = d.Entry;
+            double along = (index % 2 == 0 ? 1 : -1) * ((index + 1) / 2);
+            for (int k = 0; k < 5; k++)
+            {
+                LevelPoint p;
+                float sample = 1f;
+                if (k == 0 && door != null) p = RoomDoorRules.PullInPlace(layout, d.Room, door, v.DoorClear + 1.0, along);
+                else if (k == 1 && door != null) p = RoomDoorRules.PullInPlace(layout, d.Room, door, v.DoorClear + 1.0, 0d);
+                else if (k == 2 && entry != null) p = RoomDoorRules.PullInPlace(layout, d.Room, entry, RoomFightRules.PointDepth(layout, d.Room, entry, v) + 0.5, 0d);
+                else if (k == 3) p = d.Room.Middle(layout.CellSize);
+                else if (k == 4)
+                {
+                    p = d.Room.Middle(layout.CellSize);
+                    sample = 4f;
+                }
+                else continue;
+                if (!NavMesh.SamplePosition(_level.ToWorld(p), out NavMeshHit hit, sample, NavMesh.AllAreas)) continue;
+                if (!RoomDoorRules.IsInside(layout, d.Room, d.Doors, _level.ToLevel(hit.position), v.DoorClear)) continue;
+                if (agent.Warp(hit.position)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Shut doors, every <see cref="RoomFightValues.DoorCheckEvery"/> (the second review of work order 086): a living enemy of
+        /// the fight off the room's floor (thrown out past a door by anything, an agent that was off) is put back inside; one that
+        /// cannot be, for <see cref="RoomFightValues.DoorOutsideMost"/>, opens the doors rather than hold her in with no way to it.
+        /// An enemy pressed against the door from inside is on the room's floor and inside. Allocates nothing.
+        /// </summary>
+        DoorOpened? OneOutside(RoomDoors d, RoomFightValues v, float now)
+        {
+            if (now < d.NextCheckAt) return null;
+            d.NextCheckAt = now + Mathf.Max(0f, v.DoorCheckEvery);
+            if (EnemiesNotInside(d, 0f) == 0)
+            {
+                d.OutsideSince = -1f;
+                return null;
+            }
+            PullIn(d, v);
+            int left = EnemiesNotInside(d, 0f);
+            _notInside.Clear();
+            if (left == 0)
+            {
+                d.OutsideSince = -1f;
+                return null;
+            }
+            if (d.OutsideSince < 0f) d.OutsideSince = now;
+            if (!RoomDoorRules.OpensForOneOutside(left, now - d.OutsideSince, v.DoorOutsideMost)) return null;
+            d.OutsideSince = -1f;
+            d.OpenedForOneOutside++;
+            return DoorOpened.EnemyOutside;
         }
 
         /// <summary>A room's doors shut (work order 086): their blocks made the first time, shut at once, rising into view; heard and told.</summary>

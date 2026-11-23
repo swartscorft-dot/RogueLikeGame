@@ -85,6 +85,18 @@ namespace Roguelike.Rules
         public float DoorRiseSeconds = 0.35f;
         /// <summary>s the block takes to sink back into the floor when the doors open (the room cleared): slower than it rose, so the way on is seen opening.</summary>
         public float DoorSinkSeconds = 0.8f;
+        /// <summary>
+        /// s between two tries to pull in an enemy of the fight that could not be put inside (its agent off, no NavMesh where it was
+        /// to go): the doors stay OPEN meanwhile, and close only once every one is inside (the second review of work order 086).
+        /// </summary>
+        public float DoorPullRetry = 0.5f;
+        /// <summary>s between two looks, while the doors are shut, for an enemy of the fight that is not inside (put out by anything): it is put back in.</summary>
+        public float DoorCheckEvery = 0.25f;
+        /// <summary>
+        /// s an enemy of the fight may be found outside shut doors, and not be put back in, before the doors open rather than hold
+        /// her shut in with no way to it.
+        /// </summary>
+        public float DoorOutsideMost = 1f;
         /// <summary>The placeholder the doors closing plays: the heavy low impact (an enemy's strike landing, the duck's stop). Opening is heard by the room's own "way opens" (or the floor's cleared) that plays as it is cleared.</summary>
         public PlaceholderSound DoorCloseSound = PlaceholderSound.Strike;
         /// <summary>Times that sound's own volume.</summary>

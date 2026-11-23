@@ -25,6 +25,8 @@ namespace Roguelike.Rules
         HerDeath,
         /// <summary>She was found off the room's floor (a teleport, a new floor, the benchmark's staging): the doors never stand with her outside.</summary>
         SheLeft,
+        /// <summary>An enemy of the fight was outside them and could not be put back in for <see cref="RoomFightValues.DoorOutsideMost"/> (the second review of work order 086).</summary>
+        EnemyOutside,
     }
 
     /// <summary>One door's block, in the level's metres: its middle on the ground, along which line, and its size.</summary>
@@ -184,8 +186,24 @@ namespace Roguelike.Rules
             return best;
         }
 
-        /// <summary>The recorder's word for why the doors opened: "cleared", "her death", "she left".</summary>
+        /// <summary>
+        /// The second review of work order 086: after a pull, the doors close only when no living enemy of the fight is left outside
+        /// (<paramref name="stillNotInside"/>, counted again); else they stay open, and the pull is tried again
+        /// <see cref="RoomFightValues.DoorPullRetry"/> later. Never close on a pull that failed.
+        /// </summary>
+        public static DoorStep AfterPull(int stillNotInside) => stillNotInside <= 0 ? DoorStep.Close : DoorStep.Wait;
+
+        /// <summary>Is a pull due: its first, or its retry time come?</summary>
+        public static bool PullDue(float now, float nextPullAt) => now >= nextPullAt - 1e-6f;
+
+        /// <summary>
+        /// Shut doors, and an enemy of the fight outside them that could not be put back in: they open once it has been so for
+        /// <paramref name="most"/> (<paramref name="outsideFor"/> seconds now), rather than hold her shut in with no way to it.
+        /// </summary>
+        public static bool OpensForOneOutside(int stillNotInside, float outsideFor, float most) => stillNotInside > 0 && outsideFor >= most - 1e-6f;
+
+        /// <summary>The recorder's word for why the doors opened: "cleared", "her death", "she left", "an enemy outside".</summary>
         public static string Word(DoorOpened why) =>
-            why == DoorOpened.Cleared ? "cleared" : why == DoorOpened.HerDeath ? "her death" : "she left";
+            why == DoorOpened.Cleared ? "cleared" : why == DoorOpened.HerDeath ? "her death" : why == DoorOpened.SheLeft ? "she left" : "an enemy outside";
     }
 }

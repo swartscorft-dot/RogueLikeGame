@@ -108,6 +108,14 @@ namespace Roguelike.PlayModeTests
             while (Time.time < until && Time.realtimeSinceStartup < deadline) yield return null;
         }
 
+        /// <summary>Until the condition holds, or so many game seconds have gone by (and a real-time guard).</summary>
+        static IEnumerator UntilTime(Func<bool> condition, float seconds)
+        {
+            float until = Time.time + seconds;
+            float deadline = Time.realtimeSinceStartup + seconds + 20f;
+            while (!condition() && Time.time < until && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
         static IEnumerator Until(Func<bool> condition, int most = 600)
         {
             for (int i = 0; i < most && !condition(); i++) yield return null;
@@ -573,6 +581,106 @@ namespace Roguelike.PlayModeTests
                 _levels.BackToPracticeRoom();
                 yield return Frames(3);
             }
+        }
+
+        // ---------------- Never shut in with one of them outside (the second review) ----------------
+
+        /// <summary>
+        /// The fight's last enemy, dazed in the passage with its NavMesh agent off: it cannot be put anywhere. She stands inside, the
+        /// fight on: the doors stay open past the wait and the retries, and she has a way to it on the NavMesh. Its agent on again:
+        /// the next try puts it inside, and they shut.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheLastEnemy_LeftOutside_WithAPullThatFails_LeavesHerAWayToIt_AndTheyShutOnceItIsIn()
+        {
+            GeneratedLevel level = StartRun();
+            yield return Frames(2);
+            (LevelRoom room, LevelRoom passage, List<Enemy> own) = FirstRoom(level);
+            LevelDoor door = LevelGeometry.EntryDoor(level.Layout, room);
+            GeneratedLevels.RoomDoors d = _levels.DoorsOf(room);
+            Enemy last = own.FirstOrDefault(e => e != null && !e.IsDead && !(e is EnemySwarmer) && !(e is EnemyBomber));
+            Assume.That(last, Is.Not.Null, "an enemy that is not a swarmer or a bomber (they push themselves each frame)");
+            last.Body.DazeFor(30f); // it stands where it is put
+            NavMeshAgent agent = last.GetComponent<NavMeshAgent>();
+            Assert.That(agent.Warp(InFrom(level, room, door, -3.0)), Is.True);
+            Kill(own.Where(e => e != last)); // the fight on (a hurt wakes it), the last left in the passage
+            yield return At(InFrom(level, room, door, 2.2), room);
+            yield return Frames(3);
+            agent.enabled = false; // put anywhere, it cannot be: the pull fails, true to it
+            Assert.That(_levels.FightOf(room).On, Is.True);
+            Time.timeScale = 2f;
+            float until = Time.time + _levels.Values.Fights.DoorPullAfter + 4f * _levels.Values.Fights.DoorPullRetry + 0.5f;
+            while (Time.time < until)
+            {
+                yield return null;
+                Assert.That(d.Shut, Is.False, "never shut with the last of them outside");
+            }
+            Time.timeScale = 1f;
+            Assert.That(d.PullsFailed, Is.GreaterThanOrEqualTo(2), "the pull was tried, and tried again");
+            Assert.That(NavMeshWay(_player.Position, last.transform.position), Is.True, "she has a way to it");
+            agent.enabled = true;
+            agent.Warp(last.transform.position);
+            yield return UntilTime(() => d.Shut, 3f);
+            Assert.That(d.Shut, Is.True, "its agent back: put inside at the next try, and shut");
+            Assert.That(level.RoomAt(last.transform.position), Is.SameAs(room), "it is inside");
+            Assert.That(RoomDoorRules.IsInside(level.Layout, room, d.Doors, level.ToLevel(last.transform.position), _levels.Values.Fights.DoorClear), Is.True);
+        }
+
+        /// <summary>
+        /// Shut, and one of them moved outside (as a knockback or a leap past a door could): it is put back inside, and they stay
+        /// shut. Moved out again with its agent off: they open within the time allowed, and she has a way to it; its agent on again,
+        /// it is pulled in and they shut once more.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator OneMovedOutsideAShutRoom_IsPutBackIn_OrTheDoorsOpen()
+        {
+            GeneratedLevel level = StartRun();
+            yield return Frames(2);
+            (LevelRoom room, LevelRoom passage, List<Enemy> own) = FirstRoom(level);
+            LevelDoor door = LevelGeometry.EntryDoor(level.Layout, room);
+            GeneratedLevels.RoomDoors d = null;
+            yield return ShutIn(level, room, x => d = x);
+            Enemy one = own.FirstOrDefault(e => e != null && !e.IsDead && !(e is EnemySwarmer) && !(e is EnemyBomber));
+            Assume.That(one, Is.Not.Null, "an enemy that is not a swarmer or a bomber");
+            NavMeshAgent agent = one.GetComponent<NavMeshAgent>();
+            Assert.That(agent.Warp(InFrom(level, room, door, -3.0)), Is.True, "moved out into the passage");
+            Assert.That(level.RoomAt(one.transform.position), Is.SameAs(passage));
+            yield return UntilTime(() => level.RoomAt(one.transform.position) == room, 1.5f);
+            Assert.That(level.RoomAt(one.transform.position), Is.SameAs(room), "put back inside");
+            Assert.That(d.Shut, Is.True, "and they stayed shut");
+
+            // Out again, its agent off: it cannot be put back; they open.
+            one.Body.DazeFor(30f);
+            yield return Frames(2);
+            Assert.That(agent.Warp(InFrom(level, room, door, -3.0)), Is.True);
+            agent.enabled = false;
+            float outAt = Time.time;
+            yield return UntilTime(() => !d.Shut, 4f);
+            Assert.That(d.Shut, Is.False, "open rather than hold her in with one of them outside");
+            Assert.That(Time.time - outAt, Is.LessThan(_levels.Values.Fights.DoorOutsideMost + _levels.Values.Fights.DoorCheckEvery + 0.5f), "within the time allowed");
+            Assert.That(d.OpenedForOneOutside, Is.EqualTo(1));
+            yield return Frames(3);
+            Assert.That(NavMeshWay(_player.Position, one.transform.position), Is.True, "she has a way to it");
+            agent.enabled = true;
+            agent.Warp(one.transform.position);
+            yield return UntilTime(() => d.Shut, 5f);
+            Assert.That(d.Shut, Is.True, "back in by the open doors' pull, and shut again");
+            Assert.That(level.RoomAt(one.transform.position), Is.SameAs(room));
+        }
+
+        [UnityTest]
+        public IEnumerator TheShutDoorsLookForOneOutside_AllocatingNothing()
+        {
+            GeneratedLevel level = StartRun();
+            yield return Frames(2);
+            LevelRoom room = FirstRoom(level).room;
+            GeneratedLevels.RoomDoors d = null;
+            yield return ShutIn(level, room, x => d = x);
+            yield return GameTime(_levels.Values.Fights.DoorRiseSeconds + 0.1f);
+            _levels.Values.Fights.DoorCheckEvery = 0f; // a look at every step
+            for (int i = 0; i < 10; i++) _levels.TickRoomDoorsForTests();
+            Assert.That(() => { for (int i = 0; i < 300; i++) _levels.TickRoomDoorsForTests(); }, AllocExt.AllocatingGCMemory(Is.Not), "shut, looking for one outside: nothing");
+            Assert.That(d.Shut, Is.True);
         }
 
         // ---------------- The room lab and the greybox ----------------

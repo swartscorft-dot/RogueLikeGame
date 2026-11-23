@@ -140,8 +140,26 @@ namespace Roguelike.Rules.Tests
             Assert.That(RoomDoorRules.OpensNow(true, 0, true, true), Is.EqualTo(DoorOpened.Cleared), "the last one dead, the same frame");
             Assert.That(RoomDoorRules.OpensNow(false, 3, false, true), Is.EqualTo(DoorOpened.HerDeath), "she died");
             Assert.That(RoomDoorRules.OpensNow(true, 3, true, false), Is.EqualTo(DoorOpened.SheLeft), "she is found off its floor: never shut out");
-            Assert.That(RoomDoorRules.Word(DoorOpened.Cleared) + "|" + RoomDoorRules.Word(DoorOpened.HerDeath) + "|" + RoomDoorRules.Word(DoorOpened.SheLeft),
-                        Is.EqualTo("cleared|her death|she left"));
+            Assert.That(RoomDoorRules.Word(DoorOpened.Cleared) + "|" + RoomDoorRules.Word(DoorOpened.HerDeath) + "|" + RoomDoorRules.Word(DoorOpened.SheLeft)
+                        + "|" + RoomDoorRules.Word(DoorOpened.EnemyOutside), Is.EqualTo("cleared|her death|she left|an enemy outside"));
+        }
+
+        [Test]
+        public void APull_ClosesOnlyWithNoneLeftOutside_IsTriedAgainAfterItsRetry_AndOneOutsideShutDoors_OpensThemAfterItsTime()
+        {
+            var v = new RoomFightValues();
+            Assert.That((v.DoorPullRetry, v.DoorCheckEvery, v.DoorOutsideMost), Is.EqualTo((0.5f, 0.25f, 1f)), "the second review's first guesses");
+            Assert.That(RoomDoorRules.AfterPull(0), Is.EqualTo(DoorStep.Close), "every one inside after the pull: they close");
+            Assert.That(RoomDoorRules.AfterPull(1), Is.EqualTo(DoorStep.Wait), "one left outside: they stay open, never close on a failed pull");
+            Assert.That(RoomDoorRules.AfterPull(3), Is.EqualTo(DoorStep.Wait));
+            Assert.That(RoomDoorRules.PullDue(10f, float.NegativeInfinity), Is.True, "the first pull");
+            Assert.That(RoomDoorRules.PullDue(10.2f, 10f + v.DoorPullRetry), Is.False, "not again before its retry");
+            Assert.That(RoomDoorRules.PullDue(10.5f, 10f + v.DoorPullRetry), Is.True, "again at its retry");
+            Assert.That(RoomDoorRules.OpensForOneOutside(0, 9f, v.DoorOutsideMost), Is.False, "none outside: they stay shut");
+            Assert.That(RoomDoorRules.OpensForOneOutside(1, 0.9f, v.DoorOutsideMost), Is.False, "one outside, not yet its time");
+            Assert.That(RoomDoorRules.OpensForOneOutside(1, 1f, v.DoorOutsideMost), Is.True, "one outside a second, not put back: open");
+            // The open doors' rule is as it was: the pull is the caller's to count again.
+            Assert.That(RoomDoorRules.WhenOpen(true, true, true, true, 1, v.DoorPullAfter, v.DoorPullAfter), Is.EqualTo(DoorStep.PullIn));
         }
 
         /// <summary>One frame of the floor for one room: the line, the fight, then the doors, as GeneratedLevels steps them.</summary>
