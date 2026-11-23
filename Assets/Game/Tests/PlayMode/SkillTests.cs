@@ -341,7 +341,7 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(NearA);
             yield return null;
             yield return null; // let the camera settle on the new position
-            Vector2 onA = ScreenOf(_a.transform.position);
+            Vector2 onA = ScreenAtShotHeight(_a.transform.position); // work order 094: on the dummy as she sees it
             int key = 1 << Fan;
 
             _idle = new InputFrame { CursorScreen = onA, SkillsHeld = key };
@@ -353,7 +353,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(indicator.IsVisible, Is.True, "the aim outline is shown");
             Assert.That(_a.HitsTaken, Is.GreaterThan(0));
 
-            _idle = new InputFrame { CursorScreen = ScreenOf(_b.transform.position), SkillsHeld = key };
+            _idle = new InputFrame { CursorScreen = ScreenAtShotHeight(_b.transform.position), SkillsHeld = key };
             yield return null;
             yield return null;
             yield return null;
@@ -412,6 +412,13 @@ namespace Roguelike.PlayModeTests
 
         static Vector2 ScreenOf(Vector3 world) =>
             Camera.main.WorldToScreenPoint(new Vector3(world.x, 0f, world.z));
+
+        /// <summary>
+        /// Work order 094: the cursor over a point as she sees what she shoots at, at the height the shot is drawn and aimed at:
+        /// the aim meets the cursor's ray there, so the shot goes to the point itself. On the point's ground spot, the aim would
+        /// pass that spot's screen point at the gun's height, nearer the camera.
+        /// </summary>
+        Vector2 ScreenAtShotHeight(Vector3 world) => Camera.main.WorldToScreenPoint(new Vector3(world.x, _player.ShotHeight, world.z));
 
         static IEnumerator Until(Func<bool> condition, float timeoutSeconds)
         {

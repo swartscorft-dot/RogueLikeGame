@@ -37,6 +37,7 @@ namespace Roguelike.Rules
         public float BasicShotRecovery = 0.125f;  // s
         public float BasicShotRange = 10f;        // m, how far a basic shot toward the cursor reaches (decision 0002)
         public float BasicShotHalfWidth = 0.5f;   // m, half the width of its line: it hits the first target the line touches
+        public bool AimAtShotHeight = true;       // work order 094 (Kristian 2026-11-23, the Laser Sight off the mouse pointing east or west): the cursor's ray meets the level at the gun's height, so the drawn line and the shot pass through the cursor on the screen; what is placed on the floor keeps the ground. Off: the ground for all, as before
 
         // Cover
         public bool CoverStopsShots = true;       // walls and tall props stop her shots and skills, and the shooter's line (Kristian 2026-11-19); off, her shots pass through as before

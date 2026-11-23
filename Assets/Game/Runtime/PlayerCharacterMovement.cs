@@ -286,10 +286,11 @@ namespace Roguelike
 
         /// <summary>
         /// Where a basic shot aimed at the cursor point ends: the full range out, along the line toward the point,
-        /// or along where she faces when the point is on her.
+        /// or along where she faces when the point is on her. Work order 094: the cursor as it lies now (<see cref="CursorDrift"/>).
         /// </summary>
         Vector3 AimEnd(Vector3 cursor)
         {
+            cursor += CursorDrift;
             Vector3 facing = Flat(transform.forward);
             GroundPoint dir = LineShot.Direction(GroundPosition, new GroundPoint(cursor.x, cursor.z), new GroundPoint(facing.x, facing.z));
             return transform.position + new Vector3(dir.X, 0f, dir.Z) * BasicShotRange;

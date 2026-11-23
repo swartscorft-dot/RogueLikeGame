@@ -336,8 +336,8 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(NearA);
             yield return null;
             yield return null;
-            _idle = new InputFrame { CursorScreen = ScreenOf(_a.transform.position) };
-            var click = new InputFrame { CursorScreen = ScreenOf(_a.transform.position), ShootPressed = true };
+            _idle = new InputFrame { CursorScreen = ScreenAtShotHeight(_a.transform.position) }; // work order 094: on the dummy as she sees it
+            var click = new InputFrame { CursorScreen = _idle.CursorScreen, ShootPressed = true };
 
             // Three left clicks on the dummy, one every 0.6 shot times: faster than she can shoot.
             float start = Time.time;
@@ -371,7 +371,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(Vector3.Dot(moved.normalized, Vector3.left), Is.GreaterThan(0.98f), "dashes toward the cursor");
 
             yield return null; // let the camera settle on the new position
-            Vector2 onA = ScreenOf(_a.transform.position);
+            Vector2 onA = ScreenAtShotHeight(_a.transform.position); // work order 094: on the dummy as she sees it (the dash's cursor is on the ground)
             yield return Feed(new InputFrame { CursorScreen = onA, SkillsPressed = 1 });
             Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill));
             yield return Until(() => _player.Action == ActionKind.None, 5f);
@@ -577,6 +577,13 @@ namespace Roguelike.PlayModeTests
 
         static Vector2 ScreenOf(Vector3 world) =>
             Camera.main.WorldToScreenPoint(new Vector3(world.x, 0f, world.z));
+
+        /// <summary>
+        /// Work order 094: the cursor over a point as she sees what she shoots at, at the height the shot is drawn and aimed at:
+        /// the aim meets the cursor's ray there, so the shot goes to the point itself. On the point's ground spot, the aim would
+        /// pass that spot's screen point at the gun's height, nearer the camera.
+        /// </summary>
+        Vector2 ScreenAtShotHeight(Vector3 world) => Camera.main.WorldToScreenPoint(new Vector3(world.x, _player.ShotHeight, world.z));
 
         /// <summary>Holds the move direction toward a point, as a held key would, until she is within a distance of it; then lets go.</summary>
         IEnumerator SteerTo(Vector3 point, float within, float timeoutSeconds)

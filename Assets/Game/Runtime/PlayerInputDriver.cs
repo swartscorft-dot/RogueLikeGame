@@ -191,6 +191,10 @@ namespace Roguelike
             if (_camera == null) _camera = Camera.main;
             if (_camera == null) return;
             if (!TryGroundPoint(input.CursorScreen, out Vector3 cursor)) return;
+            Vector3 aim = ShotAim(input.CursorScreen, cursor, out float aimHeight); // work order 094: the shot's, a line's and a cone's; the cursor's ground point for what lands on the floor
+            Vector3 lag = CameraLag(); // work order 094: both as the cursor lies in the frame that will be drawn
+            cursor += lag;
+            aim += lag;
 
             if (_health != null && !_health.IsAlive)
             {
@@ -209,7 +213,7 @@ namespace Roguelike
             _moveBefore = input.Move;
             _player.HoldCover(input.CoverHeld);
             _player.HoldSprint(input.SprintHeld); // work order 092
-            _player.AimAt(cursor);
+            _player.AimAt(aim, cursor, aimHeight);
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
 
@@ -220,12 +224,12 @@ namespace Roguelike
                 int bit = 1 << key;
                 int slot = _player.SkillOnKey(key);
                 if (slot < 0) continue;
-                if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, cursor);
+                if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, _player.PlacedOnTheGround(slot) ? cursor : aim);
                 if ((_skillsHeldBefore & bit) != 0 && (held & bit) == 0) _player.ReleaseSkill(slot);
             }
             _skillsHeldBefore = held;
 
-            if (input.ShootPressed) _player.Shoot(cursor);
+            if (input.ShootPressed) _player.Shoot(aim);
         }
 
         /// <summary>While the input is held, and on the frame it is let go: every key not held into the hold, and the shoot button, wait to be seen up.</summary>
@@ -307,6 +311,53 @@ namespace Roguelike
             }
             point = default;
             return false;
+        }
+
+        /// <summary>
+        /// Work order 094 (Kristian 2026-11-23: pointing east or west the Laser Sight's line was off the mouse, up the screen;
+        /// north or south it was on it): the point the basic shot, its line and every skill that is a line or a cone from her
+        /// aim at. The shot is drawn and flies at the gun's height (<see cref="PlayerCharacter.ShotHeight"/>), and the camera
+        /// looks down at a slant, so the cursor's ray is met with the level plane at that height, not with the ground: the
+        /// drawn line then passes through the cursor on the screen. Laid on the ground under that point, as every aim point is.
+        /// With <see cref="Rules.FeelValues.AimAtShotHeight"/> off, or a ray that never meets it, the cursor's ground point as before
+        /// (and a <paramref name="height"/> of 0).
+        /// </summary>
+        Vector3 ShotAim(Vector2 screen, Vector3 ground, out float height)
+        {
+            height = 0f;
+            if (!_player.Feel.AimAtShotHeight) return ground;
+            float at = _player.ShotHeight;
+            Ray ray = _camera.ScreenPointToRay(screen);
+            if (!new Plane(Vector3.up, new Vector3(0f, at, 0f)).Raycast(ray, out float distance)) return ground;
+            height = at;
+            Vector3 point = ray.GetPoint(distance);
+            return new Vector3(point.x, 0f, point.z);
+        }
+
+        CameraRig _rig;       // work order 094: the follow camera's rig, looked up once per camera
+        Camera _rigOfCamera;
+
+        /// <summary>
+        /// Work order 094, her aim while she runs (measured: the Laser Sight's line 0.9 degrees behind the cursor at a run, at 60
+        /// frames a second): she has already moved this frame when the driver reads (the NavMesh agent moves her before the
+        /// Updates), but the camera follows her only in its LateUpdate, so the cursor's ray is through the camera as the frame
+        /// before left it. The ground under the cursor in the frame that will be drawn lies that much further on: from where the
+        /// camera looks now to where its rig's target is. Zero for a camera without a rig, and with
+        /// <see cref="Rules.FeelValues.AimAtShotHeight"/> off.
+        /// </summary>
+        Vector3 CameraLag()
+        {
+            if (!_player.Feel.AimAtShotHeight) return Vector3.zero;
+            if (_rigOfCamera != _camera)
+            {
+                _rigOfCamera = _camera;
+                _rig = _camera.GetComponent<CameraRig>();
+            }
+            Transform cam = _camera.transform;
+            if (_rig == null || _rig.Target == null || cam.forward.y > -1e-3f) return Vector3.zero;
+            Vector3 looksAt = cam.position + cam.forward * (cam.position.y / -cam.forward.y); // where its view meets the ground (CameraRig)
+            Vector3 target = _rig.Target.position;
+            return new Vector3(target.x - looksAt.x, 0f, target.z - looksAt.z);
         }
     }
 }
