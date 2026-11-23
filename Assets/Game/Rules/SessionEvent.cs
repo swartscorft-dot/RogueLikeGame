@@ -69,6 +69,8 @@ namespace Roguelike.Rules
         // Melee you read (work order 035): two things that happen to her.
         public const string PlayerStunned = "player_stunned"; // she was stunned: name the attack, seconds how long
         public const string PlayerPulled = "player_pulled";   // she was pulled in: name the attack, seconds how long
+        // One guard drags at a time (work order 093).
+        public const string DragHeldBack = "drag_held_back";  // a guard's Drag held back by another's, once per guard per hold: name "Drag", enemy and enemy_id the one held back, held_by the guard holding, seconds the rule's
 
         public const string Move = "move";                    // a sample, a few times a second, of whether she is moving
 

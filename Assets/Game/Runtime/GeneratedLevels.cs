@@ -459,6 +459,7 @@ namespace Roguelike
 
         void OnDied()
         {
+            MeleeEnemy.Drags.Clear(); // work order 093: her death ends the hold of the guards' Drags
             if (InRun) _diedPending = true; // handled at the frame's end or the next Update (Settle), out of the enemy's strike that killed her
         }
 

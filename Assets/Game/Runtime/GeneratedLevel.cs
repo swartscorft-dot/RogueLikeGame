@@ -654,6 +654,7 @@ namespace Roguelike
         void PlaceEnemies(EnemyBrute template)
         {
             Enemy.Turns.Floor = Layout.Floor; // work order 030: the shared limit of the turns is by floor
+            MeleeEnemy.Drags.Clear(); // work order 093: a new floor (and a new run's first) starts with no guard's Drag holding the others
             float floorScale = Values.DamageScaleOf(Layout.Floor); // work order 030, lever B
             foreach (LevelRoom room in Layout.Rooms)
             {
