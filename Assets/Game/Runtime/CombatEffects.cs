@@ -240,6 +240,16 @@ namespace Roguelike
         void Hear(Enemy enemy)
         {
             if (enemy == null || _enemies.ContainsKey(enemy)) return;
+            StartHearing(enemy);
+        }
+
+        /// <summary>
+        /// Work order 090: the handler made apart from <see cref="Hear"/>, which asks every enemy every frame. A lambda that captures
+        /// a parameter has its closure made as the method begins, before any return: in Hear it was one for every enemy of the floor
+        /// every frame (sixty in a floor of 2026-11-23), the most of this file's garbage a frame. Now only for one not heard yet.
+        /// </summary>
+        void StartHearing(Enemy enemy)
+        {
             Action<EnemyReport> handler = r => OnEnemy(enemy, r);
             enemy.Reported += handler;
             _enemies[enemy] = handler;
@@ -1098,7 +1108,9 @@ namespace Roguelike
                 _chestsSeen.Clear();
                 if (levels != null) foreach (int order in levels.ChestsOpened) _chestsSeen.Add(order);
             }
-            else if (levels != null)
+            // Work order 090: looked through only when a chest was opened since (the chests seen are the floor's opened ones, and the
+            // floor's only grow): the look over the interface's collection made an enumerator every frame.
+            else if (levels != null && levels.ChestsOpened.Count != _chestsSeen.Count)
             {
                 foreach (int order in levels.ChestsOpened)
                 {
@@ -1164,15 +1176,14 @@ namespace Roguelike
 
         void LateUpdate()
         {
-            Safely(Find);
-            Safely(Hurt);
-            Safely(Appearances);
-            Safely(RunCharges);
-            Safely(RunDue);
-            Safely(LookAtTheRun);
-            Safely(TidyKegs);
+            // Work order 090: the frame's steps, each still on its own (a fault in one is logged once and the others go on), as
+            // delegates made once: a method passed as an Action is a new delegate each time, seven a frame.
+            if (_frameSteps == null) _frameSteps = new Action[] { Find, Hurt, Appearances, RunCharges, RunDue, LookAtTheRun, TidyKegs };
+            for (int i = 0; i < _frameSteps.Length; i++) Safely(_frameSteps[i]);
             _hits.Clear();
         }
+
+        Action[] _frameSteps;
 
         /// <summary>4. The enemies that came this frame and not at a call: drawn appearing while a fight is on.</summary>
         void Appearances()

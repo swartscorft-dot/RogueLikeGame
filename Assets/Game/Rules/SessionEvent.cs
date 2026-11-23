@@ -114,7 +114,9 @@ namespace Roguelike.Rules
         public const string SprintJump = "sprint_jump";       // she jumped a low prop while sprinting: name the prop, metres from the take-off to the landing
         public const string SprintRefused = "sprint_refused"; // a click or a skill key while sprinting did nothing: name the skill or the basic shot
         // The door closes behind her (work order 086): a room's doors closed or opened.
-        public const string RoomDoor = "room_door";           // name "closed" or "opened"; floor, room (as the run box counts), order; opened: seconds since they closed, why (cleared, her death, she left)
+        public const string RoomDoor = "room_door";           // name "closed" or "opened"; floor, room (as the run box counts), order; opened: seconds since they closed, why (cleared, her death, she left, an enemy outside); work order 090: name "pull", the enemies of the fight not inside put in: shut ("true" while the doors stood shut, an enemy found outside them), in how many were put inside, left how many could not be
+        // Work order 090: a screen that held the game still in a run (the pause menu, a choice, ...), told as it went: name what it was, run (from 1, as the session's runs are counted), floor, seconds of real time it stood
+        public const string Screen = "screen";
         // The fourth review of 2026-11-21 (work order 055): the basic shot's cooldown use is measured against her real interval.
         public const string ShotInterval = "shot_interval";   // her basic shot's interval now (seconds, in "seconds"): when she is found, at a run's start, and when it changes
     }

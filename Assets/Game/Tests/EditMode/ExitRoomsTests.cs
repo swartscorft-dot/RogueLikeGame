@@ -335,7 +335,8 @@ namespace Roguelike.Rules.Tests
                         Assert.That(ExitRooms.WayDownLine(lab, room, out _, out _), Is.True, where);
                         warders += room.EnemyGroups.Count(g => g.Kind == EnemyKind.Warder);
                         bombers += room.EnemyGroups.Count(g => g.Kind == EnemyKind.Bomber);
-                        if (!mix.Warders) Assert.That(room.EnemyGroups.Any(g => g.Kind == EnemyKind.Warder), Is.False, where);
+                        // Work order 090 (changed deliberately): the preset is the floor's, so no warder before the warder's floor.
+                        if (mix.Floor < v.WarderFloors.FromFloor) Assert.That(room.EnemyGroups.Any(g => g.Kind == EnemyKind.Warder), Is.False, where);
                     }
             Assert.That(warders, Is.GreaterThan(0), "the warders' presets hold warders");
             Assert.That(bombers, Is.GreaterThan(0));

@@ -146,6 +146,7 @@ namespace Roguelike
                 try
                 {
                     EndFramePart(FrameTimeEvents.PartPracticeRoom, 0, 0); // work order 074: the last part's frames
+                    EndScreen(); // work order 090: a screen still up, with its seconds
                     Add(new SessionEvent(Now(), SessionEventTypes.SessionEnd));
                     Flush();
                     _writer.Dispose();
