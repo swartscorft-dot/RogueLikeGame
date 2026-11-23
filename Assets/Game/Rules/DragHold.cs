@@ -40,10 +40,10 @@ namespace Roguelike.Rules
         public float EndsAt => _holder != 0 ? _endsAt : float.NegativeInfinity;
 
         /// <summary>The earliest another guard may begin a Drag; minus infinity when any may now (none held, or the rule off).</summary>
-        public float FreeAt => Gap <= 0f || _holder == 0 ? float.NegativeInfinity : _endsAt + Gap;
+        public float FreeAt => Gap <= 0f || _holder == 0 ? float.NegativeInfinity : (float)(_endsAt + Gap); // as a float: Unity's runtime adds floats wider than a float is, and a time that IS the sum must compare equal to it
 
         /// <summary>May enemy <paramref name="id"/> begin a Drag now? Always with the rule off, and always for the holder itself.</summary>
-        public bool MayBegin(int id, float now) => Gap <= 0f || _holder == 0 || id == _holder || (!Running(now) && now >= _endsAt + Gap);
+        public bool MayBegin(int id, float now) => Gap <= 0f || _holder == 0 || id == _holder || (!Running(now) && now >= FreeAt);
 
         /// <summary>
         /// May enemy <paramref name="id"/> begin this attack now, as far as the hold goes? Every attack but a Drag always; a
