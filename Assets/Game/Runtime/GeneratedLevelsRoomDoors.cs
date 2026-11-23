@@ -214,26 +214,39 @@ namespace Roguelike
             LevelDoor door = RoomDoorRules.NearestOf(layout, d.Doors, _level.ToLevel(e.transform.position));
             LevelDoor entry = d.Entry;
             double along = (index % 2 == 0 ? 1 : -1) * ((index + 1) / 2);
-            for (int k = 0; k < 5; k++)
+            // The third review: every place also clear of her and of every other living enemy (their places, taken once here).
+            LevelPoint her = _level.ToLevel(_player.Position);
+            _otherPlaces.Clear();
+            IReadOnlyList<Enemy> all = _level.Enemies;
+            for (int i = 0; i < all.Count; i++)
+                if (all[i] != null && all[i] != e && !all[i].IsDead && all[i].isActiveAndEnabled) _otherPlaces.Add(_level.ToLevel(all[i].transform.position));
+            LevelPoint middle = d.Room.Middle(layout.CellSize);
+            for (int k = 0; k < 5 + RoomDoorRules.RingPoints; k++)
             {
                 LevelPoint p;
                 float sample = 1f;
                 if (k == 0 && door != null) p = RoomDoorRules.PullInPlace(layout, d.Room, door, v.DoorClear + 1.0, along);
                 else if (k == 1 && door != null) p = RoomDoorRules.PullInPlace(layout, d.Room, door, v.DoorClear + 1.0, 0d);
                 else if (k == 2 && entry != null) p = RoomDoorRules.PullInPlace(layout, d.Room, entry, RoomFightRules.PointDepth(layout, d.Room, entry, v) + 0.5, 0d);
-                else if (k == 3) p = d.Room.Middle(layout.CellSize);
+                else if (k == 3) p = middle;
                 else if (k == 4)
                 {
-                    p = d.Room.Middle(layout.CellSize);
+                    p = middle;
                     sample = 4f;
                 }
+                else if (k >= 5) p = RoomDoorRules.RingPoint(middle, k - 5); // the ring round the middle, after the five
                 else continue;
                 if (!NavMesh.SamplePosition(_level.ToWorld(p), out NavMeshHit hit, sample, NavMesh.AllAreas)) continue;
-                if (!RoomDoorRules.IsInside(layout, d.Room, d.Doors, _level.ToLevel(hit.position), v.DoorClear)) continue;
+                LevelPoint at = _level.ToLevel(hit.position);
+                if (!RoomDoorRules.IsInside(layout, d.Room, d.Doors, at, v.DoorClear)) continue;
+                if (!RoomDoorRules.PlaceClear(at, her, _otherPlaces, v.DoorPutClearOfHer, v.DoorPutClearOfOthers)) continue;
                 if (agent.Warp(hit.position)) return true;
             }
             return false;
         }
+
+        /// <summary>The other living enemies' places, reused by <see cref="TryPutInside"/> (nothing allocated once it has grown).</summary>
+        readonly List<LevelPoint> _otherPlaces = new List<LevelPoint>();
 
         /// <summary>
         /// Shut doors, every <see cref="RoomFightValues.DoorCheckEvery"/> (the second review of work order 086): a living enemy of

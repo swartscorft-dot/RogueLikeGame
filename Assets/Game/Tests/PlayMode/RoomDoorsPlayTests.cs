@@ -674,6 +674,43 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.RoomAt(one.transform.position), Is.SameAs(room));
         }
 
+        /// <summary>
+        /// The third review: she stands on the first place a pull tries (2.5 m straight in from the door's middle); two of the fight,
+        /// dazed side by side in the passage, are pulled in at once: each lands at least <see cref="RoomFightValues.DoorPutClearOfHer"/>
+        /// from her, and the two at least <see cref="RoomFightValues.DoorPutClearOfOthers"/> apart.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator EnemiesPulledIn_NeverLandOnHer_NorOnEachOther()
+        {
+            GeneratedLevel level = StartRun();
+            yield return Frames(2);
+            (LevelRoom room, LevelRoom passage, List<Enemy> own) = FirstRoom(level);
+            LevelDoor door = LevelGeometry.EntryDoor(level.Layout, room);
+            GeneratedLevels.RoomDoors d = _levels.DoorsOf(room);
+            RoomFightValues v = _levels.Values.Fights;
+            List<Enemy> two = own.Where(e => e != null && !e.IsDead && !(e is EnemySwarmer) && !(e is EnemyBomber)).Take(2).ToList();
+            Assume.That(two.Count, Is.EqualTo(2), "two enemies that are not swarmers or bombers");
+            Vector3 along = Vector3.Cross(Vector3.up, Inward(level, room, door));
+            for (int i = 0; i < 2; i++)
+            {
+                two[i].Body.DazeFor(30f); // they stand where they are put
+                Assert.That(two[i].GetComponent<NavMeshAgent>().Warp(InFrom(level, room, door, -2.5) + along * (i == 0 ? -0.6f : 0.6f)), Is.True);
+            }
+            Kill(own.Where(e => !two.Contains(e))); // the fight on (a hurt wakes it); none but the two
+            Vector3 first = InFrom(level, room, door, v.DoorClear + 1.0);
+            yield return At(first, room);
+            int pulled = d.PulledIn;
+            yield return UntilTime(() => d.PulledIn >= pulled + 2, v.DoorPullAfter + 3f);
+            Assert.That(d.PulledIn, Is.EqualTo(pulled + 2), "both pulled in");
+            float toHer0 = Flat(two[0].transform.position, _player.Position), toHer1 = Flat(two[1].transform.position, _player.Position);
+            TestContext.WriteLine("ROOMDOORS pulled in with her on the first place: " + toHer0.ToString("0.00", Inv) + " m and " + toHer1.ToString("0.00", Inv)
+                                  + " m from her, " + Flat(two[0].transform.position, two[1].transform.position).ToString("0.00", Inv) + " m apart");
+            Assert.That(Mathf.Min(toHer0, toHer1), Is.GreaterThanOrEqualTo(v.DoorPutClearOfHer - 0.05f), "never on her");
+            Assert.That(Flat(two[0].transform.position, two[1].transform.position), Is.GreaterThanOrEqualTo(v.DoorPutClearOfOthers - 0.05f), "never on each other");
+            yield return UntilTime(() => d.Shut, 2f);
+            Assert.That(d.Shut, Is.True, "both inside: shut");
+        }
+
         [UnityTest]
         public IEnumerator TheShutDoorsLookForOneOutside_AllocatingNothing()
         {

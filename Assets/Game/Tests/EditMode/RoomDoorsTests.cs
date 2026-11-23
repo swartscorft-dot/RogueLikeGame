@@ -145,6 +145,26 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
+        public void APlace_IsClear_OnlyThreeMetresFromHer_AndAMetreFromEveryOther_AndTheRingGoesRoundTheMiddle()
+        {
+            var v = new RoomFightValues();
+            Assert.That((v.DoorPutClearOfHer, v.DoorPutClearOfOthers), Is.EqualTo((3f, 1f)), "the third review's first guesses");
+            var her = new LevelPoint(10, 10);
+            var others = new List<LevelPoint> { new LevelPoint(20, 20), new LevelPoint(14, 10) };
+            Assert.That(RoomDoorRules.PlaceClear(new LevelPoint(10, 10), her, others, v.DoorPutClearOfHer, v.DoorPutClearOfOthers), Is.False, "on her");
+            Assert.That(RoomDoorRules.PlaceClear(new LevelPoint(12.9, 10), her, null, v.DoorPutClearOfHer, v.DoorPutClearOfOthers), Is.False, "2.9 m from her");
+            Assert.That(RoomDoorRules.PlaceClear(new LevelPoint(10, 13), her, others, v.DoorPutClearOfHer, v.DoorPutClearOfOthers), Is.True, "3 m from her, far from the others");
+            Assert.That(RoomDoorRules.PlaceClear(new LevelPoint(14.5, 10), her, others, v.DoorPutClearOfHer, v.DoorPutClearOfOthers), Is.False, "0.5 m from another");
+            Assert.That(RoomDoorRules.PlaceClear(new LevelPoint(15, 10), her, others, v.DoorPutClearOfHer, v.DoorPutClearOfOthers), Is.True, "a metre from it");
+            var middle = new LevelPoint(50, 50);
+            var ring = Enumerable.Range(0, RoomDoorRules.RingPoints).Select(k => RoomDoorRules.RingPoint(middle, k)).ToList();
+            Assert.That(ring.Select(p => Math.Round(p.DistanceTo(middle), 6)).Distinct(), Is.EqualTo(new[] { 2.0, 4.0, 6.0 }), "three rings, the nearest first");
+            for (int i = 0; i < ring.Count; i++)
+                for (int j = i + 1; j < ring.Count; j++)
+                    Assert.That(ring[i].DistanceTo(ring[j]), Is.GreaterThan(1.5), "the ring's points stand apart: " + i + ", " + j);
+        }
+
+        [Test]
         public void APull_ClosesOnlyWithNoneLeftOutside_IsTriedAgainAfterItsRetry_AndOneOutsideShutDoors_OpensThemAfterItsTime()
         {
             var v = new RoomFightValues();

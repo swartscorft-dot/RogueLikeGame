@@ -97,6 +97,14 @@ namespace Roguelike.Rules
         /// her shut in with no way to it.
         /// </summary>
         public float DoorOutsideMost = 1f;
+        /// <summary>
+        /// m on the ground from her that a place an enemy is put inside at must be (the third review of work order 086): never on
+        /// her. 3 m: the room's waking gives her the same, the nearest enemy at least 3 m from her at the line (8 m from the door
+        /// less the line's 5), which a swarmer covers in about 0.6 s; nearer, a melee enemy would strike as it lands.
+        /// </summary>
+        public float DoorPutClearOfHer = 3f;
+        /// <summary>m from every other living enemy that such a place must be: two never stand on one point (a body is about 0.5 m round).</summary>
+        public float DoorPutClearOfOthers = 1f;
         /// <summary>The placeholder the doors closing plays: the heavy low impact (an enemy's strike landing, the duck's stop). Opening is heard by the room's own "way opens" (or the floor's cleared) that plays as it is cleared.</summary>
         public PlaceholderSound DoorCloseSound = PlaceholderSound.Strike;
         /// <summary>Times that sound's own volume.</summary>

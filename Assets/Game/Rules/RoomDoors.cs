@@ -202,6 +202,34 @@ namespace Roguelike.Rules
         /// </summary>
         public static bool OpensForOneOutside(int stillNotInside, float outsideFor, float most) => stillNotInside > 0 && outsideFor >= most - 1e-6f;
 
+        /// <summary>
+        /// The third review of work order 086: is a place clear to put an enemy at, at least <paramref name="clearOfHer"/> from her and
+        /// at least <paramref name="clearOfOthers"/> from each of <paramref name="others"/> (the other living enemies), on the ground?
+        /// Allocates nothing.
+        /// </summary>
+        public static bool PlaceClear(LevelPoint p, LevelPoint her, IReadOnlyList<LevelPoint> others, double clearOfHer, double clearOfOthers)
+        {
+            if (p.DistanceTo(her) < clearOfHer - Slack) return false;
+            if (others != null)
+                for (int i = 0; i < others.Count; i++)
+                    if (p.DistanceTo(others[i]) < clearOfOthers - Slack) return false;
+            return true;
+        }
+
+        /// <summary>How many points <see cref="RingPoint"/> gives: three rings round the room's middle, eight points each.</summary>
+        public const int RingPoints = 24;
+
+        /// <summary>
+        /// The <paramref name="k"/>-th point of the ring round <paramref name="middle"/> tried after the five places (the third review):
+        /// rings of 2, 4 and 6 m, eight points each, the nearest ring first, from north round to the east.
+        /// </summary>
+        public static LevelPoint RingPoint(LevelPoint middle, int k)
+        {
+            double radius = 2.0 * (1 + k / 8);
+            double a = (k % 8) * Math.PI / 4.0;
+            return new LevelPoint(middle.X + Math.Sin(a) * radius, middle.Y + Math.Cos(a) * radius);
+        }
+
         /// <summary>The recorder's word for why the doors opened: "cleared", "her death", "she left", "an enemy outside".</summary>
         public static string Word(DoorOpened why) =>
             why == DoorOpened.Cleared ? "cleared" : why == DoorOpened.HerDeath ? "her death" : why == DoorOpened.SheLeft ? "she left" : "an enemy outside";
