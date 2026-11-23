@@ -220,16 +220,27 @@ namespace Roguelike.PlayModeTests
             public int Floor;
             public LevelRoom Room;
             public Vector3 At;
-            public float Light, Nearest;
-            public int Points;
+            public float Light = float.PositiveInfinity, Nearest;
+            public int Points, Unlit;
         }
 
-        /// <summary>The darkest walkable point of the floor by <see cref="LampLight"/>: every square metre of every room's open floor (a point at its middle) that is on the NavMesh within 0.3 m and in the room.</summary>
+        /// <summary>Lamp light below this is none (a lamp's light ends at its range, so much of a floor has exactly none).</summary>
+        const float NoLampLight = 0.005f;
+
+        /// <summary>Is a point with this light and nearest lamp darker than the darkest so far? Less light; with no lamp light at both, farther from every lamp.</summary>
+        static bool Darker(float light, float nearest, Dark than) =>
+            light < NoLampLight && than.Light < NoLampLight ? nearest > than.Nearest : light < than.Light;
+
+        /// <summary>
+        /// The darkest walkable point of the floor by <see cref="LampLight"/>: every square metre of every room's open floor (a
+        /// point at its middle) that is on the NavMesh within 0.3 m and in the room; the least lamp light, and among points with
+        /// none (<see cref="NoLampLight"/>) the one farthest from every lamp. Also each room's, and how many points have none.
+        /// </summary>
         static Dark DarkestOf(GeneratedLevel level, LampPlan plan, LamplitValues at, out Dictionary<int, Dark> perRoom)
         {
             LevelLayout layout = level.Layout;
             var shown = new bool[layout.Rooms.Count];
-            Dark best = null;
+            var best = new Dark { Floor = layout.Floor };
             perRoom = new Dictionary<int, Dark>();
             foreach (LevelRoom room in layout.Rooms)
                 foreach (LevelPoint p in LampPlan.FloorPoints(layout, room))
@@ -238,12 +249,24 @@ namespace Roguelike.PlayModeTests
                     if (!NavMesh.SamplePosition(w, out NavMeshHit hit, 0.3f, NavMesh.AllAreas)) continue;
                     if (new Vector2(hit.position.x - w.x, hit.position.z - w.z).magnitude > 0.3f || level.RoomAt(hit.position) != room) continue;
                     LampLight(level, plan, at, room, hit.position, shown, out float light, out float nearest);
-                    if (!perRoom.TryGetValue(room.Order, out Dark r)) perRoom[room.Order] = r = new Dark { Floor = layout.Floor, Room = room, Light = float.PositiveInfinity };
+                    if (!perRoom.TryGetValue(room.Order, out Dark r)) perRoom[room.Order] = r = new Dark { Floor = layout.Floor, Room = room };
                     r.Points++;
-                    if (light < r.Light) { r.Light = light; r.Nearest = nearest; r.At = hit.position; }
-                    if (best == null || light < best.Light) best = new Dark { Floor = layout.Floor, Room = room, At = hit.position, Light = light, Nearest = nearest };
+                    best.Points++;
+                    if (light < NoLampLight) { r.Unlit++; best.Unlit++; }
+                    if (Darker(light, nearest, r)) { r.Light = light; r.Nearest = nearest; r.At = hit.position; }
+                    if (Darker(light, nearest, best)) { best.Light = light; best.Nearest = nearest; best.At = hit.position; best.Room = room; }
                 }
             return best;
+        }
+
+        /// <summary>
+        /// Round two (work order 091: "a second only for a picture that failed to show what it should"): with
+        /// ROGUELIKE_CAPTURE_091_ONLY set to picture numbers ("02,07"), only those are taken; the others are not taken again.
+        /// </summary>
+        static bool Take(string number)
+        {
+            string only = Environment.GetEnvironmentVariable("ROGUELIKE_CAPTURE_091_ONLY");
+            return string.IsNullOrEmpty(only) || only.Split(',').Any(s => s.Trim() == number);
         }
 
         // ---------------- The run ----------------
@@ -275,13 +298,24 @@ namespace Roguelike.PlayModeTests
             return (0, null);
         }
 
+        /// <summary>
+        /// The elite room, the first in the run's order whose elite draws its telegraph on the floor (a shooter or a caster:
+        /// the brute and the guard are read on their bodies since work order 035, and draw nothing there); else the first with
+        /// any enemy that draws one (a shooter, a caster, a bomber, a warder); else the first (round one took floor 1's, whose
+        /// brute and swarmers drew none in 45 s).
+        /// </summary>
         static (int floor, LevelRoom room) EliteRoom(Wanted w)
         {
-            for (int f = 1; f <= 5; f++)
-            {
-                LevelRoom r = w.Floors[f].EliteRoom;
-                if (r != null) return (f, r);
-            }
+            bool Draws(EnemyKind k) => k == EnemyKind.Shooter || k == EnemyKind.Caster || k == EnemyKind.Bomber || k == EnemyKind.Warder;
+            for (int pass = 0; pass < 3; pass++)
+                for (int f = 1; f <= 5; f++)
+                {
+                    LevelRoom r = w.Floors[f].EliteRoom;
+                    if (r == null) continue;
+                    if (pass == 0 && !r.EnemyGroups.Any(g => g != null && g.Elite && (g.Kind == EnemyKind.Shooter || g.Kind == EnemyKind.Caster))) continue;
+                    if (pass == 1 && !r.EnemyGroups.Any(g => g != null && Draws(g.Kind))) continue;
+                    return (f, r);
+                }
             return (0, null);
         }
 
@@ -305,7 +339,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator LamplitC_InTheOtherRoomKinds_ThePassage_TheShutDoor_TheThemes_AndTheTwoDarkestPlaces()
         {
             Camera game = Camera.main;
-            _log.Add($"{DateTime.Now:yyyy-MM-dd HH:mm} batch {Application.isBatchMode} device {SystemInfo.graphicsDeviceType}; {W}x{H}; work order 091's round; camera distance {GameSettings.CameraDistance(28f):0} m (the default); light step {LightSteps.Names[GameSettings.LightStep]}");
+            _log.Add($"{DateTime.Now:yyyy-MM-dd HH:mm} batch {Application.isBatchMode} device {SystemInfo.graphicsDeviceType}; {W}x{H}; work order 091's round{(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ROGUELIKE_CAPTURE_091_ONLY")) ? "" : " two, only " + Environment.GetEnvironmentVariable("ROGUELIKE_CAPTURE_091_ONLY"))}; camera distance {GameSettings.CameraDistance(28f):0} m (the default); light step {LightSteps.Names[GameSettings.LightStep]}");
             Wanted w = FindRun(new LevelValues());
             Assert.That(w, Is.Not.Null, "a run seed whose floors hold every room wanted");
             _log.Add("run seed " + LevelSeed.ToText(w.Run) + string.Format(Inv, " (0x{0:X}), the first from 0x{1:X} whose five floors hold a vault with a chest, an elite room and a combat room of each theme wanted", w.Run, FirstRunSeed));
@@ -314,14 +348,18 @@ namespace Roguelike.PlayModeTests
             RoomFightValues fights = new LevelValues().Fights;
 
             // 5. The entrance at the start of floor 1.
-            yield return Floor(w.Run, 1, l => level = l);
-            yield return new WaitForSecondsRealtime(1.5f);
-            Save(game, "05-entrance", "the entrance room at the start of the floor, where the floor puts her, 1.5 s after it was built: " + Where(level, level.Layout.Rooms[0], w.Run));
+            if (Take("05"))
+            {
+                yield return Floor(w.Run, 1, l => level = l);
+                yield return new WaitForSecondsRealtime(1.5f);
+                Save(game, "05-entrance", "the entrance room at the start of the floor, where the floor puts her, 1.5 s after it was built: " + Where(level, level.Layout.Rooms[0], w.Run));
+            }
 
             // 1. The treasure room (a vault): standing inside, the chest in view.
-            (int vf, LevelRoom vaultPlan) = VaultRoom(w);
-            yield return Floor(w.Run, vf, l => level = l);
+            if (Take("01"))
             {
+                (int vf, LevelRoom vaultPlan) = VaultRoom(w);
+                yield return Floor(w.Run, vf, l => level = l);
                 LevelRoom vault = level.Layout.Rooms[vaultPlan.Order];
                 GeneratedLevel.PlacedProp chest = level.Props.FirstOrDefault(p => p.Room == vault && p.Prop.Model == PropModel.Chest);
                 Vector3 c = chest != null ? chest.Object.transform.position : level.Middle(vault);
@@ -337,9 +375,10 @@ namespace Roguelike.PlayModeTests
             }
 
             // 2. The elite room mid-fight: the elite and at least one telegraph on the floor in view.
-            (int ef, LevelRoom elitePlan) = EliteRoom(w);
-            yield return Floor(w.Run, ef, l => level = l);
+            if (Take("02"))
             {
+                (int ef, LevelRoom elitePlan) = EliteRoom(w);
+                yield return Floor(w.Run, ef, l => level = l);
                 LevelRoom room = level.Layout.Rooms[elitePlan.Order];
                 LevelDoor door = LevelGeometry.EntryDoor(level.Layout, room);
                 Enemy elite = level.Elite;
@@ -351,8 +390,9 @@ namespace Roguelike.PlayModeTests
             }
 
             // 3. Floor 5's throne room: the boss in view, mid-fight, one of its telegraphs on the floor.
-            yield return Floor(w.Run, 5, l => level = l);
+            if (Take("03"))
             {
+                yield return Floor(w.Run, 5, l => level = l);
                 LevelRoom room = level.Layout.ExitRoom;
                 LevelDoor door = LevelGeometry.EntryDoor(level.Layout, room);
                 Enemy boss = level.Boss;
@@ -364,8 +404,9 @@ namespace Roguelike.PlayModeTests
             }
 
             // 4a. A passage: her in its middle, both doors' ends in view if the camera holds them (the first of floor 1's passages that shows both; else the shortest).
-            yield return Floor(w.Run, 1, l => level = l);
+            if (Take("04"))
             {
+                yield return Floor(w.Run, 1, l => level = l);
                 LevelLayout layout = level.Layout;
                 LevelRoom chosen = null;
                 Vector3 chosenSpot = Vector3.zero;
@@ -399,6 +440,7 @@ namespace Roguelike.PlayModeTests
 
             // 4b. A room's door shut behind her (work order 086), the block risen: the first ordinary combat room of floor 1 (else 2)
             // whose door in is on its south wall (the camera looks north, so the door behind her faces it), she 2.6 m in from it.
+            if (Take("04"))
             {
                 LevelRoom room = null;
                 int df = 0;
@@ -436,7 +478,7 @@ namespace Roguelike.PlayModeTests
 
             // 6. One room of each theme that is not the nave's (the nave of 085 is a shrine: a shrine of another template stands here
             // too), at the fight's line (0.6 m short of it, as 085's still), the room asleep.
-            foreach (RoomTheme theme in ThemesWanted)
+            foreach (RoomTheme theme in Take("06") ? ThemesWanted : new RoomTheme[0])
             {
                 (int tf, LevelRoom plan) = ThemeRoom(w, theme);
                 yield return Floor(w.Run, tf, l => level = l);
@@ -450,18 +492,19 @@ namespace Roguelike.PlayModeTests
 
             // 7. The two darkest walkable places of the run's five floors, by the measure (LampLight): the darkest of each floor, the two darkest of those.
             var darkest = new List<Dark>();
-            for (int f = 1; f <= 5; f++)
+            for (int f = 1; f <= 5 && Take("07"); f++)
             {
                 yield return Floor(w.Run, f, l => level = l);
                 LamplitView view = _levels.Lamplit;
                 Assert.That(view != null && view.Plan != null, "lamplit on, its plan made");
                 Dark d = DarkestOf(level, view.Plan, view.On, out Dictionary<int, Dark> perRoom);
                 darkest.Add(d);
-                _log.Add(string.Format(Inv, "the measure, floor {0}: darkest walkable point in {1}: lamps' light {2:0.000}, nearest lamp {3:0.0} m; each room's darkest: {4}", f, RoomName(level.Layout, d.Room), d.Light, d.Nearest,
-                                       string.Join("; ", perRoom.Values.OrderBy(r => r.Room.Order).Select(r => string.Format(Inv, "{0}{1} {2:0.000} ({3:0.0} m, {4} points)", r.Room.Letter, r.Room.Order, r.Light, r.Nearest, r.Points)))));
+                _log.Add(string.Format(Inv, "the measure, floor {0}: {1} walkable points, {2:0} % of them with no lamp light (under {3}); the darkest in {4}: lamps' light {5:0.000}, nearest lamp {6:0.0} m; each room's darkest (light, nearest lamp, share with none): {7}",
+                                       f, d.Points, 100.0 * d.Unlit / Math.Max(1, d.Points), NoLampLight, RoomName(level.Layout, d.Room), d.Light, d.Nearest,
+                                       string.Join("; ", perRoom.Values.OrderBy(r => r.Room.Order).Select(r => string.Format(Inv, "{0}{1} {2:0.000} {3:0.0} m {4:0} %", r.Room.Letter, r.Room.Order, r.Light, r.Nearest, 100.0 * r.Unlit / Math.Max(1, r.Points))))));
             }
             int n = 0;
-            foreach (Dark d in darkest.OrderBy(x => x.Light).Take(2))
+            foreach (Dark d in darkest.OrderBy(x => x.Light < NoLampLight ? 0f : x.Light).ThenByDescending(x => x.Nearest).Take(2))
             {
                 n++;
                 yield return Floor(w.Run, d.Floor, l => level = l);
@@ -543,6 +586,12 @@ namespace Roguelike.PlayModeTests
                         what = m.LogWord + " in view and a " + t.LogWord + "'s telegraph on the floor in view (none of its own in " + anyAfter.ToString("0", Inv) + " s)";
                         break;
                     }
+                    // Round two: one read on its body (work order 035) draws nothing on the floor; its wind-up is its telegraph.
+                    if (Time.realtimeSinceStartup > started + anyAfter + 10f && m.State == EnemyState.Windup)
+                    {
+                        what = m.LogWord + " in view winding up (read on its body: no line on the floor) and no telegraph on the floor in view in " + (anyAfter + 10f).ToString("0", Inv) + " s";
+                        break;
+                    }
                 }
             }
             bool arrow = ThingsThatFly.Current != null && ThingsThatFly.Current.Live > 0;
@@ -579,10 +628,11 @@ namespace Roguelike.PlayModeTests
             Assert.That(view != null && view.Plan != null, "lamplit on, its plan made");
             var shown = new bool[l.Rooms.Count];
             LampLight(level, view.Plan, view.On, nave, spot, shown, out float light, out float nearest);
-            Dark d = DarkestOf(level, view.Plan, view.On, out _);
+            DarkestOf(level, view.Plan, view.On, out Dictionary<int, Dark> perRoom);
+            Dark d = perRoom[nave.Order];
             string line = string.Format(Inv, "the measure, the nave of 085 (room lab, ordinary, floor 1, seed KCT7B24U) at {0}: at 085's fight line (0.6 m short of it, where she stood for its stills): lamps' light {1:0.000}, nearest lamp {2:0.0} m; " +
-                                        "the lab's darkest walkable point ({3}{4}): {5:0.000}, nearest lamp {6:0.0} m; the base at C: ambient {7} and key {8} of the scene's own, her own light {9} (range {10} m)",
-                                        view.On.Name, light, nearest, d.Room.Letter, d.Room.Order, d.Light, d.Nearest, view.On.AmbientLevel, view.On.KeyLevel, view.On.HerLightIntensity, view.On.HerLightRange);
+                                        "the nave's darkest walkable point: {3:0.000}, nearest lamp {4:0.0} m; {5:0} % of the nave's {6} walkable points with no lamp light (under {7}); the base at C: ambient {8} and key {9} of the scene's own, her own light {10} (range {11} m)",
+                                        view.On.Name, light, nearest, d.Light, d.Nearest, 100.0 * d.Unlit / Math.Max(1, d.Points), d.Points, NoLampLight, view.On.AmbientLevel, view.On.KeyLevel, view.On.HerLightIntensity, view.On.HerLightRange);
             _log.Add(line);
             TestContext.WriteLine(line);
             Debug.Log(line);
