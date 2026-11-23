@@ -63,6 +63,8 @@ namespace Roguelike.EditorTools
         public const float LeastMetresSteered = 3f;
         /// <summary>Game seconds the clock must have run from Play's start to the check's end (the steps take about 20).</summary>
         public const float LeastGameSeconds = 10f;
+        /// <summary>Game seconds a jump that began may take before it counts as one that never ends (the follow-up of work order 096).</summary>
+        const float JumpMostSeconds = 2f;
         /// <summary>Metres within which a low prop counts as near her, to walk to and duck at.</summary>
         const float NearProp = 20f;
         /// <summary>Real seconds Play mode may take to start before the check gives up.</summary>
@@ -82,6 +84,7 @@ namespace Roguelike.EditorTools
         const string KAsked = "Roguelike.PlayStartCheck.AskedAt";     // real time (ticks, UTC) Play was asked for
         const string KSessions = "Roguelike.PlayStartCheck.Sessions"; // the play session files there were before
         const string KBefore = "Roguelike.PlayStartCheck.Before";     // the logs of the Editor's own start, before Play was asked for (not counted)
+        const string KWarnings = "Roguelike.PlayStartCheck.Warnings"; // the warnings of Play that are not a caught fault (listed, not counted)
         /// <summary>Real seconds the Editor is left to settle after the scene is opened, before Play is asked for: the batch Editor's own start-up work (its search index) runs in delayed calls in its first seconds and once threw while Play started (work order 096's first run); he presses Play in an Editor long started.</summary>
         const double SettleSeconds = 8.0;
 
@@ -89,6 +92,7 @@ namespace Roguelike.EditorTools
         static readonly object s_lock = new object();
         static readonly List<string> s_logs = new List<string>();
         static readonly List<string> s_before = new List<string>();
+        static readonly List<string> s_warnings = new List<string>();
         static volatile bool s_counting;
         static readonly Stopwatch s_clock = Stopwatch.StartNew();
         static IEnumerator s_steps;
@@ -103,10 +107,13 @@ namespace Roguelike.EditorTools
             SessionRecordingRule.BatchModeAsAnEditor = Phase == 1 || Phase == 2;
             s_counting = Phase != 4;
             string kept = SessionState.GetString(KLogs, "");
+            string keptWarnings = SessionState.GetString(KWarnings, "");
             lock (s_lock)
             {
                 s_logs.Clear();
                 if (kept.Length > 0) s_logs.AddRange(kept.Split(new[] { "\u001e" }, StringSplitOptions.None));
+                s_warnings.Clear();
+                if (keptWarnings.Length > 0) s_warnings.AddRange(keptWarnings.Split(new[] { "\u001e" }, StringSplitOptions.None));
             }
             Listen();
         }
@@ -125,19 +132,46 @@ namespace Roguelike.EditorTools
 
         static void KeepLogs()
         {
-            lock (s_lock) SessionState.SetString(KLogs, string.Join("\u001e", s_logs));
+            lock (s_lock)
+            {
+                SessionState.SetString(KLogs, string.Join("\u001e", s_logs));
+                SessionState.SetString(KWarnings, string.Join("\u001e", s_warnings));
+            }
         }
+
+        /// <summary>
+        /// The words a caught fault is logged with (the follow-up of work order 096): the parts that must never break the fight they
+        /// follow catch their own faults and log them as a Warning, "[TheirName] " and the exception (their <c>Safely</c>, the focus
+        /// feel's <c>Tick</c>, the strike drawer, the recorded clips). Such a warning counts as a fault; every other warning is listed.
+        /// </summary>
+        static readonly string[] CaughtFaultPrefixes = { "[CombatEffects] ", "[PlaceholderSounds] ", "[TimingFeedback] ", "[FocusFeel] " };
+
+        static bool IsCaughtFault(string message) => message != null && CaughtFaultPrefixes.Any(p => message.StartsWith(p, StringComparison.Ordinal));
 
         static void OnLog(string message, string stack, LogType type)
         {
-            if (type != LogType.Exception && type != LogType.Error && type != LogType.Assert) return;
-            string line = string.Format(Inv, "[{0} at {1:0.000} s real] {2}\n{3}", type, s_clock.Elapsed.TotalSeconds, message, (stack ?? "").TrimEnd());
+            bool caught = type == LogType.Warning && IsCaughtFault(message);
+            if (type == LogType.Warning && !caught)
+            {
+                if (!s_counting) return;
+                string warning = string.Format(Inv, "[Warning at {0:0.000} s real] {1}", s_clock.Elapsed.TotalSeconds, message);
+                lock (s_lock) s_warnings.Add(warning);
+                return;
+            }
+            if (type != LogType.Exception && type != LogType.Error && type != LogType.Assert && !caught) return;
+            string line = string.Format(Inv, "[{0} at {1:0.000} s real] {2}\n{3}", caught ? "Warning of a caught fault" : type.ToString(), s_clock.Elapsed.TotalSeconds,
+                                        message, (stack ?? "").TrimEnd());
             lock (s_lock) (s_counting ? s_logs : s_before).Add(line);
         }
 
         static string[] Logs()
         {
             lock (s_lock) return s_logs.ToArray();
+        }
+
+        static string[] Warnings()
+        {
+            lock (s_lock) return s_warnings.ToArray();
         }
 
         static double RealSecondsSinceAsked() =>
@@ -159,10 +193,12 @@ namespace Roguelike.EditorTools
             SessionState.SetString(KFaults, "");
             SessionState.SetString(KLogs, "");
             SessionState.SetString(KBefore, "");
+            SessionState.SetString(KWarnings, "");
             lock (s_lock)
             {
                 s_logs.Clear();
                 s_before.Clear();
+                s_warnings.Clear();
             }
             s_counting = false;
             s_steps = null;
@@ -454,6 +490,9 @@ namespace Roguelike.EditorTools
             Note("sprint held with a move for 1.5 s: sprinting seen " + sprinted);
             yield return GameSeconds(0.3f);
 
+            // The sprint's jump over a low prop with free floor behind it, if one is in reach (the follow-up of work order 096).
+            yield return TheJump();
+
             // Presses each equipped skill toward a point ahead, holds it a moment, lets go, and waits for it to end.
             var skills = new List<string>();
             for (int slot = 0; slot < s_her.Skills.Count; slot++)
@@ -522,7 +561,163 @@ namespace Roguelike.EditorTools
             yield return GameSeconds(0.5f);
             Note(string.Format(Inv, "pause menu: opened {0}, open after 0.5 real s {1}, closed {2}, time scale now {3}", paused, stillPaused, resumed, Time.timeScale));
 
+            // Her sheet, the way the Tab key opens it (the follow-up of work order 096).
+            yield return TheSheet();
+
             Judge();
+        }
+
+        /// <summary>
+        /// The sprint's jump (work order 092), if a low prop is in reach: for each low prop within <see cref="NearProp"/> and eight
+        /// ways at it, the game's own rule (<see cref="SprintRules.Decide"/>, with the shapes, the enemies, the NavMesh and the cover
+        /// line as her character gives them) is asked along a 3 m run-up at it; at the nearest run-up where it says she jumps, she
+        /// sprints at the prop. Whether she jumped, where she landed, and her last refusal are noted, not a pass condition (a floor
+        /// may hold none in reach); but a jump that began must end within <see cref="JumpMostSeconds"/>, on the NavMesh: a check.
+        /// </summary>
+        static IEnumerator TheJump()
+        {
+            FeelValues feel = s_her.Feel;
+            var shapes = new List<JumpShape>();
+            var shelters = new List<Shelter>();
+            foreach (Shelter s in Shelter.All)
+            {
+                if (s == null || !s.TryShape(out CoverShape shape)) continue;
+                shapes.Add(new JumpShape(shape, s.LowProp && !s.IsTall));
+                shelters.Add(s);
+            }
+            var enemies = new List<TargetInfo>();
+            foreach (Damageable d in Damageable.All)
+                if (d != null && d.IsAlive && d.gameObject != s_her.gameObject) enemies.Add(d.Info);
+            Func<GroundPoint, bool> walkable = p => NavMesh.SamplePosition(new Vector3(p.X, 0f, p.Z), out NavMeshHit h, 0.5f, NavMesh.AllAreas)
+                                                    && Flat(h.position - new Vector3(p.X, 0f, p.Z)).magnitude <= 0.3f;
+            CoverLine cover = Cover.Any ? Cover.Line : null;
+
+            Vector3 start = Vector3.zero, way = Vector3.zero;
+            Shelter over = null;
+            float bestPath = float.PositiveInfinity;
+            int lowNear = 0;
+            var path = new NavMeshPath();
+            bool herOnMesh = NavMesh.SamplePosition(s_her.Position, out NavMeshHit from, 2f, NavMesh.AllAreas);
+            for (int i = 0; i < shapes.Count && herOnMesh; i++)
+            {
+                if (!shapes[i].Low) continue;
+                Vector3 c = shelters[i].transform.position;
+                if (Flat(c - s_her.Position).magnitude > NearProp) continue;
+                lowNear++;
+                var centre = new GroundPoint(c.x, c.z);
+                for (int k = 0; k < 8; k++)
+                {
+                    Vector3 d = Quaternion.Euler(0f, k * 45f, 0f) * Vector3.forward;
+                    var dir = new GroundPoint(d.x, d.z);
+                    GroundPoint far = centre - dir * 6f;
+                    float entry = shapes[i].Shape.Entry(far, dir, 12f);
+                    if (entry >= 12f || entry < 3f) continue; // 12: it never meets the prop this way
+                    GroundPoint s0 = far + dir * (entry - 3f); // a 3 m run-up to the prop's near face
+                    var s0w = new Vector3(s0.X, 0f, s0.Z);
+                    if (!walkable(s0) || NavMesh.Raycast(s0w, s0w + d * 2.4f, out NavMeshHit _, NavMesh.AllAreas)) continue;
+                    // The rule, asked as she runs up: the first place it sees the prop decides.
+                    JumpPlan plan = JumpPlan.No(JumpRefusal.NothingAhead);
+                    for (float t = 0f; t <= 3f && plan.Refusal == JumpRefusal.NothingAhead; t += 0.1f)
+                        plan = SprintRules.Decide(feel, s0 + dir * t, dir, shapes, enemies, walkable, cover);
+                    if (!plan.Jumps || plan.Prop != i) continue;
+                    if (!NavMesh.CalculatePath(from.position, s0w, NavMesh.AllAreas, path) || path.status != NavMeshPathStatus.PathComplete) continue;
+                    float length = 0f;
+                    for (int j = 1; j < path.corners.Length; j++) length += Flat(path.corners[j] - path.corners[j - 1]).magnitude;
+                    if (length >= bestPath || length > 30f) continue;
+                    bestPath = length;
+                    start = s0w;
+                    way = d;
+                    over = shelters[i];
+                }
+            }
+            if (over == null)
+            {
+                Note(string.Format(Inv, "the jump: no low prop with free floor behind it in reach ({0} low props within {1:0} m); not tried", lowNear, NearProp));
+                yield break;
+            }
+            yield return WalkTo(start, 0.3f, 8f);
+            int jumpsBefore = s_her.Jumps;
+            s_her.HoldSprint(true);
+            s_her.Steer(way, true);
+            float began = -1f;
+            float until = Time.time + 2.5f;
+            double guard = RealNow() + 12.0;
+            while (Time.time < until && RealNow() < guard && began < 0f)
+            {
+                yield return null;
+                if (s_her.IsJumping || s_her.Jumps > jumpsBefore) began = Time.time;
+            }
+            bool landed = false;
+            float took = 0f;
+            if (began >= 0f)
+            {
+                float most = began + JumpMostSeconds;
+                guard = RealNow() + JumpMostSeconds + 10.0;
+                while (s_her.IsJumping && Time.time < most && RealNow() < guard) yield return null;
+                took = Time.time - began;
+                landed = !s_her.IsJumping;
+            }
+            s_her.HoldSprint(false);
+            s_her.Stop();
+            // On the NavMesh: her agent says so, and the floor under her (sampled at the ground, as her own landing rule does) is within 0.3 m.
+            Vector3 feet = Flat(s_her.Position);
+            NavMeshAgent agent = s_her.GetComponent<NavMeshAgent>();
+            bool onMesh = agent != null && agent.isOnNavMesh && NavMesh.SamplePosition(feet, out NavMeshHit at, 0.5f, NavMesh.AllAreas) && Flat(at.position - feet).magnitude < 0.3f;
+            Note(string.Format(Inv, "the jump: sprinted at {0} ({1} low props within {2:0} m) from {3:0.0} m off its middle: jumped {4}, landed {5} after {6:0.00} s, on the NavMesh {7}, at {8}; her last refusal {9}",
+                               over.name, lowNear, NearProp, Flat(over.transform.position - start).magnitude, began >= 0f, landed, took, onMesh, Flat(s_her.Position), s_her.LastJumpRefusal));
+            if (began >= 0f)
+                Check(landed && onMesh, "a jump that began ended within " + JumpMostSeconds.ToString("0", Inv) + " s, on the NavMesh",
+                      string.Format(Inv, "landed {0} after {1:0.00} s, on the NavMesh {2}", landed, took, onMesh));
+            yield return GameSeconds(0.3f);
+        }
+
+        /// <summary>
+        /// Her sheet (work order 095), the way the Tab key opens it: <see cref="RunHud.ToggleSheet"/>, the arrow keys' path
+        /// <see cref="RunHud.StepSheetSkill"/> twice, and Tab again. Not while the screen between runs or a choice is up (it waits
+        /// for them a while). Checks that it opened, that the game stood still under it and runs after, and that nothing was logged
+        /// while it was up.
+        /// </summary>
+        static IEnumerator TheSheet()
+        {
+            RunHud hud = RunHud.Current;
+            if (hud == null)
+            {
+                Check(false, "her sheet opened by Tab's path", "no RunHud installed");
+                yield break;
+            }
+            yield return UntilReal(() => !s_levels.BetweenRunsUp && s_levels.Choice == GeneratedLevels.ChoiceKind.None && !s_levels.Paused, 5.0);
+            int logsBefore = Logs().Length;
+            bool opened = hud.ToggleSheet() && hud.SheetUp;
+            float timeAtOpen = Time.time;
+            float scaleOpen = Time.timeScale;
+            yield return Frames(3);
+            bool stepped1 = hud.StepSheetSkill(1);
+            int first = hud.SheetSelected;
+            yield return Frames(3);
+            bool stepped2 = hud.StepSheetSkill(1);
+            int second = hud.SheetSelected;
+            double openUntil = RealNow() + 0.5;
+            while (RealNow() < openUntil) yield return null;
+            bool stillUp = hud.SheetUp;
+            float stood = Time.time - timeAtOpen;
+            bool closed = hud.ToggleSheet() && !hud.SheetUp;
+            float timeAtClose = Time.time;
+            yield return GameSeconds(0.5f);
+            float ranAfter = Time.time - timeAtClose;
+            int logsWhileUp = Logs().Length - logsBefore;
+            Note(string.Format(Inv, "her sheet: opened {0} (time scale {1}), stepped to skill tile {2} then {3}, up after 0.5 real s {4}, closed {5}, {6} skill tiles",
+                               opened, scaleOpen, first, second, stillUp, closed, hud.SheetTileNames.Count));
+            Check(opened && stillUp && closed, "her sheet opened and closed by Tab's path", string.Format(Inv, "opened {0}, up {1}, closed {2}", opened, stillUp, closed));
+            Check(stepped1 && stepped2 && first >= 0 && second >= 0 && first != second, "the arrows' path stepped to two skills", string.Format(Inv, "tiles {0} and {1}", first, second));
+            Check(opened && stood < 0.01f && scaleOpen == 0f, "the game stood still under her sheet", string.Format(Inv, "{0:0.000} game s went by in 0.5 real s, time scale {1}", stood, scaleOpen));
+            Check(ranAfter > 0.2f && Time.timeScale > 0f, "the game runs after her sheet", string.Format(Inv, "{0:0.00} game s after it closed, time scale {1}", ranAfter, Time.timeScale));
+            Check(logsWhileUp == 0, "nothing logged while her sheet was up", logsWhileUp + " logged");
+        }
+
+        static IEnumerator UntilReal(Func<bool> done, double realSeconds)
+        {
+            double until = RealNow() + realSeconds;
+            while (!done() && RealNow() < until) yield return null;
         }
 
         /// <summary>The checks that are made in Play, at the end of the steps (the logs are judged once Play has ended).</summary>
@@ -684,6 +879,7 @@ namespace Roguelike.EditorTools
             SessionRecordingRule.BatchModeAsAnEditor = false;
             GeneratedLevels.BetweenRunsSavePath = null;
             Application.logMessageReceivedThreaded -= OnLog;
+            s_counting = false;
             EditorApplication.update -= Tick;
             EditorApplication.playModeStateChanged -= OnPlayMode;
             AssemblyReloadEvents.beforeAssemblyReload -= KeepLogs;
@@ -694,11 +890,11 @@ namespace Roguelike.EditorTools
             if (logs.Length > 0)
             {
                 // A throw is the likeliest root of what else failed: it goes first.
-                string logFault = logs.Length + " Exception/Error/Assert logged, the first: " + logs[0].Split('\n')[0] + " | at " + FirstStackLine(logs[0]);
-                report += "  FAIL nothing logged of type Exception, Error or Assert: " + logFault + "\n";
+                string logFault = logs.Length + " logged of type Exception, Error, Assert or a caught fault's Warning, the first: " + logs[0].Split('\n')[0] + " | at " + FirstStackLine(logs[0]);
+                report += "  FAIL nothing logged of type Exception, Error, Assert or a caught fault's Warning: " + logFault + "\n";
                 faults.Add(logFault);
             }
-            else report += "  PASS nothing logged of type Exception, Error or Assert: none\n";
+            else report += "  PASS nothing logged of type Exception, Error, Assert or a caught fault's Warning: none\n";
             string kept = SessionState.GetString(KFaults, "");
             if (kept.Length > 0) faults.AddRange(kept.Split('\u001f'));
             if (report.IndexOf("the game's clock ran", StringComparison.Ordinal) < 0) faults.Add("the steps did not reach their checks");
@@ -722,8 +918,12 @@ namespace Roguelike.EditorTools
             text.AppendLine("What was done, and the checks:");
             text.Append(report);
             text.AppendLine();
-            text.AppendLine("Logs of type Exception, Error and Assert from Play asked for to Play ended (" + logs.Length + "):");
+            text.AppendLine("Logs of type Exception, Error, Assert and caught faults' Warnings, from Play asked for to Play ended (" + logs.Length + "):");
             foreach (string l in logs) text.AppendLine(l).AppendLine();
+            string[] warnings = Warnings();
+            text.AppendLine("Other warnings logged in Play, listed and NOT counted (" + warnings.Length + "):");
+            foreach (string w in warnings) text.AppendLine(w);
+            text.AppendLine();
             string before = SessionState.GetString(KBefore, "");
             string[] beforeLogs = before.Length > 0 ? before.Split('\u001e') : new string[0];
             text.AppendLine("Logs of the Editor's own start, before Play was asked for, NOT counted (" + beforeLogs.Length + "):");
