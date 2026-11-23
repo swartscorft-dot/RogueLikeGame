@@ -12,5 +12,13 @@ namespace Roguelike
         /// <summary>A room's doors opened: as above, the seconds since they closed, and why (<see cref="RoomDoorRules.Word"/>).</summary>
         public void NoteRoomDoorsOpened(int floor, int room, int order, float seconds, string why) =>
             Note(SessionEventTypes.RoomDoor, "opened", "floor", Int(floor), "room", Int(room), "order", Int(order), "seconds", Text(seconds), "why", why);
+
+        /// <summary>
+        /// Work order 090: a pull of the enemies of the fight not inside (work order 086's second review): before the doors shut
+        /// (they waited for them), or while they stood shut (one was found outside them); how many were put inside, how many were left.
+        /// </summary>
+        public void NoteRoomDoorsPull(int floor, int room, int order, bool shut, int putIn, int left) =>
+            Note(SessionEventTypes.RoomDoor, "pull", "floor", Int(floor), "room", Int(room), "order", Int(order), "shut", shut ? "true" : "false",
+                 "in", Int(putIn), "left", Int(left));
     }
 }

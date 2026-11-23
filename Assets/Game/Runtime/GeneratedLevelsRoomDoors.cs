@@ -135,9 +135,12 @@ namespace Roguelike
                     {
                         if (RoomDoorRules.PullDue(now, d.NextPullAt))
                         {
+                            int pulledBefore = d.PulledIn;
                             PullIn(d, v);
-                            step = RoomDoorRules.AfterPull(EnemiesNotInside(d, v.DoorClear));
+                            int left = EnemiesNotInside(d, v.DoorClear);
+                            step = RoomDoorRules.AfterPull(left);
                             _notInside.Clear();
+                            NotePull(d, false, d.PulledIn - pulledBefore, left); // work order 090: the summary counts the pulls
                             if (step != DoorStep.Close)
                             {
                                 d.PullsFailed++;
@@ -263,9 +266,11 @@ namespace Roguelike
                 d.OutsideSince = -1f;
                 return null;
             }
+            int pulledBefore = d.PulledIn;
             PullIn(d, v);
             int left = EnemiesNotInside(d, 0f);
             _notInside.Clear();
+            NotePull(d, true, d.PulledIn - pulledBefore, left); // work order 090: the summary counts the pulls
             if (left == 0)
             {
                 d.OutsideSince = -1f;
@@ -305,6 +310,10 @@ namespace Roguelike
         }
 
         int DoorFloor => Floor > 0 ? Floor : _level.Layout.Floor;
+
+        /// <summary>Work order 090: a pull told to the recorder (before the doors shut, or while they stood shut), with how many it put inside and how many it left.</summary>
+        void NotePull(RoomDoors d, bool shut, int putIn, int left) =>
+            PlaySessionRecorder.Current?.NoteRoomDoorsPull(DoorFloor, LevelGeometry.RoomNumber(_level.Layout, d.Room) + 1, d.Room.Order, shut, putIn, left);
 
         /// <summary>The blocks rise or sink by the time since the doors closed or opened; done, they stop being moved.</summary>
         void MoveBlocks(RoomDoors d, RoomFightValues v, float now)

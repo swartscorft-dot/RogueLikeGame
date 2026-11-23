@@ -75,6 +75,7 @@ namespace Roguelike
             if (_frameTimingOn) FrameTimingManager.CaptureFrameTimings(); // every frame, as the benchmark does, to keep its history going
 
             GeneratedLevels levels = GeneratedLevels.Current;
+            MeasureScreen(levels, unscaledSeconds, gap); // work order 090: the real seconds a run stands still under a screen
             bool there = levels != null;
             bool inPlay = FramePlayRule.InPlay(_player != null, Application.isFocused || Application.isBatchMode,
                                                there && levels.Paused,
