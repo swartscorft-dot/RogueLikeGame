@@ -26,7 +26,9 @@ namespace Roguelike.PlayModeTests
     public class ExitRoomsPlayTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        static readonly int[] ExitPresets = { 0, 4, 5, 6 }; // RoomLab.Mixes: floor 1, floor 2, floor 3 with a warder, floor 4 with a warder and bombers
+        // RoomLab.Mixes: floor 1, floor 2, floor 3, floor 4 (work order 090, changed deliberately: one preset a floor, in order; before
+        // { 0, 4, 5, 6 }: floor 1, floor 2, floor 3 with a warder, floor 4 with a warder and bombers).
+        static readonly int[] ExitPresets = { 0, 1, 2, 3 };
 
         PlayerCharacter _player;
         PlayerHealth _health;
@@ -162,7 +164,7 @@ namespace Roguelike.PlayModeTests
         {
             foreach (LabEntry entry in RoomLab.EntriesOf(LabKind.Exit, _levels.Values).Where(e => ExitRooms.IsWayDown(e.Template)).ToList())
             {
-                GeneratedLevel level = _levels.StartLab(entry, 5, 0x089C1EAUL); // floor 3 with a warder
+                GeneratedLevel level = _levels.StartLab(entry, 2, 0x089C1EAUL); // floor 3 (work order 090: its warder as the floor draws it; 5 before, "floor 3 with a warder")
                 Assert.That(level, Is.Not.Null);
                 yield return Frames(2);
                 LevelRoom room = level.Layout.Rooms[1];

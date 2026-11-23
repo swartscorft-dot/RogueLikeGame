@@ -157,7 +157,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(entries.Count(e => e.Template != null && e.Template.Since >= RoomTemplateLibrary.MoreSince), Is.GreaterThan(0), "the second set among them");
             foreach (LabEntry entry in entries)
             {
-                int mix = entry.Kind == LabKind.Elite ? 2 : entry.Kind == LabKind.Exit ? 1 : 0;
+                int mix = entry.Kind == LabKind.Elite ? 4 : entry.Kind == LabKind.Exit ? 2 : 0; // work order 090: floor 5, floor 3, floor 1, as before (2, 1, 0 then)
                 GeneratedLevel level = Lab(entry, mix);
                 yield return Frames(2);
                 times.Add(_levels.LabBuiltMs);
@@ -187,11 +187,11 @@ namespace Roguelike.PlayModeTests
             _levels.Values = new LevelValues();
             Assume.That(_levels.Values.MoreTemplates, Is.False, "the second set off in the floors by default");
             LabEntry second = RoomLab.Entries(_levels.Values).First(e => e.Template != null && e.Kind == LabKind.Ordinary && !e.InFloors);
-            GeneratedLevel level = Lab(second, 1);
+            GeneratedLevel level = Lab(second, 2); // floor 3 (work order 090: index 2 now, 1 before)
             yield return Frames(2);
             LevelRoom room = RoomOf(level);
             Assert.That(room.Template.Template, Is.SameAs(second.Template));
-            Assert.That(RoomLab.Faults(level.Layout, RoomLab.Mixes[1], _levels.Values), Is.Empty);
+            Assert.That(RoomLab.Faults(level.Layout, RoomLab.Mixes[2], _levels.Values), Is.Empty);
             Assert.That(_levels.LabEntry.Label, Does.EndWith("(not in the floors yet)"), "marked as not in the floors");
             StringAssert.Contains("(not in the floors yet)", _levels.StatusText(), "the developer's box says so");
             // It plays: past its line the room wakes, cleared it heals her.
@@ -263,7 +263,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator TheEliteRoomsUpgrade_TheExitRoomsReward_AndTheTreasureRoomsChest_AsAFloorsRoomsGiveThem()
         {
             // The elite room: its upgrade.
-            GeneratedLevel elite = Lab(Entry(LabKind.Elite), mix: 2);
+            GeneratedLevel elite = Lab(Entry(LabKind.Elite), mix: 4); // floor 5 (work order 090: index 4 now, 2 before)
             yield return Frames(2);
             _levels.FinishEliteRoomForTests();
             yield return Until(() => _levels.Choice == GeneratedLevels.ChoiceKind.SkillUpgrade, 60);
@@ -274,7 +274,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.InLab && _levels.Level == elite && _levels.Choice == GeneratedLevels.ChoiceKind.None, Is.True, "taken: she stays in the lab");
 
             // The exit room of floor 3: the floor's reward, and no next floor.
-            GeneratedLevel exit = Lab(Entry(LabKind.Exit), mix: 1);
+            GeneratedLevel exit = Lab(Entry(LabKind.Exit), mix: 2); // floor 3 (work order 090: index 2 now, 1 before)
             yield return Frames(2);
             _levels.FinishFloorForTests();
             yield return Until(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward, 60);
@@ -286,7 +286,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.None), "no focus choice");
 
             // The act's last exit room: no end screen.
-            GeneratedLevel last = Lab(Entry(LabKind.Exit), mix: 2);
+            GeneratedLevel last = Lab(Entry(LabKind.Exit), mix: 4); // floor 5 (work order 090: index 4 now, 2 before)
             yield return Frames(2);
             Assert.That(last.Boss, Is.Not.Null, "the act boss in floor 5's exit room");
             _levels.FinishFloorForTests();
@@ -296,7 +296,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Notice, Does.Contain("act's last exit room"));
 
             // A treasure room: its chest opens.
-            Lab(Entry(LabKind.Treasure, template: false), mix: 1);
+            Lab(Entry(LabKind.Treasure, template: false), mix: 2);
             yield return Frames(2);
             GeneratedLevel.PlacedProp chest = _levels.Chests().Single();
             Assert.That(_levels.OpenChest(chest), Is.True, "its chest opens, as in a run");
@@ -353,13 +353,13 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.PickerRoom, Is.EqualTo(1), "the second elite room");
             yield return Tap(Key.DownArrow);
             yield return Tap(Key.RightArrow);
-            Assert.That(_levels.PickerMix, Is.EqualTo(1), "floor 3's mix");
+            Assert.That(_levels.PickerMix, Is.EqualTo(1), "floor 2's mix (work order 090: the presets one a floor in order; floor 3's before)");
             yield return Tap(Key.Enter);
             Assert.That(_levels.InLab, Is.True, "Enter builds it");
             Assert.That(_levels.PickerOpen, Is.False);
             Assert.That(_levels.LabEntry.Kind, Is.EqualTo(LabKind.Elite));
             Assert.That(_levels.LabEntry.Template, Is.SameAs(RoomLab.EntriesOf(LabKind.Elite, _levels.Values)[1].Template));
-            Assert.That(_levels.Floor, Is.EqualTo(3));
+            Assert.That(_levels.Floor, Is.EqualTo(2));
             ulong seed = _levels.LabSeed;
             LabEntry entry = _levels.LabEntry;
 

@@ -163,9 +163,10 @@ namespace Roguelike.PlayModeTests
             List<LabEntry> entries = RoomLab.Entries(_levels.Values);
             var picks = new List<(LabEntry entry, int mix)>
             {
-                (entries.First(e => e.Kind == LabKind.Elite && e.Template != null), 2),
-                (entries.First(e => e.Kind == LabKind.Ordinary && e.Template != null && e.Template.Since >= RoomTemplateLibrary.MoreSince), 1),
-                (entries.First(e => e.Kind == LabKind.Exit && e.Template != null), 2),
+                // Work order 090: the presets one a floor in order; the floors these pictures were of (5, 3, 5; indices 2, 1, 2 before).
+                (entries.First(e => e.Kind == LabKind.Elite && e.Template != null), 4),
+                (entries.First(e => e.Kind == LabKind.Ordinary && e.Template != null && e.Template.Since >= RoomTemplateLibrary.MoreSince), 2),
+                (entries.First(e => e.Kind == LabKind.Exit && e.Template != null), 4),
             };
             foreach ((LabEntry entry, int mix) in picks)
             {

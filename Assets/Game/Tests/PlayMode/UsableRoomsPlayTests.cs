@@ -266,10 +266,10 @@ namespace Roguelike.PlayModeTests
             int built = 0, cover = 0;
             foreach (LabEntry entry in entries.Take(6))
             {
-                GeneratedLevel level = _levels.StartLab(entry, 1, 4242UL);
+                GeneratedLevel level = _levels.StartLab(entry, 2, 4242UL); // floor 3 (work order 090: index 2 now, 1 before)
                 Assert.That(level, Is.Not.Null, "lab room " + entry.Template.Name);
                 yield return Frames(2);
-                LevelLayout wanted = RoomLab.Build(entry, RoomLab.Mixes[1], 4242UL, _levels.Values);
+                LevelLayout wanted = RoomLab.Build(entry, RoomLab.Mixes[2], 4242UL, _levels.Values);
                 LevelRoom room = level.Layout.Rooms[1];
                 Assert.That(room.Props.Select(p => p.ToString()), Is.EqualTo(wanted.Rooms[1].Props.Select(p => p.ToString())), "the lab's room is the generator's: " + entry.Template.Name);
                 Assert.That(room.Props.Count(p => p.Fight), Is.EqualTo(room.CoverTallAdded + room.CoverLowAdded));

@@ -10,25 +10,21 @@ namespace Roguelike.Rules
     public enum LabKind { Ordinary, Elite, Treasure, Exit }
 
     /// <summary>
-    /// An enemy mix of the room lab (work order 084): the floor whose numbers the room's enemies are drawn by, as a room of
-    /// its kind on that floor draws them (<see cref="LevelGenerator.DrawGroups"/>, the elite room's elite of
-    /// <see cref="LevelValues.EliteKinds"/>, the act boss in the exit room of the act's last floor), and whether bombers
-    /// (work order 073) take the place of swarmers as the floors would with them on (<see cref="LevelBombers"/>).
+    /// An enemy mix of the room lab (work order 084): the floor whose room the lab's room is, its enemies drawn as a room of its
+    /// kind on that floor draws them (<see cref="RoomLab.Groups"/>: <see cref="LevelGenerator.DrawGroups"/>, the elite room's
+    /// elite of <see cref="LevelValues.EliteKinds"/>, the act boss in the exit room of the act's last floor, and the bombers and
+    /// the warders by the floors' own rules, <see cref="LevelBombers.Put"/> and <see cref="LevelWarders.Put"/>). Work order 090:
+    /// one a floor, the floor alone says what is in it (before, a mix said whether bombers and warders came, and put the most).
     /// </summary>
     public sealed class LabMix
     {
         public readonly string Name;
         public readonly int Floor;
-        public readonly bool Bombers;
-        /// <summary>Work order 089: a warder (work order 079) takes the place of a swarmer as the floors would put one (<see cref="RoomLab.WardersIn"/>).</summary>
-        public readonly bool Warders;
 
-        public LabMix(string name, int floor, bool bombers, bool warders = false)
+        public LabMix(string name, int floor)
         {
             Name = name;
             Floor = floor;
-            Bombers = bombers;
-            Warders = warders;
         }
 
         public override string ToString() => Name;
@@ -82,24 +78,22 @@ namespace Roguelike.Rules
     public static class RoomLab
     {
         /// <summary>
-        /// The enemy mixes (the order's presets, the floors' own numbers): floor 1's, floor 3's, floor 5's (with the elite room:
-        /// "floor 5 elite"; with the exit room the act boss and its room), and floor 4's with its bombers (work order 073 is in
-        /// this branch: the most a room of floor 4 holds, 1, or 2 in the exit room; floor 3's before work order 087 put the
-        /// bomber's first floor at 4, where a room of floor 3 holds none).
-        /// Work order 089 added three after them (the four kept their places), so that an exit room of floors 1 to 4 can be played
-        /// with what the act's plan (work order 087) puts in it there: floor 2's (the guard's floor), floor 3's with its warder (from
-        /// floor 3, one a room), and floor 4's with its warder and its bombers (two in an exit room). The floors draw how many
-        /// warders and bombers a room holds, from none to that most; the lab puts the most, as it did the bombers.
+        /// The enemy mixes: one a floor of the act, "floor 1" to "floor 5" in order (work order 090; Kristian judges the floors' form
+        /// in the lab, floor 3 first, and since work order 087 each floor has a plan of its own). Each places what the generator
+        /// places in a room of that kind on that floor with the values the lab is given (<see cref="Groups"/>): on floor 2 no caster,
+        /// on floor 3 its casters and its warder as the floors draw them, on floors 4 and 5 their bombers; the exit room of floor 5
+        /// the act boss and its room. The same seed, the same room.
+        /// Before (work order 084, then 087 and 089): "floor 1", "floor 3", "floor 5", "floor 4 with bombers", "floor 2", "floor 3
+        /// with a warder", "floor 4 with a warder and bombers", the last three putting the most warders and bombers a room may hold
+        /// where the floors draw from none to that most.
         /// </summary>
         public static readonly LabMix[] Mixes =
         {
-            new LabMix("floor 1", 1, false),
-            new LabMix("floor 3", 3, false),
-            new LabMix("floor 5", 5, false),
-            new LabMix("floor 4 with bombers", 4, true), // work order 087: the bomber's first floor ("floor 3 with bombers", 3, before)
-            new LabMix("floor 2", 2, false), // work order 089
-            new LabMix("floor 3 with a warder", 3, false, warders: true), // work order 089
-            new LabMix("floor 4 with a warder and bombers", 4, true, warders: true), // work order 089
+            new LabMix("floor 1", 1),
+            new LabMix("floor 2", 2),
+            new LabMix("floor 3", 3),
+            new LabMix("floor 4", 4),
+            new LabMix("floor 5", 5),
         };
 
         public static string Word(LabKind kind) =>
@@ -169,24 +163,22 @@ namespace Roguelike.Rules
         public static List<LabEntry> EntriesOf(LabKind kind, LevelValues v) => Entries(v).Where(e => e.Kind == kind).ToList();
 
         /// <summary>
-        /// The most bombers a room of this kind holds on the mix's floor with the floors' bombers on (<see cref="LevelBombers.Most"/>
-        /// with the switch on, never the floor's first combat room): 0 for a mix without bombers.
+        /// The most bombers a room of this kind holds on the mix's floor, as the floors' rule says (<see cref="LevelBombers.Most"/>:
+        /// their switches, their first floor, never the floor's first combat room, which a lab room is not). Work order 090: the
+        /// floor alone decides, as it does in a run.
         /// </summary>
-        public static int BombersIn(LabKind kind, LabMix mix, LevelValues v)
-        {
-            if (mix == null || !mix.Bombers) return 0;
-            RoomKind k = KindOf(kind);
-            BomberFloorValues b = v?.BomberFloors ?? new BomberFloorValues();
-            if (k != RoomKind.Combat && k != RoomKind.Exit) return 0;
-            int room = b.MostOnFloor(mix.Floor); // work order 087's follow-up: the floors' table, counted from the bomber's first floor
-            return k == RoomKind.Exit && room > 0 ? room + Math.Max(0, b.MoreInExit) : room;
-        }
+        public static int BombersIn(LabKind kind, LabMix mix, LevelValues v) =>
+            mix == null ? 0 : LevelBombers.Most(v ?? new LevelValues(), KindOf(kind), mix.Floor, false);
 
         /// <summary>
-        /// The room's enemies as the floors draw them (see <see cref="LabMix"/>), from this stream: a room of its kind on the
-        /// mix's floor (<see cref="LevelGenerator.DrawGroups"/>), the elite room's elite after them (as the floors' contents add
-        /// it), and with bombers as many as <see cref="BombersIn"/> in place of swarmers (<see cref="LevelBombers.Convert"/>).
-        /// None in a treasure room.
+        /// The room's enemies as a room of its kind on the mix's floor holds them in a run (work order 090), from this stream, by the
+        /// floors' own code: its groups (<see cref="LevelGenerator.DrawGroups"/>), the elite room's elite after them (as the floors'
+        /// contents add it), then the bombers and after them the warders by the floors' own rules (<see cref="LevelBombers.Put"/>,
+        /// <see cref="LevelWarders.Put"/>: how many a room holds drawn from none to the floor's most, each in place of a swarmer). In
+        /// a floor those two are drawn for its fights in their order on streams of the floor's seed; the lab room is put to them as
+        /// a floor's second fight (after its first combat room, which never holds one; an ordinary or elite room with the exit room
+        /// after it), on the streams of a seed drawn from this one, and only when its floor may hold one (so the rooms of floors 1
+        /// and 2, which hold none, are the very rooms they were). None in a treasure room.
         /// </summary>
         public static List<EnemyGroup> Groups(LabKind kind, LabMix mix, LevelRandom rng, LevelValues v)
         {
@@ -199,24 +191,22 @@ namespace Roguelike.Rules
                 EnemyKind[] kinds = v.EliteKinds(mix.Floor);
                 groups.Add(new EnemyGroup(kinds[rng.Below(kinds.Length)], 1, elite: true));
             }
-            int bombers = BombersIn(kind, mix, v);
-            if (bombers > 0) LevelBombers.Convert(groups, bombers);
-            // Work order 089: the warders after the bombers, as the floors put them (LevelWarders after LevelBombers).
-            int warders = WardersIn(kind, mix, groups, v);
-            if (warders > 0) LevelWarders.Convert(groups, warders);
+            if (BombersIn(kind, mix, v) <= 0 && WardersIn(kind, mix, groups, v) <= 0) return groups;
+            ulong floorSeed = rng.NextBits();
+            var fights = new List<List<EnemyGroup>> { new List<EnemyGroup>(), groups };
+            if (k == RoomKind.Combat) fights.Add(new List<EnemyGroup>());
+            LevelBombers.Put(fights, floorSeed, mix.Floor, v);
+            LevelWarders.Put(fights, floorSeed, mix.Floor, v);
             return groups;
         }
 
         /// <summary>
-        /// The most warders a room of this kind holds on the mix's floor, with these groups, as the floors put them
-        /// (<see cref="LevelWarders.Most"/>: from their floor, never the floor's first combat room, only beside at least three others,
-        /// counted less the swarmer one takes the place of): 0 for a mix without warders (work order 089).
+        /// The most warders a room of this kind holds on the mix's floor, with these groups, as the floors' rule says
+        /// (<see cref="LevelWarders.Most"/>: their switches, from their floor, never the floor's first combat room, only beside at
+        /// least three others, counted less the swarmer one takes the place of). Work order 090: the floor alone decides.
         /// </summary>
-        public static int WardersIn(LabKind kind, LabMix mix, List<EnemyGroup> groups, LevelValues v)
-        {
-            if (mix == null || !mix.Warders) return 0;
-            return LevelWarders.Most(v ?? new LevelValues(), KindOf(kind), mix.Floor, false, LevelWarders.Count(groups) - 1);
-        }
+        public static int WardersIn(LabKind kind, LabMix mix, List<EnemyGroup> groups, LevelValues v) =>
+            mix == null ? 0 : LevelWarders.Most(v ?? new LevelValues(), KindOf(kind), mix.Floor, false, LevelWarders.Count(groups) - 1);
 
         /// <summary>The lab room of an entry, a mix and a seed, built by the generator's stages (<see cref="LevelGenerator.LabRoom"/>).</summary>
         public static LevelLayout Build(LabEntry entry, LabMix mix, ulong seed, LevelValues v) =>
@@ -269,6 +259,12 @@ namespace Roguelike.Rules
             int most = BombersIn(KindFor(room), mix, v);
             if (bombers > most) faults.Add($"{Name(room)} holds {bombers} bombers, and its mix at most {most}");
             if (room.EnemyGroups.Any(g => g != null && g.Kind == EnemyKind.Bomber && (g.Count != 1 || g.Elite || g.Boss))) faults.Add($"{Name(room)} has a bomber not alone");
+            // Work order 090: the warders too, by the floors' rule (the others counted without them).
+            int warders = room.EnemyGroups.Where(g => g != null && g.Kind == EnemyKind.Warder).Sum(g => g.Count);
+            int othersThanWarders = LevelWarders.Count(room.EnemyGroups) - warders;
+            int wardersMost = LevelWarders.Most(v, room.Kind, mix != null ? mix.Floor : level.Floor, false, othersThanWarders);
+            if (warders > wardersMost) faults.Add($"{Name(room)} holds {warders} warders, and its floor at most {wardersMost}");
+            if (room.EnemyGroups.Any(g => g != null && g.Kind == EnemyKind.Warder && (g.Count != 1 || g.Elite || g.Boss))) faults.Add($"{Name(room)} has a warder not alone");
 
             // The theme and the props, as the validator holds a floor's room to them.
             if (room.Theme != RoomTheme.None && (Array.IndexOf(RoomThemes.ThemesFor(room.Kind), room.Theme) < 0 || v.ThemeRules?.Of(room.Theme, room.Kind) == null))

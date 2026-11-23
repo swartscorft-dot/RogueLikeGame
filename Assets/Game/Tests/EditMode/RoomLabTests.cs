@@ -55,9 +55,9 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             LabEntry second = RoomLab.Entries(v).First(e => e.Template != null && !e.InFloors);
-            LevelLayout lab = RoomLab.Build(second, RoomLab.Mixes[1], 0x5EC0DUL, v);
+            LevelLayout lab = RoomLab.Build(second, RoomLab.Mixes[2], 0x5EC0DUL, v); // floor 3 (work order 090: index 2 now, 1 before)
             Assert.That(lab.Rooms[1].Template.Template, Is.SameAs(second.Template));
-            Assert.That(RoomLab.Faults(lab, RoomLab.Mixes[1], v), Is.Empty);
+            Assert.That(RoomLab.Faults(lab, RoomLab.Mixes[2], v), Is.Empty);
             Assert.That(v.MoreTemplates, Is.False, "the floors' values as they were");
             for (ulong seed = 1; seed <= 6; seed++)
                 Assert.That(LevelGenerator.Generate(seed, 1 + (int)(seed % 5), v).Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since < RoomTemplateLibrary.MoreSince),
@@ -71,18 +71,18 @@ namespace Roguelike.Rules.Tests
         public void ThePresets_AreTheFloorsOwnNumbers()
         {
             var v = new LevelValues();
-            // Work order 087: the bombers' preset on their first floor, 4 (3 before). Work order 089 (changed deliberately): three more
-            // after the four, floor 2's, floor 3's with its warder, floor 4's with its warder and bombers.
-            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 3, 5, 4, 2, 3, 4 }));
-            Assert.That(RoomLab.Mixes.Select(m => m.Bombers), Is.EqualTo(new[] { false, false, false, true, false, false, true }));
-            Assert.That(RoomLab.Mixes.Select(m => m.Warders), Is.EqualTo(new[] { false, false, false, false, false, true, true }));
+            // Work order 090 (changed deliberately): one preset a floor, floor 1 to floor 5 in order, the floor alone saying what is in
+            // it (before: 1, 3, 5, 4 with bombers, 2, 3 with a warder, 4 with a warder and bombers; the last three put the most).
+            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+            Assert.That(RoomLab.Mixes.Select(m => m.Name), Is.EqualTo(new[] { "floor 1", "floor 2", "floor 3", "floor 4", "floor 5" }));
             foreach (LabMix mix in RoomLab.Mixes)
                 foreach (LabKind kind in new[] { LabKind.Ordinary, LabKind.Elite, LabKind.Exit })
                     for (ulong s = 1; s <= 40; s++)
                     {
                         RoomKind k = RoomLab.KindOf(kind);
                         List<EnemyGroup> lab = RoomLab.Groups(kind, mix, LevelRandom.Stream(s, LevelGenerator.ContentsStage, 0), v);
-                        // The floor's own draw, from the same stream: its room's groups, the elite after them, the bombers in place of swarmers.
+                        // The floor's own code, from the same stream: its room's groups, the elite after them, then the floors' own
+                        // bombers and warders (LevelBombers.Put, LevelWarders.Put) with the room as a floor's second fight.
                         LevelRandom rng = LevelRandom.Stream(s, LevelGenerator.ContentsStage, 0);
                         List<EnemyGroup> floor = LevelGenerator.DrawGroups(k, mix.Floor, rng, v);
                         if (kind == LabKind.Elite)
@@ -90,30 +90,33 @@ namespace Roguelike.Rules.Tests
                             EnemyKind[] kinds = v.EliteKinds(mix.Floor);
                             floor.Add(new EnemyGroup(kinds[rng.Below(kinds.Length)], 1, elite: true));
                         }
-                        int bombersWanted = RoomLab.BombersIn(kind, mix, v);
-                        if (bombersWanted > 0) LevelBombers.Convert(floor, bombersWanted);
-                        // Work order 089: the warders after the bombers, as many as the floors' rule lets the room hold (LevelWarders.Most).
-                        int wardersWanted = mix.Warders ? LevelWarders.Most(v, k, mix.Floor, false, LevelWarders.Count(floor) - 1) : 0;
-                        if (wardersWanted > 0) LevelWarders.Convert(floor, wardersWanted);
+                        int bombersMost = LevelBombers.Most(v, k, mix.Floor, false);
+                        int wardersMost = LevelWarders.Most(v, k, mix.Floor, false, LevelWarders.Count(floor) - 1);
+                        if (bombersMost > 0 || wardersMost > 0)
+                        {
+                            ulong floorSeed = rng.NextBits();
+                            var fights = new List<List<EnemyGroup>> { new List<EnemyGroup>(), floor };
+                            if (k == RoomKind.Combat) fights.Add(new List<EnemyGroup>());
+                            LevelBombers.Put(fights, floorSeed, mix.Floor, v);
+                            LevelWarders.Put(fights, floorSeed, mix.Floor, v);
+                        }
                         Assert.That(lab.Select(g => g.ToString()), Is.EqualTo(floor.Select(g => g.ToString())), mix + " " + kind + " seed " + s);
-                        Assert.That(lab.Count(g => g.Kind == EnemyKind.Warder), Is.EqualTo(mix.Warders && mix.Floor >= v.WarderFloors.FromFloor ? 1 : 0), "a warder in the warders' presets, one a room");
 
                         v.EnemyRange(k, mix.Floor, out int fewest, out int most);
                         int count = lab.Where(g => !g.Boss && !g.Elite).Sum(g => g.Count);
                         Assert.That(count, Is.InRange(fewest, most), "the floor's range");
                         Assert.That(lab.Count(g => g.Boss), Is.EqualTo(k == RoomKind.Exit && mix.Floor >= v.FloorsPerAct ? 1 : 0), "the act boss in the act's last exit room only");
                         Assert.That(lab.Count(g => g.Elite), Is.EqualTo(kind == LabKind.Elite ? 1 : 0));
-                        int bombers = lab.Where(g => g.Kind == EnemyKind.Bomber).Sum(g => g.Count);
-                        Assert.That(bombers, Is.LessThanOrEqualTo(bombersWanted));
-                        if (!mix.Bombers) Assert.That(bombers, Is.Zero);
+                        Assert.That(lab.Where(g => g.Kind == EnemyKind.Bomber).Sum(g => g.Count), Is.InRange(0, bombersMost), "the floor's bombers, none to its most");
+                        Assert.That(lab.Where(g => g.Kind == EnemyKind.Warder).Sum(g => g.Count), Is.InRange(0, Math.Max(0, wardersMost)), "the floor's warders, none to its most");
+                        if (mix.Floor < v.WarderFloors.FromFloor) Assert.That(lab.Any(g => g.Kind == EnemyKind.Warder), Is.False, "no warder before its floor");
+                        if (mix.Floor < v.BomberFloors.FromFloor) Assert.That(lab.Any(g => g.Kind == EnemyKind.Bomber), Is.False, "no bomber before its floor");
                     }
-            // The bombers' most is the floors' (work order 073's table, with their switch on): floor 4 (work order 087; floor 3 before,
-            // one and two), its first floor: one in a combat room, two in the exit (087's follow-up: two and three before it).
-            var bomberFloors = new LevelValues { Bombers = true };
-            LabMix withBombers = RoomLab.Mixes[3];
-            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Combat, 4, false)).And.EqualTo(1));
-            Assert.That(RoomLab.BombersIn(LabKind.Exit, withBombers, v), Is.EqualTo(LevelBombers.Most(bomberFloors, RoomKind.Exit, 4, false)).And.EqualTo(2));
-            Assert.That(RoomLab.Groups(LabKind.Treasure, withBombers, LevelRandom.Stream(1, "x"), v), Is.Empty, "nothing in a treasure room");
+            // The bombers' most is the floors' (work order 073's table): floor 4, its first floor, one in a combat room, two in the exit.
+            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, RoomLab.Mixes[3], v), Is.EqualTo(LevelBombers.Most(v, RoomKind.Combat, 4, false)).And.EqualTo(1));
+            Assert.That(RoomLab.BombersIn(LabKind.Exit, RoomLab.Mixes[3], v), Is.EqualTo(LevelBombers.Most(v, RoomKind.Exit, 4, false)).And.EqualTo(2));
+            Assert.That(RoomLab.BombersIn(LabKind.Ordinary, RoomLab.Mixes[2], v), Is.Zero, "none on floor 3");
+            Assert.That(RoomLab.Groups(LabKind.Treasure, RoomLab.Mixes[3], LevelRandom.Stream(1, "x"), v), Is.Empty, "nothing in a treasure room");
         }
 
         [Test]
@@ -193,7 +196,7 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             LabEntry treasure = RoomLab.EntriesOf(LabKind.Treasure, v).Single();
-            LevelLayout lab = RoomLab.Build(treasure, RoomLab.Mixes[1], Seeds[0], v);
+            LevelLayout lab = RoomLab.Build(treasure, RoomLab.Mixes[2], Seeds[0], v);
             LevelRoom room = lab.Rooms[1];
             Assert.That(room.Kind, Is.EqualTo(RoomKind.Treasure));
             Assert.That(room.EnemyPoints, Is.Empty);
