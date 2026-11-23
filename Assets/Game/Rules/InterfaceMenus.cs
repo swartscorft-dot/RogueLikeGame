@@ -125,6 +125,9 @@ namespace Roguelike.Rules
         public float CardGap = 18f;
         public int CardNameSize = 24;
         public int CardTextSize = 17;
+
+        /// <summary>Her sheet on Tab (work order 095): its own numbers; the rest it shares with the pause menu above.</summary>
+        public SheetValues Sheet = new SheetValues();
     }
 
     /// <summary>A key of the pause menu's list as a key cap and the words after it (work order 078): "Space", "Dash  (toward the cursor)".</summary>

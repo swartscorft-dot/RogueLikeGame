@@ -130,9 +130,10 @@ namespace Roguelike
                 }
                 _rowSetting.Add(setting);
             }
+            // Work order 095: her stats are her sheet's lines (HerSheet.Stats, made with the lists), in a run as before.
             _stats.Clear();
-            if (_pauseStats != null)
-                foreach (string line in _pauseStats) _stats.Add(MenuWords.Stat(line));
+            if (PauseShowsStats)
+                foreach (SheetStat line in _sheetStats) _stats.Add(HerSheet.AsMenuStat(line));
             _pauseLaidOutFor = -1;
         }
 
@@ -143,10 +144,13 @@ namespace Roguelike
         int _pauseLaidOutFor = -1;
         Vector2Int _pauseLaidOutAt;
         float _statsH, _keysH, _colW;
-        int _statLines, _keyLines;
+        int _keyLines;
+        readonly StatGroups _pauseGroups = new StatGroups(); // work order 095: her sheet's groups, the sheet's own code
+        /// <summary>The pause menu shows her stats: in a run (work order 095: her sheet's lines; outside a run none, as before).</summary>
+        bool PauseShowsStats => _sheetInRun && _sheetStats.Count > 0;
         readonly List<float> _widths = new List<float>();
-        readonly List<int> _statLine = new List<int>(), _statCol = new List<int>(), _keyLine = new List<int>(), _keyCol = new List<int>();
-        readonly List<float> _statValueW = new List<float>(), _capW = new List<float>(), _rowValueW = new List<float>(), _rowKeyW = new List<float>();
+        readonly List<int> _keyLine = new List<int>(), _keyCol = new List<int>();
+        readonly List<float> _capW = new List<float>(), _rowValueW = new List<float>(), _rowKeyW = new List<float>();
         readonly float[] _hintW = new float[s_Hint.Length];
         static readonly string[] s_Hint = { "Up", "Down", "pick", "Enter", "use", "<", ">", "change", "Esc", "resume" };
         static readonly bool[] s_HintCap = { true, true, false, true, false, true, true, false, true, false };
@@ -192,20 +196,9 @@ namespace Roguelike
             float inner = m.SideWidth - 2f * m.PanelPad - 12f;
             _colW = (inner - m.ColumnInnerGap) * 0.5f;
 
-            // Her stats: each line's width (name, change, value), two columns where they fit, else a whole line.
-            GUIStyle name = InterfaceStyle.Text(false, m.StatNameSize, TextAnchor.MiddleLeft), value = InterfaceStyle.Text(true, m.StatValueSize, TextAnchor.MiddleRight),
-                     change = InterfaceStyle.Text(true, m.StatChangeSize, TextAnchor.MiddleRight);
-            _widths.Clear();
-            _statValueW.Clear();
-            foreach (MenuStat s in _stats)
-            {
-                float vw = InterfaceStyle.Measure(s.Value, value).x;
-                _statValueW.Add(vw);
-                float cw = s.Changed && s.Change.Length > 0 ? InterfaceStyle.Measure(s.Change, change).x + 10f : 0f;
-                _widths.Add(InterfaceStyle.Measure(s.Name, name).x + 16f + cw + vw);
-            }
-            _statLines = MenuLayout.TwoColumns(_widths, _colW, _statLine, _statCol);
-            _statsH = _stats.Count == 0 ? 0f : 2f * m.PanelPad + m.PanelHeadHeight + _statLines * m.StatLine;
+            // Her stats: her sheet's groups in two columns (work order 095: the sheet's own code, at this panel's column).
+            _pauseGroups.LayOut(PauseShowsStats ? _sheetStats : null, _colW, m, m.Sheet);
+            _statsH = _stats.Count == 0 ? 0f : 2f * m.PanelPad + m.PanelHeadHeight + _pauseGroups.Height;
 
             // The keys: a cap as wide as its key, the words after it.
             GUIStyle cap = CapStyle(m), words = InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft);
@@ -234,9 +227,9 @@ namespace Roguelike
 
             float side = _statsH + (_statsH > 0f && _keysH > 0f ? m.SideGap : 0f) + _keysH;
             float viewWidth = LayoutViewWidth;
-            _pl = MenuLayout.Pause(viewWidth, _rowWords.Count, _firstSetting, side, m);
+            _pl = RaiseSide(MenuLayout.Pause(viewWidth, _rowWords.Count, _firstSetting, side, m), m);
             _pFit = MenuLayout.Fit(_pl.Width, _pl.Height, viewWidth, v.LayoutHeight, m);
-            if (_pFit < 1f) _pl = MenuLayout.Pause(viewWidth / _pFit, _rowWords.Count, _firstSetting, side, m);
+            if (_pFit < 1f) _pl = RaiseSide(MenuLayout.Pause(viewWidth / _pFit, _rowWords.Count, _firstSetting, side, m), m);
         }
 
         /// <summary>Row <paramref name="index"/> of the pause menu as drawn, in the 1080 layout after the fit (the selected one moved out). For tests.</summary>
@@ -257,6 +250,16 @@ namespace Roguelike
                       b = Mathf.Max(_pl.Hint.Bottom, _pl.Side.Bottom);
                 return new Rect(x * _pFit, y * _pFit, (r - x) * _pFit, (b - y) * _pFit);
             }
+        }
+
+        /// <summary>Work order 095: the panels beside the rows raised by <see cref="SheetValues.PauseSideRise"/> (never above the heading's top), the menu's height with them.</summary>
+        static PauseLayout RaiseSide(PauseLayout l, MenuValues m)
+        {
+            float rise = Mathf.Clamp(m.Sheet.PauseSideRise, 0f, Mathf.Max(0f, l.Side.Y - l.Heading.Y));
+            if (rise <= 0f || l.Side.H <= 0f) return l;
+            l.Side = new UiBox(l.Side.X, l.Side.Y - rise, l.Side.W, l.Side.H);
+            l.Height = Mathf.Max(l.Hint.Bottom, l.Side.Bottom) + m.Margin;
+            return l;
         }
 
         Rect RowRect(int i)
@@ -287,8 +290,7 @@ namespace Roguelike
                 if (pad + ws.x + 14f + right > m.RowsWidth - pad * 0.5f) problems.Add("row " + i + " (" + _rowWords[i] + ") is wider than its row");
                 if (ws.y > m.RowHeight * 1.05f) problems.Add("row " + i + " is taller than its row");
             }
-            for (int i = 0; i < _stats.Count; i++)
-                if (_widths.Count > 0 && _statCol[i] == -1 && StatWidth(i, m) > _colW * 2f + m.ColumnInnerGap) problems.Add("stat " + _stats[i].Name + " is wider than its panel");
+            if (PauseShowsStats) _pauseGroups.Outside(_sheetStats, _colW * 2f + m.ColumnInnerGap, problems); // work order 095
             for (int i = 0; i < _keyCaps.Count; i++)
             {
                 float w = _capW[i] + 12f + InterfaceStyle.Measure(_keyCaps[i].Words, InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft)).x;
@@ -300,13 +302,6 @@ namespace Roguelike
             GUIStyle head = InterfaceStyle.Text(true, m.PanelHeadSize, TextAnchor.MiddleLeft), sub = InterfaceStyle.Text(false, m.PanelSubSize, TextAnchor.MiddleRight);
             if (InterfaceStyle.Measure(StatsHead, head).x + 24f + InterfaceStyle.Measure(StatsSub, sub).x + 50f > m.SideWidth - 2f * m.PanelPad) problems.Add("the stats' heading is wider than its panel");
             return string.Join("; ", problems);
-        }
-
-        float StatWidth(int i, MenuValues m)
-        {
-            MenuStat s = _stats[i];
-            float cw = s.Changed && s.Change.Length > 0 ? InterfaceStyle.Measure(s.Change, InterfaceStyle.Text(true, m.StatChangeSize, TextAnchor.MiddleRight)).x + 10f : 0f;
-            return InterfaceStyle.Measure(s.Name, InterfaceStyle.Text(false, m.StatNameSize, TextAnchor.MiddleLeft)).x + 16f + cw + _statValueW[i];
         }
 
         const float ChevronW = 22f;
@@ -460,24 +455,8 @@ namespace Roguelike
         void DrawStats(Rect r, InterfaceValues v, MenuValues m)
         {
             DrawPanel(r, StatsHead, StatsSub, InterfaceStyle.C(v.Teal), v, m);
-            float pivot = r.center.y, x0 = r.x + m.PanelPad + 10f, top = r.y + m.PanelPad + m.PanelHeadHeight, inner = _colW * 2f + m.ColumnInnerGap;
-            for (int line = 0; line < _statLines; line += 2)
-            {
-                float y = top + line * m.StatLine, lean = (pivot - (y + m.StatLine * 0.5f)) * m.PanelSlant;
-                InterfaceStyle.Fill(new Rect(x0 + lean - 6f, y + 1f, inner + 12f, m.StatLine - 2f), InterfaceStyle.C(v.White, 0.045f));
-            }
-            GUIStyle name = InterfaceStyle.Text(false, m.StatNameSize, TextAnchor.MiddleLeft), value = InterfaceStyle.Text(true, m.StatValueSize, TextAnchor.MiddleRight),
-                     change = InterfaceStyle.Text(true, m.StatChangeSize, TextAnchor.MiddleRight);
-            for (int i = 0; i < _stats.Count && i < _statLine.Count; i++)
-            {
-                MenuStat s = _stats[i];
-                float y = top + _statLine[i] * m.StatLine, lean = (pivot - (y + m.StatLine * 0.5f)) * m.PanelSlant;
-                float x = x0 + lean + (_statCol[i] == 1 ? _colW + m.ColumnInnerGap : 0f), w = _statCol[i] == -1 ? inner : _colW;
-                TextLabel(new Rect(x, y, w, m.StatLine), s.Name, name, InterfaceStyle.C(v.White, 0.72f));
-                TextLabel(new Rect(x, y, w, m.StatLine), s.Value, value, s.Changed ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White), true);
-                if (s.Changed && s.Change.Length > 0)
-                    TextLabel(new Rect(x, y, w - _statValueW[i] - 10f, m.StatLine), s.Change, change, InterfaceStyle.C(v.Teal, 0.8f));
-            }
+            // Work order 095: her sheet's groups, drawn by the sheet's own code.
+            _pauseGroups.Draw(_sheetStats, r.x + m.PanelPad + 10f, r.y + m.PanelPad + m.PanelHeadHeight, r.center.y, m.PanelSlant, m.ColumnInnerGap, m, m.Sheet, v);
         }
 
         void DrawKeys(Rect r, InterfaceValues v, MenuValues m)

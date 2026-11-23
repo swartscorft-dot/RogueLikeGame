@@ -83,6 +83,8 @@ namespace Roguelike
         public Key TakeCover = Key.LeftCtrl;
         [Tooltip("Held with a move key: sprint, half again her run speed, no shots, over the low props (work order 092, Kristian 2026-11-23). An asset made before it has no such line and gets Left Shift.")]
         public Key Sprint = Key.LeftShift;
+        [Tooltip("Opens her sheet, every stat and each skill's numbers; it or Esc closes it (work order 095, Kristian 2026-11-23). An asset made before it has no such line and gets Tab.")]
+        public Key Sheet = Key.Tab;
 
         [Header("Skills, one per slot in order")]
         [Tooltip("Slot 1 is the first skill in Skills.asset (Quick Shot), slot 2 the second, and so on.")]
@@ -129,7 +131,7 @@ namespace Roguelike
         {
             MoveUp = Key.W; MoveDown = Key.S; MoveLeft = Key.A; MoveRight = Key.D;
             Shoot = new InputBinding(BindingSource.LeftMouse);
-            Dash = Key.Space; Focus = Key.Z; Interact = Key.E; TakeCover = Key.LeftCtrl; Sprint = Key.LeftShift;
+            Dash = Key.Space; Focus = Key.Z; Interact = Key.E; TakeCover = Key.LeftCtrl; Sprint = Key.LeftShift; Sheet = Key.Tab;
             DashDirection = DashDirection.TowardCursor;
             Skills = DefaultSkills();
         }

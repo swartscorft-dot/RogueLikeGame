@@ -11,7 +11,7 @@ namespace Roguelike
     /// where the chest rooms are; I end up double-checking several rooms for them", and his answers: a small map in the
     /// corner, and opened chests and cleared rooms shown). IMGUI in the HUD's look (<see cref="RunHud"/>: a dark box, the
     /// game's cyan, laid out for a view 720 pixels high and scaled), at the top right beside the run box, about a sixth of
-    /// the view high (<see cref="DoorSignValues.MapHeightShare"/>). Held, <see cref="LargeKey"/> (Tab) shows it large over
+    /// the view high (<see cref="DoorSignValues.MapHeightShare"/>). Held, <see cref="LargeKey"/> (M) shows it large over
     /// the middle of the view; the pause menu's list of keys names it.
     ///
     /// What it shows is <see cref="FloorMapRules"/>: the floor's rooms as their outlines, to scale (the whole floor's extent
@@ -32,10 +32,12 @@ namespace Roguelike
     public sealed class FloorMap : MonoBehaviour
     {
         /// <summary>
-        /// Held, the map shows large (work order 041). Tab: bound to nothing in <see cref="InputBindings"/> and no developer
-        /// key; the trial's Second Look has a key of its own since work order 047 (<see cref="GeneratedLevels.RedrawKey"/>).
+        /// Held, the map shows large (work order 041). M since work order 095 (Tab before: Tab opens her sheet now, as Kristian
+        /// asked on 2026-11-23, and pauses the game, so a held Tab could no longer show the map): bound to nothing in
+        /// <see cref="InputBindings"/> and no developer key; the trial's Second Look has a key of its own since work order 047
+        /// (<see cref="GeneratedLevels.RedrawKey"/>).
         /// </summary>
-        public const Key LargeKey = Key.Tab;
+        public const Key LargeKey = Key.M;
 
         /// <summary>The run box's width in the HUD and the gap beside it: the small map stands to its left.</summary>
         const float BesideRunBox = 260f + 18f;
