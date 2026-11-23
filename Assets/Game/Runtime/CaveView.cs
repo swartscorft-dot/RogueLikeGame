@@ -262,7 +262,8 @@ namespace Roguelike
         {
             if (r == null || _renderers.Contains(r)) return;
             Track(r, roomA, roomB);
-            if (_hiding) r.forceRenderingOff = !(IsShown(roomA) || IsShown(roomB));
+            // Hidden only while the cave is at work: switched off (the greybox view), it hides nothing.
+            if (_hiding && isActiveAndEnabled) r.forceRenderingOff = !(IsShown(roomA) || IsShown(roomB));
         }
 
         /// <summary>She is in this room or passage: what is drawn follows (for tests too).</summary>
