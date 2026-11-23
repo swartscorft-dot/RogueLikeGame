@@ -20,14 +20,15 @@ namespace Roguelike
         Vector3 _spawn;
         float _deadSince = -1f;
 
-        public int Current => _health.Current;
+        /// <summary>Her health now; before this component has woken, the full <see cref="MaxHealth"/> it wakes with (work order 096: safe to ask from another's Awake, as <see cref="IsAlive"/>).</summary>
+        public int Current => _health != null ? _health.Current : MaxHealth;
         /// <summary>
         /// Alive: also before this component has woken (in a scene her character wakes first and asks at once; the morning of
         /// 2026-11-23 that threw in her Awake, which switched her off: she could not move or shoot).
         /// </summary>
         public bool IsAlive => _health == null || !_health.IsDead;
-        /// <summary>The maximum now: <see cref="MaxHealth"/>, and in a run the run's upgrades on top (work order 012).</summary>
-        public int Max => _health.Max;
+        /// <summary>The maximum now: <see cref="MaxHealth"/>, and in a run the run's upgrades on top (work order 012); before this component has woken, <see cref="MaxHealth"/> (work order 096).</summary>
+        public int Max => _health != null ? _health.Max : MaxHealth;
 
         /// <summary>
         /// Reads the maximum again from <see cref="MaxHealth"/> and the run's upgrades on the character

@@ -49,9 +49,23 @@ namespace Roguelike.PlayModeTests
             Assert.That(her, Is.Not.Null, "her health requires her character");
 
             Assert.That(health.IsAlive, Is.True, "not yet woken: alive, and no exception");
+            Assert.That(health.Current, Is.EqualTo(health.MaxHealth), "not yet woken: her health is the full one she wakes with (work order 096)");
+            Assert.That(health.Max, Is.EqualTo(health.MaxHealth), "not yet woken: her maximum is the one she wakes with (work order 096)");
             Assert.That(her.IsSprinting, Is.False, "no key, no move: not sprinting, and nothing else is asked");
             her.HoldSprint(true);
             Assert.That(her.IsSprinting, Is.False, "the key alone, standing still: not sprinting, and nothing else is asked");
+        }
+
+        [Test]
+        public void ATarget_AskedBeforeItHasWoken_IsAlive_AndFull()
+        {
+            // Work order 096: an enemy's IsDead asks its Damageable, which may not have woken in another's Awake or OnEnable.
+            _go = new GameObject("TargetBeforeAwake");
+            _go.SetActive(false); // nothing on it wakes
+            Damageable target = _go.AddComponent<Damageable>();
+            Assert.That(target.IsAlive, Is.True, "not yet woken: alive, and no exception");
+            Assert.That(target.CurrentHealth, Is.EqualTo(target.MaxHealth), "not yet woken: full");
+            Assert.That(target.Info.Alive, Is.True, "and what the shots read of it");
         }
 
         [UnityTest]

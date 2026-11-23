@@ -31,8 +31,10 @@ namespace Roguelike
         Health _health;
         readonly Marks _marks = new Marks();
 
-        public int CurrentHealth => _health.Current;
-        public bool IsAlive => !_health.IsDead;
+        // Work order 096 (as 92a5c71 made her health): safe to ask before this component has woken, from another's Awake or
+        // OnEnable on the same object (an enemy's IsDead asks IsAlive), with the values it wakes with: full, alive.
+        public int CurrentHealth => _health != null ? _health.Current : MaxHealth;
+        public bool IsAlive => _health == null || !_health.IsDead;
         public int HitsTaken { get; private set; }
         public GroundPoint GroundPosition => new GroundPoint(transform.position.x, transform.position.z);
         public TargetInfo Info => new TargetInfo(GroundPosition, Radius, IsAlive);
