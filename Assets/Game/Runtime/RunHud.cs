@@ -522,6 +522,7 @@ namespace Roguelike
             Add("Focus", K(b.Focus), focus != FocusMode.Today ? "  (" + FocusModeRules.Name(focus) + ")" : "");
             // Work order 086: the held duck says so (no longer than the tap's words, so the panel's line fits as before).
             Add("Cover", K(b.TakeCover), _player != null && _player.QuickDuckOn ? (_player.DuckIsHeld ? "  (hold: duck by a low prop)" : "  (tap to duck by a low prop)") : "  (hold)"); // work order 047, as the help line words it
+            if (_player != null && _player.Feel.Sprint) Add("Sprint", K(b.Sprint), "  (hold, no shots)"); // work order 092: and over the low props
             Add("Interact", K(b.Interact), "");
             Add("Map", K(FloorMap.LargeKey), "  (hold)"); // work order 041: the small map, large while held
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;

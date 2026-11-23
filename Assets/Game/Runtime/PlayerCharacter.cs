@@ -302,8 +302,8 @@ namespace Roguelike
         public CoverLine CoverQuery => Feel.CoverStopsShots && Cover.Any ? Cover.Line : null;
         public Vector3 Position => transform.position;
         public GroundPoint GroundPosition => new GroundPoint(transform.position.x, transform.position.z);
-        public float Speed => _inCover ? _coverVelocity.magnitude : _agent.velocity.magnitude;
-        public Vector3 Velocity => _inCover ? _coverVelocity : _agent.velocity;
+        public float Speed => _jumping ? _jumpSpeed : _inCover ? _coverVelocity.magnitude : _agent.velocity.magnitude; // work order 092: in a jump, its own
+        public Vector3 Velocity => _jumping ? Flat(_jumpTo - _jumpFrom).normalized * _jumpSpeed : _inCover ? _coverVelocity : _agent.velocity;
 
         /// <summary>The direction the input holds now: flat, of length 1, or zero when no move key is held.</summary>
         public Vector3 MoveInput => _moveInput;
@@ -344,7 +344,7 @@ namespace Roguelike
         /// True while the character cannot start anything new: in a dash or a skill. A basic shot does not lock, and
         /// neither does a free recovery (decision 0004), which holds back only the next skill (<see cref="SkillGateRemaining"/>).
         /// </summary>
-        public bool IsLocked => _dashing || _actionKind == ActionKind.Skill || _held.IsHeld; // stunned or pulled too (work order 035)
+        public bool IsLocked => _dashing || _actionKind == ActionKind.Skill || _held.IsHeld || _jumping; // stunned or pulled too (work order 035); in the sprint's jump (092)
         /// <summary>True from the moment a basic shot has gone off until its recovery is over or is cut short.</summary>
         public bool IsInShotRecovery => _actionKind == ActionKind.BasicShot && _action.HitResolved;
         public bool IsInvulnerable => _dash.IsInvulnerable(Time.time);
@@ -442,6 +442,7 @@ namespace Roguelike
             _duck.Clear();
             _rim.Hide();
             _held.Clear(); // a stun or a pull ends (work order 035): death, a restart, a new floor
+            DropJump(); // and a jump of the sprint, with nothing kept for its landing (work order 092)
             _agent.Warp(new Vector3(point.x, 0f, point.z));
             Halt();
         }
@@ -468,6 +469,11 @@ namespace Roguelike
             _focus.Clear();
             _prime.Clear(); // and no priming (work order 025)
             _held.Clear(); // and no stun or pull (work order 035)
+            if (_jumping) // a jump of the sprint is put down where it was going, with nothing kept for its landing (work order 092)
+            {
+                DropJump();
+                _agent.Warp(_jumpTo);
+            }
             _dash.Clear();
             _cooldowns.Clear(); // made again, ready, when next asked for
             // The basic shot too (the second reviews of 2026-11-20, work order 033): no hits counted toward its next mark,
@@ -491,6 +497,7 @@ namespace Roguelike
         {
             FeelValues feel = Feel;
             float now = Time.time;
+            SprintTick(now); // work order 092: a sprint that begins or ends, before the speed is set from it
             ApplyMovementFeel(feel);
             DropCooldownPressWhenHeldBack(); // work order 066
             TickFocusGains(now); // work order 071: the cooldowns run faster while spent focus's gains run
@@ -502,6 +509,7 @@ namespace Roguelike
                 Report(new PlayerReport { Kind = PlayerReportKind.PrimeLapsed }); // Hair Trigger's priming, unused (work order 025)
             }
             if (UpdateHeld(now)) return; // stunned or pulled: nothing else this frame (work order 035)
+            if (JumpStep(now)) return; // in the sprint's jump: she moves along it and does nothing else (work order 092)
 
             if (_dashing)
             {
@@ -661,6 +669,7 @@ namespace Roguelike
                 if (StartDash(press.Point)) return;
             }
 
+            if (TryJump(feel, now)) return; // sprinting into a low prop with free floor beyond: over it (work order 092)
             Walk();
             UpdateFacing(feel);
         }

@@ -606,7 +606,7 @@ namespace Roguelike
             if (cover && !Values.PropRules.OneHeightTable) go.GetComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, Values.PropRules);
             // She can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment), but a slender
             // one (work order 028, the candelabra; work order 052, the dais and the banner): it hides nothing.
-            if (!prop.Slender) go.AddComponent<Shelter>();
+            if (!prop.Slender) go.AddComponent<Shelter>().LowProp = PropHeights.Low(prop.Model); // work order 092: the sprint jumps the table's low ones
             into.Add(new PlacedProp { Room = room, Prop = prop, Object = go, IsCover = cover });
             return go;
         }

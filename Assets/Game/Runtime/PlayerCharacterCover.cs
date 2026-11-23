@@ -192,7 +192,13 @@ namespace Roguelike
                 _duckPressWaits = false;
                 return;
             }
-            bool free = MayDuckNow && _actionKind == ActionKind.None && !_clicks.Waiting && !_buffer.HasItem;
+            // Work order 092 ("ned igjen etter skudd" was slow): down again as soon as her basic shot has gone off, its recovery cut
+            // (DuckDownWhenShotLeft; the next shot still waits its whole cycle). A press kept from a moment she could not duck goes
+            // as the press itself would have, the moment she can.
+            bool free = _duckRoseFrom != null
+                ? MayDuckNow && !_clicks.Waiting && !_buffer.HasItem
+                  && (_actionKind == ActionKind.None || (feel.DuckDownWhenShotLeft && _actionKind == ActionKind.BasicShot && _action.HitResolved))
+                : MayDuckNow;
             if (!free || !_duck.Ready(now)) return; // not yet: her shot or skill still going, or the wait
             Shelter at;
             CoverShape shape;
@@ -229,7 +235,9 @@ namespace Roguelike
             // Work order 086, the held duck: a press of its own owes no "down again" at a prop; one in the short wait after she
             // rose is kept, and puts her down when the wait is over if the key is still held (HeldDuckTick).
             if (tap != DuckTap.Down) _duckRoseFrom = null;
-            _duckPressWaits = tap == DuckTap.Waiting && HeldDuckRules.Held(feel);
+            // Work order 092 ("å komme seg ned" was slow): a press while she cannot duck (a skill, a dash, a stun) is kept too while
+            // the key is held, and puts her down the moment she can (DuckPressKeptWhenBusy); before, it was lost until a new press.
+            _duckPressWaits = (tap == DuckTap.Waiting || (tap == DuckTap.Busy && feel.DuckPressKeptWhenBusy)) && HeldDuckRules.Held(feel);
             if (tap == DuckTap.Ducked) StartDuck(at, shape);
             else if (tap == DuckTap.NothingInReach)
             {
@@ -349,7 +357,7 @@ namespace Roguelike
         /// May a duck start now? Not in a skill, a dash or Slide, not stunned or pulled, and never while she is dead, a run's
         /// result is in, the game is paused or a choice is open (as for a stun or a pull, <see cref="MayBeHeldNow"/>).
         /// </summary>
-        bool MayDuckNow => !_dashing && _actionKind != ActionKind.Skill && !_keyMoving && !_held.IsHeld && MayBeHeldNow;
+        bool MayDuckNow => !_dashing && !_jumping && _actionKind != ActionKind.Skill && !_keyMoving && !_held.IsHeld && MayBeHeldNow; // work order 092: nor in a jump
 
         /// <summary>
         /// May a duck going on go on? Not once she is dead or a run's result is in. A pause or a choice only holds it, as

@@ -18,14 +18,14 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_IsOnByDefault_WithTheShortWait_AndFollowsTheQuickDuck()
         {
             Assert.That(Feel.DuckHold, Is.True, "on by default");
-            Assert.That(Feel.DuckHoldWait, Is.EqualTo(0.2f), "the producer's proposal: short, 0.2 s");
+            Assert.That(Feel.DuckHoldWait, Is.EqualTo(0.05f), "work order 092: snappier, 0.05 s (it was the producer's 0.2 s of work order 086)");
             Assert.That(Feel.DuckHoldDownAgain, Is.True);
             Assert.That(HeldDuckRules.Held(Feel), Is.True);
             Assert.That(HeldDuckRules.Held(new FeelValues { QuickDuck = false }), Is.False, "the quick duck off: taking cover, as before");
             Assert.That(HeldDuckRules.Held(new FeelValues { DuckHold = false }), Is.False, "off: the tap");
             Assert.That(HeldDuckRules.Held(null), Is.False);
             Assert.That(HeldDuckRules.Seconds(Feel), Is.EqualTo(float.PositiveInfinity), "no longest time");
-            Assert.That(HeldDuckRules.Wait(Feel), Is.EqualTo(0.2f));
+            Assert.That(HeldDuckRules.Wait(Feel), Is.EqualTo(0.05f));
             var tap = new FeelValues { DuckHold = false };
             Assert.That((HeldDuckRules.Seconds(tap), HeldDuckRules.Wait(tap)), Is.EqualTo((tap.DuckSeconds, tap.DuckWait)), "the tap's 0.5 s and 1 s, as before");
             Assert.That((tap.DuckSeconds, tap.DuckWait), Is.EqualTo((0.5f, 1f)));
@@ -47,9 +47,9 @@ namespace Roguelike.Rules.Tests
             Assert.That(duck.End(70f, HeldDuckRules.Wait(Feel)), Is.True);
             Assert.That(duck.IsDown, Is.False, "up at once");
             Assert.That(duck.RoseAt, Is.EqualTo(70f));
-            Assert.That(duck.Tap(70.19f, true, true, HeldDuckRules.Seconds(Feel)), Is.EqualTo(DuckTap.Waiting), "0.19 s after: the key waits");
-            Assert.That(duck.WaitLeft(70.1f), Is.EqualTo(0.1f).Within(1e-4f));
-            Assert.That(duck.Tap(70.2f, true, true, HeldDuckRules.Seconds(Feel)), Is.EqualTo(DuckTap.Ducked), "0.2 s after: down again");
+            Assert.That(duck.Tap(70.04f, true, true, HeldDuckRules.Seconds(Feel)), Is.EqualTo(DuckTap.Waiting), "0.04 s after: the key waits (work order 092: 0.05 s)");
+            Assert.That(duck.WaitLeft(70.02f), Is.EqualTo(0.03f).Within(1e-4f));
+            Assert.That(duck.Tap(70.05f, true, true, HeldDuckRules.Seconds(Feel)), Is.EqualTo(DuckTap.Ducked), "0.05 s after: down again");
             Assert.That(duck.Tap(80f, true, false, HeldDuckRules.Seconds(Feel)), Is.EqualTo(DuckTap.Down));
             duck.End(80f, HeldDuckRules.Wait(Feel));
             Assert.That(duck.Tap(81f, true, false, HeldDuckRules.Seconds(Feel)), Is.EqualTo(DuckTap.NothingInReach), "nothing in reach: nothing, as before");

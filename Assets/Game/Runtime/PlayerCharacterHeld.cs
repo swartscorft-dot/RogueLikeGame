@@ -46,9 +46,16 @@ namespace Roguelike
         }
 
         /// <summary>Stuns her for <paramref name="seconds"/> (work order 035), unless she may not be held now; <paramref name="by"/> names the attack. True if it did.</summary>
-        public bool Stun(float seconds, string by = null)
+        public bool Stun(float seconds, string by = null) => Stun(seconds, by, HeldState.StunGrace);
+
+        /// <summary>
+        /// The same with the grace after it (<see cref="HeldState.StunGrace"/> for an enemy's; 0 for the sprint's stagger, work order
+        /// 092, which must not shield her from the next). In the sprint's jump it takes her at the landing.
+        /// </summary>
+        public bool Stun(float seconds, string by, float grace)
         {
-            if (!MayBeHeldNow || !_held.TryStun(Time.time, seconds)) return false;
+            if (KeepStunForLanding(seconds, by, grace)) return true; // work order 092
+            if (!MayBeHeldNow || !_held.TryStun(Time.time, seconds, grace)) return false;
             Interrupt();
             TimesStunned++;
             Report(new PlayerReport { Kind = PlayerReportKind.Stunned, Seconds = seconds, By = by });
@@ -58,6 +65,7 @@ namespace Roguelike
         /// <summary>Pulls her to <paramref name="to"/> over <paramref name="seconds"/> (work order 035), unless she may not be held now. True if it did.</summary>
         public bool Pull(Vector3 to, float seconds, string by = null)
         {
+            if (KeepPullForLanding(to, seconds, by)) return true; // work order 092: in the sprint's jump, at the landing
             if (!MayBeHeldNow || !_held.TryPull(Time.time, GroundPosition, new GroundPoint(to.x, to.z), seconds)) return false;
             Interrupt();
             TimesPulled++;

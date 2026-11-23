@@ -81,6 +81,8 @@ namespace Roguelike
         public Key Interact = Key.E;
         [Tooltip("Held: take cover against a wall or prop in reach (Kristian 2026-11-19, an experiment). An asset made before it has no such line and gets Left Ctrl.")]
         public Key TakeCover = Key.LeftCtrl;
+        [Tooltip("Held with a move key: sprint, half again her run speed, no shots, over the low props (work order 092, Kristian 2026-11-23). An asset made before it has no such line and gets Left Shift.")]
+        public Key Sprint = Key.LeftShift;
 
         [Header("Skills, one per slot in order")]
         [Tooltip("Slot 1 is the first skill in Skills.asset (Quick Shot), slot 2 the second, and so on.")]
@@ -118,7 +120,8 @@ namespace Roguelike
             // The dash direction as in use: the pause menu's override, if chosen, else this asset's (work order 018).
             return Name(MoveUp) + Name(MoveLeft) + Name(MoveDown) + Name(MoveRight) + " move  |  " + Shoot.Label + " shoot at the cursor  |  "
                  + Name(Dash) + (GameSettings.Dash(DashDirection) == DashDirection.TowardMovement ? " dash the way you move" : " dash to the cursor") + "  |  " + skills + " skills  |  " + Name(Focus) + " focus"
-                 + (TakeCover != Key.None ? "  |  " + Name(TakeCover) + (quickDuck ? (duckHeld ? " hold to duck by a low prop" : " tap to duck by a low prop") : " hold to take cover") : "");
+                 + (TakeCover != Key.None ? "  |  " + Name(TakeCover) + (quickDuck ? (duckHeld ? " hold to duck by a low prop" : " tap to duck by a low prop") : " hold to take cover") : "")
+                 + (Sprint != Key.None ? "  |  " + Name(Sprint) + " hold to sprint" : ""); // work order 092
         }
 
         [ContextMenu("Reset to the start values")]
@@ -126,7 +129,7 @@ namespace Roguelike
         {
             MoveUp = Key.W; MoveDown = Key.S; MoveLeft = Key.A; MoveRight = Key.D;
             Shoot = new InputBinding(BindingSource.LeftMouse);
-            Dash = Key.Space; Focus = Key.Z; Interact = Key.E; TakeCover = Key.LeftCtrl;
+            Dash = Key.Space; Focus = Key.Z; Interact = Key.E; TakeCover = Key.LeftCtrl; Sprint = Key.LeftShift;
             DashDirection = DashDirection.TowardCursor;
             Skills = DefaultSkills();
         }

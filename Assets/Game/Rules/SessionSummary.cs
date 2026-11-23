@@ -117,6 +117,14 @@ namespace Roguelike.Rules
         public int DragsHeldBack;
         public float DragGapShortest = float.NaN;
 
+        // The sprint (work order 092, SessionSummarySprint.cs): seconds sprinting in this scope and their share of its time, jumps over
+        // low props, staggers from a hit while sprinting (not among the stuns above), clicks and skill keys that did nothing meanwhile.
+        public float SprintSeconds;
+        public float SprintShare => Seconds > 0f ? SprintSeconds / Seconds : float.NaN;
+        public int SprintJumps;
+        public int SprintStaggers;
+        public int SprintRefused;
+
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
 
@@ -210,6 +218,8 @@ namespace Roguelike.Rules
         public bool HasDuck;
         /// <summary>True when she was stunned or pulled in the session (work order 035): the summary then gives its line.</summary>
         public bool HasHeld;
+        /// <summary>True when the sprint's switch was on in the session (its start says so) or the log has any of it (work order 092).</summary>
+        public bool HasSprint;
 
         // The bombers (work order 073), whole session: their blasts, those that hurt her, and what they did to the others.
         public int BomberBlasts;
@@ -434,6 +444,7 @@ namespace Roguelike.Rules
             if (coverFrom >= 0d) stats.CoverSpans.Add(new KeyValuePair<double, double>(coverFrom, Math.Max(coverFrom, length)));
             stats.HasCover = events.Any(e => e.Type == SessionEventTypes.CoverEnter
                                              || (e.Type == SessionEventTypes.EnemyStrike && e.Result == SessionWords.StoppedByCover));
+            stats.HasSprint = HasSprintIn(start, events); // work order 092
             stats.HasHeld = events.Any(e => e.Type == SessionEventTypes.PlayerStunned || e.Type == SessionEventTypes.PlayerPulled);
             // The quick duck (work order 043): its switch on at the start (with taking cover's), or any duck in the log.
             stats.HasDuck = (start != null && start.ExtraValue("feel.QuickDuck") == "true" && start.ExtraValue("feel.TakeCover") != "false")
@@ -541,6 +552,7 @@ namespace Roguelike.Rules
             else if (stats.HasCover)
                 t.Add("Time in cover, share of the time", Duration(a.CoverSeconds) + ", " + Percent(a.CoverShare),
                       fights ? Duration(f.CoverSeconds) + ", " + Percent(f.CoverShare) : "-");
+            if (stats.HasSprint) AddSprintRows(t, a, f, fights); // work order 092
             t.Add("Damage dealt", a.TotalDamage.ToString(CultureInfo.InvariantCulture), fights ? f.TotalDamage.ToString(CultureInfo.InvariantCulture) : "-");
             t.Write(sb);
             sb.AppendLine();

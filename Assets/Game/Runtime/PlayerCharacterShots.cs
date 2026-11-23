@@ -34,6 +34,7 @@ namespace Roguelike
         /// </summary>
         public void Shoot(Vector3 point)
         {
+            if (RefuseWhileSprinting(-1)) return; // work order 092: no shot while she sprints, and the click is not kept
             _shotCursor = point;
             RiseToAct(wouldGoOff: true); // work order 086: down in a held duck, a click brings her up and goes off
             if (!_clicks.Click(Busy, Time.time, _nextShotAt))

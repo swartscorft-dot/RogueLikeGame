@@ -48,6 +48,7 @@ namespace Roguelike
         public IntentResult DashToward(Vector3 point)
         {
             RefreshDashCharges(); // work order 029: Spare Step; work order 065: a second dash
+            if (_jumping) return DashPressed(IntentResult.Rejected, 0f); // work order 092: the dash key does nothing in the sprint's jump, and is not kept
             if (_dashing || !_dash.CanStart(Time.time))
                 return DashPressed(IntentResult.Rejected, _dashing ? 0f : _dash.CooldownRemaining(Time.time));
             if (_held.IsHeld) return DashPressed(BufferPress(PressKind.Dash, point), 0f); // stunned or pulled: it waits, as in a lock (work order 035)
@@ -267,7 +268,7 @@ namespace Roguelike
             _backpedalCap.Update(_shotFacing.State == ShotFacing.Mode.Held && IsMoving, Time.time,
                                  Modifiers != null ? Modifiers.Weapon.BackpedalShare(feel.BackpedalSpeedShare) : feel.BackpedalSpeedShare, // work order 060: a grip
                                  feel.MovingShotSlowdown, OffTheMark.MovingShotRecovery(feel));
-            _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel);
+            _agent.speed = feel.RunSpeed * RunSpeedShare * CurrentSpeedShare(feel) * SprintShareNow(feel); // work order 092: the sprint's share, 1 when she does not sprint
             // The agent does not slow down by itself when its speed limit drops below how fast it is going.
             if (_agent.velocity.sqrMagnitude > _agent.speed * _agent.speed && !_dashing)
                 _agent.velocity = _agent.velocity.normalized * _agent.speed;

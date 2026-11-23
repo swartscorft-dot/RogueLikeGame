@@ -23,6 +23,8 @@ namespace Roguelike
         public int SkillsHeld;
         /// <summary>The cover key is down this frame (Left Ctrl to start with; Kristian 2026-11-19, an experiment).</summary>
         public bool CoverHeld;
+        /// <summary>The sprint key is down this frame (Left Shift to start with; work order 092).</summary>
+        public bool SprintHeld;
         /// <summary>
         /// The fourth review of 2026-11-21 (work order 055): the move keys were read one by one (<see cref="MoveKeysRead"/>),
         /// and one of them went down this frame (<see cref="MovePressed"/>), whatever the axis came to: the opposite key
@@ -45,6 +47,9 @@ namespace Roguelike
     /// is given every frame, as the move keys are. A dead character takes no input.
     /// </summary>
     [RequireComponent(typeof(PlayerCharacter))]
+    // Work order 092 ("å komme seg ned" was slow): before every other Update of the frame, so a press reaches her in the frame it is
+    // made, before anything that flies at her takes its step (it ran in no set order before: the same frame or the next).
+    [DefaultExecutionOrder(-100)]
     public sealed class PlayerInputDriver : MonoBehaviour
     {
         static readonly Plane s_Ground = new Plane(Vector3.up, Vector3.zero);
@@ -192,6 +197,7 @@ namespace Roguelike
                 _skillsHeldBefore = 0;
                 _player.Steer(Vector3.zero);
                 _player.HoldCover(false);
+                _player.HoldSprint(false);
                 return;
             }
 
@@ -202,6 +208,7 @@ namespace Roguelike
                                                       : Rules.QuickDuckRules.MoveKeyWentDown(_moveBefore.x, _moveBefore.y, input.Move.x, input.Move.y));
             _moveBefore = input.Move;
             _player.HoldCover(input.CoverHeld);
+            _player.HoldSprint(input.SprintHeld); // work order 092
             _player.AimAt(cursor);
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
@@ -275,6 +282,7 @@ namespace Roguelike
                 DashPressed = bindings.Dash != Key.None && keyboard[bindings.Dash].wasPressedThisFrame,
                 IdentityPressed = bindings.Focus != Key.None && keyboard[bindings.Focus].wasPressedThisFrame,
                 CoverHeld = bindings.TakeCover != Key.None && keyboard[bindings.TakeCover].isPressed,
+                SprintHeld = bindings.Sprint != Key.None && keyboard[bindings.Sprint].isPressed, // work order 092
                 MoveKeysRead = true,
                 MovePressed = Down(bindings.MoveRight) || Down(bindings.MoveLeft) || Down(bindings.MoveUp) || Down(bindings.MoveDown),
             };

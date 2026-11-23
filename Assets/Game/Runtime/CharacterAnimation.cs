@@ -108,8 +108,8 @@ namespace Roguelike
         public float DuckDrop = 0.55f;
         [Tooltip("Degrees the model leans toward what she is in cover against while ducked, turning about her feet.")]
         public float DuckLean = 22f;
-        [Tooltip("Seconds to duck down, and to come up again for a shot.")]
-        public float DuckBlend = 0.08f;
+        [Tooltip("Seconds to duck down, and to come up again for a shot. Work order 092 (his \"å komme seg ned\" was slow): 0.033, two frames at 60 fps; it was 0.08.")]
+        public float DuckBlend = 0.033f;
 
         static readonly int s_Idle = Animator.StringToHash(IdleState);
         static readonly int s_Run = Animator.StringToHash(RunState);
@@ -393,6 +393,15 @@ namespace Roguelike
             }
             float wanted = Player.IsDucked ? 1f : 0f;
             _duck = DuckBlend > 0f ? Mathf.MoveTowards(_duck, wanted, Time.deltaTime / DuckBlend) : wanted;
+            // Work order 092: in the sprint's jump the whole model is lifted along its arc (no jump clip exists; a look order's).
+            float lift = Player.JumpLift;
+            if (lift > 0f && _duck <= 0f)
+            {
+                model.position = parent.TransformPoint(_modelRestPosition) + Vector3.up * lift;
+                model.localRotation = _modelRestRotation;
+                _duckMoved = true;
+                return;
+            }
             if (_duck <= 0f)
             {
                 if (!_duckMoved) return;

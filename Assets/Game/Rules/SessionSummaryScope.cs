@@ -206,7 +206,8 @@ namespace Roguelike.Rules
             ComputeHeldDuck(s, events); // work order 086: the seconds she was down, and what was stopped (SessionSummaryDoorsAndDuck.cs)
 
             // Stunned and pulled (work order 035).
-            s.Stuns = events.Count(e => e.Type == SessionEventTypes.PlayerStunned);
+            s.Stuns = events.Count(e => e.Type == SessionEventTypes.PlayerStunned && e.Name != SprintRules.StaggerName); // work order 092: the sprint's stagger apart
+            ComputeSprint(s, all, events, spans); // work order 092 (SessionSummarySprint.cs)
             s.Pulls = events.Count(e => e.Type == SessionEventTypes.PlayerPulled);
             ComputeDrags(s, events); // work order 093: Drags landed, held back, the shortest gap (SessionSummaryDrags.cs)
             return s;

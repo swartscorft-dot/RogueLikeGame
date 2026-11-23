@@ -39,6 +39,11 @@ namespace Roguelike
         DuckEnded,      // DuckEnd (how), Shot (what it stopped)
         DuckNothing,    // a tap with no low prop in reach: nothing happened
         DuckStopped,    // At: the duck stopped a thing that flew at her there
+        // The sprint (work order 092). Its stagger is a Stunned with By SprintRules.StaggerName.
+        SprintStarted,  // a sprint began
+        SprintEnded,    // Seconds (how long it ran, its jumps in it), By (why: released, stopped, dash, duck, held, other)
+        SprintJumped,   // By (the prop), Metres (from the take-off to the landing): she jumped a low prop
+        SprintRefused,  // Slot (-1 for the basic shot): a click or a skill key while sprinting did nothing
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -98,6 +103,8 @@ namespace Roguelike
         // Work order 069 (and Seconds above): RecastPressed's timing by its own window's clean part (a press before the last
         // in its clean part is Clean here, in rhythm, though not a clean tap), and Seconds its window's clock at the press.
         public RecastTiming Timing;
+        // Work order 092.
+        public float Metres;          // SprintJumped: from the take-off to the landing
     }
 
     /// <summary>
