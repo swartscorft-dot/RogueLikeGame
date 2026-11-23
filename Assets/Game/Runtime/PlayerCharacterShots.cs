@@ -191,10 +191,17 @@ namespace Roguelike
                 GroundPoint at = CoverStopPoint(origin, aim, stop);
                 end = new Vector3(at.X, 0f, at.Z);
             }
-            float height = MuzzleHeightNext();
+            float height = ShotHeight;
             Vector3 p = transform.position;
             _laser.Show(new Vector3(p.x, height, p.z), new Vector3(end.x, height, end.z), hit, ShotFxMaterial);
         }
+
+        /// <summary>
+        /// The one height the shot is drawn and aimed at (work order 094): the next shot's muzzle (<see cref="MuzzleHeightNext"/>).
+        /// The Laser Sight's line is drawn at it, the streak leaves the gun at it, and the input driver meets the cursor's ray
+        /// with the level plane at it (<see cref="FeelValues.AimAtShotHeight"/>), so the line passes through the cursor on the screen.
+        /// </summary>
+        public float ShotHeight => MuzzleHeightNext();
 
         /// <summary>The height the next basic shot's streak leaves the gun at, without taking a turn of the hands (<see cref="NextMuzzle"/>).</summary>
         float MuzzleHeightNext()

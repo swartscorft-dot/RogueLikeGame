@@ -186,6 +186,7 @@ namespace Roguelike
             if (_camera == null) _camera = Camera.main;
             if (_camera == null) return;
             if (!TryGroundPoint(input.CursorScreen, out Vector3 cursor)) return;
+            Vector3 aim = ShotAim(input.CursorScreen, cursor); // work order 094: the shot's, a line's and a cone's; the cursor's ground point for what lands on the floor
 
             if (_health != null && !_health.IsAlive)
             {
@@ -202,7 +203,7 @@ namespace Roguelike
                                                       : Rules.QuickDuckRules.MoveKeyWentDown(_moveBefore.x, _moveBefore.y, input.Move.x, input.Move.y));
             _moveBefore = input.Move;
             _player.HoldCover(input.CoverHeld);
-            _player.AimAt(cursor);
+            _player.AimAt(aim, cursor);
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
 
@@ -213,12 +214,12 @@ namespace Roguelike
                 int bit = 1 << key;
                 int slot = _player.SkillOnKey(key);
                 if (slot < 0) continue;
-                if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, cursor);
+                if ((input.SkillsPressed & bit) != 0) _player.PressSkill(slot, _player.PlacedOnTheGround(slot) ? cursor : aim);
                 if ((_skillsHeldBefore & bit) != 0 && (held & bit) == 0) _player.ReleaseSkill(slot);
             }
             _skillsHeldBefore = held;
 
-            if (input.ShootPressed) _player.Shoot(cursor);
+            if (input.ShootPressed) _player.Shoot(aim);
         }
 
         /// <summary>While the input is held, and on the frame it is let go: every key not held into the hold, and the shoot button, wait to be seen up.</summary>
@@ -299,6 +300,23 @@ namespace Roguelike
             }
             point = default;
             return false;
+        }
+
+        /// <summary>
+        /// Work order 094 (Kristian 2026-11-23: pointing east or west the Laser Sight's line was off the mouse, up the screen;
+        /// north or south it was on it): the point the basic shot, its line and every skill that is a line or a cone from her
+        /// aim at. The shot is drawn and flies at the gun's height (<see cref="PlayerCharacter.ShotHeight"/>), and the camera
+        /// looks down at a slant, so the cursor's ray is met with the level plane at that height, not with the ground: the
+        /// drawn line then passes through the cursor on the screen. Laid on the ground under that point, as every aim point is.
+        /// With <see cref="Rules.FeelValues.AimAtShotHeight"/> off, or a ray that never meets it, the cursor's ground point as before.
+        /// </summary>
+        Vector3 ShotAim(Vector2 screen, Vector3 ground)
+        {
+            if (!_player.Feel.AimAtShotHeight) return ground;
+            Ray ray = _camera.ScreenPointToRay(screen);
+            if (!new Plane(Vector3.up, new Vector3(0f, _player.ShotHeight, 0f)).Raycast(ray, out float distance)) return ground;
+            Vector3 point = ray.GetPoint(distance);
+            return new Vector3(point.x, 0f, point.z);
         }
     }
 }

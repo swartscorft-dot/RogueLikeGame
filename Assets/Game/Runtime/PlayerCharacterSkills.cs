@@ -343,7 +343,7 @@ namespace Roguelike
             {
                 // Work order 066: a press that waited for its cooldown is aimed where the cursor is now, when it goes; a press
                 // that waited out a lock, at its own point, as before.
-                StartSkill(press.Slot, press.ForCooldown && _cursorKnown ? _shotCursor : press.Point);
+                StartSkill(press.Slot, press.ForCooldown && _cursorKnown ? (PlacedOnTheGround(press.Slot) ? _groundCursor : _shotCursor) : press.Point); // work order 094: the floor's point for one placed there
                 return true;
             }
             Report(new PlayerReport { Kind = PlayerReportKind.BufferDropped, Slot = press.Slot });
@@ -373,11 +373,47 @@ namespace Roguelike
         /// </summary>
         public void AimAt(Vector3 point)
         {
+            AimAt(point, point);
+            _cursorOnCamera = false; // a point in the world (tests, tools): it stays where it is
+        }
+
+        /// <summary>
+        /// Work order 094: the cursor as the input driver reads it, as two points. <paramref name="point"/> is under where its
+        /// ray meets the gun's height (<see cref="ShotHeight"/>): the shot, her look, a held line or cone follow it, as
+        /// <see cref="AimAt(Vector3)"/> says. <paramref name="ground"/> is where it meets the floor: a skill placed on the ground
+        /// (<see cref="PlacedOnTheGround"/>) that waited for its cooldown lands there.
+        /// </summary>
+        public void AimAt(Vector3 point, Vector3 ground)
+        {
             _cursorPoint = point;
             _hasCursor = true;
             _cursorKnown = true;
             _shotCursor = point;
+            _groundCursor = ground;
+            _cursorReadFrom = transform.position;
+            _cursorOnCamera = true;
         }
+
+        Vector3 _groundCursor;   // work order 094: the cursor's point on the floor, the latest report
+        Vector3 _cursorReadFrom; // where she stood when the driver read it
+        bool _cursorOnCamera;    // it came from the screen (the driver), not a point in the world
+
+        /// <summary>
+        /// Work order 094, her aim while she runs: the driver reads the cursor before she moves in a frame, through the camera
+        /// as the frame before left it; the camera follows her, so the ground under a cursor held still on the screen moves
+        /// with her. The Laser Sight's line, drawn after her move, and a shot that goes off before the driver's next read take
+        /// the cursor's point moved on by her move since the read (one frame's, 0.1 m at a run at 60 frames a second). Zero
+        /// for a point in the world (<see cref="AimAt(Vector3)"/>) and with <see cref="FeelValues.AimAtShotHeight"/> off.
+        /// </summary>
+        Vector3 CursorDrift =>
+            _cursorOnCamera && Feel.AimAtShotHeight ? new Vector3(transform.position.x - _cursorReadFrom.x, 0f, transform.position.z - _cursorReadFrom.z) : Vector3.zero;
+
+        /// <summary>
+        /// Work order 094: the slot's skill lands on the floor under the cursor (a circle, a press on a point: Powder Keg), so it
+        /// is aimed at the cursor's ground point; every other skill is a line or a cone from her, aimed at the gun's height.
+        /// </summary>
+        public bool PlacedOnTheGround(int slot) =>
+            slot >= 0 && slot < Skills.Count && Skills[slot] != null && (Skills[slot].Shape == SkillShape.Circle || Skills[slot].Input == SkillInput.Point);
 
         /// <summary>Press and let go of the first skill at once. Shorthand for tests and tools.</summary>
         public IntentResult CastAt(Vector3 point)
