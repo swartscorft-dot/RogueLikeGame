@@ -309,6 +309,7 @@ namespace Roguelike
                     }
                     case EnemyReportKind.Died:
                         Add(Of(SessionEventTypes.EnemyDeath));
+                        NoteFightDeath(r.Id); // work order 097: where it died, in a room's fight (PlaySessionRecorderRoomUse.cs)
                         break;
                     case EnemyReportKind.StaggerTaken:
                     {

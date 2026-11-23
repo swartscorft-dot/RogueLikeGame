@@ -219,6 +219,7 @@ namespace Roguelike
                     _nextSample = now + MoveSampleSeconds;
                     Add(new SessionEvent(Now(), SessionEventTypes.Move) { Moving = _player.IsMoving });
                 }
+                FollowFight(); // work order 097: her place in a room's fight (PlaySessionRecorderRoomUse.cs)
 
                 if (_pending.Length >= FlushChars || Time.unscaledTime >= _nextFlush) Flush();
             }
