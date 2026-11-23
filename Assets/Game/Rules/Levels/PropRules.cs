@@ -21,6 +21,8 @@ namespace Roguelike.Rules
     /// into the room, and is never in front of a wall niche toward its room (the crypt kit's plan, when it is given); no
     /// prop taller than <see cref="PropValues.SouthWallMostHeight"/> stands at a room's south wall, the low one the camera
     /// looks over; and the models and how many a room holds are its theme's (<see cref="RoomThemes"/>) when it has one.
+    /// Work order 089: in an exit room of its own no tall prop stands within <see cref="PropValues.WayDownClear"/> of the way
+    /// down's line (<see cref="ExitRooms.WayDownLine"/>).
     /// </summary>
     public static class PropRules
     {
@@ -280,6 +282,10 @@ namespace Roguelike.Rules
             }
             if (room.Kind == RoomKind.Exit && f.DistanceTo(room.Middle(cs)) < v.BossMiddleClear - Slack
                 && Broken("is nearer the exit room's middle than " + N(v.BossMiddleClear) + " m")) return first;
+            // Work order 089: in an exit room of its own nothing tall stands on the way down's line, from the door in to the far wall's A.
+            if (room.Kind == RoomKind.Exit && !prop.Slender && PropHeights.Tall(prop.Model) && ExitRooms.WayDownLine(level, room, out LevelPoint wayIn, out LevelPoint wayDown)
+                && f.DistanceTo(wayIn, wayDown) < v.WayDownClear - Slack
+                && Broken("is tall and nearer the way down's line than " + N(v.WayDownClear) + " m")) return first;
 
             foreach (LevelProp o in others)
             {

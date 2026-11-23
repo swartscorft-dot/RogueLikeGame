@@ -245,7 +245,8 @@ namespace Roguelike.Rules.Tests
                 Assert.That(LargestBlock(t), Is.LessThanOrEqualTo(2), name + ": no solid block more than two cells across");
             }
             Assert.That(faults, Is.Empty, string.Join("\n", faults.Take(80)));
-            Assert.That(RoomTemplateLibrary.Usable(v), Is.EquivalentTo(RoomTemplateLibrary.All), "the whole library is usable");
+            // Work order 089 (changed deliberately): the whole library but its third set, which has a switch of its own.
+            Assert.That(RoomTemplateLibrary.Usable(v), Is.EquivalentTo(RoomTemplateLibrary.All.Where(t => t.Since != RoomTemplateLibrary.ExitSince)), "the whole library is usable");
             TestContext.WriteLine("MORECASES " + cases + " cases in all (eight orientations): " + string.Join("; ", lines));
         }
 
@@ -287,7 +288,8 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_Off_LeavesTheSecondSetOut_On_DrawsItBesideTheEleven()
         {
             Assert.That(RoomTemplateLibrary.Usable(SecondSetOff), Is.EqualTo(First), "off: the eleven, in their order");
-            Assert.That(RoomTemplateLibrary.Usable(On), Is.EqualTo(RoomTemplateLibrary.All), "on: the whole library, in its order");
+            // Work order 089 (changed deliberately): the whole library but its third set, which has a switch of its own.
+            Assert.That(RoomTemplateLibrary.Usable(On), Is.EqualTo(RoomTemplateLibrary.All.Where(t => t.Since != RoomTemplateLibrary.ExitSince)), "on: the whole library, in its order");
             Assert.That(new LevelValues().MoreTemplates, Is.False, "off by default (2026-11-22: until Kristian has played the second set in the room lab)");
             Assert.That(RoomTemplateLibrary.Usable(new LevelValues()), Is.EqualTo(First), "the defaults: the eleven");
             Assert.That(LevelGenerator.Version, Is.EqualTo(19)); // work order 087; 088: 19

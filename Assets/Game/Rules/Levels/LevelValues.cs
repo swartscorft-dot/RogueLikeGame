@@ -386,6 +386,15 @@ namespace Roguelike.Rules
         // judged by Kristian playing it in the greybox room lab, work order 084, before it goes into the floors; the second set
         // has not been played, and the first PlayMode runs found rooms of it with floor cut off by their props).
         public bool MoreTemplates = false;
+        // Exit rooms of their own (work order 089; Kristian, 2026-11-22, asked whether the throne room should be the exit room only on
+        // floor 5 and floors 1 to 4 get an exit room of their own: "Ja, tronen bare på etasje 5"): on, the exit room of floors 1 to 4
+        // draws its template from the library's exit rooms of their own only (RoomTemplateLibrary's third set, ExitSince: the gate
+        // hall, the stair head, the sealed door; no throne in them) and is an exit hall (RoomTheme.ExitHall), and the exit room of
+        // floor 5 (FloorsPerAct) from the throne templates only, a throne room as before. Read by the templates' draw (with Templates
+        // on) and the themes. Off: every floor is version 19's, field for field, with no new version (the library grew after its
+        // other sets, and off they are never drawn). OFF by default: a room's form is judged by Kristian playing it in the room lab
+        // (work order 084, where they are listed whatever this says) before a later order turns it on with a new version.
+        public bool ExitRoomsOfTheirOwn = false;
         // A room is a fight (work order 070; Kristian after his evening session of 2026-11-21: "nå rman kommer i et rom, så er
         // man i en combat ... man trenger et punkt in i rommet der alle flyr på"): on, every room of a floor in a line that holds
         // enemies has a point a little way in from the door she came by (Fights, RoomFightRules); crossing it, or any waking of
@@ -592,6 +601,7 @@ namespace Roguelike.Rules
         public float FloorSpacing = 3f;        // from an open-floor prop to any other prop
         public float CoverSpacing = 2f;        // work order 088: from a cover put for the room's fight (LevelProp.Fight) to any other prop: the joined floor keeps the ways between them
         public float BossMiddleClear = 8f;     // round the boss room's middle, nothing
+        public float WayDownClear = 1.5f;      // work order 089: in an exit room of its own, no tall prop this near the line from the door in to the way down (the far wall's A): she sees from the door where the room ends; half the lane's 3 m
 
         // Walls and wall pieces (work order 028)
         public float WallFace = 0.275f;        // a wall's inner face, from its line: half the kit wall's 0.55 m (the grey boxes' face is at 0.25)
@@ -716,8 +726,9 @@ namespace Roguelike.Rules
     /// <summary>
     /// The room themes (work order 028; Kristian, 2026-11-19 and 2026-11-20: "good variety", and more of the crypt so one
     /// room differs from the next by what it is). Data, all first guesses. The combat rooms get a tomb hall, an ossuary, a
-    /// shrine or an archive; the treasure rooms a vault or an archive; the exit room always the throne room; the entrance
-    /// none (its braziers as before). Lengths in metres.
+    /// shrine or an archive; the treasure rooms a vault or an archive; the exit room always the throne room (work order 089:
+    /// with <see cref="LevelValues.ExitRoomsOfTheirOwn"/> on, the exit hall on floors 1 to 4); the entrance none (its braziers
+    /// as before). Lengths in metres.
     /// </summary>
     [Serializable]
     public sealed class ThemeValues
@@ -793,6 +804,14 @@ namespace Roguelike.Rules
                 new ThemeProp(PropStance.AlongWall, 2, 2, PropModel.Bookshelf),
                 new ThemeProp(PropStance.BesideShelf, 1, 1, PropModel.Candelabra),
                 new ThemeProp(PropStance.AlongWall, 1, 1, PropModel.Urns)),
+            // Work order 089: the exit hall, the exit room of floors 1 to 4 with LevelValues.ExitRoomsOfTheirOwn on (and the exit
+            // rooms of their own in the room lab). A plain key built only from props that exist, low ones, so the room's shape and
+            // its cover read in it; its look is a later order's. Urns at the walls, a broken pillar near one, rubble in the open
+            // (the template's c marks first); the fight's cover is added to it as to every room (work order 088: pillars, rubble).
+            new ThemeRecipe(RoomTheme.ExitHall, RoomKind.Exit, 1f, 1f,
+                new ThemeProp(PropStance.AlongWall, 2, 3, PropModel.Urns),
+                new ThemeProp(PropStance.EdgeFloor, 1, 1, PropModel.PillarBroken),
+                new ThemeProp(PropStance.OpenFloor, 1, 2, PropModel.Rubble)),
         };
     }
 }

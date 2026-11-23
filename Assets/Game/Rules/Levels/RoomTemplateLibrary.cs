@@ -10,7 +10,8 @@ namespace Roguelike.Rules
 {
     /// <summary>
     /// The rooms drawn by hand (work order 058; Kristian, 2026-11-21: "Rom-maler slik Diablo og PoE gjør"; the research report
-    /// d's proposal B, cut to a first library): seven combat rooms of five families, two elite rooms, two exit rooms. Each grid
+    /// d's proposal B, cut to a first library): seven combat rooms of five families, two elite rooms, two exit rooms (and work
+    /// order 072's second set, and work order 089's third, the exit rooms of their own, each behind its switch). Each grid
     /// is written as if she comes in from the bottom (<see cref="RoomTemplate"/> says the characters). The order of the list is
     /// part of the generator: changing it changes floors. Families, first floors, weights and the themes each suits are first
     /// guesses. To add a room: a grid here, then the library test (EditMode RoomTemplatesTests), which turns red for a grid that
@@ -309,6 +310,72 @@ namespace Roguelike.Rules
                 # . . . I I . . . #"),
         };
 
+        /// <summary>The family of the throne rooms, the act boss's exit rooms (work order 058; 072's two larger ones).</summary>
+        public const string ThroneFamily = "throne";
+
+        /// <summary>
+        /// The mark of the third set, the exit rooms of their own (work order 089): drawn only with
+        /// <see cref="LevelValues.ExitRoomsOfTheirOwn"/> on, and then only on floors 1 to 4. No generator version brought them (off in
+        /// the floors, every floor is version 19's); 20 is the version the order that turns them on is to give.
+        /// </summary>
+        public const int ExitSince = 20;
+
+        // The third set (work order 089; Kristian, 2026-11-22: "Ja, tronen bare på etasje 5"): exit rooms of their own for floors 1 to
+        // 4, so the throne room is the act's landmark the first time she sees it. Each is the floor's biggest ordinary fight (1.5
+        // times a combat room's enemies, 12 to 22 by floor) in a room whose shape says at a glance "this is the way down": the way
+        // down's place is the far wall's A, straight across from the door in on the room's long line, with no solid cell and
+        // (PropValues.WayDownClear) no tall prop between them; the cover stands to the sides of that line. No throne, no dais, no
+        // boss marks. One way in (I marks on one stretch of the near wall) and no way out: the way on is the exit itself. Every one
+        // keeps the exit room's rules as the throne rooms do: 32 to 40 m a side, at most 30 % solid (ShapeValues.ExitMostSolidShare),
+        // the open square of 16 m round its middle (ShapeValues.ExitMiddleSquare) and nothing within 8 m of it
+        // (PropValues.BossMiddleClear), the door's straight run, no dead-end slot, no thin corner, no solid block more than two cells
+        // across (the camera). Weights 1; first floor 1. After the other sets in the list, so with them off the draws are version
+        // 19's.
+        static readonly (string name, string family, RoomTemplateFor kind, int from, float weight, RoomTheme[] suits, bool farNotSouth, string grid)[] ExitGrids =
+        {
+            // The gate hall: long, entered at one end, the way down behind a gate in the far wall (two posts and the A between them).
+            // The fight goes down its length: the pack comes at her along it, the shooters hold the far end by the gate; she crosses
+            // from pier to pier, staggered along both sides (the first pair inside one dash of the fight's line, the next a run on),
+            // and the middle lane stays open to the gate. 8 x 10 cells (32 x 40 m).
+            ("gate-hall", "way-down", RoomTemplateFor.Exit, 1, 1f, new[] { RoomTheme.ExitHall }, true, @"
+                . . # A A # . .
+                . h . . . . h .
+                . # . . . . # .
+                . . . . . . . .
+                . . c . . c . .
+                . # . . . . # .
+                . . . . . . . .
+                . . # . . # . .
+                . . . . . . . .
+                . . . I I . . ."),
+            // The stair head: wide and shallow, the stairwell's two cheeks (blocks 2 x 2) in the far half with the way down between
+            // them on the long line. The ranged hold behind the cheeks; the fight goes round either cheek (an aisle 8 m wide outside
+            // each, a passage 4 m deep behind), so she can take one side and flank, or come up the middle. 10 x 8 (40 x 32 m).
+            ("stair-head", "way-down", RoomTemplateFor.Exit, 1, 1f, new[] { RoomTheme.ExitHall }, true, @"
+                . . h . A A . h . .
+                . . # # . . # # . .
+                . . # # . . # # . .
+                . . . . . . . . . .
+                . c . . . . . . c .
+                . . . . . . . . . .
+                . . . . . . . . . .
+                . . . . I I . . . ."),
+            // The sealed door: a forecourt before a great door (the A in a recess 12 m wide between two wall stubs in the far wall),
+            // with a bay 8 m square either side of it at the far end, behind the stubs, that the ranged enemies hold, its mouth toward
+            // the forecourt. She comes in between two gateposts (the first cover, inside one dash of the line), a pier further up
+            // each side is the next, and from there she goes into the bays or holds the forecourt. 9 x 9 (36 x 36 m).
+            ("sealed-door", "way-down", RoomTemplateFor.Exit, 1, 1f, new[] { RoomTheme.ExitHall }, true, @"
+                . . # . A . # . .
+                . h # . . . # h .
+                . . . . . . . . .
+                . . . . . . . . .
+                . . . . . . . . .
+                . # . . . . . # .
+                . . . c . c . . .
+                . . # . . . # . .
+                . . . I . I . . ."),
+        };
+
         static readonly List<string> s_errors = new List<string>();
 
         /// <summary>The library, in its order: every grid above that could be read.</summary>
@@ -338,6 +405,7 @@ namespace Roguelike.Rules
             }
             Add(Grids, 15);
             Add(MoreGrids, MoreSince); // work order 072: after the eleven, so with the second set off the draws are version 16's
+            Add(ExitGrids, ExitSince); // work order 089: after both, so with the third set off the draws are version 19's
             return list;
         }
 
@@ -377,7 +445,9 @@ namespace Roguelike.Rules
                 if (s_usable.TryGetValue(key, out IReadOnlyList<RoomTemplate> had)) return had;
                 // Work order 072: the second set only with LevelValues.MoreTemplates on; off, the list is the first eleven's, so the
                 // draws are version 16's.
-                IReadOnlyList<RoomTemplate> list = Current.Where(t => (v.MoreTemplates || t.Since < MoreSince) && RoomTemplates.Faults(t, LevelGenerator.South, false, v, null) == 0).ToList();
+                // Work order 089: the third set only with LevelValues.ExitRoomsOfTheirOwn on, whatever MoreTemplates says.
+                IReadOnlyList<RoomTemplate> list = Current.Where(t => (t.Since == ExitSince ? v.ExitRoomsOfTheirOwn : v.MoreTemplates || t.Since < MoreSince)
+                                                                      && RoomTemplates.Faults(t, LevelGenerator.South, false, v, null) == 0).ToList();
                 s_usable[key] = list;
                 return list;
             }
@@ -390,9 +460,72 @@ namespace Roguelike.Rules
             RoomSizeRange c = (v.Plan ?? new LevelPlan()).CombatSize;
             return string.Join("|", new object[]
             {
-                s_libraryVersion, v.MoreTemplates, v.CellSize, v.DoorWidth, v.GridCells, s.MiddleSquare, s.ExitMiddleSquare, s.TreasureMiddleSquare, s.DoorStraightIn,
+                s_libraryVersion, v.MoreTemplates, v.ExitRoomsOfTheirOwn, v.CellSize, v.DoorWidth, v.GridCells, s.MiddleSquare, s.ExitMiddleSquare, s.TreasureMiddleSquare, s.DoorStraightIn,
                 s.MostSolidShare, s.ExitMostSolidShare, t.MostSolidShare, t.MostDrawn, c.Min, c.Max,
             }.Select(o => Convert.ToString(o, CultureInfo.InvariantCulture)));
+        }
+    }
+
+    /// <summary>
+    /// Exit rooms of their own (work order 089; Kristian, 2026-11-22: "Ja, tronen bare på etasje 5"), with
+    /// <see cref="LevelValues.ExitRoomsOfTheirOwn"/>: which exit templates a floor may draw (<see cref="Allowed"/>), which theme its
+    /// exit room is (<see cref="ThemeOf"/>), and the way down's line in a room of the third set (<see cref="WayDownLine"/>), which no
+    /// tall prop stands on (<see cref="PropValues.WayDownClear"/>, a rule of <see cref="PropRules.Fault"/>). Nothing here draws.
+    /// </summary>
+    public static class ExitRooms
+    {
+        /// <summary>A throne room: an exit template of the throne family, the act boss's.</summary>
+        public static bool IsThrone(RoomTemplate t) => t != null && t.For == RoomTemplateFor.Exit && t.Family == RoomTemplateLibrary.ThroneFamily;
+
+        /// <summary>An exit room of its own: an exit template of the third set (<see cref="RoomTemplateLibrary.ExitSince"/>).</summary>
+        public static bool IsWayDown(RoomTemplate t) => t != null && t.For == RoomTemplateFor.Exit && t.Since == RoomTemplateLibrary.ExitSince;
+
+        /// <summary>
+        /// May a floor of this number draw the template (for the templates' draw)? With the switch off, every template the library's
+        /// usable list holds (so the draws are version 19's); on, an exit template only of the third set on floors 1 to 4 and only a
+        /// throne room on the act's last floor (<see cref="LevelValues.FloorsPerAct"/>). The other rooms' templates always.
+        /// </summary>
+        public static bool Allowed(RoomTemplate t, int floor, LevelValues v)
+        {
+            if (v == null || !v.ExitRoomsOfTheirOwn || t == null || t.For != RoomTemplateFor.Exit) return true;
+            return floor >= v.FloorsPerAct ? IsThrone(t) : IsWayDown(t);
+        }
+
+        /// <summary>
+        /// The exit room's theme: the exit hall on floors 1 to 4 with the switch on, and in a room of the third set whatever the
+        /// switch says (a room of the room lab); else the throne room, as it always was.
+        /// </summary>
+        public static RoomTheme ThemeOf(LevelRoom exit, int floor, LevelValues v)
+        {
+            bool own = (v != null && v.ExitRoomsOfTheirOwn && floor < v.FloorsPerAct) || IsWayDown(exit?.Template?.Template);
+            return own ? RoomTheme.ExitHall : RoomTheme.ThroneRoom;
+        }
+
+        /// <summary>
+        /// The way down's line in an exit room stamped from a template of the third set: from the middle of its door in's opening to
+        /// the middle of its A cells (the way down's place at the far wall). False for every other room, and with no door in or no A.
+        /// </summary>
+        public static bool WayDownLine(LevelLayout level, LevelRoom room, out LevelPoint from, out LevelPoint to)
+        {
+            from = to = default;
+            if (level == null || room == null || room.Kind != RoomKind.Exit || room.Shape != RoomShape.Template || !IsWayDown(room.Template?.Template)) return false;
+            LevelDoor entry = LevelGeometry.EntryDoor(level, room);
+            if (entry == null) return false;
+            double cs = level.CellSize, sx = 0, sy = 0;
+            int n = 0;
+            for (int y = room.Rect.Y; y < room.Rect.Top; y++)
+                for (int x = room.Rect.X; x < room.Rect.Right; x++)
+                    if (RoomTemplates.MarkAt(room, x, y) == 'A')
+                    {
+                        sx += (x + 0.5) * cs;
+                        sy += (y + 0.5) * cs;
+                        n++;
+                    }
+            if (n == 0) return false;
+            entry.Opening(cs, out LevelPoint a, out LevelPoint b);
+            from = new LevelPoint((a.X + b.X) * 0.5, (a.Y + b.Y) * 0.5);
+            to = new LevelPoint(sx / n, sy / n);
+            return true;
         }
     }
 }

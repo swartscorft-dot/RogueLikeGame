@@ -28,7 +28,8 @@ namespace Roguelike.Rules.Tests
             var v = new LevelValues();
             Assume.That(v.MoreTemplates, Is.False, "the second set off in the floors by default");
             List<LabEntry> entries = RoomLab.Entries(v);
-            IReadOnlyList<RoomTemplate> usable = RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true });
+            // Work order 089 (changed deliberately): and the third set, the exit rooms of their own, whatever its switch says.
+            IReadOnlyList<RoomTemplate> usable = RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = true });
             Assert.That(entries.Where(e => e.Template != null).Select(e => e.Template), Is.EqualTo(usable), "every template of the library the generator could draw, in its order, both sets");
             Assert.That(usable.Count(t => t.Since >= RoomTemplateLibrary.MoreSince), Is.GreaterThan(0), "work order 072's second set among them");
             Assert.That(RoomTemplateLibrary.Usable(v).All(t => t.Since < RoomTemplateLibrary.MoreSince), Is.True, "the floors' own list: the first eleven only");
@@ -43,8 +44,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(entries.Where(e => e.Template == null).Select(e => e.Kind), Is.EqualTo(new[] { LabKind.Ordinary, LabKind.Elite, LabKind.Exit, LabKind.Treasure }));
             Assert.That(entries.Where(e => e.Template == null).All(e => e.InFloors), Is.True);
             Assert.That(RoomLab.EntriesOf(LabKind.Treasure, v).Single().Name, Is.EqualTo("treasure room"));
-            // With the second set on in the floors: the same list, nothing marked.
-            var on = new LevelValues { MoreTemplates = true };
+            // With the second set on in the floors (work order 089: and the third): the same list, nothing marked.
+            var on = new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = true };
             Assert.That(RoomLab.Entries(on).Select(e => e.Template), Is.EqualTo(entries.Select(e => e.Template)));
             Assert.That(RoomLab.Entries(on).All(e => e.InFloors), Is.True, "the second set on: nothing marked");
         }
@@ -70,8 +71,11 @@ namespace Roguelike.Rules.Tests
         public void ThePresets_AreTheFloorsOwnNumbers()
         {
             var v = new LevelValues();
-            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 3, 5, 4 })); // work order 087: the bombers' preset on their first floor, 4 (3 before)
-            Assert.That(RoomLab.Mixes.Select(m => m.Bombers), Is.EqualTo(new[] { false, false, false, true }));
+            // Work order 087: the bombers' preset on their first floor, 4 (3 before). Work order 089 (changed deliberately): three more
+            // after the four, floor 2's, floor 3's with its warder, floor 4's with its warder and bombers.
+            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 3, 5, 4, 2, 3, 4 }));
+            Assert.That(RoomLab.Mixes.Select(m => m.Bombers), Is.EqualTo(new[] { false, false, false, true, false, false, true }));
+            Assert.That(RoomLab.Mixes.Select(m => m.Warders), Is.EqualTo(new[] { false, false, false, false, false, true, true }));
             foreach (LabMix mix in RoomLab.Mixes)
                 foreach (LabKind kind in new[] { LabKind.Ordinary, LabKind.Elite, LabKind.Exit })
                     for (ulong s = 1; s <= 40; s++)
@@ -88,7 +92,11 @@ namespace Roguelike.Rules.Tests
                         }
                         int bombersWanted = RoomLab.BombersIn(kind, mix, v);
                         if (bombersWanted > 0) LevelBombers.Convert(floor, bombersWanted);
+                        // Work order 089: the warders after the bombers, as many as the floors' rule lets the room hold (LevelWarders.Most).
+                        int wardersWanted = mix.Warders ? LevelWarders.Most(v, k, mix.Floor, false, LevelWarders.Count(floor) - 1) : 0;
+                        if (wardersWanted > 0) LevelWarders.Convert(floor, wardersWanted);
                         Assert.That(lab.Select(g => g.ToString()), Is.EqualTo(floor.Select(g => g.ToString())), mix + " " + kind + " seed " + s);
+                        Assert.That(lab.Count(g => g.Kind == EnemyKind.Warder), Is.EqualTo(mix.Warders && mix.Floor >= v.WarderFloors.FromFloor ? 1 : 0), "a warder in the warders' presets, one a room");
 
                         v.EnemyRange(k, mix.Floor, out int fewest, out int most);
                         int count = lab.Where(g => !g.Boss && !g.Elite).Sum(g => g.Count);

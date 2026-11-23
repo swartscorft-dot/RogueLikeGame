@@ -152,7 +152,8 @@ namespace Roguelike.PlayModeTests
             var faults = new List<string>();
             List<LabEntry> entries = RoomLab.Entries(_levels.Values);
             // Every template of the library, both sets, whatever the floors' values say (work order 072's second set off in them by default).
-            Assert.That(entries.Count(e => e.Template != null), Is.EqualTo(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true }).Count));
+            // Work order 089 (changed deliberately): and the third set, the exit rooms of their own (the lab's values list every set).
+            Assert.That(entries.Count(e => e.Template != null), Is.EqualTo(RoomTemplateLibrary.Usable(RoomLab.LabValues(_levels.Values)).Count));
             Assert.That(entries.Count(e => e.Template != null && e.Template.Since >= RoomTemplateLibrary.MoreSince), Is.GreaterThan(0), "the second set among them");
             foreach (LabEntry entry in entries)
             {

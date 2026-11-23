@@ -51,7 +51,8 @@ namespace Roguelike.Rules
         public readonly int Width, Height;
         /// <summary>
         /// The generator's version that brought it into the library (work order 072): 15 for the first eleven (work order 058),
-        /// 17 for the more of work order 072, drawn only with <see cref="LevelValues.MoreTemplates"/> on.
+        /// 17 for the more of work order 072, drawn only with <see cref="LevelValues.MoreTemplates"/> on; work order 089's exit rooms
+        /// of their own <see cref="RoomTemplateLibrary.ExitSince"/>, drawn only with <see cref="LevelValues.ExitRoomsOfTheirOwn"/> on.
         /// </summary>
         public int Since { get; internal set; } = 15;
         readonly char[] _cells;
@@ -275,7 +276,7 @@ namespace Roguelike.Rules
                     else if (Unit(rng) < tv.CombatShare) want = RoomTemplateFor.Combat;
                 }
                 else if (kind == RoomKind.Exit) want = RoomTemplateFor.Exit;
-                RoomTemplate t = want.HasValue ? Pick(usable, want.Value, floor, drawn, kind == RoomKind.Combat ? familyBefore : null, rng) : null;
+                RoomTemplate t = want.HasValue ? Pick(usable, want.Value, floor, drawn, kind == RoomKind.Combat ? familyBefore : null, rng, v) : null;
                 bool mirror = false;
                 if (t != null)
                 {
@@ -288,10 +289,13 @@ namespace Roguelike.Rules
             }
         }
 
-        static RoomTemplate Pick(IReadOnlyList<RoomTemplate> usable, RoomTemplateFor want, int floor, HashSet<RoomTemplate> drawn, string familyBefore, LevelRandom rng)
+        static RoomTemplate Pick(IReadOnlyList<RoomTemplate> usable, RoomTemplateFor want, int floor, HashSet<RoomTemplate> drawn, string familyBefore, LevelRandom rng,
+                                 LevelValues v)
         {
+            // Work order 089: with the exit rooms of their own on, floors 1 to 4 take them and the act's last floor a throne room
+            // (ExitRooms.Allowed; off, it lets every usable template by, so the draws are version 19's).
             var options = usable.Where(t => t.For == want && t.FromFloor <= floor && t.Weight > 0f && !drawn.Contains(t)
-                                            && (familyBefore == null || t.Family != familyBefore)).ToList();
+                                            && (familyBefore == null || t.Family != familyBefore) && ExitRooms.Allowed(t, floor, v)).ToList();
             if (options.Count == 0) return null;
             double total = options.Sum(t => (double)t.Weight), pick = Unit(rng) * total;
             foreach (RoomTemplate t in options)
