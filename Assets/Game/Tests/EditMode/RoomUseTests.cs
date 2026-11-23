@@ -332,7 +332,7 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The summary ----------------
 
-        /// <summary>A fight's events: its room_fight and fight_room at <paramref name="t"/>, a ring of places, two deaths, its end.</summary>
+        /// <summary>A fight's events: its room_fight and fight_room at <paramref name="t"/>, a ring of places, two deaths, its end, and a death told just after.</summary>
         static List<SessionEvent> AFight(double t, int floor, int room, string kind, double seconds, double ringRadius)
         {
             var events = new List<SessionEvent>();
@@ -369,6 +369,11 @@ namespace Roguelike.Rules.Tests
             end.AddExtra("d", "11.0");
             end.AddExtra("s", (1 + ringRadius).ToString("0.0", Inv));
             events.Add(end);
+            // The last of them tells its death in its own next frame, after the floor has seen it dead and ended the fight: still the fight's.
+            var late = new SessionEvent(t + seconds + 0.004, RoomUseEvents.Death) { EnemyId = 102 };
+            late.AddExtra("d", "15");
+            late.AddExtra("s", "1.0");
+            events.Add(late);
             return events;
         }
 
@@ -406,8 +411,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(first.Measures.Seconds, Is.EqualTo(20).Within(1e-9));
             Assert.That(first.Measures.SprintSeconds, Is.EqualTo(1).Within(1e-9), "the second of the sprint inside the fight");
             Assert.That(first.Measures.Jumps, Is.EqualTo(1));
-            Assert.That(first.Measures.Deaths, Is.EqualTo(2));
-            Assert.That(first.Measures.DeathsDepth, Is.EqualTo(13));
+            Assert.That(first.Measures.Deaths, Is.EqualTo(3), "two in the fight, one told just after its end");
+            Assert.That(first.Measures.DeathsDepth, Is.EqualTo(14));
             Assert.That(first.Measures.Circle, Is.EqualTo(4).Within(0.2));
             Assert.That(stats.RoomUse[1].Measures.Circle, Is.EqualTo(2).Within(0.2));
 

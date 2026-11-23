@@ -48,7 +48,7 @@ namespace Roguelike.Rules
         public static List<RoomUseRow> ComputeRoomUse(IReadOnlyList<SessionEvent> sorted)
         {
             var rows = new List<RoomUseRow>();
-            RoomUseRow current = null;
+            RoomUseRow current = null, last = null; // the fight going on, and the last that began (a death told just after its end is its)
             SessionEvent lastFight = null;
             int run = 0, runs = 0;
             string seed = "";
@@ -70,6 +70,7 @@ namespace Roguelike.Rules
                 {
                     case SessionEventTypes.RunStart:
                         Close(e.T, "run ended");
+                        last = null;
                         run = ++runs;
                         seed = e.Name ?? "";
                         break;
@@ -79,11 +80,13 @@ namespace Roguelike.Rules
                         break;
                     case LabRoomEvents.Room:
                         Close(e.T, "floor left");
+                        last = null;
                         run = 0;
                         break;
                     case SessionEventTypes.FloorEnter:
                     case SessionEventTypes.LevelBuilt:
                         Close(e.T, "floor left");
+                        last = null;
                         break;
                     case SessionEventTypes.SessionEnd:
                         Close(e.T, "session ended");
@@ -102,15 +105,16 @@ namespace Roguelike.Rules
                         if (lastFight != null && lastFight.ExtraValue("floor") == e.ExtraValue("floor") && lastFight.ExtraValue("order") == e.ExtraValue("order"))
                             current.Enemies = Whole(lastFight, "woke");
                         rows.Add(current);
+                        last = current;
                         break;
                     }
                     case RoomUseEvents.Place:
                         if (current != null && !double.IsNaN(Num(e, "d")) && !double.IsNaN(Num(e, "s")))
                             current.Places.Add(new RoomPlace(e.T, Num(e, "d"), Num(e, "s")));
                         break;
-                    case RoomUseEvents.Death:
-                        if (current != null && !double.IsNaN(Num(e, "d")) && !double.IsNaN(Num(e, "s")))
-                            current.Deaths.Add(new RoomPlace(e.T, Num(e, "d"), Num(e, "s")));
+                    case RoomUseEvents.Death: // during the fight, or told a frame after its end (the recorder writes only its room's)
+                        if ((current ?? last) != null && !double.IsNaN(Num(e, "d")) && !double.IsNaN(Num(e, "s")))
+                            (current ?? last).Deaths.Add(new RoomPlace(e.T, Num(e, "d"), Num(e, "s")));
                         break;
                     case RoomUseEvents.End:
                         if (current == null) break;

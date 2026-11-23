@@ -10,12 +10,14 @@ namespace Roguelike
     /// her place in the room's own metres from the door she came in by (<see cref="RoomUseEvents"/>). The floor tells it when a fight
     /// begins (with the room as she meets it) and when it ends; between, once a frame, her place is written when the sample rule says
     /// (<see cref="RoomUseRules.ShouldWrite"/>: a quarter of a second since the last and more than half a metre from it), and an enemy
-    /// of the fight that dies is written with its place. A frame that writes no line allocates nothing: a struct turned, a few numbers
+    /// of the fight that dies is written with its place (also just after the fight's end: an enemy tells its death in its own next
+    /// frame, so the last of a room's often dies after the floor has seen it dead and ended the fight). A frame that writes no line allocates nothing: a struct turned, a few numbers
     /// compared. Outside a fight nothing is written.
     /// </summary>
     public sealed partial class PlaySessionRecorder
     {
         bool _useOn;
+        bool _useDeaths;          // deaths of the fight's room are written: while it is followed, and after its end until the next or the floor's end
         RoomFrame _useFrame;      // the room's own metres, its origin in the scene's ground (x, z)
         int _useOrder;            // the fight's room by its place in the floor
         double _useT, _useD, _useS; // the last place written: the session's seconds (unrounded), depth, side
@@ -24,6 +26,9 @@ namespace Roguelike
         public bool FollowsAFight => _useOn;
         /// <summary>Her places written in the session so far (work order 097). For tests.</summary>
         public int FightPlacesWritten { get; private set; }
+
+        /// <summary>The end's word for a fight still followed as the floor's fights are forgotten (a new floor, the run's end).</summary>
+        public const string FloorGone = "floor gone";
 
         static string Metre(double v) => v.ToString("0.0", CultureInfo.InvariantCulture);
 
@@ -50,6 +55,7 @@ namespace Roguelike
                 space.WriteTo(e);
                 Add(e);
                 _useOn = true;
+                _useDeaths = true;
                 _useFrame = frame;
                 _useOrder = order;
                 if (_player == null) return;
@@ -102,10 +108,13 @@ namespace Roguelike
             FightPlacesWritten++;
         }
 
-        /// <summary>An enemy died (its report's id): with a fight followed and the enemy of its room's fight (or of none), its place.</summary>
+        /// <summary>
+        /// An enemy died (its report's id): with a fight followed and the enemy of its room's fight (or of none), its place; after the
+        /// fight's end, an enemy of that room's fight still (its own death told a frame late).
+        /// </summary>
         void NoteFightDeath(int id)
         {
-            if (!_useOn) return;
+            if (!_useDeaths) return;
             Enemy enemy = null;
             for (int i = 0; i < _enemies.Count; i++) // no LINQ: a death is a moment, but there are many
                 if (_enemies[i] != null && _enemies[i].Id == id)
@@ -113,7 +122,7 @@ namespace Roguelike
                     enemy = _enemies[i];
                     break;
                 }
-            if (enemy == null || (enemy.Fight != null && enemy.Fight.Room != _useOrder)) return;
+            if (enemy == null || (enemy.Fight != null && enemy.Fight.Room != _useOrder) || (!_useOn && enemy.Fight == null)) return;
             Vector3 p = enemy.transform.position;
             _useFrame.ToFrame(p.x, p.z, out double d, out double s);
             var e = new SessionEvent(Now(), RoomUseEvents.Death) { EnemyId = id };
@@ -127,6 +136,7 @@ namespace Roguelike
         {
             if (!_useOn) return;
             _useOn = false;
+            _useDeaths = why != FloorGone; // a new floor's rooms have fights of the same places in it
             if (!_recording || _writer == null) return;
             try
             {

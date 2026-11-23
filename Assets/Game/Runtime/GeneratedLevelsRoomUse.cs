@@ -56,7 +56,7 @@ namespace Roguelike
         {
             if (_usedFight == null) return;
             _usedFight = null;
-            PlaySessionRecorder.Current?.NoteFightEnd("floor gone");
+            PlaySessionRecorder.Current?.NoteFightEnd(PlaySessionRecorder.FloorGone);
         }
     }
 }

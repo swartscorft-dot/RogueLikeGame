@@ -215,6 +215,7 @@ namespace Roguelike.PlayModeTests
             }
             yield return Until(() => !_recorder.FollowsAFight, 30);
             Assert.That(_recorder.FollowsAFight, Is.False, "cleared: the fight ends");
+            yield return Frames(3); // an enemy tells its death in its own next frame
             string log = _recorder.LogPath;
             _recorder.StopRecording();
             string summary = File.ReadAllText(_recorder.SummaryPath);
