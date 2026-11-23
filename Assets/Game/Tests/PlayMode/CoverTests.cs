@@ -273,6 +273,11 @@ namespace Roguelike.PlayModeTests
             Assert.That(made.Count, Is.EqualTo(1));
             var shooter = (EnemyShooter)made[0];
             shooter.Tuning.Enemy.MoveSpeed = 0f; // it would walk round: here it must stand where it is
+            // Work order 087 has the shooter shoot from 11 m, under the practice spawn's 12 m: it stands 9 m from her (found by work
+            // order 088's filtered run; the test asks the same of it otherwise).
+            Vector3 away = Flat(shooter.transform.position - _player.Position).normalized;
+            Assert.That(shooter.GetComponent<NavMeshAgent>().Warp(Flat(_player.Position) + away * 9f), Is.True, "9 m from her");
+            yield return null;
             Vector3 her = _player.Position, it = shooter.transform.position;
             Vector3 mid = Flat((her + it) * 0.5f);
             Vector3 along = Flat(it - her).normalized;
@@ -323,9 +328,11 @@ namespace Roguelike.PlayModeTests
             PropValues values = level.Values.PropRules;
             foreach (GeneratedLevel.PlacedProp p in level.Props)
             {
-                bool tall = p.Prop.Height >= values.CoverHeight - 1e-3 && !p.Prop.Slender; // work order 028: a slender prop is never cover
+                // Work order 088 (changed deliberately): the one sorted table says what stops shots (PropHeights), the cover height before.
+                bool tall = PropHeights.StopsShots(p.Prop, values);
+                Assert.That(tall, Is.EqualTo(!p.Prop.Slender && PropHeights.Of(p.Prop.Model) == PropHeightClass.Tall), "the table's tall");
                 Assert.That(p.IsCover, Is.EqualTo(tall), p.Prop.ToString());
-                Assert.That(p.Object.GetComponent<Cover>() != null, Is.EqualTo(tall), "cover as tall as " + values.CoverHeight + " m: " + p.Prop);
+                Assert.That(p.Object.GetComponent<Cover>() != null, Is.EqualTo(tall), "cover when the table says tall: " + p.Prop);
             }
             Assert.That(level.Props.Any(p => p.IsCover) && level.Props.Any(p => !p.IsCover), "both kinds stand in this level");
 

@@ -18,7 +18,7 @@ namespace Roguelike.Rules
     {
         // The joined floor
         public float JoinRadius = 0.8f;   // a square of floor is free this far from walls, carved cells and props: the NavMesh agent's 0.5 and a wall's half thickness, with room for the NavMesh's rounding; a gap under twice this shuts what is behind it
-        public float WayClear = 1.6f;     // the way through: cell middles this far from every prop (072's PlayMode test: a metre from the NavMesh's edge, plus the agent's 0.5 and a little)
+        public float WayClear = 1.8f;     // the way through: cell middles this far from every prop (072's PlayMode test: a metre from the NavMesh's edge, plus the agent's 0.5 and the NavMesh's rounding; 1.6 left a gallery's cell under a metre from the edge in the first PlayMode run)
 
         // The chain of tall cover (point 2): from the line, cover to cover, toward the ranged enemies
         public int ChainFewest = 2;       // tall covers at least, between the fight's line and the far band (the producer's starting point)
