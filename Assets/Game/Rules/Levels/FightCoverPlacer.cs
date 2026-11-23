@@ -119,12 +119,12 @@ namespace Roguelike.Rules
             }
 
             /// <summary>
-            /// One low prop for the duck (see the class): every place of the room's open floor on a half-metre grid, clear of every
-            /// enemy by the props' rule, paired with every shooter whose line through it leaves her spot past the fight's line and
-            /// at least <see cref="CoverValues.LowFromShooter"/> from it, at most 80 degrees off the shooter's line to the line's
-            /// middle; tried best first (her spot's distance from the shooter nearest <see cref="CoverValues.LowIdeal"/>, a degree
-            /// off the line counting as 1/20 m), each turned across its shooter's line, until one serves the duck and keeps every
-            /// rule (at most <see cref="LowTries"/> are tried). True when one was put.
+            /// One low prop for the duck (see the class): the places of the room's open floor on a half-metre grid, clear of every
+            /// enemy by the props' rule, paired with each shooter whose line through one leaves her spot past the fight's line, 7 to
+            /// 14 m from it (<see cref="CoverValues.LowFromShooter"/> to <see cref="CoverValues.LowIdeal"/> and 5), at most 80
+            /// degrees off the shooter's line to the line's middle; tried best first (her spot's distance from the shooter nearest
+            /// <see cref="CoverValues.LowIdeal"/>, a degree off the line counting as 1/20 m), each turned across its shooter's line,
+            /// until one keeps every rule and serves the duck (at most <see cref="CoverLooks"/> looked at). True when one was put.
             /// </summary>
             bool PutLow(FightFrame f, PropModel low, List<PropFootprint> runs, LevelValues values, CoverValues cv)
             {
@@ -136,42 +136,48 @@ namespace Roguelike.Rules
                 var places = new List<(double score, LevelPoint at, LevelPoint q)>();
                 CellRect r = _room.Rect;
                 const double step = 0.5;
-                for (double x = r.X * _cs + step * 0.5; x < r.Right * _cs; x += step)
-                    for (double y = r.Y * _cs + step * 0.5; y < r.Top * _cs; y += step)
-                    {
-                        var at = new LevelPoint(x, y);
-                        if (!_room.IsOpen((int)Math.Floor(x / _cs), (int)Math.Floor(y / _cs))) continue;
-                        bool any = false;
-                        foreach (LevelPoint q in f.Shooters)
+                int nx = (int)Math.Round(r.Width * _cs / step), ny = (int)Math.Round(r.Height * _cs / step);
+                var known = new byte[nx * ny]; // 0 not asked yet, 1 a place a prop may stand, 2 not
+                double far = cv.LowIdeal + 5, cosMost = Math.Cos(80 * Math.PI / 180.0);
+                foreach (LevelPoint q in f.Shooters)
+                {
+                    LevelPoint w = UnitTo(q, f.LineMiddle);
+                    int i0 = Math.Max(0, (int)Math.Floor((q.X - far - r.X * _cs) / step)), i1 = Math.Min(nx - 1, (int)Math.Ceiling((q.X + far - r.X * _cs) / step));
+                    int j0 = Math.Max(0, (int)Math.Floor((q.Y - far - r.Y * _cs) / step)), j1 = Math.Min(ny - 1, (int)Math.Ceiling((q.Y + far - r.Y * _cs) / step));
+                    for (int i = i0; i <= i1; i++)
+                        for (int j = j0; j <= j1; j++)
                         {
-                            double toSpot = q.DistanceTo(at) + half + cv.DuckSpot;
-                            any |= toSpot >= cv.LowFromShooter && toSpot <= cv.LowIdeal + 5;
-                        }
-                        if (!any) continue;
-                        bool near = false;
-                        foreach (LevelPoint e in enemies)
-                            if (e.DistanceTo(at) < _v.FromPoints) { near = true; break; }
-                        if (near || RoomShapes.DistanceToWalls(_room, at, _cs) < _v.WallClearance + least) continue;
-                        foreach (LevelPoint q in f.Shooters)
-                        {
-                            double toSpot = q.DistanceTo(at) + half + cv.DuckSpot;
-                            if (toSpot < cv.LowFromShooter || toSpot > cv.LowIdeal + 5) continue;
-                            LevelPoint u = UnitTo(q, at), w = UnitTo(q, f.LineMiddle);
-                            double off = Math.Acos(Math.Max(-1, Math.Min(1, u.X * w.X + u.Y * w.Y))) * 180.0 / Math.PI;
-                            if (off > 80) continue;
+                            var at = new LevelPoint(r.X * _cs + (i + 0.5) * step, r.Y * _cs + (j + 0.5) * step);
+                            double d = q.DistanceTo(at), toSpot = d + half + cv.DuckSpot;
+                            if (toSpot < cv.LowFromShooter || toSpot > far || d < 1e-9) continue;
+                            var u = new LevelPoint((at.X - q.X) / d, (at.Y - q.Y) / d);
+                            double cos = u.X * w.X + u.Y * w.Y;
+                            if (cos < cosMost) continue;
+                            int k = j * nx + i;
+                            if (known[k] == 0)
+                            {
+                                bool ok = _room.IsOpen((int)Math.Floor(at.X / _cs), (int)Math.Floor(at.Y / _cs));
+                                if (ok && SurelyFaulted(at, least, enemies)) ok = false;
+                                if (ok && RoomShapes.DistanceToWalls(_room, at, _cs) < _v.WallClearance + least) ok = false;
+                                if (ok && TooNear(at, least)) ok = false;
+                                known[k] = ok ? (byte)1 : (byte)2;
+                            }
+                            if (known[k] != 1) continue;
                             var spot = new LevelPoint(at.X + u.X * (half + cv.DuckSpot), at.Y + u.Y * (half + cv.DuckSpot));
                             if (Rules.FightCover.DepthOf(_level, f, spot) < f.LineDepth + 0.25) continue;
+                            double off = Math.Acos(Math.Max(-1, Math.Min(1, cos))) * 180.0 / Math.PI;
                             places.Add((Math.Abs(toSpot - cv.LowIdeal) + off / 20.0, at, q));
                         }
-                    }
-                places.Sort((a, b) => a.score != b.score ? a.score.CompareTo(b.score) : a.at.X != b.at.X ? a.at.X.CompareTo(b.at.X) : a.at.Y.CompareTo(b.at.Y));
+                }
+                long[] order = Order(places.Count, i => places[i].score);
                 int tries = 0, looked = 0;
-                foreach ((double score, LevelPoint at, LevelPoint q) in places)
+                foreach (long key in order)
                 {
+                    (double score, LevelPoint at, LevelPoint q) = places[(int)(key & IndexMask)];
                     if (++looked > CoverLooks) break;
                     LevelProp p = Cover(low, at, AcrossTurn(low, UnitTo(q, at)));
-                    if (!Clear(p, runs) || !Rules.FightCover.LowServes(_level, f, p, q, values, p)) continue;
-                    if (PropRules.Fault(_level, _room, p, _room.Props, _v, null, _niches) != null) continue;
+                    if (!Clear(p, runs) || PropRules.Fault(_level, _room, p, _room.Props, _v, null, _niches) != null) continue;
+                    if (!Rules.FightCover.LowServes(_level, f, p, q, values, p)) continue;
                     if (TryAddCover(p)) return true;
                     if (++tries >= CoverTries) break;
                 }
@@ -179,10 +185,13 @@ namespace Roguelike.Rules
             }
 
             /// <summary>Places an added cover tries that keep the props' rules but not the lane, the joined floor or the walkable share, at most, before the room is left with what it has.</summary>
-            const int CoverTries = 200;
+            const int CoverTries = 100;
+
+            /// <summary>Chains' ends an added tall cover is tried after, at most (the longest chains' first).</summary>
+            const int EndsTried = 4;
 
             /// <summary>Places an added cover is looked at, at most, before the room is left with what it has (the rest are worse).</summary>
-            const int CoverLooks = 3000;
+            const int CoverLooks = 1500;
 
             /// <summary>
             /// One tall cover that extends a chain (see the class): every place of the room's open floor on a half-metre grid, clear of
@@ -200,7 +209,7 @@ namespace Roguelike.Rules
                 PropSize ts = PropSize.Of(tall);
                 double least = ts.Shape == PropShape.Circle ? ts.Radius : Math.Min(ts.Width, ts.Depth) * 0.5;
                 var sources = new List<(LevelPoint from, bool first, LevelPoint ideal, double toRanged)>();
-                foreach (LevelPoint e in ends)
+                foreach (LevelPoint e in ends.Take(EndsTried)) // the longest chains' ends
                 {
                     LevelPoint u = UnitTo(e, f.NearestRanged(e));
                     sources.Add((e, false, new LevelPoint(e.X + u.X * cv.StepIdeal, e.Y + u.Y * cv.StepIdeal), f.ToRanged(e)));
@@ -226,32 +235,74 @@ namespace Roguelike.Rules
                         foreach ((LevelPoint from, bool first, LevelPoint ideal, double fromRanged) in sources)
                             reach |= at.DistanceTo(from) <= (first ? cv.FirstMost : cv.StepMost);
                         if (!reach) continue;
-                        bool near = false;
-                        foreach (LevelPoint e in enemies)
-                            if (e.DistanceTo(at) < _v.FromPoints) { near = true; break; }
-                        if (near || RoomShapes.DistanceToWalls(_room, at, _cs) < _v.WallClearance + least) continue;
+                        if (SurelyFaulted(at, least, enemies) || RoomShapes.DistanceToWalls(_room, at, _cs) < _v.WallClearance + least || TooNear(at, least)) continue;
                         double toRanged = f.ToRanged(at);
                         for (int k = 0; k < sources.Count; k++)
                         {
                             (LevelPoint from, bool first, LevelPoint ideal, double fromRanged) = sources[k];
                             if (first ? at.DistanceTo(from) > cv.FirstMost : at.DistanceTo(from) > cv.StepMost || at.DistanceTo(from) < cv.StepLeast || toRanged >= fromRanged) continue;
-                            bool middle = inMiddle(LevelProp.Make(tall, at, 0, PropPlace.Set).Footprint);
+                            bool middle = inMiddle(PropFootprint.Of(ts, at, 0));
                             places.Add(((middle ? 1e6 : 0) + k * 2 + at.DistanceTo(ideal), at));
                             break;
                         }
                     }
-                places.Sort((a, b) => a.score != b.score ? a.score.CompareTo(b.score) : a.at.X != b.at.X ? a.at.X.CompareTo(b.at.X) : a.at.Y.CompareTo(b.at.Y));
+                long[] order = Order(places.Count, i => places[i].score);
                 int tries = 0, looked = 0;
-                foreach ((double score, LevelPoint at) in places)
+                foreach (long key in order)
                 {
+                    (double score, LevelPoint at) = places[(int)(key & IndexMask)];
                     if (++looked > CoverLooks) break;
                     LevelProp p = Cover(tall, at, 0);
-                    if (!Clear(p, runs) || !SouthClear(p.Footprint, cv.SouthClear) || !HidesAny(f, p, values)) continue;
-                    if (PropRules.Fault(_level, _room, p, _room.Props, _v, null, _niches) != null) continue;
+                    if (!Clear(p, runs) || !SouthClear(p.Footprint, cv.SouthClear)) continue;
+                    if (PropRules.Fault(_level, _room, p, _room.Props, _v, null, _niches) != null || !HidesAny(f, p, values)) continue;
                     if (TryAddCover(p)) return true;
                     if (++tries >= CoverTries) break;
                 }
                 return false;
+            }
+
+            /// <summary>
+            /// A cover whose footprint holds a circle of <paramref name="inner"/> round <paramref name="at"/> surely breaks a rule of the
+            /// props there (<see cref="PropRules.Fault"/>): nearer an enemy than <see cref="PropValues.FromPoints"/>, or in the exit
+            /// room nearer its middle than <see cref="PropValues.BossMiddleClear"/>. A quick answer before the rules' own.
+            /// </summary>
+            bool SurelyFaulted(LevelPoint at, double inner, List<LevelPoint> enemies)
+            {
+                foreach (LevelPoint e in enemies)
+                    if (e.DistanceTo(at) - inner < _v.FromPoints - 1e-9) return true;
+                return _room.Kind == RoomKind.Exit && _room.Middle(_cs).DistanceTo(at) - inner < _v.BossMiddleClear - 1e-9;
+            }
+
+            /// <summary>
+            /// A cover whose footprint holds a circle of <paramref name="inner"/> round <paramref name="at"/> is surely nearer a prop of
+            /// the room than the props' rules let it stand (<see cref="PropValues.CoverSpacing"/> from a prop of the open floor or
+            /// another cover, apart from the rest): the inner circles of the two are nearer than that. A quick answer before the rules'
+            /// own (<see cref="PropRules.Fault"/>), which every place it lets by still keeps.
+            /// </summary>
+            bool TooNear(LevelPoint at, double inner)
+            {
+                foreach (LevelProp o in _room.Props)
+                {
+                    if (PropSize.Of(o.Model).Walkable) continue;
+                    double oi = o.Shape == PropShape.Circle ? o.Radius : Math.Min(o.Width, o.Depth) * 0.5;
+                    double needs = o.Place == PropPlace.Floor || o.Fight ? _v.CoverSpacing : 0;
+                    if (at.DistanceTo(o.Position) - inner - oi < needs - 1e-9) return true;
+                }
+                return false;
+            }
+
+            const long IndexMask = (1L << 22) - 1;
+
+            /// <summary>
+            /// The places' order, best first: each one's score to a millimetre, and of two as good the one made first (a key of the
+            /// score and the index, so the order is the same in every runtime); the index is the key's low bits (<see cref="IndexMask"/>).
+            /// </summary>
+            static long[] Order(int count, Func<int, double> score)
+            {
+                var keys = new long[count];
+                for (int i = 0; i < count; i++) keys[i] = ((long)Math.Round(score(i) * 1000.0) << 22) | (long)i;
+                Array.Sort(keys);
+                return keys;
             }
 
             /// <summary>A cover put for the room's fight: a set piece (<see cref="PropPlace.Set"/>), marked <see cref="LevelProp.Fight"/>.</summary>
@@ -331,21 +382,40 @@ namespace Roguelike.Rules
                 return true;
             }
 
+            double _walkLeft = double.NaN; // work order 088: the floor's walkable squares' area an added cover may still take
+
             /// <summary>
             /// Adds an added cover if it keeps every rule a prop keeps (<see cref="PropRules.Fault"/>), the clear lane, the joined
-            /// floor and, in a combat room, the walkable share; true when it did.
+            /// floor and, in a combat room, the walkable share; true when it did. The share is reckoned as the themed props' is
+            /// (<see cref="PropValues.MinWalkable"/>): the ground a prop takes is its footprint grown by the walk radius, which never
+            /// counts less than the validator's grid does, taken from what the room's share leaves above the least; when that says
+            /// no, the validator's own grid is asked.
             /// </summary>
             bool TryAddCover(LevelProp p)
             {
+                double grown = 0;
+                if (_room.Kind == RoomKind.Combat)
+                {
+                    if (double.IsNaN(_walkLeft))
+                        _walkLeft = (PropRules.WalkableShare(_level, _room, _v) - _v.MinWalkable) * PropRules.FloorSquares(_level, _room, _v) * _v.LaneGrid * _v.LaneGrid;
+                    double r = _v.WalkRadius;
+                    grown = p.Shape == PropShape.Circle ? Math.PI * (p.Radius + r) * (p.Radius + r) : (p.Width + 2 * r) * (p.Depth + 2 * r);
+                }
                 if (PropRules.Fault(_level, _room, p, _room.Props, _v, null, _niches) != null) return false;
                 if (!_lane.Clear(p.Footprint)) return false;
                 if (!FloorKeeps(p)) return false;
                 if (_room.Kind == RoomKind.Combat)
                 {
-                    _room.Props.Add(p);
-                    bool walkable = PropRules.WalkableShare(_level, _room, _v) >= _v.MinWalkable - 1e-9;
-                    _room.Props.RemoveAt(_room.Props.Count - 1);
-                    if (!walkable) return false;
+                    if (grown > _walkLeft)
+                    {
+                        // The quick reckoning says no: the validator's own grid, with it standing.
+                        _room.Props.Add(p);
+                        double share = PropRules.WalkableShare(_level, _room, _v);
+                        _room.Props.RemoveAt(_room.Props.Count - 1);
+                        if (share < _v.MinWalkable - 1e-9) return false;
+                        _walkLeft = (share - _v.MinWalkable) * PropRules.FloorSquares(_level, _room, _v) * _v.LaneGrid * _v.LaneGrid;
+                    }
+                    else _walkLeft -= grown;
                 }
                 _room.Props.Add(p);
                 _lane.Block(p.Footprint);

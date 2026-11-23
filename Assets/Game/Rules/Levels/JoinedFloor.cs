@@ -239,7 +239,52 @@ namespace Roguelike.Rules
         public bool Keeps(LevelProp extra)
         {
             if (extra == null || PropSize.Of(extra.Model).Walkable) return true;
-            return PocketsWith(extra) == 0 && (!_way || WayHolds(extra));
+            // A prop whose squares, and the ring of squares round them, touch nothing that blocks already leaves a free ring round
+            // itself: it can shut nothing off, and the flood is not asked. Nor is the way when it comes near no cell's middle.
+            if (!Alone(extra) && PocketsWith(extra) > 0) return false;
+            return !_way || !NearAWay(extra) || WayHolds(extra);
+        }
+
+        readonly List<int> _mine = new List<int>();
+
+        /// <summary>The prop's squares are free and so is every square round them, and none of them is a doorway's.</summary>
+        bool Alone(LevelProp extra)
+        {
+            PropFootprint f = extra.Footprint;
+            _mine.Clear();
+            Cells(f, _radius, out int i0, out int j0, out int i1, out int j1);
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                    if (f.DistanceTo(Centre(i, j)) < _radius - Slack)
+                    {
+                        int k = j * _nx + i;
+                        if (_wall[k] || _props[k]) return false;
+                        _mine.Add(k);
+                    }
+            foreach (int k in _starts)
+                if (_mine.Contains(k)) return false;
+            foreach (int k in _mine)
+            {
+                int i = k % _nx, j = k / _nx;
+                for (int dj = -1; dj <= 1; dj++)
+                    for (int di = -1; di <= 1; di++)
+                    {
+                        int ni = i + di, nj = j + dj;
+                        if (ni < 0 || nj < 0 || ni >= _nx || nj >= _ny) return false;
+                        int n = nj * _nx + ni;
+                        if (_wall[n] || _props[n]) return false;
+                    }
+            }
+            return true;
+        }
+
+        /// <summary>The prop comes within the way's clearance of a cell's middle that is clear now.</summary>
+        bool NearAWay(LevelProp extra)
+        {
+            PropFootprint f = extra.Footprint;
+            for (int k = 0; k < _cellOpen.Length; k++)
+                if (CellClear(k, null) && f.DistanceTo(CellMiddle(k)) < _clear - Slack) return true;
+            return false;
         }
 
         /// <summary>The squares joined in the room with no prop that are free with the props (and <paramref name="extra"/>) and not joined: the pocket's size.</summary>

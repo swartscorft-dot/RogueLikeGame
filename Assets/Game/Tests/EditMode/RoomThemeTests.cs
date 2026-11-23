@@ -30,9 +30,11 @@ namespace Roguelike.Rules.Tests
 
         /// <summary>
         /// The longest one generation with themes may take, in milliseconds (as LevelPropsTests'). The slowest seed is timed
-        /// again for it, as one time can be slow for the machine's sake.
+        /// again for it, as one time can be slow for the machine's sake. Work order 088 (changed deliberately): 150 ms, LevelPropsTests'
+        /// bound, 50 before; version 19's props stage does more (the joined floor, the fights' cover: about 1.7 times version 18's
+        /// generation on .NET), and the filtered Unity EditMode run of it under load found the slowest seed of a floor 51 to 87 ms.
         /// </summary>
-        const double SlowestAllowedMs = 50;
+        const double SlowestAllowedMs = 150;
 
         sealed class Tally
         {

@@ -134,9 +134,11 @@ namespace Roguelike.Rules.Tests
         /// it is a single generation, and on a busy machine it is whatever moment another program took the processor
         /// (the slowest's bound was 50 ms until 2026-11-20, then 150 ms, and both failed under load alone, the last on the
         /// evening of 2026-11-20 with five jobs running; work order 039). A second for one floor still catches generation
-        /// going wrong, which takes seconds.
+        /// going wrong, which takes seconds. Work order 088 (changed deliberately): 50 ms for the median, 40 before; version 19's
+        /// props stage keeps the joined floor and gives every fight its cover, about 1.7 times version 18's generation on .NET (6 to
+        /// 10.5 ms a floor), and the filtered Unity EditMode run of it under load found the median 41 ms on floors 3 to 5.
         /// </summary>
-        const double MedianAllowedMs = 40;
+        const double MedianAllowedMs = 50;
         const double SlowestAllowedMs = 1000;
 
         // Work order 012: a thousand seeds for each floor number of the act.
