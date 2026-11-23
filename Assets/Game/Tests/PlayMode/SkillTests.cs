@@ -352,6 +352,17 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.SkillPhase, Is.EqualTo(SkillPhase.Channel), "still going while the key is down");
             Assert.That(indicator.IsVisible, Is.True, "the aim outline is shown");
             Assert.That(_a.HitsTaken, Is.GreaterThan(0));
+            // Kristian, 2026-11-23: a line or a wedge is outlined at the gun's height, so that it passes through the cursor on the
+            // screen as the shot does (on the floor it lay under the cursor).
+            var outline = indicator.GetComponent<LineRenderer>();
+            Vector3 tip = outline.GetPosition(0), far = outline.GetPosition(1 + (outline.positionCount - 2) / 2);
+            Assert.That(tip.y, Is.GreaterThan(0.5f), "the wedge's outline is lifted off the floor");
+            Assert.That(tip.y, Is.EqualTo(_player.ShotHeight).Within(0.15f), "to the gun's height");
+            Vector2 s0 = Camera.main.WorldToScreenPoint(tip), s1 = Camera.main.WorldToScreenPoint(far);
+            Vector2 along = (s1 - s0).normalized;
+            Vector2 toCursor = onA - s0;
+            float off = Mathf.Abs(toCursor.x * along.y - toCursor.y * along.x);
+            Assert.That(off, Is.LessThan(Screen.height * 0.02f), "the outline's middle passes through the cursor on the screen");
 
             _idle = new InputFrame { CursorScreen = ScreenAtShotHeight(_b.transform.position), SkillsHeld = key };
             yield return null;
