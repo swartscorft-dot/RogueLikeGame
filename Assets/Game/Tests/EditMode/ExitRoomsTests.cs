@@ -203,7 +203,7 @@ namespace Roguelike.Rules.Tests
                     }
                 }
 #if UNITY_5_3_OR_NEWER
-            const ulong pinned = 0x0UL; // Unity's EditMode run of this code, the switch off
+            const ulong pinned = 0x2E1FD118BE87BD61UL; // Unity's EditMode run of this code (f02a9d2), the switch off, 2026-11-23
 #else
             const ulong pinned = 0x8854E2990E1346B7UL; // .NET, version 19's code (3c1f75f), its defaults, before this order; this code the same
 #endif
