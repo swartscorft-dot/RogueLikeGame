@@ -12,13 +12,18 @@ namespace Roguelike
     /// riktig, men ser at spells alltid går litt under", and on the choice: "I pistol høyde blir vel det beste"): such a skill is
     /// aimed, as the shot is, at the point under the cursor's ray at the gun's height (<see cref="PlayerCharacter.ShotHeight"/>),
     /// and the camera looks down at a slant, so the same line drawn on the floor lay under the cursor on the screen. At the gun's
-    /// height it passes through the cursor, as the shot and the Laser Sight do. A circle lands on the floor under the cursor and
-    /// is drawn on it. With <see cref="FeelValues.AimAtShotHeight"/> off everything is on the floor, as before.
+    /// height it passes through the cursor, as the shot and the Laser Sight do. It is ONE height (<see cref="LineHeight"/>), not
+    /// the gun's of the moment: her pistols go between about 1.06 m and 1.49 m as her arms move and her hands take turns, and an
+    /// outline that followed them would jump; at the middle it is at most a quarter of a metre from the height the cursor was
+    /// met at. A circle lands on the floor under the cursor and is drawn on it. With <see cref="FeelValues.AimAtShotHeight"/>
+    /// off everything is on the floor, as before.
     /// </summary>
     [RequireComponent(typeof(LineRenderer))]
     public sealed class SkillIndicator : MonoBehaviour
     {
         const float HeightAboveGround = 0.06f;
+        /// <summary>The height a strip's or a wedge's outline is drawn at: the middle of where her pistols are held (m).</summary>
+        public const float LineHeight = 1.25f;
         const float BaseWidth = 0.06f;
 
         public PlayerCharacter Player;
@@ -47,7 +52,7 @@ namespace Roguelike
             Vector3 toAim = Ground(Player.AimPoint) - origin;
             Vector3 dir = toAim.sqrMagnitude > 1e-6f ? toAim.normalized : Ground(Player.transform.forward).normalized;
             _line.widthMultiplier = BaseWidth * (skill.Input == SkillInput.Charge ? 1f + 2f * Player.SkillCharge : 1f);
-            float lineHeight = Player.Feel.AimAtShotHeight ? Mathf.Max(HeightAboveGround, Player.ShotHeight) : HeightAboveGround;
+            float lineHeight = Player.Feel.AimAtShotHeight ? LineHeight : HeightAboveGround;
 
             switch (skill.Shape)
             {

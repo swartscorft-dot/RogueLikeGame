@@ -356,13 +356,13 @@ namespace Roguelike.PlayModeTests
             // screen as the shot does (on the floor it lay under the cursor).
             var outline = indicator.GetComponent<LineRenderer>();
             Vector3 tip = outline.GetPosition(0), far = outline.GetPosition(1 + (outline.positionCount - 2) / 2);
-            Assert.That(tip.y, Is.GreaterThan(0.5f), "the wedge's outline is lifted off the floor");
-            Assert.That(tip.y, Is.EqualTo(_player.ShotHeight).Within(0.15f), "to the gun's height");
+            Assert.That(tip.y, Is.EqualTo(SkillIndicator.LineHeight).Within(1e-3f), "the wedge's outline is lifted off the floor, to the one height of her pistols");
+            Assert.That(Mathf.Abs(_player.ShotHeight - SkillIndicator.LineHeight), Is.LessThan(0.35f), "which is near where the gun is now");
             Vector2 s0 = Camera.main.WorldToScreenPoint(tip), s1 = Camera.main.WorldToScreenPoint(far);
             Vector2 along = (s1 - s0).normalized;
             Vector2 toCursor = onA - s0;
             float off = Mathf.Abs(toCursor.x * along.y - toCursor.y * along.x);
-            Assert.That(off, Is.LessThan(Screen.height * 0.02f), "the outline's middle passes through the cursor on the screen");
+            Assert.That(off, Is.LessThan(Screen.height * 0.03f), "the outline's middle passes by the cursor on the screen (on the floor it lay a metre and more under it)");
 
             _idle = new InputFrame { CursorScreen = ScreenAtShotHeight(_b.transform.position), SkillsHeld = key };
             yield return null;
