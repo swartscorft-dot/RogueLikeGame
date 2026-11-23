@@ -489,9 +489,17 @@ namespace Roguelike.Rules
     {
         public const string TestRunnerScenePrefix = "InitTestScene";
 
+        /// <summary>
+        /// True only while the play start check (work order 096, <c>Roguelike.EditorTools.PlayStartCheck</c>) starts the game in a
+        /// batch-mode Editor the way the developer's own Editor starts it: batch mode then counts as an Editor with a window, so
+        /// everything that installs itself at the start of Play (this recorder, the run's floors, the HUD's parts) installs
+        /// itself as it does for him. False otherwise: always in the test suites and in a built game.
+        /// </summary>
+        public static bool BatchModeAsAnEditor;
+
         /// <summary>At the start of Play: may the recorder be installed at all?</summary>
         public static bool MayStartByItself(string firstSceneName, bool batchMode) =>
-            !batchMode && (firstSceneName == null || !firstSceneName.StartsWith(TestRunnerScenePrefix, StringComparison.Ordinal));
+            (!batchMode || BatchModeAsAnEditor) && (firstSceneName == null || !firstSceneName.StartsWith(TestRunnerScenePrefix, StringComparison.Ordinal));
 
         /// <summary>When it finds a character: may it record this one? Only one played with the real devices.</summary>
         public static bool MayRecordCharacter(bool readsRealDevices) => readsRealDevices;

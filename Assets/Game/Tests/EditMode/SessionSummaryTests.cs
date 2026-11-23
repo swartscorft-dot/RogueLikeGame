@@ -464,5 +464,21 @@ namespace Roguelike.Rules.Tests
             Assert.That(SessionRecordingRule.MayRecordCharacter(readsRealDevices: false), Is.False);
             Assert.That(SessionRecordingRule.MayRecordCharacter(readsRealDevices: true), Is.True);
         }
+
+        [Test]
+        public void Rule_TheStartCheck_LetsBatchModeCountAsAnEditor_ButNeverTheTestRunnersScene_AndOffByDefault()
+        {
+            Assert.That(SessionRecordingRule.BatchModeAsAnEditor, Is.False, "off unless the play start check (work order 096) runs");
+            try
+            {
+                SessionRecordingRule.BatchModeAsAnEditor = true;
+                Assert.That(SessionRecordingRule.MayStartByItself("ControlRoom", batchMode: true), Is.True);
+                Assert.That(SessionRecordingRule.MayStartByItself("InitTestScene638672345678901234", batchMode: true), Is.False);
+            }
+            finally
+            {
+                SessionRecordingRule.BatchModeAsAnEditor = false;
+            }
+        }
     }
 }
