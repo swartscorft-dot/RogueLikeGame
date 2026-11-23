@@ -176,9 +176,20 @@ namespace Roguelike.PlayModeTests
                 Assert.That(fight.On, Is.True, entry + ": past the line, the room wakes");
                 Assert.That(level.EnemiesByRoom[room.Order].All(e => e.Fight == fight), Is.True, entry + ": every enemy in its fight");
                 Kill(level.EnemiesByRoom[room.Order]);
-                yield return Until(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward, 120);
+                // Killed, the floor's reward lands on the ground (work order 042); picked up, its choice opens.
+                yield return Until(() => _levels.FloorDrop != null, 120);
                 Assert.That(_levels.LabCleared, Is.True, entry + ": cleared");
-                Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), entry + ": the exit works, the floor's reward comes");
+                RewardDrop drop = _levels.FloorDrop;
+                Assert.That(drop, Is.Not.Null, entry + ": the exit works, the floor's reward lands");
+                float until = Time.realtimeSinceStartup + 10f; // it flies before it lies still: real seconds, not frames
+                while (!drop.Settled && Time.realtimeSinceStartup < until) yield return null;
+                Assert.That(drop.Settled, Is.True, entry + ": the drop lies still");
+                _player.Teleport(drop.Landing);
+                yield return Frames(3);
+                Assert.That(_levels.DropInReach(), Is.SameAs(drop), entry + ": in her reach where it lies, " + Vector3.Distance(_player.Position, drop.Landing).ToString("0.00", Inv) + " m");
+                Assert.That(_levels.PickUpDrop(), Is.True, entry + ": picked up");
+                yield return Until(() => _levels.Choice == GeneratedLevels.ChoiceKind.FloorReward, 60);
+                Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), entry + ": the floor's reward comes");
                 yield return new WaitForSecondsRealtime(0.5f); // past the choice's guard
                 Assert.That(_levels.PickReward(0), Is.True);
                 yield return Frames(2);
