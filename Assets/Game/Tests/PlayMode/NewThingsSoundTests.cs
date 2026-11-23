@@ -218,12 +218,12 @@ namespace Roguelike.PlayModeTests
             return list;
         }
 
-        /// <summary>A shooter 12 m from her draws; a pillar is put between them before the release, or not. Returns its first strike.</summary>
+        /// <summary>A shooter 10 m from her (inside the 11 m it shoots from since work order 087; it stood at 12 m before) draws; a pillar is put between them before the release, or not. Returns its first strike.</summary>
         IEnumerator ShooterLooses(bool pillar, Action<EnemyReport> got)
         {
             EnemyShooter shooter = Spawn<EnemyShooter>(EnemyKind.Shooter, FlyAt);
             List<EnemyReport> strikes = Strikes(shooter);
-            StandSouthOf(shooter, pillar ? 12f : 8f);
+            StandSouthOf(shooter, pillar ? 10f : 8f);
             shooter.Provoke();
             yield return Until(() => shooter.State == EnemyState.Windup, 5f);
             Assume.That(shooter.State, Is.EqualTo(EnemyState.Windup), "it draws at her");
