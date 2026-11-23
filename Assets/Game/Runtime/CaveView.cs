@@ -254,6 +254,17 @@ namespace Roguelike
             Enemies(false);
         }
 
+        /// <summary>
+        /// Work order 086: a door's block, made after the floor was built, belongs to the two rooms its door joins: it is drawn
+        /// when either is, as every other piece of the floor is, from now on.
+        /// </summary>
+        public void TrackDoor(Renderer r, int roomA, int roomB)
+        {
+            if (r == null || _renderers.Contains(r)) return;
+            Track(r, roomA, roomB);
+            if (_hiding) r.forceRenderingOff = !(IsShown(roomA) || IsShown(roomB));
+        }
+
         /// <summary>She is in this room or passage: what is drawn follows (for tests too).</summary>
         public void Look(int here)
         {

@@ -84,6 +84,7 @@ namespace Roguelike
             d.BlockRenderer.sharedMaterial = d._material;
             d.SetShut(false);
             d.Show(0f);
+            if (level.Cave != null) level.Cave.TrackDoor(d.BlockRenderer, door.RoomA, door.RoomB); // drawn with its rooms, as the floor's pieces are
             return d;
         }
 

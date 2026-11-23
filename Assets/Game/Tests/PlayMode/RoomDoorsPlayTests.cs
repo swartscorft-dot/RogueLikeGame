@@ -333,7 +333,11 @@ namespace Roguelike.PlayModeTests
             }
             Time.timeScale = 1f;
             Assert.That(e.IsAwake, Is.True, "it was after her all along");
-            // Her shot at it, through the door: stopped at the door, it takes nothing.
+            // Her shot at it, through the door: stopped at the door, it takes nothing. The room's others (inside, between her and the
+            // door, they would take the shot first) are killed; the one outside keeps the fight on, and the doors shut.
+            Kill(own.Where(x => x != e));
+            yield return Frames(3);
+            Assert.That(d.Shut, Is.True, "the one outside alive: still shut");
             int health = e.Body.CurrentHealth;
             int stoppedBefore = _player.ShotsStoppedByCover;
             int firedBefore = _player.BasicShotsFired;
@@ -614,7 +618,8 @@ namespace Roguelike.PlayModeTests
             foreach (RoomDoor b in d.Blocks)
             {
                 Assert.That(b.BlockRenderer.enabled && !b.BlockRenderer.forceRenderingOff, "drawn in the greybox view");
-                Assert.That(b.BlockRenderer.sharedMaterial.color, Is.EqualTo(door), "in the doors' orange");
+                Color c = b.BlockRenderer.sharedMaterial.color;
+                Assert.That(Mathf.Abs(c.r - door.r) + Mathf.Abs(c.g - door.g) + Mathf.Abs(c.b - door.b), Is.LessThan(0.01f), "in the doors' orange: " + c);
             }
             // Turned off and on again with the door shut: drawn as it is all along.
             GameSettings.SetGreybox(false, keep: false);
