@@ -269,6 +269,8 @@ namespace Roguelike.Rules
         /// the switch off.
         /// </summary>
         public readonly SortedDictionary<int, RoomFightCounts> RoomFights = new SortedDictionary<int, RoomFightCounts>();
+        /// <summary>Work order 088: each room's fight with its tall and low covers and what was stopped in it (<see cref="SessionSummary"/>'s cover block); empty for a log from before.</summary>
+        public readonly List<FightCoverRow> FightCover = new List<FightCoverRow>();
     }
 
     /// <summary>The rooms' fights of one floor of a run (work order 070), by how they started and where she was.</summary>
@@ -401,6 +403,7 @@ namespace Roguelike.Rules
             }
             stats.LevelRoomsEntered = entered.Count;
             ComputeRuns(events, stats);
+            ComputeFightCover(events, stats); // work order 088
 
             // Taking cover (2026-11-19, an experiment): from each cover_enter to the next cover_leave, or the session's end.
             double coverFrom = -1d;
@@ -476,6 +479,7 @@ namespace Roguelike.Rules
                     sb.Append("  room fights      ").AppendLine(string.Join(";  ", run.RoomFights.Select(p =>
                         "floor " + p.Key + ": " + p.Value.Point + " at the point, " + p.Value.Inside + " inside short of it, " + p.Value.FromOutside + " from outside (" + p.Value.Hit + " hit, "
                         + p.Value.Seen + " seen" + (p.Value.Provoked > 0 ? ", " + p.Value.Provoked + " provoked" : "") + "), most woke at once " + p.Value.MostWoke)));
+                AppendFightCover(sb, run); // work order 088
                 // Work order 025: the focus choice, and how the gauge was spent after it.
                 sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
                     : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0

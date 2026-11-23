@@ -44,14 +44,17 @@ namespace Roguelike.Rules
         public static PropModel[] ModelsFor(LevelRoom room, LevelValues v)
         {
             ThemeRecipe recipe = room.Theme == RoomTheme.None ? null : v.ThemeRules?.Of(room.Theme, room.Kind);
-            return recipe == null ? ModelsFor(room.Kind, v.PropRules) : RoomThemes.ModelsOf(recipe);
+            PropModel[] models = recipe == null ? ModelsFor(room.Kind, v.PropRules) : RoomThemes.ModelsOf(recipe);
+            // Work order 088: with the rooms you can use on, a fight's room may hold its cover's models besides.
+            return v.UsableRooms ? models.Concat(FightCover.CoverModels(room)).Distinct().ToArray() : models;
         }
 
-        /// <summary>The most props this room may hold: its theme's (work order 028), else its kind's.</summary>
+        /// <summary>The most props this room may hold: its theme's (work order 028), else its kind's; and work order 088's cover besides.</summary>
         public static int MostIn(LevelRoom room, LevelValues v)
         {
             ThemeRecipe recipe = room.Theme == RoomTheme.None ? null : v.ThemeRules?.Of(room.Theme, room.Kind);
-            return recipe == null ? MostIn(room.Kind, v.PropRules) : recipe.MostProps;
+            int most = recipe == null ? MostIn(room.Kind, v.PropRules) : recipe.MostProps;
+            return v.UsableRooms ? most + FightCover.CoverMost(room, v) : most;
         }
 
         /// <summary>
@@ -286,6 +289,11 @@ namespace Roguelike.Rules
                 {
                     if (Broken("overlaps the " + o.Model + " at " + o.Position)) return first;
                 }
+                else if (prop.Fight || o.Fight) // work order 088: a cover put for the fight (a set piece) keeps its own spacing from the open floor's props and the other covers
+                {
+                    if (!(prop.Place == PropPlace.Floor || o.Place == PropPlace.Floor || (prop.Fight && o.Fight))) continue;
+                    if (apart < v.CoverSpacing - Slack && Broken($"is {apart:0.##} m from the {o.Model} at {o.Position}, and a cover for the fight keeps {N(v.CoverSpacing)} m")) return first;
+                }
                 else if ((prop.Place == PropPlace.Floor || o.Place == PropPlace.Floor) && apart < v.FloorSpacing - Slack
                          && Broken($"is {apart:0.##} m from the {o.Model} at {o.Position}, and the open floor keeps {N(v.FloorSpacing)} m")) return first;
             }
@@ -502,9 +510,11 @@ namespace Roguelike.Rules
         public static void Place(LevelLayout level, LevelRandom rng, LevelValues values)
         {
             CryptKitPlan kit = null;
+            level.UsableRooms = values.UsableRooms; // work order 088: the floor keeps the rules of the rooms you can use
             foreach (LevelRoom room in level.Rooms)
             {
                 var placer = new Room(level, room, values.PropRules);
+                if (values.UsableRooms && JoinedFloor.Asks(room)) placer.UseJoinedFloor(values); // work order 088
                 if (room.Theme != RoomTheme.None)
                 {
                     // Work order 028: the kit's plan comes of the layout alone, so where its niches are is known here.
@@ -512,15 +522,16 @@ namespace Roguelike.Rules
                     List<PropRules.WallSpan> niches = PropRules.NichesOf(level, room, kit);
                     niches.AddRange(PropRules.CarvedNichesOf(level, room, kit)); // work order 051
                     placer.Themed(rng, values, niches);
-                    continue;
                 }
-                switch (room.Kind)
-                {
-                    case RoomKind.Entrance: placer.Start(); break;
-                    case RoomKind.Combat: placer.Combat(rng, values.Plan.CombatSize); break;
-                    case RoomKind.Treasure: placer.Reward(); break;
-                    case RoomKind.Exit: placer.Boss(rng); break;
-                }
+                else
+                    switch (room.Kind)
+                    {
+                        case RoomKind.Entrance: placer.Start(); break;
+                        case RoomKind.Combat: placer.Combat(rng, values.Plan.CombatSize); break;
+                        case RoomKind.Treasure: placer.Reward(); break;
+                        case RoomKind.Exit: placer.Boss(rng); break;
+                    }
+                if (values.UsableRooms) placer.FightCover(values); // work order 088: draws nothing
             }
         }
 
@@ -551,16 +562,32 @@ namespace Roguelike.Rules
                     laneTries++;
                     return false;
                 }
+                // Work order 088: the joined floor, last; a place it refuses counts as one the lane refused (the prop moves on).
+                if (!FloorKeeps(p))
+                {
+                    laneTries++;
+                    _floorRefused++;
+                    return false;
+                }
                 _room.Props.Add(p);
                 _lane.Block(p.Footprint);
+                _floor?.Block(p);
+                if (_floorRefused > 0) _room.PropsMovedForFloor++;
+                _floorRefused = 0;
                 return true;
             }
 
-            void Want(int count) => _room.PropsWanted += count;
+            void Want(int count)
+            {
+                _room.PropsWanted += count;
+                _floorRefused = 0; // work order 088: a new prop's places
+            }
 
             void Missed(int laneTries)
             {
                 if (laneTries > 0) _room.PropsLeftOutByLane++;
+                if (_floorRefused > 0) _room.PropsDroppedForFloor++; // work order 088
+                _floorRefused = 0;
             }
 
             /// <summary>A set piece at the nearest place to <paramref name="wanted"/> that keeps the rules.</summary>

@@ -599,10 +599,11 @@ namespace Roguelike
                 _materials.Add(m);
             }
             GameObject go = PropFactory.Make(prop, ToWorld(prop.Position), transform, WallLayer, m, name, LowestPropCollider);
-            bool cover = prop.IsCover(Values.PropRules);
+            // Work order 088: what it does against a shot is the one sorted table's (PropHeights), with PropValues.OneHeightTable on.
+            bool cover = PropHeights.StopsShots(prop, Values.PropRules);
             if (cover) go.AddComponent<Cover>(); // a tall prop stops shots; she shoots over a low one (Kristian, 2026-11-19)
-            // Work order 043: the altar, the grave marker and the broken pillar are low under the quick duck's sort.
-            if (cover) go.GetComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, Values.PropRules);
+            // Work order 043: the altar, the grave marker and the broken pillar are low under the quick duck's sort (the table off).
+            if (cover && !Values.PropRules.OneHeightTable) go.GetComponent<Cover>().LowUnderQuickDuck = PropSort.LowerUnderTheDuck(prop, Values.PropRules);
             // She can take cover behind every prop, tall or low (Kristian, 2026-11-19, an experiment), but a slender
             // one (work order 028, the candelabra; work order 052, the dais and the banner): it hides nothing.
             if (!prop.Slender) go.AddComponent<Shelter>();

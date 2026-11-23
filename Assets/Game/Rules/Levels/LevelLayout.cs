@@ -143,6 +143,12 @@ namespace Roguelike.Rules
         public readonly List<LevelProp> Props = new List<LevelProp>();
         /// <summary>The generator's notes, not part of the level: how many props it meant to put here, and how many of those it left out with a place refused by the clear lane.</summary>
         public int PropsWanted, PropsLeftOutByLane;
+        /// <summary>
+        /// The generator's notes, not part of the level (work order 088): props that took a later place because the joined floor
+        /// refused an earlier one (moved), props left out with a place it refused (dropped), and the tall and low covers it added for
+        /// the room's fight.
+        /// </summary>
+        public int PropsMovedForFloor, PropsDroppedForFloor, CoverTallAdded, CoverLowAdded;
 
         /// <summary>What stands at enemy point <paramref name="i"/>; a single brute when the room says nothing (a hand-made layout).</summary>
         public EnemyGroup GroupAt(int i) => i >= 0 && i < EnemyGroups.Count && EnemyGroups[i] != null ? EnemyGroups[i] : new EnemyGroup(EnemyKind.Brute);
@@ -324,6 +330,12 @@ namespace Roguelike.Rules
         /// one before it, as before.
         /// </summary>
         public bool Passages;
+        /// <summary>
+        /// The props were put by the rules of the rooms you can use (work order 088, <see cref="LevelValues.UsableRooms"/>): no prop
+        /// shuts floor off and a way of whole cells runs through each room (<see cref="JoinedFloor"/>), and the fights' rooms were
+        /// given their cover (<see cref="FightCover"/>). The validator asks the joined floor of a floor that says so.
+        /// </summary>
+        public bool UsableRooms;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
 

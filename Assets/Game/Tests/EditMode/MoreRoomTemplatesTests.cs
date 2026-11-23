@@ -23,7 +23,7 @@ namespace Roguelike.Rules.Tests
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static readonly int[] Walls = { LevelGenerator.North, LevelGenerator.East, LevelGenerator.South, LevelGenerator.West };
         static readonly LevelValues SecondSetOff = new LevelValues { MoreTemplates = false };
-        static readonly LevelValues Version16 = new LevelValues { MoreTemplates = false, ActPlan = false }; // work order 087: nor the act's plan
+        static readonly LevelValues Version16 = new LevelValues { MoreTemplates = false, ActPlan = false, UsableRooms = false }; // work order 087: nor the act's plan
         // The second set turned on (off by default since 2026-11-22, until Kristian has played its rooms in the room lab).
         static LevelValues On => new LevelValues { MoreTemplates = true };
 
@@ -290,7 +290,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(RoomTemplateLibrary.Usable(On), Is.EqualTo(RoomTemplateLibrary.All), "on: the whole library, in its order");
             Assert.That(new LevelValues().MoreTemplates, Is.False, "off by default (2026-11-22: until Kristian has played the second set in the room lab)");
             Assert.That(RoomTemplateLibrary.Usable(new LevelValues()), Is.EqualTo(First), "the defaults: the eleven");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(18)); // work order 087
+            Assert.That(LevelGenerator.Version, Is.EqualTo(19)); // work order 087; 088: 19
             int seen = 0;
             for (ulong s = 0; s < 40; s++)
             {

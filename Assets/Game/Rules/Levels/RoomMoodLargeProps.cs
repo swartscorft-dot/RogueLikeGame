@@ -67,6 +67,9 @@ namespace Roguelike.Rules
             public PropValues Pv, Close, Walk;
             public ThemeValues Tv;
             public PropRules.Lane Lane;
+            /// <summary>Work order 088: with the rooms you can use on, the joined floor the large props keep too (null off).</summary>
+            public JoinedFloor Floor;
+            public LevelValues Values;
             public List<PropRules.WallSpan> Spans;
             public double ClearMiddle;
             public double Cs;
@@ -114,6 +117,7 @@ namespace Roguelike.Rules
                     if (gap < PieceClear) return "stands on the composition's " + c.Kind;
                 }
                 if (!Lane.Clear(f)) return "closes the lane";
+                if (Floor != null && !Floor.Keeps(p)) return "shuts floor off from the doors"; // work order 088
                 return null;
             }
 
@@ -123,6 +127,7 @@ namespace Roguelike.Rules
                 if (Why(p, carried) != null) return false;
                 Mr.LargeProps.Add(p);
                 if (!PropSize.Of(p.Model).Walkable) Lane.Block(p.Footprint);
+                Floor?.Block(p); // work order 088 (a walked-over one takes nothing)
                 return true;
             }
 
@@ -264,7 +269,7 @@ namespace Roguelike.Rules
             var g = new Large
             {
                 Layout = layout, Room = room, Mr = mr, Pv = pv, Close = close, Walk = walk, Cs = layout.CellSize, Tv = values.ThemeRules ?? new ThemeValues(),
-                Spans = WallSpansOf(layout, room, kit), ClearMiddle = recipe != null ? recipe.ClearMiddle : 0,
+                Spans = WallSpansOf(layout, room, kit), ClearMiddle = recipe != null ? recipe.ClearMiddle : 0, Values = values,
             };
             Relane(g);
 
@@ -290,6 +295,10 @@ namespace Roguelike.Rules
             g.Lane = new PropRules.Lane(g.Layout, g.Room, g.Pv);
             foreach (LevelProp p in g.Others())
                 if (!PropSize.Of(p.Model).Walkable) g.Lane.Block(p.Footprint);
+            // Work order 088: the joined floor with what stands now, as the lane.
+            g.Floor = g.Values != null && g.Values.UsableRooms && JoinedFloor.Asks(g.Room) ? new JoinedFloor(g.Layout, g.Room, g.Values) : null;
+            if (g.Floor != null)
+                foreach (LevelProp p in g.Others()) g.Floor.Block(p);
         }
 
         // ---------------- The throne room ----------------
@@ -352,6 +361,7 @@ namespace Roguelike.Rules
                     if (PropRules.Fault(g.Layout, room, p, g.Others(), g.Pv) != null) continue;
                     mr.Replaced.Remove(p);
                     g.Lane.Block(p.Footprint);
+                    g.Floor?.Block(p); // work order 088
                 }
             }
         }

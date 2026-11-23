@@ -151,7 +151,7 @@ namespace Roguelike.Rules.Tests
                 double cs = level.CellSize;
                 foreach (LevelRoom r in level.Rooms)
                 {
-                    var models = r.Props.Select(p => p.Model).ToList();
+                    var models = r.Props.Where(p => !p.Fight).Select(p => p.Model).ToList(); // work order 088 (changed deliberately): the covers put for the fight apart
                     switch (r.Kind)
                     {
                         case RoomKind.Entrance:
@@ -180,7 +180,7 @@ namespace Roguelike.Rules.Tests
                             combats++;
                             Assert.That(r.PropsWanted, Is.InRange(v.CombatFewest, v.CombatMost), "seed " + s);
                             Assert.That(models.Count(m => m == PropModel.Brazier), Is.LessThanOrEqualTo(v.CornerBraziers), "seed " + s);
-                            foreach (LevelProp p in r.Props.Where(p => p.Model != PropModel.Brazier))
+                            foreach (LevelProp p in r.Props.Where(p => p.Model != PropModel.Brazier && !p.Fight))
                                 Assert.That(p.Place == PropPlace.Wall ? v.WallModels : v.FloorModels, Does.Contain(p.Model), "seed " + s + " " + p);
                             break;
                     }

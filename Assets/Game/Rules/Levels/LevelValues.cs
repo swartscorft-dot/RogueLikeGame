@@ -396,6 +396,14 @@ namespace Roguelike.Rules
         // never reads it. Off: every enemy wakes on its own, by its range, a hurt or a pack, exactly as before.
         public bool RoomFights = true;
         public RoomFightValues Fights = new RoomFightValues();
+        // Rooms you can use (work order 088; Kristian, 2026-11-22, of the door that closes behind her: "Døra stenges bak deg, men vi
+        // bør balansere rommene med flere muligheter og, slik at man kan bruke miljøet til sin fordel", and of the duck: "Plasser
+        // dekning for den"): on (the generator's version 19), the props never cut a room's floor into pockets and leave a way of
+        // whole cells through it (JoinedFloor), every room with a fight that holds shooters or casters has a chain of tall cover from
+        // where she stands when it wakes toward where they stand, and every room that holds shooters low props on their lines to
+        // duck behind (FightCover; the numbers in CoverRules). Off: every floor is version 18's, field for field, but for the version.
+        public bool UsableRooms = true;
+        public CoverValues CoverRules = new CoverValues();
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
@@ -582,6 +590,7 @@ namespace Roguelike.Rules
         public float LaneGrid = 0.5f;          // the grid the lane is checked on
         public float FromPoints = 2f;          // from the player's start and from every enemy point
         public float FloorSpacing = 3f;        // from an open-floor prop to any other prop
+        public float CoverSpacing = 2f;        // work order 088: from a cover put for the room's fight (LevelProp.Fight) to any other prop: the joined floor keeps the ways between them
         public float BossMiddleClear = 8f;     // round the boss room's middle, nothing
 
         // Walls and wall pieces (work order 028)
@@ -593,7 +602,12 @@ namespace Roguelike.Rules
         public float WalkRadius = 0.5f;        // floor is walkable at least this far from a prop's footprint and the walls (about the NavMesh agent's radius)
 
         // Cover (Kristian, 2026-11-19: shots are stopped by walls and pillars)
-        public float CoverHeight = 1.2f;       // a prop at least this tall stops her shots (altar, grave marker, pillars, statue); she shoots over a lower one
+        public float CoverHeight = 1.2f;       // a prop at least this tall stops her shots (altar, grave marker, pillars, statue); she shoots over a lower one. Read only with OneHeightTable off
+        // Work order 088 (point 5, the draft room rule 13: "low is low and tall is tall"): on, what a prop does against a shot is the
+        // one sorted table (PropHeights): the greybox, the duck and the shots all read it, whether the quick duck is on or off. Off:
+        // the morning's rule, CoverHeight with the quick duck's sort laid on top (the altar, the grave marker and the broken pillar
+        // stop shots with the duck off, and nothing with it on). With the duck on (the default) the two give the same floor.
+        public bool OneHeightTable = true;
         public float Glow = 3f;                // work order 028: the props' emission maps in the game's cyan times this, as the kit's stone (CryptKitValues.StoneGlow)
 
         // Combat rooms

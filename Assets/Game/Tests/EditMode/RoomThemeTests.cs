@@ -136,7 +136,11 @@ namespace Roguelike.Rules.Tests
                     Assert.That(recipe, Is.Not.Null, where);
                     PropModel[] list = RoomThemes.ModelsOf(recipe);
                     foreach (LevelProp p in r.Props)
+                    {
+                        // Work order 088 (changed deliberately): a cover put for the room's fight is its theme's cover model.
+                        if (p.Fight && Array.IndexOf(FightCover.CoverModels(r), p.Model) >= 0) continue;
                         if (Array.IndexOf(list, p.Model) < 0) Assert.Fail(where + " " + RoomThemes.Word(r.Theme) + ": " + p + " is not of its theme's list");
+                    }
 
                     string name = RoomThemes.Word(r.Theme) + (r.Kind == RoomKind.Treasure ? " (treasure room)" : "");
                     if (!byTheme.TryGetValue(name, out Tally t)) byTheme[name] = t = new Tally();

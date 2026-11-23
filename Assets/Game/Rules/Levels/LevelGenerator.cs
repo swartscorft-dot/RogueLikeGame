@@ -143,6 +143,15 @@ namespace Roguelike.Rules
     /// <see cref="FightsOf"/>, so from floor 2 its contents, and with them the rooms that stand after a changed one, differ; the
     /// warders and bombers are put into its groups after it, on their own streams. With it off every floor is version 17's,
     /// field for field, but for the version.
+    /// Version 19 (work order 088; Kristian, 2026-11-22, of the door that closes behind her: "vi bør balansere rommene med flere
+    /// muligheter og, slik at man kan bruke miljøet til sin fordel", and of the duck, "Plasser dekning for den"): with
+    /// <see cref="LevelValues.UsableRooms"/> on (the default) the props stage keeps the joined floor (<see cref="JoinedFloor"/>: no
+    /// prop shuts a piece of floor off from the doors, and a way of whole cells runs through every combat and exit room; a place it
+    /// refuses moves the prop to its next place, or leaves it out), and after a room's own props gives the room's fight its cover
+    /// (<see cref="FightCover"/>, drawing nothing): a chain of tall cover from the fight's line toward the shooters and casters, and
+    /// low props on the shooters' lines to duck behind. The layout, the shapes, the enemies and the themes are version 18's; the
+    /// props differ in the rooms where a rule moved, dropped or added one, and the mood follows them. With it off every floor is
+    /// version 18's, field for field, but for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -174,7 +183,10 @@ namespace Roguelike.Rules
         // 18: work order 087, the act's plan, one new thing a floor (LevelValues.ActPlan, on: no caster before floor 3 and one
         // a room on floors 3 and 4, the warders from floor 3 and the bombers from floor 4 in the floors; off, every floor is
         // version 17's).
-        public const int Version = 18;
+        // 19: work order 088, rooms you can use (LevelValues.UsableRooms, on: no prop shuts floor off and a way of whole cells runs
+        // through every room, a chain of tall cover and low cover for the duck in every fight with shooters or casters; off, every
+        // floor is version 18's).
+        public const int Version = 19;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051

@@ -267,6 +267,12 @@ namespace Roguelike.Rules
             var lane = new PropRules.Lane(level, room, prv);
             foreach (LevelProp p in room.Props) lane.Block(p.Footprint);
             if (!lane.Clear()) faults.Add($"{Name(room)} has no clear lane {prv.LaneWidth} m wide from its door to its middle");
+            // Work order 088: the joined floor, as the validator holds a floor's room to it.
+            if (level.UsableRooms && room.Props.Count > 0)
+            {
+                string joined = JoinedFloor.FaultOf(level, room, v);
+                if (joined != null) faults.Add(Name(room) + " " + joined);
+            }
             return faults;
         }
 

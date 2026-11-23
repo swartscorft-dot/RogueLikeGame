@@ -747,7 +747,7 @@ namespace Roguelike.PlayModeTests
 
             // A floor 2 with the casters on: its casters are made with the floor's scale, and a circle of one hurts by it. Work order
             // 087: with the act's plan off, version 17's floors (with it on floor 2 holds no caster: ActPlanTests).
-            var values = new LevelValues { Casters = true, ActPlan = false };
+            var values = new LevelValues { Casters = true, ActPlan = false, UsableRooms = false };
             _levels.Values = values;
             ulong seed = 0;
             while (!LevelGenerator.Generate(seed, 2, values).Rooms.Any(r => r.EnemyGroups.Any(g => g.Kind == EnemyKind.Caster && !g.Elite))) seed++;

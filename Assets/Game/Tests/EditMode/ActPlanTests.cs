@@ -34,7 +34,7 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             Assert.That(v.ActPlan, Is.True, "on by default (work order 087)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(18));
+            Assert.That(LevelGenerator.Version, Is.EqualTo(19)); // work order 088
             var shooter = new ShooterValues();
             var lines = new List<string> { "ACTPLANTABLE floor  guards  casters (exit)  caster elite  warders  bombers (exit)  shooter's fan  act boss" };
             int[] guards = { 0, 1, 1, 1, 1 }, casters = { 0, 0, 1, 1, 2 }, castersExit = { 0, 0, 2, 2, 3 };
@@ -101,7 +101,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ThePlanOff_IsVersion17sRules()
         {
-            var off = new LevelValues { ActPlan = false };
+            var off = new LevelValues { ActPlan = false, UsableRooms = false };
             int[] casters = { 0, 1, 1, 2, 2 }, castersExit = { 0, 2, 2, 3, 3 };
             for (int f = 1; f <= 5; f++)
             {
@@ -319,7 +319,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandFloors_BeforeAndAfter_ThePlanHolds_AndARoomsCountStays(int floor)
         {
-            LevelValues before = new LevelValues { ActPlan = false }, after = new LevelValues();
+            LevelValues before = new LevelValues { ActPlan = false, UsableRooms = false }, after = new LevelValues();
             Tally tb = new Tally(), ta = new Tally();
             int same = 0, rooms = 0;
             for (int i = 0; i < Seeds; i++)
@@ -404,7 +404,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ThePlanOff_TwoThousandFloors_AreVersion17s_FieldForField()
         {
-            var off = new LevelValues { ActPlan = false };
+            var off = new LevelValues { ActPlan = false, UsableRooms = false };
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {

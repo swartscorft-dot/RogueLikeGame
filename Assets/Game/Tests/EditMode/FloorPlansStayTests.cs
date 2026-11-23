@@ -93,13 +93,13 @@ namespace Roguelike.Rules.Tests
         /// </summary>
         static (ulong layout, ulong rock, ulong dark) Prints()
         {
-            var v = new LevelValues { ActPlan = false };
+            var v = new LevelValues { ActPlan = false, UsableRooms = false };
             ulong hl = 14695981039346656037UL, hr = hl, hd = hl;
             for (int i = 0; i < SeedsOfRuns; i++)
                 for (int floor = 1; floor <= 5; floor++)
                 {
                     LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(RunSeedOf(i), floor), floor, v);
-                    Assert.That(l.Version, Is.EqualTo(18));
+                    Assert.That(l.Version, Is.EqualTo(19)); // work order 088: version 17's floor with the act's plan and the rooms you can use off
                     l.Version = 17; // work order 087: version 17's floor but for the version
                     CryptKitPlan kit = CryptKitPlan.Make(l, v.Crypt);
                     hl = OfKit(kit, OfLayout(l, hl));

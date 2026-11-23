@@ -356,6 +356,12 @@ namespace Roguelike.Rules
                 foreach (LevelProp p in r.Props) lane.Block(p.Footprint);
                 if (!lane.Clear())
                     faults.Add($"{Name(r)} has no clear lane {pv.LaneWidth} m wide from each door to each other" + (r.Kind == RoomKind.Treasure ? "" : " and to its middle"));
+                // Work order 088: on a floor of the rooms you can use, no prop shuts floor off, and a way of whole cells runs through.
+                if (level.UsableRooms && r.Props.Count > 0)
+                {
+                    string joined = JoinedFloor.FaultOf(level, r, values);
+                    if (joined != null) faults.Add(Name(r) + " " + joined);
+                }
             }
             return faults;
         }

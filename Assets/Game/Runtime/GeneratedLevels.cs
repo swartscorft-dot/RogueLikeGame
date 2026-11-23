@@ -410,6 +410,7 @@ namespace Roguelike
             RecordFloor(level);
             _floorStartedAt = Time.time;
             PlaySessionRecorder.Current?.NoteFloorEntered(floor, LevelSeed.ToText(seed));
+            NoteRoomCovers(level, floor); // work order 088
             BetweenRunsFloorEntered(floor); // work order 029
             FloorBuildClock.Step("the run's record and the recorder told");
             FloorBuildClock.End(clocked);
