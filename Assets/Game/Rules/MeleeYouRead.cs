@@ -33,6 +33,15 @@ namespace Roguelike.Rules
         public const string Crush = "Crush";
 
         /// <summary>
+        /// s after a guard's Drag has ended (landed, missed, broken by cover or the dash, or the guard staggered out of it)
+        /// before any OTHER guard may begin one (work order 093, <see cref="DragHold"/>). Kristian, 2026-11-23, after floor 3
+        /// had him pulled into several guards at once ("vanskelig å kontre det når man blir dratt inn i alle sammen og insta
+        /// drept"), asked to choose: "Én drar om gangen". The guards, their number and their damage stay as they were. 0
+        /// switches the rule off: every guard drags as its own cooldown lets it, as before.
+        /// </summary>
+        public const float DragOneAtATime = 4f;
+
+        /// <summary>
         /// The swarmer: it bites as it clings, about three times a second for 2, never stopping to wind up (it keeps moving
         /// with her); and, only when it <see cref="SwarmerValues.Leaps"/> (off by default since work order 039), from 4 to
         /// 7 m it crouches and hops to her, aimed where she was as it leaves the ground, biting on landing.

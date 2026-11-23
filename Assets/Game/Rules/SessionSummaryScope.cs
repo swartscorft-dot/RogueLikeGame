@@ -208,6 +208,7 @@ namespace Roguelike.Rules
             // Stunned and pulled (work order 035).
             s.Stuns = events.Count(e => e.Type == SessionEventTypes.PlayerStunned);
             s.Pulls = events.Count(e => e.Type == SessionEventTypes.PlayerPulled);
+            ComputeDrags(s, events); // work order 093: Drags landed, held back, the shortest gap (SessionSummaryDrags.cs)
             return s;
         }
 

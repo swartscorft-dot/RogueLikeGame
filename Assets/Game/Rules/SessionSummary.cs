@@ -109,6 +109,13 @@ namespace Roguelike.Rules
         /// <summary>Times she was stunned, and times she was pulled in, in this scope.</summary>
         public int Stuns;
         public int Pulls;
+        /// <summary>
+        /// Work order 093 (one guard drags at a time, SessionSummaryDrags.cs): the guards' Drags that pulled her, the Drags held
+        /// back by the rule, and the shortest seconds between two Drags that pulled her (NaN with fewer than two).
+        /// </summary>
+        public int DragsLanded;
+        public int DragsHeldBack;
+        public float DragGapShortest = float.NaN;
 
         public ActionRow Row(string name) => Rows.FirstOrDefault(r => r.Name == name);
     }
@@ -615,6 +622,7 @@ namespace Roguelike.Rules
             d.Add("Damage taken", Int(a.DamageTaken), fights ? Int(f.DamageTaken) : "-");
             if (stats.HasHeld)
                 d.Add("Stunned / pulled", a.Stuns + " / " + a.Pulls, fights ? f.Stuns + " / " + f.Pulls : "-");
+            if (stats.HasHeld || a.DragsHeldBack > 0) AddDragRows(d, a, f, fights); // work order 093 (SessionSummaryDrags.cs)
             d.Add("Dashes / that avoided a strike", a.Dashes + " / " + Share(a.DashesThatAvoided, a.Dashes),
                   fights ? f.Dashes + " / " + Share(f.DashesThatAvoided, f.Dashes) : "-");
             d.Write(sb);

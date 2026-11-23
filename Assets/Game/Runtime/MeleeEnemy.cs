@@ -23,11 +23,38 @@ namespace Roguelike
     /// her when it lands (<see cref="PlayerCharacter.Stun"/>). A Drag goes off as its windup ends: unless a wall or a tall
     /// prop is between them or she is in the dash's protected part, she is pulled to a point in front of it
     /// (<see cref="PlayerCharacter.Pull"/>). A daze, a counter or a death stops a move where it is.
+    ///
+    /// One guard drags at a time (work order 093, <see cref="Drags"/>): while another's Drag runs and for
+    /// <see cref="MeleeAttacks.DragOneAtATime"/> after it ended, its Drag is not allowed, so the choice goes on to its other
+    /// attacks by the same rules (<see cref="MeleeTactics.Choose"/>), or it keeps coming in the chase; its Drag's cooldown is
+    /// untouched, so it is ready when the hold ends as its own cooldown says.
     /// </summary>
     public abstract class MeleeEnemy : Enemy
     {
         readonly MeleeTactics _tactics = new MeleeTactics();
         System.Func<EnemyAttackDefinition, bool> _allows;
+
+        /// <summary>
+        /// The one hold on the guards' Drags for the whole level (work order 093, <see cref="DragHold"/>): she is one target.
+        /// Cleared by a new floor (<see cref="GeneratedLevel"/> as it places its enemies, which a new run does too) and by her
+        /// death (<see cref="GeneratedLevels"/>); forgotten with the guard that holds it when that one is taken out of the game.
+        /// </summary>
+        public static readonly DragHold Drags = new DragHold();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetDrags()
+        {
+            Drags.Clear();
+            Drags.Gap = MeleeAttacks.DragOneAtATime; // which a test may have changed
+        }
+
+        /// <summary>True from its Drag's commit until that Drag ended (work order 093): it holds <see cref="Drags"/>.</summary>
+        bool _holdsDrag;
+        /// <summary>The hold (<see cref="DragHold.Number"/>) it was last noted held back by: once per guard per hold.</summary>
+        int _heldBackBy = -1;
+
+        /// <summary>Times its Drag was held back by another's (work order 093), once per hold. For tests.</summary>
+        public int DragsHeldBack { get; private set; }
 
         bool _moving;
         bool _moveDone;
@@ -68,11 +95,18 @@ namespace Roguelike
 
         /// <summary>
         /// The Drag needs to see her; a skill needs a turn (an ordinary attack none), and when it gets none the ordinary
-        /// attack is chosen instead if she is in its reach. Asked only of an attack that would otherwise be chosen.
+        /// attack is chosen instead if she is in its reach. Asked only of an attack that would otherwise be chosen. Work order
+        /// 093: a Drag also needs the hold (<see cref="Drags"/>) free of another guard's, asked before its turn so that a guard
+        /// held back by it asks for no turn for a Drag it may not begin.
         /// </summary>
         bool Allows(EnemyAttackDefinition attack)
         {
             if (attack.Move == MeleeMove.Drag && !SeesHer()) return false;
+            if (!Drags.Allows(Id, attack, Time.time))
+            {
+                HeldBack(); // work order 093: another guard's Drag holds it; the choice goes on to its other attacks
+                return false;
+            }
             if (!AttackTurns.TakesTurn(attack)) return true;
             TurnSort sort = TakesTurns && !IsElite ? AttackSort : TurnSort.None;
             return !Turns.Holds(sort) || Turns.Ask(Id, sort, Time.time);
@@ -102,6 +136,49 @@ namespace Roguelike
             _moveDone = false;
             _move = null;
             if (MeleeOn) _tactics.Began(attack, Time.time);
+            // Work order 093: a Drag committed takes the hold, the first to commit on any frame; at the latest it ends as its
+            // wind-up and her pull would.
+            if (MeleeOn && attack != null && attack.Move == MeleeMove.Drag)
+            {
+                Drags.Began(Id, Time.time, attack.Windup + attack.MoveSeconds);
+                _holdsDrag = true;
+            }
+        }
+
+        /// <summary>
+        /// Its Drag was held back by another's (work order 093): noted once per hold, with the guard that holds it, for the
+        /// session's log.
+        /// </summary>
+        void HeldBack()
+        {
+            if (_heldBackBy == Drags.Number) return;
+            _heldBackBy = Drags.Number;
+            DragsHeldBack++;
+            PlaySessionRecorder.Current?.NoteDragHeldBack(LogWord, Id, Drags.Holder, Drags.Gap);
+        }
+
+        /// <summary>Its Drag ended at <paramref name="at"/>: the hold runs <see cref="MeleeAttacks.DragOneAtATime"/> from there (work order 093).</summary>
+        void EndDrag(float at)
+        {
+            if (!_holdsDrag) return;
+            _holdsDrag = false;
+            Drags.Ended(Id, at);
+        }
+
+        /// <summary>
+        /// After its step (work order 093): a Drag it held that is no longer wound up (a daze dropped it, it died, its room's
+        /// fight sent it home) ended now. One that went off ended at its strike, in <see cref="StrikesItself"/>.
+        /// </summary>
+        protected override void Update()
+        {
+            base.Update();
+            if (_holdsDrag && !(State == EnemyState.Windup && Attack != null && Attack.Move == MeleeMove.Drag)) EndDrag(Time.time);
+        }
+
+        protected override void OnDestroy()
+        {
+            Drags.Forget(Id); // work order 093: taken out of the game with its level, the hold it held goes with it
+            base.OnDestroy();
         }
 
         protected override bool ChasesThrough(EnemyAttackDefinition attack) => BitesOnTheMove && attack != null && attack.Ordinary;
@@ -206,7 +283,8 @@ namespace Roguelike
             FinishMove(attack); // work order 047: the strike is tested where its move arrives
             if (attack.Move == MeleeMove.Drag)
             {
-                Drag(attack);
+                // Work order 093: it ended here, or with her pull when it landed.
+                EndDrag(Drag(attack) ? Time.time + attack.MoveSeconds : Time.time);
                 return true;
             }
             if (attack.Stun <= 0f) return false;
@@ -221,17 +299,18 @@ namespace Roguelike
 
         /// <summary>
         /// The Drag goes off: broken by a wall or a tall prop between them now, or the dash's protected part; out of reach
-        /// past its length; else she is pulled to its pull distance in front of it (none when she cannot be held now).
+        /// past its length; else she is pulled to its pull distance in front of it (none when she cannot be held now). True
+        /// when she was pulled.
         /// </summary>
-        void Drag(EnemyAttackDefinition attack)
+        bool Drag(EnemyAttackDefinition attack)
         {
-            if (Player == null) return;
+            if (Player == null) return false;
             Vector3 me = Flat(transform.position), her = Flat(Player.Position);
             float distance = (her - me).magnitude;
             if (distance > attack.Length)
             {
                 Report(EnemyReportKind.Struck, attack, StrikeOutcome.OutOfArea);
-                return;
+                return false;
             }
             bool clear = SeesHer();
             bool protectedByDash = Player.IsInvulnerable;
@@ -239,11 +318,12 @@ namespace Roguelike
             {
                 // Stepping behind cover is getting out of its way: out of the area.
                 Report(EnemyReportKind.Struck, attack, protectedByDash && clear ? StrikeOutcome.AvoidedByDash : StrikeOutcome.OutOfArea);
-                return;
+                return false;
             }
             GroundPoint to = MeleeYouReadRules.PullTarget(Ground(me), Ground(her), attack.PullTo);
             bool pulled = Player.Pull(new Vector3(to.X, 0f, to.Z), attack.MoveSeconds, attack.Name);
             Report(EnemyReportKind.Struck, attack, pulled ? StrikeOutcome.Landed : StrikeOutcome.NoEffect);
+            return pulled;
         }
     }
 }
