@@ -325,13 +325,22 @@ namespace Roguelike.PlayModeTests
             Assert.That(Cover.ClearDistance(new Vector3(inside.x, 0f, inside.z), dir, across, Cover.RayHeight), Is.LessThan(3.05f).And.GreaterThan(2.5f), "from inside: stopped at the door");
             Assert.That(Cover.ClearDistance(new Vector3(outside.x, 0f, outside.z), -dir, across, Cover.RayHeight), Is.LessThan(3.05f).And.GreaterThan(2.5f), "from the passage: stopped at the door");
 
-            // One of the room's, put in the passage, comes at her and cannot get in.
-            Enemy e = own.FirstOrDefault(x => x != null && !x.IsDead && x is MeleeEnemy);
-            Assume.That(e, Is.Not.Null, "a melee enemy in the room");
+            // An enemy of ANOTHER room, put in the passage and woken, comes at her and cannot get in. (One of this room's fight put
+            // out there is put back inside by the doors themselves, the second review's rule: OneMovedOutsideAShutRoom_….) This
+            // room's fight is held on by one of its own, dazed deep in the room behind her; the others are killed, so none stands in
+            // her shot's way.
+            Enemy e = level.Enemies.FirstOrDefault(x => x != null && !x.IsDead && x is MeleeEnemy && !own.Contains(x) && x.Fight != null && x.Fight != _levels.FightOf(room));
+            Assume.That(e, Is.Not.Null, "a melee enemy of another room's fight");
+            Enemy keeper = own.First(x => x != null && !x.IsDead);
+            keeper.Body.DazeFor(60f);
+            Assert.That(NavMesh.SamplePosition(InFrom(level, room, door, 9.0), out NavMeshHit deep, 3f, NavMesh.AllAreas), Is.True);
+            Assert.That(keeper.GetComponent<NavMeshAgent>().Warp(deep.position), Is.True);
+            Kill(own.Where(x => x != keeper));
             Assert.That(e.GetComponent<NavMeshAgent>().Warp(InFrom(level, room, door, -3.0)), Is.True);
+            e.Provoke();
             _player.Teleport(InFrom(level, room, door, 3.0));
             yield return Frames(2);
-            Assert.That(d.Shut, Is.True, "she was moved within the room: still shut");
+            Assert.That(d.Shut, Is.True, "she was moved within the room, one of its own alive: still shut");
             Time.timeScale = 3f;
             float until = Time.time + 4f;
             while (Time.time < until)
@@ -341,11 +350,8 @@ namespace Roguelike.PlayModeTests
             }
             Time.timeScale = 1f;
             Assert.That(e.IsAwake, Is.True, "it was after her all along");
-            // Her shot at it, through the door: stopped at the door, it takes nothing. The room's others (inside, between her and the
-            // door, they would take the shot first) are killed; the one outside keeps the fight on, and the doors shut.
-            Kill(own.Where(x => x != e));
-            yield return Frames(3);
-            Assert.That(d.Shut, Is.True, "the one outside alive: still shut");
+            // Her shot at it, through the door: stopped at the door, it takes nothing.
+            Assert.That(d.Shut, Is.True, "still shut");
             int health = e.Body.CurrentHealth;
             int stoppedBefore = _player.ShotsStoppedByCover;
             int firedBefore = _player.BasicShotsFired;
