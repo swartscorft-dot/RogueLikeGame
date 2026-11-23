@@ -135,8 +135,9 @@ namespace Roguelike.PlayModeTests
                 Assert.That(joined, Is.EqualTo(text), "row " + i + " says what its line says");
             }
             Assert.That(_hud.PauseRowKeys[0], Is.EqualTo("Esc"), "Resume's key on its cap");
-            List<string> stats = _hud.StatLines();
-            Assert.That(_hud.PauseStats.Count, Is.EqualTo(stats.Count), "every stat line drawn");
+            // Work order 095: the panel draws her sheet's lines (HerSheet.Stats), the sheet's one list.
+            Assert.That(_hud.PauseStats.Count, Is.EqualTo(_hud.SheetStats.Count), "every stat line of her sheet drawn");
+            Assert.That(_hud.PauseStats.Count, Is.GreaterThan(20), "every stat that matters");
             bool critChanged = false;
             foreach (MenuStat s in _hud.PauseStats) if (s.Name == "Crit chance") critChanged = s.Changed;
             Assert.That(critChanged, Is.True, "the step taken shows as changed");

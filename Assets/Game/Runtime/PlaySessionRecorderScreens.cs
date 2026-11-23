@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Roguelike
 {
     /// <summary>
-    /// Work order 090: the real seconds a run stood still under a screen (the pause menu, a floor's reward, a chest, an elite room's
+    /// Work order 090: the real seconds a run stood still under a screen (the pause menu, her sheet since work order 095, a floor's reward, a chest, an elite room's
     /// upgrade, the focus choice), so the session summary can say where a run's time went (<see cref="SessionSummary"/>). The game's
     /// clock stops under them (the time scale is 0), and so does the log's, which counts game time: these seconds are the frames'
     /// real time, added up from the frame the screen came up to the frame it went, and told once as it goes
@@ -34,7 +34,8 @@ namespace Roguelike
                 case GeneratedLevels.ChoiceKind.SkillUpgrade: return "skill upgrade";
                 case GeneratedLevels.ChoiceKind.FocusChoice: return "focus choice";
             }
-            return levels.Paused ? "pause menu" : null;
+            if (!levels.Paused) return null;
+            return RunHud.Current != null && RunHud.Current.SheetUp ? "sheet" : "pause menu"; // work order 095: her sheet, a screen of its own
         }
 
         /// <summary>

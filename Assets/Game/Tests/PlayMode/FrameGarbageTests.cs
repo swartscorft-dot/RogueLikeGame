@@ -47,6 +47,8 @@ namespace Roguelike.PlayModeTests
         // 20635 B before, 7847 B after (the same, 199 labels).
         const long FightCeiling = 700;
         const long PauseCeiling = 9000;
+        /// <summary>Work order 095: her sheet on Tab with a skill's panel open (Quick Shot's), the same way: 5491 B measured on 2026-11-23 before the values lost their dark copy.</summary>
+        const long SheetCeiling = 6500;
 
         PlayerCharacter _player;
         PlayerHealth _health;
@@ -128,13 +130,22 @@ namespace Roguelike.PlayModeTests
             yield return Callers(log, "the pause menu", own, v => pause = v);
             _hud.Escape();
 
-            log.AppendLine(string.Format(Inv, "FRAMEGARBAGE in all: a fight's frame {0} B by the callers of the four files ({1} B the whole frame); the pause menu's {2} B ({3} B the whole frame)",
-                                         fight, fightWhole, pause, pauseWhole));
+            // Work order 095: her sheet over the fight, a skill's panel open, the mouse still.
+            Assert.That(_hud.OpenSheet(), Is.True, "the sheet up");
+            _hud.HoverSheetSkill(1);
+            for (int i = 0; i < 5; i++) yield return null;
+            long sheet = 0;
+            yield return Callers(log, "the sheet", own, v => sheet = v);
+            _hud.CloseSheet();
+
+            log.AppendLine(string.Format(Inv, "FRAMEGARBAGE in all: a fight's frame {0} B by the callers of the four files ({1} B the whole frame); the pause menu's {2} B ({3} B the whole frame); the sheet's {4} B",
+                                         fight, fightWhole, pause, pauseWhole, sheet));
             Debug.Log(log.ToString());
             TestContext.WriteLine(log.ToString());
             _levels.BackToPracticeRoom();
             Assert.That(fight, Is.LessThanOrEqualTo(FightCeiling), "a fight's frame: the garbage came back\n" + log);
             Assert.That(pause, Is.LessThanOrEqualTo(PauseCeiling), "the pause menu's frame: the garbage came back\n" + log);
+            Assert.That(sheet, Is.LessThanOrEqualTo(SheetCeiling), "the sheet's frame: too much garbage\n" + log);
         }
 
         // ---------------- The measures ----------------

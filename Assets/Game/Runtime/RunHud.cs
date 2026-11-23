@@ -216,6 +216,7 @@ namespace Roguelike
         public bool Escape()
         {
             Find();
+            if (SheetUp) return CloseSheet(); // work order 095: Esc closes her sheet, as its own key does
             if (_levels == null || _levels.Choice != GeneratedLevels.ChoiceKind.None) return false;
             if (_levels.BetweenRunsUp) return _levels.LeaveBetweenRuns(); // work order 029: to the practice room
             if (_levels.Ending != GeneratedLevels.EndKind.None)
@@ -348,6 +349,12 @@ namespace Roguelike
                 Escape();
                 return;
             }
+            Key sheet = SheetKey; // work order 095: her sheet, Tab by default; under the pause menu it turns the menu into the sheet
+            if (sheet != Key.None && keyboard[sheet].wasPressedThisFrame)
+            {
+                ToggleSheet();
+                return;
+            }
             bool enter = keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame;
             if (_levels.BetweenRunsUp)
             {
@@ -360,6 +367,11 @@ namespace Roguelike
                 return; // F5, F6 and F7 are the run's own keys (GeneratedLevels)
             }
             if (!_levels.Paused) return;
+            if (SheetUp)
+            {
+                SheetKeys(keyboard); // work order 095: the arrows step along her skills
+                return;
+            }
             BuildMenu();
             if (_menu.Count == 0) return;
             if (keyboard.upArrowKey.wasPressedThisFrame) Selected = (Selected + _menu.Count - 1) % _menu.Count;
@@ -380,6 +392,7 @@ namespace Roguelike
         public void Tick()
         {
             Find();
+            if (SheetUp && (_levels == null || !_levels.Paused)) SheetUp = false; // work order 095: whatever ended the pause (a new run, F7) closed the sheet
             // Health.
             ShownHealth = _health != null ? Mathf.Max(0, _health.Current) : 0;
             ShownMaxHealth = _health != null ? _health.Max : 0;
@@ -567,6 +580,7 @@ namespace Roguelike
             if (_player != null && _player.Feel.Sprint) Add("Sprint", K(b.Sprint), "  (hold, no shots)"); // work order 092: and over the low props
             Add("Interact", K(b.Interact), "");
             Add("Map", K(FloorMap.LargeKey), "  (hold)"); // work order 041: the small map, large while held
+            Add("Skills and all stats", K(b.Sheet), ""); // work order 095: her sheet
             IReadOnlyList<SkillDefinition> skills = _player != null ? _player.Skills : null;
             // A key and the skill on it are two things since work order 015: each key shows what sits on it now.
             int count = skills != null && b.Skills != null ? Mathf.Min(_player.KeyCount, b.Skills.Length) : 0;
@@ -617,11 +631,12 @@ namespace Roguelike
         /// </summary>
         void PauseLines()
         {
-            bool paused = _levels != null && _levels.Paused;
+            bool paused = _levels != null && _levels.Paused && !SheetUp; // work order 095: not under her sheet, which makes its own
             if (paused && (!_pauseWasUp || _pauseLinesStale || _pauseKeys == null))
             {
                 _pauseKeys = KeyLines(_keyCaps); // work order 078: the keys apart too, for the key caps
                 _pauseStats = StatLines();
+                MakeSheetStats(); // work order 095: the "HER STATS" panel draws her sheet's lines
                 _pauseLinesStale = false;
                 PauseListsMade++;
                 MakeMenuRows(); // work order 078 (RunHudMenus.cs): the rows' words and her stats read apart, made with the lists
@@ -711,8 +726,10 @@ namespace Roguelike
             if (!kinetic && (_skillBar == null || !_skillBar.isActiveAndEnabled)) DrawHealth();
             if (_runBox.Count > 0) { if (kinetic) DrawRunBoxKinetic(viewWidth); else DrawRunBox(viewWidth); }
             if (PromptText.Length > 0) { if (kinetic) DrawPromptKinetic(viewWidth); else DrawPrompt(viewWidth); }
+            // Work order 095: her sheet over the paused game (RunHudSheet.cs), in the concept's style whatever the switches.
+            if (SheetUp && _levels != null && _levels.Paused) DrawSheet();
             // Work order 078: the menus in the concept's style (RunHudMenus.cs), with the skin and MenuValues.Concept on.
-            if (kinetic && MenuConcept)
+            else if (kinetic && MenuConcept)
             {
                 if (_levels != null && _levels.EndScreenShown && _endLines.Count > 0) DrawEndConcept();
                 else if (_levels != null && _levels.Paused) DrawPauseConcept();

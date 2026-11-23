@@ -340,7 +340,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_map.Shown, Is.False, "not under the pause menu");
             Assert.That(_map.Large, Is.False);
             _map.HoldLarge = false;
-            Assert.That(_hud.KeyLines(), Has.Member("Map  Tab  (hold)"), "the pause menu's list of keys names it");
+            Assert.That(_hud.KeyLines(), Has.Member("Map  M  (hold)"), "the pause menu's list of keys names it");
             Assert.That(_levels.Resume(), Is.True);
             yield return Frames(2);
             Assert.That(_map.Shown, Is.True);
