@@ -131,7 +131,7 @@ namespace Roguelike.Rules
         /// just past its far face), if all of these hold:
         /// - from her to the landing is at most <see cref="FeelValues.SprintJumpMost"/>;
         /// - no other shape of the list (another prop, low or tall; a wall) lies on the straight way from her to the landing or within
-        ///   the room of the landing, and <paramref name="cover"/> (the physics ray of walls, tall props and shut doors' blocks; null
+        ///   her body's radius of the landing (a wall she runs along does not stop it), and <paramref name="cover"/> (the physics ray of walls, tall props and shut doors' blocks; null
         ///   for none) is clear all the way;
         /// - the landing is walkable floor (<paramref name="walkable"/>: the NavMesh; null counts as walkable);
         /// - no living enemy of <paramref name="enemies"/> (null for none) stands within the room and its own radius of the landing.
@@ -177,11 +177,13 @@ namespace Roguelike.Rules
             if (at > most + 1e-4f) return JumpPlan.No(JumpRefusal.TooFar, best);
             GroundPoint to = her + d * at;
 
+            // Anything else only needs to leave her body room (she runs 0.5 m from a wall, as the NavMesh keeps her).
+            float body = Math.Min(room, Placeholders.PlayerRadius) - 0.05f;
             for (int i = 0; i < shapes.Count; i++)
             {
                 if (i == best) continue;
                 CoverShape s = shapes[i].Shape;
-                if (s.Crosses(her, to) || s.Distance(to) < room - 1e-3f) return JumpPlan.No(JumpRefusal.Blocked, best);
+                if (s.Crosses(her, to) || s.Distance(to) < body) return JumpPlan.No(JumpRefusal.Blocked, best);
             }
             if (cover != null && cover(her, to) < at - 1e-3f) return JumpPlan.No(JumpRefusal.Blocked, best);
             if (walkable != null && !walkable(to)) return JumpPlan.No(JumpRefusal.NoFloor, best);
