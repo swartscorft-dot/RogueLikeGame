@@ -21,7 +21,11 @@ namespace Roguelike
         float _deadSince = -1f;
 
         public int Current => _health.Current;
-        public bool IsAlive => !_health.IsDead;
+        /// <summary>
+        /// Alive: also before this component has woken (in a scene her character wakes first and asks at once; the morning of
+        /// 2026-11-23 that threw in her Awake, which switched her off: she could not move or shoot).
+        /// </summary>
+        public bool IsAlive => _health == null || !_health.IsDead;
         /// <summary>The maximum now: <see cref="MaxHealth"/>, and in a run the run's upgrades on top (work order 012).</summary>
         public int Max => _health.Max;
 

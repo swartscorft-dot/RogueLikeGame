@@ -55,7 +55,7 @@ namespace Roguelike
         /// <summary>True while the sprint key is held (<see cref="HoldSprint"/>), whether or not she sprints.</summary>
         public bool IsSprintHeld => _sprintHeld;
         /// <summary>True while she sprints: the switch, the key and a move key held, and free to run (<see cref="SprintRules.On"/>). Not in a jump.</summary>
-        public bool IsSprinting => SprintRules.On(Feel, _sprintHeld, _moveInput != Vector3.zero, SprintFree);
+        public bool IsSprinting => _sprintHeld && _moveInput != Vector3.zero && SprintRules.On(Feel, true, true, SprintFree); // the key and a move first: nothing else is asked while she does not try to sprint (not in her Awake, before the others have woken)
         /// <summary>True while she is in a jump over a low prop.</summary>
         public bool IsJumping => _jumping;
         /// <summary>Where the jump going on (or the last) took off and lands, and when it took off and lands.</summary>
