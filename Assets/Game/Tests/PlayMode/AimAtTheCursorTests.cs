@@ -163,12 +163,14 @@ namespace Roguelike.PlayModeTests
             float shotDeg = float.NaN;
             for (int i = 0; i < 60 && float.IsNaN(shotDeg); i++)
             {
-                yield return null; // after the Updates: where she shot from, and the camera of the frame drawn before, agree
+                yield return null; // after the Updates: she stands where the shot went off from
                 if (_player.BasicShotsFired == fired) continue;
                 ShotFx streak = NewestStreak();
                 Assert.That(streak, Is.Not.Null, "the shot's streak");
+                Vector3 from = _player.Position;
+                yield return null; // the camera of the frame the shot is first drawn in: where the cursor lies in it
                 Vector3 truth = OnLevel(_cursor, streak.Origin.y);
-                shotDeg = Vector3.SignedAngle(Flat(truth - _player.Position), Flat(streak.End - _player.Position), Vector3.up);
+                shotDeg = Vector3.SignedAngle(Flat(truth - from), Flat(streak.End - from), Vector3.up);
             }
             Report($"Running north at {speedSeen:0.00} m/s (frames of 1/60 s), cursor 6 m east of her gun, {samples} frames:\n" +
                    $"  the line: worst {worstDeg:0.00} deg, mean {sumDeg / samples:+0.00;-0.00} deg, worst {worstPx:0.0} px at 1080\n" +

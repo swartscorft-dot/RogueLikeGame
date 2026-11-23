@@ -187,6 +187,9 @@ namespace Roguelike
             if (_camera == null) return;
             if (!TryGroundPoint(input.CursorScreen, out Vector3 cursor)) return;
             Vector3 aim = ShotAim(input.CursorScreen, cursor); // work order 094: the shot's, a line's and a cone's; the cursor's ground point for what lands on the floor
+            Vector3 lag = CameraLag(); // work order 094: both as the cursor lies in the frame that will be drawn
+            cursor += lag;
+            aim += lag;
 
             if (_health != null && !_health.IsAlive)
             {
@@ -317,6 +320,32 @@ namespace Roguelike
             if (!new Plane(Vector3.up, new Vector3(0f, _player.ShotHeight, 0f)).Raycast(ray, out float distance)) return ground;
             Vector3 point = ray.GetPoint(distance);
             return new Vector3(point.x, 0f, point.z);
+        }
+
+        CameraRig _rig;       // work order 094: the follow camera's rig, looked up once per camera
+        Camera _rigOfCamera;
+
+        /// <summary>
+        /// Work order 094, her aim while she runs (measured: the Laser Sight's line 0.9 degrees behind the cursor at a run, at 60
+        /// frames a second): she has already moved this frame when the driver reads (the NavMesh agent moves her before the
+        /// Updates), but the camera follows her only in its LateUpdate, so the cursor's ray is through the camera as the frame
+        /// before left it. The ground under the cursor in the frame that will be drawn lies that much further on: from where the
+        /// camera looks now to where its rig's target is. Zero for a camera without a rig, and with
+        /// <see cref="Rules.FeelValues.AimAtShotHeight"/> off.
+        /// </summary>
+        Vector3 CameraLag()
+        {
+            if (!_player.Feel.AimAtShotHeight) return Vector3.zero;
+            if (_rigOfCamera != _camera)
+            {
+                _rigOfCamera = _camera;
+                _rig = _camera.GetComponent<CameraRig>();
+            }
+            Transform cam = _camera.transform;
+            if (_rig == null || _rig.Target == null || cam.forward.y > -1e-3f) return Vector3.zero;
+            Vector3 looksAt = cam.position + cam.forward * (cam.position.y / -cam.forward.y); // where its view meets the ground (CameraRig)
+            Vector3 target = _rig.Target.position;
+            return new Vector3(target.x - looksAt.x, 0f, target.z - looksAt.z);
         }
     }
 }

@@ -404,10 +404,10 @@ namespace Roguelike.PlayModeTests
             return found;
         }
 
-        /// <summary>A left click at a ground point, the cursor then resting there (the shot aims at the live cursor).</summary>
+        /// <summary>A left click on a point, the cursor then resting there (the shot aims at the live cursor); work order 094: at the shot's height.</summary>
         void Click(Vector3 ground)
         {
-            Vector2 screen = ScreenOf(ground);
+            Vector2 screen = ScreenAtShotHeight(ground);
             _frames.Enqueue(new InputFrame { CursorScreen = screen, ShootPressed = true });
             _idle = new InputFrame { CursorScreen = screen };
         }
@@ -415,6 +415,13 @@ namespace Roguelike.PlayModeTests
         void UseFakeInput() => _driver.InputSource = () => _frames.Count > 0 ? _frames.Dequeue() : _idle;
 
         static Vector2 ScreenOf(Vector3 world) => Camera.main.WorldToScreenPoint(new Vector3(world.x, 0f, world.z));
+
+        /// <summary>
+        /// Work order 094: the cursor over a point as she sees what she shoots at, at the height the shot is drawn and aimed at:
+        /// the aim meets the cursor's ray there, so the shot goes to the point itself. On the point's ground spot, the aim would
+        /// pass that spot's screen point at the gun's height, nearer the camera.
+        /// </summary>
+        Vector2 ScreenAtShotHeight(Vector3 world) => Camera.main.WorldToScreenPoint(new Vector3(world.x, _player.ShotHeight, world.z));
 
         static IEnumerator Until(Func<bool> condition, float timeoutSeconds)
         {
