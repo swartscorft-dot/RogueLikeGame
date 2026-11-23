@@ -397,8 +397,13 @@ namespace Roguelike
             bool screenUp = _levels != null && (_levels.Paused || _levels.Ending != GeneratedLevels.EndKind.None || _levels.BetweenRunsUp);
             bool runBoxStands = screenUp && _runBoxUnderScreen;
             _runBoxUnderScreen = screenUp;
-            if (!runBoxStands) _runBox.Clear();
-            if (!runBoxStands && _levels != null && _levels.InRun && record != null)
+            bool runBoxWanted = !runBoxStands && _levels != null && _levels.InRun && record != null;
+            // Work order 090: made again only when what it says changes (RunBoxStale: the floor, the room, the enemies left, the
+            // clock's second, the upgrades, the heal), not every frame: its words are the same strings frame after frame.
+            bool runBoxStale = runBoxWanted && RunBoxStale(record);
+            if (!runBoxStands && (runBoxStale || !runBoxWanted)) _runBox.Clear();
+            if (!runBoxStands && !runBoxWanted) _rbRecord = null; // made anew when one is wanted again
+            if (runBoxWanted && _runBox.Count == 0)
             {
                 _runBox.Add(record.FloorText);
                 if (_levels.CurrentRoom != null)
@@ -449,6 +454,43 @@ namespace Roguelike
             if (_levels != null && _levels.Paused) BuildMenu();
             BuildBetweenRunsLines(); // work order 029
             BuildWeaponLines(); // work order 060: nothing with the attachments off
+        }
+
+        // Work order 090: what the run box says, as the numbers it is made from (RunBoxStale).
+        RunRecord _rbRecord;
+        int _rbFloor, _rbRoom, _rbRooms, _rbLeft, _rbSecond, _rbUpgrades, _rbHeal, _rbHealFloor;
+        RoomKind _rbKind;
+        bool _rbElite, _rbInRoom;
+
+        /// <summary>
+        /// Has what the run box says changed since its lines were made: the run, its floor, her room (or none), the enemies left in
+        /// it, the clock's whole second (<see cref="RunWords.Clock"/> shows no less), the upgrades taken, the heal between floors?
+        /// Nothing made in asking; true also remembers the new numbers.
+        /// </summary>
+        bool RunBoxStale(RunRecord record)
+        {
+            bool inRoom = _levels.CurrentRoom != null;
+            int left = inRoom ? _levels.EnemiesLeftInRoom : 0;
+            float s = record.Seconds;
+            int second = float.IsNaN(s) || s < 0f ? 0 : Mathf.FloorToInt(s);
+            int upgrades = record.Upgrades.Count;
+            if (ReferenceEquals(record, _rbRecord) && record.Floor == _rbFloor && record.Room == _rbRoom && record.Rooms == _rbRooms && record.RoomKind == _rbKind
+                && record.RoomElite == _rbElite && inRoom == _rbInRoom && left == _rbLeft && second == _rbSecond && upgrades == _rbUpgrades
+                && record.LastFloorHeal == _rbHeal && record.LastFloorHealFloor == _rbHealFloor)
+                return false;
+            _rbRecord = record;
+            _rbFloor = record.Floor;
+            _rbRoom = record.Room;
+            _rbRooms = record.Rooms;
+            _rbKind = record.RoomKind;
+            _rbElite = record.RoomElite;
+            _rbInRoom = inRoom;
+            _rbLeft = left;
+            _rbSecond = second;
+            _rbUpgrades = upgrades;
+            _rbHeal = record.LastFloorHeal;
+            _rbHealFloor = record.LastFloorHealFloor;
+            return true;
         }
 
         void BuildMenu()
