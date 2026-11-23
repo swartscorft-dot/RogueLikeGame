@@ -86,15 +86,21 @@ namespace Roguelike.Rules.Tests
             return h;
         }
 
-        /// <summary>The three hundred floors' plans, folded: (layout and kit, the rock look's rise, the dark look's rise).</summary>
+        /// <summary>
+        /// The three hundred floors' plans, folded: (layout and kit, the rock look's rise, the dark look's rise). Work order 087: with
+        /// the act's plan off (LevelValues.ActPlan), which is version 17's floors, field for field, but for the version: the version
+        /// is folded as the 17 it was when the pins were taken.
+        /// </summary>
         static (ulong layout, ulong rock, ulong dark) Prints()
         {
-            var v = new LevelValues();
+            var v = new LevelValues { ActPlan = false, UsableRooms = false };
             ulong hl = 14695981039346656037UL, hr = hl, hd = hl;
             for (int i = 0; i < SeedsOfRuns; i++)
                 for (int floor = 1; floor <= 5; floor++)
                 {
                     LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(RunSeedOf(i), floor), floor, v);
+                    Assert.That(l.Version, Is.EqualTo(19)); // work order 088: version 17's floor with the act's plan and the rooms you can use off
+                    l.Version = 17; // work order 087: version 17's floor but for the version
                     CryptKitPlan kit = CryptKitPlan.Make(l, v.Crypt);
                     hl = OfKit(kit, OfLayout(l, hl));
                     hr = OfRise(CaveRise.Make(l, kit, v.CaveRules, v.WallHeight, v.NearWallHeight, Feel.CameraPitch, Feel.CameraDistance), hr);

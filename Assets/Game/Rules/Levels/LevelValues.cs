@@ -226,7 +226,7 @@ namespace Roguelike.Rules
         public float EliteStaggerShare = 0.5f; // a kind with no stagger bar gets one this share of the guard's
         public float EliteRoomToStand = 1f;    // m more than any enemy keeps from the walls, the doors and the other groups: its larger body
         public int EliteKindsFromFloor = 2;    // from this floor a brute, a shooter or a guard; before it a brute
-        public int EliteCasterFromFloor = 3;   // work order 027: from this floor the elite may be a caster too
+        public int EliteCasterFromFloor = 3;   // work order 027: from this floor the elite may be a caster too (087: read with ActPlan off; on, CastersFromFloor)
         public float PackRadius = 1.2f;        // m from a pack's point to each of its swarmers
         public float LineSpacing = 2f;         // m between two enemies of a line, side by side (work order 012)
         public float MemberSpacing = 1.5f;     // m between two enemies of different groups (work order 012)
@@ -261,24 +261,48 @@ namespace Roguelike.Rules
         // for field, but for the version. The practice room's caster does not depend on it.
         public bool Casters = true;
         // The casters (work order 027): from floor 2, one a combat room at most on floors 2 and 3, two on floors 4 and 5,
-        // and an exit room one more; they stand at the far side as the shooters do, never near each other.
+        // and an exit room one more; they stand at the far side as the shooters do, never near each other. Since work order
+        // 087 read only with ActPlan off (version 17's floors); on, PlanCastersMostInRoom from CastersFromFloor.
         public int[] CastersMostInRoom = { 0, 1, 1, 2, 2 }; // by floor number, from 1; past the end its last
         public int CastersMoreInExit = 1;
         public float CasterSpacing = 8f;       // m between two casters of a room
-        // The bombers in the floors (work order 073, 2026-11-21): built, and OFF by default, as the casters were before work
-        // order 054. Off: no room holds a bomber and every seed's floor is what it was, field for field (no version is
-        // taken). On: from floor 2, never in the floor's first combat room, each in place of a swarmer (LevelBombers). The
-        // practice room's bomber does not depend on it.
-        public bool Bombers = false;
+        // The bombers in the floors (work order 073, 2026-11-21): built OFF, as the casters were before work order 054. Work
+        // order 087 (Kristian, 2026-11-22, asked which of the two new kinds should go into the floors: both, the bomber from
+        // floor 4 with the shooter's fan): ON, from BomberFloors.FromFloor (4), by 073's own rule (never in the floor's first
+        // combat room, each in place of a swarmer: LevelBombers), read only with ActPlan on. Off (or ActPlan off): no room
+        // holds a bomber. The practice room's bomber does not depend on it.
+        public bool Bombers = true;
         public int BomberHealth = 100;         // work order 073: a floor's bomber, as the practice room's (BomberValues)
         public BomberFloorValues BomberFloors = new BomberFloorValues();
-        // The warders in the floors (work order 079, 2026-11-22): built, and OFF by default, as the bombers are. Off: no room
-        // holds a warder and every seed's floor is what it was, field for field (no version is taken). On: from floor 2, at
-        // most one a room, never in the floor's first combat room, only in a room with at least three other enemies, each in
-        // place of a swarmer (LevelWarders). The practice room's warder does not depend on it.
-        public bool Warders = false;
+        // The warders in the floors (work order 079, 2026-11-22): built OFF, as the bombers were. Work order 087 (Kristian,
+        // 2026-11-22: both, the warder from floor 3, at most one a room): ON, from WarderFloors.FromFloor (3), by 079's own rule
+        // (at most one a room, never in the floor's first combat room, only in a room with at least three other enemies, each
+        // in place of a swarmer: LevelWarders), read only with ActPlan on. Off (or ActPlan off): no room holds a warder. The
+        // practice room's warder does not depend on it.
+        public bool Warders = true;
         public int WarderHealth = 220;         // work order 079: a floor's warder, as the practice room's (WarderValues)
         public WarderFloorValues WarderFloors = new WarderFloorValues();
+        // The act's plan (work order 087; Kristian, 2026-11-22, asked whether each floor should bring one new thing, which makes
+        // floor 2 easier and floor 3 harder: "Ja, én ny ting per etasje"; and both new kinds in): floor 1 the swarmer, the brute
+        // and the shooter; floor 2 the guard (GuardsFromFloor); floor 3 the caster (CastersFromFloor) and the warder
+        // (WarderFloors.FromFloor); floor 4 the bomber (BomberFloors.FromFloor) and the shooter's fan (ShooterValues.FanFromFloor);
+        // floor 5 the act boss. On (the generator's version 18): the casters by CastersFromFloor and PlanCastersMostInRoom, the
+        // bombers and the warders by their switches above. Off: every floor is version 17's, field for field, but for the version
+        // (the casters by CastersMostInRoom and EliteCasterFromFloor, no bomber, no warder, whatever their switches say).
+        public bool ActPlan = true;
+        // With ActPlan on: no caster before this floor, in a room or as the elite (work order 087: floor 3, where the plan puts
+        // it; the casters came from floor 2 before, and an elite one from floor 3). The one number to move the caster's floor by.
+        public int CastersFromFloor = 3;
+        // With ActPlan on, from CastersFromFloor: the most casters in a combat room by floor number, from 1 (past the end its
+        // last), and an exit room CastersMoreInExit more (work order 087: one a room on floors 3 and 4, two on floor 5; with
+        // CastersFromFloor 3 floors 1 and 2 are not read, and hold one each if the caster's floor is moved down to them).
+        public int[] PlanCastersMostInRoom = { 1, 1, 1, 1, 2 };
+
+        /// <summary>The bombers are put into the floors (work order 087): their switch, and the act's plan on.</summary>
+        public bool BombersInFloors => ActPlan && Bombers;
+
+        /// <summary>The warders are put into the floors (work order 087): their switch, and the act's plan on.</summary>
+        public bool WardersInFloors => ActPlan && Warders;
         public FloorEnemies[] Floors = DefaultFloors();
 
         // Props (work order 009)
@@ -372,6 +396,14 @@ namespace Roguelike.Rules
         // never reads it. Off: every enemy wakes on its own, by its range, a hurt or a pack, exactly as before.
         public bool RoomFights = true;
         public RoomFightValues Fights = new RoomFightValues();
+        // Rooms you can use (work order 088; Kristian, 2026-11-22, of the door that closes behind her: "Døra stenges bak deg, men vi
+        // bør balansere rommene med flere muligheter og, slik at man kan bruke miljøet til sin fordel", and of the duck: "Plasser
+        // dekning for den"): on (the generator's version 19), the props never cut a room's floor into pockets and leave a way of
+        // whole cells through it (JoinedFloor), every room with a fight that holds shooters or casters has a chain of tall cover from
+        // where she stands when it wakes toward where they stand, and every room that holds shooters low props on their lines to
+        // duck behind (FightCover; the numbers in CoverRules). Off: every floor is version 18's, field for field, but for the version.
+        public bool UsableRooms = true;
+        public CoverValues CoverRules = new CoverValues();
 
         public LevelPlan Plan = new LevelPlan();
         public PropValues PropRules = new PropValues();
@@ -466,23 +498,28 @@ namespace Roguelike.Rules
         /// <summary>
         /// The kinds an elite may be on this floor (work order 017): a brute on floor 1; a brute, a shooter or a guard after;
         /// from <see cref="EliteCasterFromFloor"/> a caster too (work order 027), while <see cref="Casters"/> is on (work
-        /// order 034: off, the three, so the elite's draw is what it was).
+        /// order 034: off, the three, so the elite's draw is what it was). With <see cref="ActPlan"/> on (work order 087) the
+        /// caster's floor is <see cref="CastersFromFloor"/>, the rooms' and the elite's alike (3, as the elite's was).
         /// </summary>
         public EnemyKind[] EliteKinds(int floor) =>
             floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute }
-            : floor < EliteCasterFromFloor || !Casters ? new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }
+            : floor < (ActPlan ? CastersFromFloor : EliteCasterFromFloor) || !Casters ? new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }
             : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster };
 
         /// <summary>
         /// The most casters a room of this kind may hold on this floor (work order 027): <see cref="CastersMostInRoom"/> for
         /// the floor in a combat room, <see cref="CastersMoreInExit"/> more in the exit room (none more on a floor with none);
-        /// none elsewhere. The elite apart. None anywhere while <see cref="Casters"/> is off (work order 034).
+        /// none elsewhere. The elite apart. None anywhere while <see cref="Casters"/> is off (work order 034). With
+        /// <see cref="ActPlan"/> on (work order 087): none before <see cref="CastersFromFloor"/>, and from it
+        /// <see cref="PlanCastersMostInRoom"/> in place of <see cref="CastersMostInRoom"/>.
         /// </summary>
         public int CastersMost(RoomKind kind, int floor)
         {
             if (!Casters) return 0;
-            if (CastersMostInRoom == null || CastersMostInRoom.Length == 0 || (kind != RoomKind.Combat && kind != RoomKind.Exit)) return 0;
-            int room = Math.Max(0, CastersMostInRoom[Math.Max(0, Math.Min(CastersMostInRoom.Length - 1, floor - 1))]);
+            if (ActPlan && floor < CastersFromFloor) return 0;
+            int[] table = ActPlan ? PlanCastersMostInRoom : CastersMostInRoom;
+            if (table == null || table.Length == 0 || (kind != RoomKind.Combat && kind != RoomKind.Exit)) return 0;
+            int room = Math.Max(0, table[Math.Max(0, Math.Min(table.Length - 1, floor - 1))]);
             return kind == RoomKind.Exit && room > 0 ? room + CastersMoreInExit : room;
         }
 
@@ -553,6 +590,7 @@ namespace Roguelike.Rules
         public float LaneGrid = 0.5f;          // the grid the lane is checked on
         public float FromPoints = 2f;          // from the player's start and from every enemy point
         public float FloorSpacing = 3f;        // from an open-floor prop to any other prop
+        public float CoverSpacing = 2f;        // work order 088: from a cover put for the room's fight (LevelProp.Fight) to any other prop: the joined floor keeps the ways between them
         public float BossMiddleClear = 8f;     // round the boss room's middle, nothing
 
         // Walls and wall pieces (work order 028)
@@ -564,7 +602,12 @@ namespace Roguelike.Rules
         public float WalkRadius = 0.5f;        // floor is walkable at least this far from a prop's footprint and the walls (about the NavMesh agent's radius)
 
         // Cover (Kristian, 2026-11-19: shots are stopped by walls and pillars)
-        public float CoverHeight = 1.2f;       // a prop at least this tall stops her shots (altar, grave marker, pillars, statue); she shoots over a lower one
+        public float CoverHeight = 1.2f;       // a prop at least this tall stops her shots (altar, grave marker, pillars, statue); she shoots over a lower one. Read only with OneHeightTable off
+        // Work order 088 (point 5, the draft room rule 13: "low is low and tall is tall"): on, what a prop does against a shot is the
+        // one sorted table (PropHeights): the greybox, the duck and the shots all read it, whether the quick duck is on or off. Off:
+        // the morning's rule, CoverHeight with the quick duck's sort laid on top (the altar, the grave marker and the broken pillar
+        // stop shots with the duck off, and nothing with it on). With the duck on (the default) the two give the same floor.
+        public bool OneHeightTable = true;
         public float Glow = 3f;                // work order 028: the props' emission maps in the game's cyan times this, as the kit's stone (CryptKitValues.StoneGlow)
 
         // Combat rooms

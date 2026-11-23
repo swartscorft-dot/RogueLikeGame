@@ -25,7 +25,7 @@ namespace Roguelike.PlayModeTests
     /// lights its short fuse, and they die by its blast, and the recorder says so; two side by side, the second blows one
     /// fuse after the first; nothing is left behind and a frame of its fuse allocates nothing; its fuse and its blast are
     /// heard and drawn with what exists, and the engine's "Converting invalid MinMaxAABB" assert (work order 061) does not
-    /// come; a floor 2 with them on makes them with the floor's health and damage scale. Every number is read from the values.
+    /// come; a floor 4 of the defaults (work order 087; a floor 2 with them switched on before) makes them with the floor's health and damage scale. Every number is read from the values.
     ///
     /// The practice brute is switched off (it stays in the scene as the template the factory copies its telegraph from). She
     /// stands on the practice floor where it has the most room in a straight line, with health enough for every test.
@@ -507,14 +507,17 @@ namespace Roguelike.PlayModeTests
         // ---------------- The floors ----------------
 
         [UnityTest]
-        public IEnumerator AFloor2_WithThemOn_MakesItsBombers_WithTheFloorsHealthAndDamageScale()
+        public IEnumerator AFloor4_OfTheDefaults_MakesItsBombers_WithTheFloorsHealthAndDamageScale()
         {
+            // Work order 087: the bombers are on in the floors by default, from floor 4 (this was floor 2 with them switched on).
             _practiceEnemy.enabled = true;
-            var values = new LevelValues { Bombers = true };
+            var values = new LevelValues();
+            Assume.That(values.BombersInFloors && values.BomberFloors.FromFloor == 4, Is.True);
             _levels.Values = values;
             ulong seed = 0;
-            while (!LevelGenerator.Generate(seed, 2, values).Rooms.Any(r => r.EnemyGroups.Any(g => g.Kind == EnemyKind.Bomber))) seed++;
-            GeneratedLevel level = _levels.Build(seed, 2);
+            while (seed < 200 && !LevelGenerator.Generate(seed, 4, values).Rooms.Any(r => r.EnemyGroups.Any(g => g.Kind == EnemyKind.Bomber))) seed++;
+            Assert.That(seed, Is.LessThan(200UL), "a floor 4 with a bomber among the first 200 seeds");
+            GeneratedLevel level = _levels.Build(seed, 4);
             yield return null;
             LevelRoom first = LevelGeometry.MainPath(level.Layout).First(r => r.Kind == RoomKind.Combat);
             int bombers = 0;
@@ -527,15 +530,15 @@ namespace Roguelike.PlayModeTests
                 foreach (EnemyBomber e in here)
                 {
                     Assert.That(e.Body.MaxHealth, Is.EqualTo(values.BomberHealth), e.name);
-                    Assert.That(e.DamageScale, Is.EqualTo(values.DamageScaleOf(2)).Within(1e-5f), "the floor's scale");
+                    Assert.That(e.DamageScale, Is.EqualTo(values.DamageScaleOf(4)).Within(1e-5f), "the floor's scale");
                     Assert.That(e.TakesTurns, Is.True, "a floor's enemy (it takes no turn to blow: of no sort)");
                     Assert.That(e.IsElite, Is.False);
                 }
                 bombers += here.Count;
             }
-            Debug.Log("BOMBERFLOOR seed " + seed + " floor 2 holds " + bombers + " bombers\n" + LevelMap.Draw(level.Layout));
+            Debug.Log("BOMBERFLOOR seed " + seed + " floor 4 holds " + bombers + " bombers\n" + LevelMap.Draw(level.Layout));
             Assert.That(bombers, Is.GreaterThan(0));
-            Assert.That(BomberRules.HerDamage(new BomberValues(), values.DamageScaleOf(2)), Is.EqualTo(12), "a floor 2's blast on her: 0.6 of 20");
+            Assert.That(BomberRules.HerDamage(new BomberValues(), values.DamageScaleOf(4)), Is.EqualTo(16), "a floor 4's blast on her: 0.8 of 20");
             _levels.BackToPracticeRoom();
         }
     }

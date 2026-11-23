@@ -30,9 +30,11 @@ namespace Roguelike.Rules.Tests
 
         /// <summary>
         /// The longest one generation with themes may take, in milliseconds (as LevelPropsTests'). The slowest seed is timed
-        /// again for it, as one time can be slow for the machine's sake.
+        /// again for it, as one time can be slow for the machine's sake. Work order 088 (changed deliberately): 150 ms, LevelPropsTests'
+        /// bound, 50 before; version 19's props stage does more (the joined floor, the fights' cover: about 1.7 times version 18's
+        /// generation on .NET), and the filtered Unity EditMode run of it under load found the slowest seed of a floor 51 to 87 ms.
         /// </summary>
-        const double SlowestAllowedMs = 50;
+        const double SlowestAllowedMs = 150;
 
         sealed class Tally
         {
@@ -136,7 +138,11 @@ namespace Roguelike.Rules.Tests
                     Assert.That(recipe, Is.Not.Null, where);
                     PropModel[] list = RoomThemes.ModelsOf(recipe);
                     foreach (LevelProp p in r.Props)
+                    {
+                        // Work order 088 (changed deliberately): a cover put for the room's fight is its theme's cover model.
+                        if (p.Fight && Array.IndexOf(FightCover.CoverModels(r), p.Model) >= 0) continue;
                         if (Array.IndexOf(list, p.Model) < 0) Assert.Fail(where + " " + RoomThemes.Word(r.Theme) + ": " + p + " is not of its theme's list");
+                    }
 
                     string name = RoomThemes.Word(r.Theme) + (r.Kind == RoomKind.Treasure ? " (treasure room)" : "");
                     if (!byTheme.TryGetValue(name, out Tally t)) byTheme[name] = t = new Tally();

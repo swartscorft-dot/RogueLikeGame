@@ -146,6 +146,13 @@ namespace Roguelike.PlayModeTests
             Assert.That(made.Count, Is.EqualTo(1), kind + " spawned");
             var e = (T)made[0];
             e.Values.MoveSpeed = 0f;
+            // Work order 087: the shooter shoots from up to 11 m and the caster casts from up to 11 m (14 and 15 before, "Trekk
+            // fiendene nærmere"). These tests measure what flies at 12 and 13 m, as work orders 036 and 039 tuned it, so the
+            // test's still enemy keeps the reach they were measured with (ActPlanTests and ActPlanPlayTests test the new one).
+            if (e is EnemyShooter s)
+                foreach (EnemyAttackDefinition a in s.Tuning.Arrows.Concat(s.Tuning.Enemy.Attacks)) a.MaxDistance = 14f;
+            if (e is EnemyCaster c)
+                foreach (EnemyAttackDefinition a in c.Tuning.Orbs.Concat(c.Tuning.Enemy.Attacks)) a.MaxDistance = 15f;
             Assert.That(e.GetComponent<NavMeshAgent>().Warp(at), Is.True, "on the NavMesh at " + at);
             return e;
         }

@@ -132,6 +132,26 @@ namespace Roguelike.Rules
     /// (<see cref="FightsOf"/> is untouched: every room holds the same seed's groups, room for room); from the first room that
     /// draws another template on, the rooms stand elsewhere, with other sizes, places and doors. With it off every floor is
     /// version 16's, field for field, but for the version.
+    /// Version 18 (work order 087; Kristian, 2026-11-22, asked whether each floor should bring one new thing: "Ja, én ny ting per
+    /// etasje", and both new kinds into the floors): with <see cref="LevelValues.ActPlan"/> on (the default) the floors follow the
+    /// act's plan: floor 2 brings the guard and no caster, floor 3 the caster (<see cref="LevelValues.CastersFromFloor"/>, in a room
+    /// or as the elite; at most <see cref="LevelValues.PlanCastersMostInRoom"/> a room: one on floors 3 and 4, two on floor 5) and
+    /// the warder (<see cref="LevelWarders"/>, from <see cref="WarderFloorValues.FromFloor"/>), floor 4 the bomber
+    /// (<see cref="LevelBombers"/>, from <see cref="BomberFloorValues.FromFloor"/>) beside the shooter's fan, floor 5 the act boss.
+    /// A caster that the plan holds back leaves in its room the shooter or brute it would have taken the place of, and a warder or
+    /// a bomber takes the place of a swarmer, so no room's count of enemies changes. The casters come into version 9's floor of
+    /// <see cref="FightsOf"/>, so from floor 2 its contents, and with them the rooms that stand after a changed one, differ; the
+    /// warders and bombers are put into its groups after it, on their own streams. With it off every floor is version 17's,
+    /// field for field, but for the version.
+    /// Version 19 (work order 088; Kristian, 2026-11-22, of the door that closes behind her: "vi bør balansere rommene med flere
+    /// muligheter og, slik at man kan bruke miljøet til sin fordel", and of the duck, "Plasser dekning for den"): with
+    /// <see cref="LevelValues.UsableRooms"/> on (the default) the props stage keeps the joined floor (<see cref="JoinedFloor"/>: no
+    /// prop shuts a piece of floor off from the doors, and a way of whole cells runs through every combat and exit room; a place it
+    /// refuses moves the prop to its next place, or leaves it out), and after a room's own props gives the room's fight its cover
+    /// (<see cref="FightCover"/>, drawing nothing): a chain of tall cover from the fight's line toward the shooters and casters, and
+    /// low props on the shooters' lines to duck behind. The layout, the shapes, the enemies and the themes are version 18's; the
+    /// props differ in the rooms where a rule moved, dropped or added one, and the mood follows them. With it off every floor is
+    /// version 18's, field for field, but for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -160,7 +180,13 @@ namespace Roguelike.Rules
         // 17: work order 072, more rooms drawn by hand (LevelValues.MoreTemplates, on: the library's second set of fifteen
         // templates drawn beside the first eleven; off, every floor is version 16's; off by default since 2026-11-22, so the
         // default floors are version 16's until Kristian has played the second set in the room lab).
-        public const int Version = 17;
+        // 18: work order 087, the act's plan, one new thing a floor (LevelValues.ActPlan, on: no caster before floor 3 and one
+        // a room on floors 3 and 4, the warders from floor 3 and the bombers from floor 4 in the floors; off, every floor is
+        // version 17's).
+        // 19: work order 088, rooms you can use (LevelValues.UsableRooms, on: no prop shuts floor off and a way of whole cells runs
+        // through every room, a chain of tall cover and low cover for the duck in every fight with shooters or casters; off, every
+        // floor is version 18's).
+        public const int Version = 19;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -190,8 +216,8 @@ namespace Roguelike.Rules
             floor = Math.Max(1, Math.Min(values.FloorsPerAct, floor));
             // Work order 041: in a line, each room holds what the same seed's floor of version 9 holds there.
             List<List<EnemyGroup>> fights = values.InALine ? FightsOf(seed, floor, values) : null;
-            if (values.Bombers) LevelBombers.Put(fights, seed, floor, values); // work order 073: off by default, and then nothing is read
-            if (values.Warders) LevelWarders.Put(fights, seed, floor, values); // work order 079: off by default, and then nothing is read
+            if (values.BombersInFloors) LevelBombers.Put(fights, seed, floor, values); // work order 073; on with the act's plan (087)
+            if (values.WardersInFloors) LevelWarders.Put(fights, seed, floor, values); // work order 079; on with the act's plan (087)
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {

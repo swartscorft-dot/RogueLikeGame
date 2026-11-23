@@ -80,15 +80,16 @@ namespace Roguelike.Rules
     {
         /// <summary>
         /// The enemy mixes (the order's presets, the floors' own numbers): floor 1's, floor 3's, floor 5's (with the elite room:
-        /// "floor 5 elite"; with the exit room the act boss and its room), and floor 3's with its bombers (work order 073 is in
-        /// this branch: the most a room of floor 3 holds, 1, or 2 in the exit room).
+        /// "floor 5 elite"; with the exit room the act boss and its room), and floor 4's with its bombers (work order 073 is in
+        /// this branch: the most a room of floor 4 holds, 1, or 2 in the exit room; floor 3's before work order 087 put the
+        /// bomber's first floor at 4, where a room of floor 3 holds none).
         /// </summary>
         public static readonly LabMix[] Mixes =
         {
             new LabMix("floor 1", 1, false),
             new LabMix("floor 3", 3, false),
             new LabMix("floor 5", 5, false),
-            new LabMix("floor 3 with bombers", 3, true),
+            new LabMix("floor 4 with bombers", 4, true), // work order 087: the bomber's first floor ("floor 3 with bombers", 3, before)
         };
 
         public static string Word(LabKind kind) =>
@@ -161,8 +162,7 @@ namespace Roguelike.Rules
             RoomKind k = KindOf(kind);
             BomberFloorValues b = v?.BomberFloors ?? new BomberFloorValues();
             if (k != RoomKind.Combat && k != RoomKind.Exit) return 0;
-            if (mix.Floor < b.FromFloor || b.MostInRoom == null || b.MostInRoom.Length == 0) return 0;
-            int room = Math.Max(0, b.MostInRoom[Math.Max(0, Math.Min(b.MostInRoom.Length - 1, mix.Floor - 1))]);
+            int room = b.MostOnFloor(mix.Floor); // work order 087's follow-up: the floors' table, counted from the bomber's first floor
             return k == RoomKind.Exit && room > 0 ? room + Math.Max(0, b.MoreInExit) : room;
         }
 
@@ -267,6 +267,12 @@ namespace Roguelike.Rules
             var lane = new PropRules.Lane(level, room, prv);
             foreach (LevelProp p in room.Props) lane.Block(p.Footprint);
             if (!lane.Clear()) faults.Add($"{Name(room)} has no clear lane {prv.LaneWidth} m wide from its door to its middle");
+            // Work order 088: the joined floor, as the validator holds a floor's room to it.
+            if (level.UsableRooms && room.Props.Count > 0)
+            {
+                string joined = JoinedFloor.FaultOf(level, room, v);
+                if (joined != null) faults.Add(Name(room) + " " + joined);
+            }
             return faults;
         }
 

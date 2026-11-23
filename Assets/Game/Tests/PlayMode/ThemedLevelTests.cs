@@ -158,7 +158,7 @@ namespace Roguelike.PlayModeTests
                         else
                         {
                             Assert.That(placed.Object.GetComponent<Shelter>(), Is.Not.Null, "every other prop is shelter: " + what);
-                            Assert.That(placed.Object.GetComponent<Cover>() != null, Is.EqualTo(p.IsCover(pv)), "cover when tall: " + what);
+                            Assert.That(placed.Object.GetComponent<Cover>() != null, Is.EqualTo(PropHeights.StopsShots(p, pv)), "cover when the sorted table says tall: " + what); // work order 088 (changed deliberately): the one table, the cover height before
                         }
                         if (size.WallPiece)
                         {

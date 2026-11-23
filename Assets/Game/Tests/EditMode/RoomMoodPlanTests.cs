@@ -33,18 +33,21 @@ namespace Roguelike.Rules.Tests
         [TestCase(5, 1000)]
         public void TheMasterOnAndOff_GiveTheSameFloors_ButTheOssuarysPiles(int floor, int seeds)
         {
-            var on = new LevelValues();
+            // Work order 088 (changed deliberately): the rooms you can use off on every side, so the bank alone is measured (with
+            // them on, the cover given to an ossuary's fight follows where its piles stand).
+            var on = new LevelValues { UsableRooms = false };
             Assert.That(on.RoomMood && on.Mood.Compose, "on by default");
             // Work order 051: the rooms' carved outlines off on both sides, so this measures the bank on the walls it was made for
             // (with them on an ossuary's far wall may be an apse, and the bank holds a few less: 94.5 % on floor 5).
             on.Shapes = false;
-            var composeOff = new LevelValues { Shapes = false };
+            var composeOff = new LevelValues { Shapes = false, UsableRooms = false };
             composeOff.Mood.Compose = false;
             int ossuaries = 0, sameModels = 0, otherRooms = 0;
             for (ulong s = 0; s < (ulong)seeds; s++)
             {
                 LevelValues off = Off();
                 off.Shapes = false;
+                off.UsableRooms = false;
                 LevelLayout a = LevelGenerator.Generate(s, floor, on), b = LevelGenerator.Generate(s, floor, off);
                 string where = "seed " + s + " floor " + floor;
                 Assert.That(a.Describe(props: false), Is.EqualTo(b.Describe(props: false)), "layout and enemies, " + where);

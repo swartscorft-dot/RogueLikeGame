@@ -337,7 +337,9 @@ namespace Roguelike.PlayModeTests
             yield return For(2f);
             Assert.That(caster.IsAwake, Is.True, "12 m away, within its aggro range");
             float d = Flat(caster.transform.position, _player.Position);
-            Assert.That(d, Is.InRange(v.KeepNear - 0.5f, v.KeepFar + 0.5f), "it stands off");
+            // Work order 087: it casts as soon as she is within its reach (11 m) and stands while it casts, so spawned 12 m off it
+            // comes to about 11 m, past its KeepFar of 10 m (before, at 12 m, it stood where it was spawned).
+            Assert.That(d, Is.InRange(v.KeepNear - 0.5f, Mathf.Max(v.KeepFar, CasterValues.CastsFrom) + 0.5f), "it stands off");
 
             // She walks up to 3 m on its far side: it backs off.
             Vector3 away = Flat(caster.transform.position - _player.Position).normalized;
@@ -383,6 +385,10 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ItBeginsNoCastItCannotSeeHerFor_ButABegunCastGoesOff()
         {
             EnemyCaster caster = Spawn(v => v.Enemy.MoveSpeed = 0f); // it would walk round: here it must stand behind the wall
+            // Work order 087: it casts from up to 11 m, and it spawns 12 m off: she steps 2 m nearer, within its reach.
+            Vector3 toIt = Flat(caster.transform.position - _player.Position);
+            _player.Teleport(_player.Position + toIt.normalized * 2f);
+            yield return null;
             GameObject wall = WallBetween(caster);
             yield return null;
             Assert.That(caster.SeesHer(), Is.False, "the wall is between them");
@@ -739,8 +745,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(got, Is.EqualTo(spikes.Damage), "the practice room's: all of its damage");
             _levels.ClearSpawned();
 
-            // A floor 2 with the casters on: its casters are made with the floor's scale, and a circle of one hurts by it.
-            var values = new LevelValues { Casters = true };
+            // A floor 2 with the casters on: its casters are made with the floor's scale, and a circle of one hurts by it. Work order
+            // 087: with the act's plan off, version 17's floors (with it on floor 2 holds no caster: ActPlanTests).
+            var values = new LevelValues { Casters = true, ActPlan = false, UsableRooms = false };
             _levels.Values = values;
             ulong seed = 0;
             while (!LevelGenerator.Generate(seed, 2, values).Rooms.Any(r => r.EnemyGroups.Any(g => g.Kind == EnemyKind.Caster && !g.Elite))) seed++;

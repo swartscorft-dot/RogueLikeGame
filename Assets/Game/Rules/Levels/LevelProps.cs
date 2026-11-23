@@ -360,6 +360,12 @@ namespace Roguelike.Rules
         public double Height;
         /// <summary>Slender (work order 028, <see cref="PropSize.Slender"/>): it stops no shot, whatever its height.</summary>
         public bool Slender;
+        /// <summary>
+        /// Put for the room's fight (work order 088, <see cref="FightCover"/>): a tall or low cover the generator added. It keeps
+        /// <see cref="PropValues.CoverSpacing"/> from the other props, in place of the open floor's <see cref="PropValues.FloorSpacing"/>
+        /// (the joined floor keeps the ways between them, <see cref="JoinedFloor"/>).
+        /// </summary>
+        public bool Fight;
 
         public static LevelProp Make(PropModel model, LevelPoint position, int rotation, PropPlace place)
         {

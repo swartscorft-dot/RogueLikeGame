@@ -16,7 +16,8 @@ namespace Roguelike.PlayModeTests
     /// <summary>
     /// More rooms drawn by hand, built (work order 072; Kristian, the evening of 2026-11-21: "Flere rom-maler"), in the
     /// ControlRoom scene through the intents of <see cref="GeneratedLevels"/>: on floors chosen so that every template of the
-    /// library's second set is built at least once, every room of the second set has a whole NavMesh path from its door in to its
+    /// library, both sets (work order 088: the joined floor, its step 2, for the first set too), is built at least once with the
+    /// second set turned on, every templated room has a whole NavMesh path from its door in to its
     /// door out (the exit room: to its middle) and to every one of its enemies, and a way from door to door over its cells whose
     /// middles stand on the NavMesh a metre at least from its edge (as PassagesPlayTests holds the passages' cells): she walks
     /// through, not squeezes. The kit's pieces with the second set are RoomTemplatesPlayTests' budget. Writes what it found
@@ -28,12 +29,9 @@ namespace Roguelike.PlayModeTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-        // Seeds and floors whose rooms hold every template of the second set between them, stamped (found on .NET with the
-        // defaults of version 17: 39's floor 2 two-islands, lopsided, gallery, ring, hourglass, throne-wide; 84's floor 1
-        // pillared-hall, stepped, dais, alcoves, throne-pillars; 3's floor 2 horseshoe, broken-ring, pit, arena); and 39's floor
-        // 3, whose hourglass the first Unity run of 2026-11-22 found closed to a squeeze by its props before the template was
-        // changed. The test says so if one is missing.
-        static readonly (ulong seed, int floor)[] Floors = { (39UL, 2), (84UL, 1), (3UL, 2), (39UL, 3) };
+        // Seeds and floors whose rooms hold every template of the library between them, both sets, stamped (work order 088: found on
+        // .NET with the defaults of version 19 and the second set on, UsableRoomsTests' search). The test says so if one is missing.
+        static readonly (ulong seed, int floor)[] Floors = { (3UL, 1), (17UL, 2), (133UL, 2), (18UL, 1), (67UL, 3), (5UL, 2) };
 
         PlayerCharacter _player;
         GeneratedLevels _levels;
@@ -83,8 +81,7 @@ namespace Roguelike.PlayModeTests
             return (x, y);
         }
 
-        [UnityTest]
-        [Ignore("072: the second set's walkability is being fixed; off by default until Kristian has played its rooms in the room lab")]
+        [UnityTest] // work order 088: on again, for both sets
         public IEnumerator TheSecondSetsRooms_SheWalksFromDoorToDoor_AMetreFromTheNavMeshsEdge_AndReachesEveryEnemy()
         {
             var built = new HashSet<string>();
@@ -101,7 +98,7 @@ namespace Roguelike.PlayModeTests
                 string where = "seed " + layout.SeedText + " floor " + floor;
                 foreach (LevelRoom room in layout.Rooms)
                 {
-                    if (room.Template == null || room.Template.Template.Since != RoomTemplateLibrary.MoreSince) continue;
+                    if (room.Template == null || room.Shape != RoomShape.Template) continue; // work order 088: both sets
                     Assert.That(room.Shape, Is.EqualTo(RoomShape.Template), "stamped as drawn: " + room.Template + " " + where);
                     rooms++;
                     built.Add(room.Template.Template.Name);
@@ -160,12 +157,12 @@ namespace Roguelike.PlayModeTests
                 _levels = null;
                 yield return null;
             }
-            string line = string.Format(Inv, "MOREPATHS {0} floors: {1} rooms of the second set ({2} of its {3} templates), {4} whole ways from a door in; {5} of their {6} open cells a metre from the NavMesh's edge at the middle (the others under a prop or beside one)",
-                                        Floors.Length, rooms, built.Count, RoomTemplateLibrary.All.Count(t => t.Since == RoomTemplateLibrary.MoreSince), ways, clearCells, openCells);
+            string line = string.Format(Inv, "MOREPATHS {0} floors: {1} templated rooms ({2} of the library's {3} templates), {4} whole ways from a door in; {5} of their {6} open cells a metre from the NavMesh's edge at the middle (the others under a prop or beside one)",
+                                        Floors.Length, rooms, built.Count, RoomTemplateLibrary.All.Count, ways, clearCells, openCells);
             Debug.Log(line);
             TestContext.WriteLine(line);
-            var missing = RoomTemplateLibrary.All.Where(t => t.Since == RoomTemplateLibrary.MoreSince && !built.Contains(t.Name)).Select(t => t.Name).ToList();
-            Assert.That(missing, Is.Empty, "every template of the second set built on these floors");
+            var missing = RoomTemplateLibrary.All.Where(t => !built.Contains(t.Name)).Select(t => t.Name).ToList();
+            Assert.That(missing, Is.Empty, "every template of the library built on these floors");
         }
     }
 }
