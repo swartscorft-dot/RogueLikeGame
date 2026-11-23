@@ -167,7 +167,7 @@ namespace Roguelike
             InterfaceStyle.Slanted(plate, InterfaceStyle.C(v.Black, 0.72f));
             InterfaceStyle.Slanted(new Rect(plate.x, plate.y, 3f, plate.height), InterfaceStyle.C(v.Teal));
             var head = new Rect(right - w, 8f, w, 26f);
-            GUI.Label(head, _runBox[0], RightAligned(_big));
+            GUI.Label(head, WordsOf(_runBox[0]), RightAligned(_big)); // work order 090: the words' own content
             InterfaceStyle.Slanted(new Rect(right - w * 0.55f, head.yMax + 1f, w * 0.55f, 1.5f), InterfaceStyle.C(v.Teal));
             float y = head.yMax + 5f;
             GUIStyle line = RightAligned(_label), small = RightAligned(_small);
@@ -176,11 +176,11 @@ namespace Roguelike
                 bool lesser = i > onPlate;
                 if (lesser && i == onPlate + 1) y = plate.yMax + o + t + 3f;
                 float h = lesser ? 14f : 17f;
-                InterfaceStyle.Label(new Rect(right - w, y, w, h), _runBox[i], lesser ? small : line, lesser ? new Color(1f, 1f, 1f, 0.85f) : Color.white, true);
+                TextLabel(new Rect(right - w, y, w, h), _runBox[i], lesser ? small : line, lesser ? new Color(1f, 1f, 1f, 0.85f) : Color.white, true);
                 y += h;
             }
             if (onPlate >= middle) y += 1f;
-            InterfaceStyle.Label(new Rect(right - w, y, w, 14f), _runBox[_runBox.Count - 1], small, new Color(1f, 1f, 1f, 0.6f), true);
+            TextLabel(new Rect(right - w, y, w, 14f), _runBox[_runBox.Count - 1], small, new Color(1f, 1f, 1f, 0.6f), true);
         }
 
         GUIStyle _rightBig, _rightLabel, _rightSmall;

@@ -428,14 +428,24 @@ namespace Roguelike
         {
             if (string.IsNullOrEmpty(text)) return;
             s_Content.text = text;
+            Label(r, s_Content, style, c, shadow);
+        }
+
+        /// <summary>
+        /// The same, for a content of the caller's own (work order 090: the engine makes garbage each time a content's words are set
+        /// to other words, 44 bytes; a caller that keeps a content for each of its words draws them with none).
+        /// </summary>
+        public static void Label(Rect r, GUIContent content, GUIStyle style, Color c, bool shadow = false)
+        {
+            if (content == null || string.IsNullOrEmpty(content.text)) return;
             if (shadow)
             {
                 float o = V.ShadowOffset;
                 GUI.color = C(V.Shadow, c.a);
-                GUI.Label(new Rect(r.x + o, r.y + o, r.width, r.height), s_Content, style);
+                GUI.Label(new Rect(r.x + o, r.y + o, r.width, r.height), content, style);
             }
             GUI.color = c;
-            GUI.Label(r, s_Content, style);
+            GUI.Label(r, content, style);
         }
 
         /// <summary>The size a text takes in a style.</summary>

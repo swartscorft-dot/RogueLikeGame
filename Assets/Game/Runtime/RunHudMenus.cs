@@ -31,6 +31,35 @@ namespace Roguelike
         /// <summary>The menus are drawn in the concept's style (the skin on and <see cref="MenuValues.Concept"/> on); false: this morning's. For tests.</summary>
         public bool MenusInConcept => InterfaceStyle.Kinetic && MenuConcept;
 
+        // ---------------- Words drawn with a content each (work order 090) ----------------
+
+        /// <summary>
+        /// A content for each of the words the HUD and its menus draw, made once for them (work order 090: setting a content's
+        /// words to other words makes 44 bytes of garbage in the engine, and the shared content of <see cref="InterfaceStyle.Label(Rect, string, GUIStyle, Color, bool)"/>
+        /// was set anew for every label of every event: 131 times a layout and again a repaint of the pause menu). By the words'
+        /// value; emptied when it holds <see cref="WordsMost"/> (the run box's clock makes one a second).
+        /// </summary>
+        static readonly Dictionary<string, GUIContent> s_Words = new Dictionary<string, GUIContent>(System.StringComparer.Ordinal);
+        const int WordsMost = 512;
+
+        /// <summary>The content of these words, made the first time they are drawn; <see cref="GUIContent.none"/> for none.</summary>
+        static GUIContent WordsOf(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return GUIContent.none;
+            if (s_Words.TryGetValue(text, out GUIContent content)) return content;
+            if (s_Words.Count >= WordsMost) s_Words.Clear();
+            content = new GUIContent(text);
+            s_Words[text] = content;
+            return content;
+        }
+
+        /// <summary><see cref="InterfaceStyle.Label(Rect, string, GUIStyle, Color, bool)"/> with the words' own content: the same drawing, no garbage for the words.</summary>
+        static void TextLabel(Rect r, string text, GUIStyle style, Color c, bool shadow = false)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            InterfaceStyle.Label(r, WordsOf(text), style, c, shadow);
+        }
+
         // ---------------- The pause menu's words, made with its lists ----------------
 
         readonly List<string> _rowWords = new List<string>();
@@ -340,7 +369,7 @@ namespace Roguelike
             InterfaceStyle.InkedPlate(h, pivot, m.HeadingSlant, v.HeavyOutline, v.Depth * 2f, InterfaceStyle.C(v.White));
             InterfaceStyle.Leaning(h, pivot, m.HeadingSlant, InterfaceStyle.C(v.Red));
             InterfaceStyle.DotsAlong(h, pivot, m.HeadingSlant, 1f - m.HeadingDots, InterfaceStyle.C(v.Black, 0.42f));
-            InterfaceStyle.Label(new Rect(h.x + HeadingPad(m), h.y, h.width - HeadingPad(m), h.height), words,
+            TextLabel(new Rect(h.x + HeadingPad(m), h.y, h.width - HeadingPad(m), h.height), words,
                                  InterfaceStyle.Text(true, m.HeadingSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White), true);
             InterfaceStyle.Slashes(h.xMax + h.height * m.HeadingSlant * 0.5f + 46f, h.y + 10f, h.height - 20f, 9f, 2, InterfaceStyle.C(v.Red));
         }
@@ -363,7 +392,7 @@ namespace Roguelike
             }
             Color ink = selected ? InterfaceStyle.C(v.Black) : InterfaceStyle.C(v.White);
             float pad = RowPad(v, m);
-            InterfaceStyle.Label(new Rect(r.x + pad, r.y, r.width - pad, r.height), _rowWords[i], RowWordStyle(m), ink, !selected);
+            TextLabel(new Rect(r.x + pad, r.y, r.width - pad, r.height), _rowWords[i], RowWordStyle(m), ink, !selected);
             if (setting)
             {
                 string value = _rowValues[i];
@@ -371,11 +400,11 @@ namespace Roguelike
                                  : MenuWords.IsOff(value) ? (selected ? InterfaceStyle.C(v.Black, 0.45f) : InterfaceStyle.C(v.Grey))
                                  : ink;
                 float right = r.xMax - ChevronW - 18f;
-                InterfaceStyle.Label(new Rect(right - _rowValueW[i] - 4f, r.y, _rowValueW[i] + 4f, r.height), value, RowValueStyle(m), valueInk, !selected);
+                TextLabel(new Rect(right - _rowValueW[i] - 4f, r.y, _rowValueW[i] + 4f, r.height), value, RowValueStyle(m), valueInk, !selected);
                 GUIStyle chevron = InterfaceStyle.Text(true, m.RowValueSize, TextAnchor.MiddleCenter);
                 Color chevronInk = selected ? InterfaceStyle.C(v.Red) : InterfaceStyle.C(v.White, 0.55f);
-                InterfaceStyle.Label(new Rect(right - _rowValueW[i] - 12f - ChevronW, r.y, ChevronW, r.height), "<", chevron, chevronInk);
-                InterfaceStyle.Label(new Rect(right + 4f, r.y, ChevronW, r.height), ">", chevron, chevronInk);
+                TextLabel(new Rect(right - _rowValueW[i] - 12f - ChevronW, r.y, ChevronW, r.height), "<", chevron, chevronInk);
+                TextLabel(new Rect(right + 4f, r.y, ChevronW, r.height), ">", chevron, chevronInk);
             }
             else if (_rowKeys[i].Length > 0)
             {
@@ -390,7 +419,7 @@ namespace Roguelike
         {
             InterfaceStyle.HeavyPlate(cap, cap.center.y, v.Slant, 2f, 0f);
             InterfaceStyle.Slanted(cap, inverse ? InterfaceStyle.C(v.Black) : InterfaceStyle.C(v.White));
-            InterfaceStyle.Label(cap, key, InterfaceStyle.Text(true, m.KeyCapSize, TextAnchor.MiddleCenter), inverse ? InterfaceStyle.C(v.White) : InterfaceStyle.C(v.Black));
+            TextLabel(cap, key, InterfaceStyle.Text(true, m.KeyCapSize, TextAnchor.MiddleCenter), inverse ? InterfaceStyle.C(v.White) : InterfaceStyle.C(v.Black));
         }
 
         void DrawHint(Rect r, InterfaceValues v, MenuValues m)
@@ -406,7 +435,7 @@ namespace Roguelike
                 }
                 else
                 {
-                    InterfaceStyle.Label(new Rect(x + 2f, r.y, _hintW[i] + 6f, r.height), s_Hint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
+                    TextLabel(new Rect(x + 2f, r.y, _hintW[i] + 6f, r.height), s_Hint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
                     x += _hintW[i] + 18f;
                 }
             }
@@ -423,8 +452,8 @@ namespace Roguelike
             float lean = (pivot - (r.y + m.PanelPad + m.PanelHeadHeight * 0.4f)) * slant;
             InterfaceStyle.Slashes(r.xMax + lean - 14f, r.y + m.PanelPad - 2f, 26f, 6f, 2, InterfaceStyle.C(v.Red));
             var headRect = new Rect(r.x + m.PanelPad + 8f + lean, r.y + m.PanelPad - 4f, r.width - 2f * m.PanelPad - 50f, m.PanelHeadHeight * 0.8f);
-            InterfaceStyle.Label(headRect, head, InterfaceStyle.Text(true, m.PanelHeadSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White), true);
-            InterfaceStyle.Label(headRect, sub, InterfaceStyle.Text(false, m.PanelSubSize, TextAnchor.MiddleRight), InterfaceStyle.C(v.Grey), true);
+            TextLabel(headRect, head, InterfaceStyle.Text(true, m.PanelHeadSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White), true);
+            TextLabel(headRect, sub, InterfaceStyle.Text(false, m.PanelSubSize, TextAnchor.MiddleRight), InterfaceStyle.C(v.Grey), true);
             InterfaceStyle.Slanted(new Rect(headRect.x, r.y + m.PanelPad + m.PanelHeadHeight * 0.8f, r.width * 0.3f, 2f), InterfaceStyle.C(v.Teal));
         }
 
@@ -444,10 +473,10 @@ namespace Roguelike
                 MenuStat s = _stats[i];
                 float y = top + _statLine[i] * m.StatLine, lean = (pivot - (y + m.StatLine * 0.5f)) * m.PanelSlant;
                 float x = x0 + lean + (_statCol[i] == 1 ? _colW + m.ColumnInnerGap : 0f), w = _statCol[i] == -1 ? inner : _colW;
-                InterfaceStyle.Label(new Rect(x, y, w, m.StatLine), s.Name, name, InterfaceStyle.C(v.White, 0.72f));
-                InterfaceStyle.Label(new Rect(x, y, w, m.StatLine), s.Value, value, s.Changed ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White), true);
+                TextLabel(new Rect(x, y, w, m.StatLine), s.Name, name, InterfaceStyle.C(v.White, 0.72f));
+                TextLabel(new Rect(x, y, w, m.StatLine), s.Value, value, s.Changed ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White), true);
                 if (s.Changed && s.Change.Length > 0)
-                    InterfaceStyle.Label(new Rect(x, y, w - _statValueW[i] - 10f, m.StatLine), s.Change, change, InterfaceStyle.C(v.Teal, 0.8f));
+                    TextLabel(new Rect(x, y, w - _statValueW[i] - 10f, m.StatLine), s.Change, change, InterfaceStyle.C(v.Teal, 0.8f));
             }
         }
 
@@ -461,7 +490,7 @@ namespace Roguelike
                 float y = top + _keyLine[i] * m.KeyLine, lean = (pivot - (y + m.KeyLine * 0.5f)) * m.PanelSlant;
                 float x = x0 + lean + (_keyCol[i] == 1 ? _colW + m.ColumnInnerGap : 0f);
                 KeyCap(new Rect(x + 4f, y + (m.KeyLine - m.KeyCapHeight) * 0.5f, _capW[i], m.KeyCapHeight), _keyCaps[i].Key, m, v);
-                InterfaceStyle.Label(new Rect(x + _capW[i] + 16f, y, _colW * 2f, m.KeyLine), _keyCaps[i].Words, words, InterfaceStyle.C(v.White, 0.9f), true);
+                TextLabel(new Rect(x + _capW[i] + 16f, y, _colW * 2f, m.KeyLine), _keyCaps[i].Words, words, InterfaceStyle.C(v.White, 0.9f), true);
             }
         }
 
@@ -699,15 +728,15 @@ namespace Roguelike
             InterfaceStyle.Leaning(band, pivot, m.BandSlant, InterfaceStyle.C(v.Black, 0.94f));
             InterfaceStyle.DotsAlong(new Rect(band.x + band.width * 0.62f, band.y, band.width * 0.38f, band.height), pivot, m.BandSlant, 0.05f, new Color(hot.r, hot.g, hot.b, 0.3f));
             GUIStyle verdict = InterfaceStyle.Text(true, m.VerdictSize, TextAnchor.MiddleCenter);
-            InterfaceStyle.Label(new Rect(band.x + 6f, band.y + 7f, band.width, band.height), _verdict, verdict, InterfaceStyle.C(v.Black), false);
-            InterfaceStyle.Label(new Rect(band.x - 3f, band.y - 2f, band.width, band.height), _verdict, verdict, hot, false);
+            TextLabel(new Rect(band.x + 6f, band.y + 7f, band.width, band.height), _verdict, verdict, InterfaceStyle.C(v.Black), false);
+            TextLabel(new Rect(band.x - 3f, band.y - 2f, band.width, band.height), _verdict, verdict, hot, false);
             float half = _verdictHalf;
             InterfaceStyle.Slashes(mid - half - 40f, band.y + 40f, band.height - 80f, 14f, 2, hot);
             InterfaceStyle.Slashes(mid + half + 94f, band.y + 40f, band.height - 80f, 14f, 2, InterfaceStyle.C(v.White));
 
             // Where she got to.
             float y = band.yMax + 14f + 10f;
-            InterfaceStyle.Label(new Rect(0f, y, w, m.WhereSize * 1.4f), _where, InterfaceStyle.Text(true, m.WhereSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
+            TextLabel(new Rect(0f, y, w, m.WhereSize * 1.4f), _where, InterfaceStyle.Text(true, m.WhereSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
 
             // The blocks: the label teal over a large white numeral on a slanted dark plate.
             int n = _blockNumber.Count;
@@ -719,13 +748,13 @@ namespace Roguelike
                 InterfaceStyle.InkedPlate(block, bp, v.Slant, v.HeavyOutline, v.Depth * 2f, i == 0 ? hot : InterfaceStyle.C(v.White, 0.6f), 0.8f);
                 InterfaceStyle.Leaning(block, bp, v.Slant, InterfaceStyle.C(v.Black, 0.9f));
                 InterfaceStyle.DotsAlong(block, bp, v.Slant, 0.6f, InterfaceStyle.C(v.White, 0.08f));
-                InterfaceStyle.Label(new Rect(block.x + 20f, block.y + 4f, block.width - 30f, 24f), _blockLabel[i], InterfaceStyle.Text(true, m.BlockLabelSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal));
-                InterfaceStyle.Label(new Rect(block.x, block.y + 22f, block.width - 8f, block.height - 22f), _blockNumber[i], InterfaceStyle.Text(true, m.BlockNumberSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
+                TextLabel(new Rect(block.x + 20f, block.y + 4f, block.width - 30f, 24f), _blockLabel[i], InterfaceStyle.Text(true, m.BlockLabelSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal));
+                TextLabel(new Rect(block.x, block.y + 22f, block.width - 8f, block.height - 22f), _blockNumber[i], InterfaceStyle.Text(true, m.BlockNumberSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
             }
 
             // The picks as chips in the offers' language.
             float cx = mid - m.ChipsWidth * 0.5f;
-            InterfaceStyle.Label(new Rect(cx, _chipsTop - 32f, m.ChipsWidth, 26f), PicksHead, InterfaceStyle.Text(true, 22, TextAnchor.MiddleCenter), InterfaceStyle.C(v.Grey), true);
+            TextLabel(new Rect(cx, _chipsTop - 32f, m.ChipsWidth, 26f), PicksHead, InterfaceStyle.Text(true, 22, TextAnchor.MiddleCenter), InterfaceStyle.C(v.Grey), true);
             GUIStyle chipStyle = InterfaceStyle.Text(true, m.ChipTextSize, TextAnchor.MiddleCenter);
             for (int i = 0; i < _chipText.Count; i++)
             {
@@ -738,14 +767,14 @@ namespace Roguelike
                 InterfaceStyle.Leaning(c, cp, v.Slant, plate ? InterfaceStyle.C(v.White) : InterfaceStyle.C(v.Black, 0.9f));
                 if (!plate) InterfaceStyle.Leaning(new Rect(c.x, c.y, 4f, c.height), cp, v.Slant, _chipInk[i] == UiInk.White ? InterfaceStyle.C(v.Red) : ink);
                 Color words = plate ? InterfaceStyle.C(v.Black) : _chipKind[i] == 1 ? InterfaceStyle.C(v.White) : _chipKind[i] == 4 ? InterfaceStyle.C(v.Grey) : InterfaceStyle.C(v.Teal);
-                InterfaceStyle.Label(c, _chipText[i], chipStyle, words, false);
+                TextLabel(c, _chipText[i], chipStyle, words, false);
             }
 
             // The lines after them, and the run's code small.
             GUIStyle more = InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleCenter);
             for (int i = 0; i < _endMore.Count; i++)
-                InterfaceStyle.Label(new Rect(0f, _moreTop + i * m.EndLine, w, m.EndLine), _endMore[i], more, InterfaceStyle.C(v.White, 0.85f), true);
-            InterfaceStyle.Label(new Rect(0f, _moreTop + _endMore.Count * m.EndLine, w, m.EndLine), _seed, InterfaceStyle.Text(false, m.EndLineSize - 3, TextAnchor.MiddleCenter), InterfaceStyle.C(v.Grey, 0.8f), true);
+                TextLabel(new Rect(0f, _moreTop + i * m.EndLine, w, m.EndLine), _endMore[i], more, InterfaceStyle.C(v.White, 0.85f), true);
+            TextLabel(new Rect(0f, _moreTop + _endMore.Count * m.EndLine, w, m.EndLine), _seed, InterfaceStyle.Text(false, m.EndLineSize - 3, TextAnchor.MiddleCenter), InterfaceStyle.C(v.Grey, 0.8f), true);
 
             // The answers: key caps on slanted buttons, the first (Enter, a new run) white.
             Event e = Event.current;
@@ -763,7 +792,7 @@ namespace Roguelike
                     KeyCap(new Rect(x, r.y + (r.height - m.KeyCapHeight) * 0.5f, _buttonCapW[b], m.KeyCapHeight), _buttonKey[b], m, v, first);
                     x += _buttonCapW[b] + 12f;
                 }
-                InterfaceStyle.Label(new Rect(x, r.y, r.xMax - x, r.height), _buttonWords[b], button, first ? InterfaceStyle.C(v.Black) : InterfaceStyle.C(v.White), !first);
+                TextLabel(new Rect(x, r.y, r.xMax - x, r.height), _buttonWords[b], button, first ? InterfaceStyle.C(v.Black) : InterfaceStyle.C(v.White), !first);
                 if (first) InterfaceStyle.Slashes(r.xMax - 12f, r.y + 10f, r.height - 20f, 6f, 2, InterfaceStyle.C(v.Red));
                 if (GUI.Button(r, GUIContent.none, GUIStyle.none))
                 {
@@ -1010,12 +1039,12 @@ namespace Roguelike
             // Round 2: the heading in the middle across, clear of the fight's plate at the top left, so the screen can start higher.
             var heading = new Rect((_bViewWidth - BetweenHeadingWidth(m)) * 0.5f, m.BetweenTop, BetweenHeadingWidth(m), m.HeadingHeight);
             DrawHeadingPlate(heading, BetweenWord, v, m);
-            InterfaceStyle.Label(new Rect(heading.x, heading.y, heading.width - 26f, heading.height - 8f), TrialWord, InterfaceStyle.Text(false, m.PanelSubSize + 3, TextAnchor.LowerRight), InterfaceStyle.C(v.Black, 0.7f));
+            TextLabel(new Rect(heading.x, heading.y, heading.width - 26f, heading.height - 8f), TrialWord, InterfaceStyle.Text(false, m.PanelSubSize + 3, TextAnchor.LowerRight), InterfaceStyle.C(v.Black, 0.7f));
             var block = new Rect(x0 + BetweenWidth(m) - m.BlockWidth, m.BetweenTop, m.BlockWidth, m.HeadingHeight);
             InterfaceStyle.InkedPlate(block, block.center.y, v.Slant, v.HeavyOutline, v.Depth * 2f, InterfaceStyle.C(v.Gold), 0.8f);
             InterfaceStyle.Leaning(block, block.center.y, v.Slant, InterfaceStyle.C(v.Black, 0.9f));
-            InterfaceStyle.Label(new Rect(block.x + 22f, block.y + 4f, block.width - 30f, 24f), _bCurrencyName, InterfaceStyle.Text(true, m.BlockLabelSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Gold));
-            InterfaceStyle.Label(new Rect(block.x, block.y + 18f, block.width - 10f, block.height - 18f), _bCurrency, InterfaceStyle.Text(true, m.BlockNumberSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
+            TextLabel(new Rect(block.x + 22f, block.y + 4f, block.width - 30f, 24f), _bCurrencyName, InterfaceStyle.Text(true, m.BlockLabelSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Gold));
+            TextLabel(new Rect(block.x, block.y + 18f, block.width - 10f, block.height - 18f), _bCurrency, InterfaceStyle.Text(true, m.BlockNumberSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
 
             // The start: a white button with its keys on caps.
             Event e = Event.current;
@@ -1026,8 +1055,8 @@ namespace Roguelike
             float sx = start.x + ButtonPad(v, m), capY = start.y + (start.height - m.KeyCapHeight) * 0.5f;
             KeyCap(new Rect(sx, capY, _bStartCapW, m.KeyCapHeight), "Enter", m, v, true);
             KeyCap(new Rect(sx + _bStartCapW + 8f, capY, _bSpaceCapW, m.KeyCapHeight), s_SpaceKey, m, v, true);
-            InterfaceStyle.Label(new Rect(sx + _bStartCapW + _bSpaceCapW + 24f, start.y, start.width, start.height), _bStart, InterfaceStyle.Text(true, m.ButtonTextSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Black));
-            InterfaceStyle.Label(new Rect(start.x, start.y, start.width - ButtonPad(v, m), start.height), _bBudget, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleRight), InterfaceStyle.C(v.Black, 0.75f));
+            TextLabel(new Rect(sx + _bStartCapW + _bSpaceCapW + 24f, start.y, start.width, start.height), _bStart, InterfaceStyle.Text(true, m.ButtonTextSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Black));
+            TextLabel(new Rect(start.x, start.y, start.width - ButtonPad(v, m), start.height), _bBudget, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleRight), InterfaceStyle.C(v.Black, 0.75f));
             if (startOn) InterfaceStyle.Slashes(start.xMax + 34f, start.y + 8f, start.height - 16f, 7f, 2, InterfaceStyle.C(v.Red));
             if (GUI.Button(start, GUIContent.none, GUIStyle.none))
             {
@@ -1050,7 +1079,7 @@ namespace Roguelike
             {
                 Rect r = CardRect(i, m);
                 if (i >= _rackCards && _cardSlotHead[i] >= 0)
-                    InterfaceStyle.Label(new Rect(r.x + 10f, r.y - 30f, r.width, 26f), _slotHeads[_cardSlotHead[i]], InterfaceStyle.Text(true, 20, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
+                    TextLabel(new Rect(r.x + 10f, r.y - 30f, r.width, 26f), _slotHeads[_cardSlotHead[i]], InterfaceStyle.Text(true, 20, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
                 int row = i < _rackCards ? i + 1 : BetweenRunsRows + (i - _rackCards);
                 bool selected = row == BetweenRunsSelected, hover = e != null && r.Contains(e.mousePosition);
                 DrawCard(i, r, selected, hover, v, m);
@@ -1073,7 +1102,7 @@ namespace Roguelike
 
             // The last thing tried, and the keys.
             float y = BetweenGridTop(m) + RackRows() * (_cardH + m.CardGap) + 4f;
-            InterfaceStyle.Label(new Rect(x0, y, RackWidth(m), m.EndLine), _bNote, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
+            TextLabel(new Rect(x0, y, RackWidth(m), m.EndLine), _bNote, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
             y += m.EndLine + 6f;
             float x = x0 + 6f;
             GUIStyle words = InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft);
@@ -1087,7 +1116,7 @@ namespace Roguelike
                 }
                 else
                 {
-                    InterfaceStyle.Label(new Rect(x + 2f, y, 260f, m.KeyCapHeight), s_BetweenHint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
+                    TextLabel(new Rect(x + 2f, y, 260f, m.KeyCapHeight), s_BetweenHint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
                     x += s_BetweenHintW[i] + 20f;
                 }
             }
@@ -1115,7 +1144,7 @@ namespace Roguelike
             var name = new Rect(r.x + pad + lean, r.y + 12f, r.width - 2f * pad, m.CardNameSize * 1.45f);
             GUIStyle nameStyle = InterfaceStyle.Text(true, m.CardNameSize, TextAnchor.MiddleLeft);
             InterfaceStyle.Slanted(new Rect(name.x - 4f, name.y + 2f, Mathf.Min(_cardNameW[i] + 22f, name.width), name.height - 4f), InterfaceStyle.C(v.White, kind == 3 ? 0.7f : 1f));
-            InterfaceStyle.Label(new Rect(name.x + 6f, name.y, name.width, name.height), _cardName[i], nameStyle, InterfaceStyle.C(v.Black));
+            TextLabel(new Rect(name.x + 6f, name.y, name.width, name.height), _cardName[i], nameStyle, InterfaceStyle.C(v.Black));
             float y = name.yMax + 4f;
             if (_cardChip[i].Length > 0)
             {
@@ -1124,15 +1153,15 @@ namespace Roguelike
                 var c = new Rect(r.xMax - pad - w + lean - 8f, name.y + 6f, w, name.height - 12f);
                 InterfaceStyle.Slanted(c, kind == 0 ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.Black));
                 if (kind != 0) InterfaceStyle.SlantedFrame(c, stateInk, 2f);
-                InterfaceStyle.Label(c, _cardChip[i], chip, kind == 0 ? InterfaceStyle.C(v.Black) : stateInk);
+                TextLabel(c, _cardChip[i], chip, kind == 0 ? InterfaceStyle.C(v.Black) : stateInk);
             }
             if (_cardSubLine[i].Length > 0)
             {
-                InterfaceStyle.Label(new Rect(name.x + 2f, y, r.width - 2f * pad, m.CardTextSize * 1.4f), _cardSubLine[i], InterfaceStyle.Text(true, m.CardTextSize - 1, TextAnchor.MiddleLeft),
+                TextLabel(new Rect(name.x + 2f, y, r.width - 2f * pad, m.CardTextSize * 1.4f), _cardSubLine[i], InterfaceStyle.Text(true, m.CardTextSize - 1, TextAnchor.MiddleLeft),
                                      kind == 3 ? InterfaceStyle.C(v.Grey) : InterfaceStyle.C(v.Teal), true);
                 y += m.CardTextSize * 1.4f;
             }
-            InterfaceStyle.Label(new Rect(name.x + 2f, y + 2f, r.width - 2f * pad - 10f, r.yMax - y - 8f), _cardText[i], InterfaceStyle.Text(false, m.CardTextSize, TextAnchor.UpperLeft, true),
+            TextLabel(new Rect(name.x + 2f, y + 2f, r.width - 2f * pad - 10f, r.yMax - y - 8f), _cardText[i], InterfaceStyle.Text(false, m.CardTextSize, TextAnchor.UpperLeft, true),
                                  InterfaceStyle.C(v.White, kind == 3 ? 0.6f : 0.88f));
         }
     }
