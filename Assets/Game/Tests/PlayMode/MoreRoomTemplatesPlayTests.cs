@@ -87,10 +87,21 @@ namespace Roguelike.PlayModeTests
             var built = new HashSet<string>();
             int rooms = 0, ways = 0, clearCells = 0, openCells = 0;
             var path = new NavMeshPath();
-            foreach ((ulong seed, int floor) in Floors)
+            // Work order 089: and a floor of 1 to 4 for each of the third set's exit rooms, its switch on too, the first seeds found.
+            var floors = Floors.Select(f => (f.seed, f.floor, exits: false)).ToList();
+            var exitValues = new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = true };
+            var wanted = new HashSet<string>(RoomTemplateLibrary.All.Where(ExitRooms.IsWayDown).Select(t => t.Name));
+            for (ulong s = 1; s < 60 && wanted.Count > 0; s++)
+            {
+                int f = 1 + (int)(s % 4);
+                LevelRoom x = LevelGenerator.Generate(s, f, exitValues).ExitRoom;
+                if (x.Shape == RoomShape.Template && wanted.Remove(x.Template.Template.Name)) floors.Add((s, f, true));
+            }
+            Assert.That(wanted, Is.Empty, "a floor for each of the third set's rooms");
+            foreach ((ulong seed, int floor, bool exits) in floors)
             {
                 _levels = GeneratedLevels.Ensure();
-                _levels.Values = new LevelValues { MoreTemplates = true }; // the second set is off by default since 2026-11-22
+                _levels.Values = exits ? exitValues : new LevelValues { MoreTemplates = true }; // the second set is off by default since 2026-11-22
                 GeneratedLevel level = _levels.Build(seed, floor);
                 Assert.That(level, Is.Not.Null, "a level was built");
                 yield return Frames(2);
@@ -142,6 +153,8 @@ namespace Roguelike.PlayModeTests
                     // And the NavMesh's own path, to the door out and to every enemy.
                     Assert.That(NavMesh.SamplePosition(CellMiddle(level, from.x, from.y), out NavMeshHit start, 0.5f, NavMesh.AllAreas), name);
                     var targets = new List<(string what, Vector3 at)> { ("the door out or the middle", CellMiddle(level, to.x, to.y)) };
+                    // Work order 089: in an exit room of its own, the way down's place too (its A cells' middle, at the far wall).
+                    if (ExitRooms.WayDownLine(layout, room, out _, out LevelPoint wayDown)) targets.Add(("the way down", level.ToWorld(wayDown)));
                     if (level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> enemies))
                         foreach (Enemy e in enemies)
                             if (e != null) targets.Add((e.name, e.transform.position));
@@ -158,7 +171,7 @@ namespace Roguelike.PlayModeTests
                 yield return null;
             }
             string line = string.Format(Inv, "MOREPATHS {0} floors: {1} templated rooms ({2} of the library's {3} templates), {4} whole ways from a door in; {5} of their {6} open cells a metre from the NavMesh's edge at the middle (the others under a prop or beside one)",
-                                        Floors.Length, rooms, built.Count, RoomTemplateLibrary.All.Count, ways, clearCells, openCells);
+                                        floors.Count, rooms, built.Count, RoomTemplateLibrary.All.Count, ways, clearCells, openCells);
             Debug.Log(line);
             TestContext.WriteLine(line);
             var missing = RoomTemplateLibrary.All.Where(t => !built.Contains(t.Name)).Select(t => t.Name).ToList();

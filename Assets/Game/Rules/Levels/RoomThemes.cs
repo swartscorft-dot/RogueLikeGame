@@ -9,14 +9,16 @@ namespace Roguelike.Rules
     /// make the floors alike, so one room is to differ from the next by what it is, not only by its shape). None: dressed
     /// as before work order 028 (the entrance always; every room with <see cref="LevelValues.Themes"/> off).
     /// </summary>
-    public enum RoomTheme { None, TombHall, Ossuary, Shrine, Archive, ThroneRoom, Vault }
+    public enum RoomTheme { None, TombHall, Ossuary, Shrine, Archive, ThroneRoom, Vault, ExitHall }
 
     /// <summary>
     /// The room themes (work order 028): which room gets which, drawn from the floor's seed on a stream of its own
     /// (<see cref="Stage"/>), so that no other stage's draws move; and what each recipe's stances mean
     /// (<see cref="PropPlacer"/> places them). The recipes are data (<see cref="ThemeValues"/>).
     ///
-    /// Which room: the exit room is always the throne room; the entrance has none. The combat rooms are drawn by their
+    /// Which room: the exit room is always the throne room (work order 089: the exit hall instead on floors 1 to 4 with
+    /// <see cref="LevelValues.ExitRoomsOfTheirOwn"/> on, and in an exit room of its own: <see cref="ExitRooms.ThemeOf"/>); the
+    /// entrance has none. The combat rooms are drawn by their
     /// size (each theme's weight from <see cref="ThemeRecipe.SmallWeight"/> in the smallest combat room to
     /// <see cref="ThemeRecipe.LargeWeight"/> in the largest, by floor area), the elite room first with
     /// <see cref="ThemeRecipe.EliteWeight"/> (the shrine is favoured there), then the others along the chain, each never
@@ -42,6 +44,7 @@ namespace Roguelike.Rules
                 case RoomTheme.Archive: return "archive";
                 case RoomTheme.ThroneRoom: return "throne room";
                 case RoomTheme.Vault: return "vault";
+                case RoomTheme.ExitHall: return "exit hall"; // work order 089
                 default: return "";
             }
         }
@@ -50,7 +53,7 @@ namespace Roguelike.Rules
         public static RoomTheme[] ThemesFor(RoomKind kind) =>
             kind == RoomKind.Combat ? CombatThemes
             : kind == RoomKind.Treasure ? new[] { RoomTheme.Vault, RoomTheme.Archive }
-            : kind == RoomKind.Exit ? new[] { RoomTheme.ThroneRoom }
+            : kind == RoomKind.Exit ? new[] { RoomTheme.ThroneRoom, RoomTheme.ExitHall } // work order 089: the exit hall of floors 1 to 4
             : new RoomTheme[0];
 
         /// <summary>Every model a recipe may put down.</summary>
@@ -77,7 +80,8 @@ namespace Roguelike.Rules
             ThemeValues tv = v.ThemeRules ?? new ThemeValues();
             foreach (LevelRoom room in level.Rooms) room.Theme = RoomTheme.None;
             LevelRoom exit = level.ExitRoom;
-            if (exit != null && tv.Of(RoomTheme.ThroneRoom, RoomKind.Exit) != null) exit.Theme = RoomTheme.ThroneRoom;
+            RoomTheme exitTheme = ExitRooms.ThemeOf(exit, level.Floor, v); // work order 089: the throne room, or the exit hall; no draw either way
+            if (exit != null && tv.Of(exitTheme, RoomKind.Exit) != null) exit.Theme = exitTheme;
 
             List<LevelRoom> chain = LevelGeometry.MainPath(level).Where(r => r.Kind == RoomKind.Combat).ToList();
             foreach (LevelRoom room in chain.Where(r => r.Elite).Concat(chain.Where(r => !r.Elite)).ToList())

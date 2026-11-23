@@ -273,7 +273,8 @@ namespace Roguelike.Rules.Tests
                     if (r.Template != null && r.Shape == RoomShape.Template) seen.Add(r.Template.Template.Name);
                 }
             }
-            var wanted = RoomTemplateLibrary.All.Where(t => secondSet || t.Since < RoomTemplateLibrary.MoreSince).Select(t => t.Name).ToList();
+            // Work order 089 (changed deliberately): not the third set, off in these floors (ExitRoomsTests asks its rooms the same).
+            var wanted = RoomTemplateLibrary.All.Where(t => t.Since != RoomTemplateLibrary.ExitSince && (secondSet || t.Since < RoomTemplateLibrary.MoreSince)).Select(t => t.Name).ToList();
             TestContext.WriteLine($"JOINED {(secondSet ? "both sets" : "the first set")}: {rooms} rooms joined, {moved} props moved and {dropped} dropped for it; templates seen {seen.Count} of {wanted.Count}");
             Assert.That(wanted.Except(seen), Is.Empty, "every template of the set stamped on these floors");
         }
@@ -572,7 +573,7 @@ namespace Roguelike.Rules.Tests
         [Explicit, Test, Timeout(3600000)]
         public void Search_FloorsThatHoldEveryTemplate_BothSets()
         {
-            var all = new HashSet<string>(RoomTemplateLibrary.All.Select(t => t.Name));
+            var all = new HashSet<string>(RoomTemplateLibrary.All.Where(t => t.Since != RoomTemplateLibrary.ExitSince).Select(t => t.Name)); // work order 089: not the third set, off in these floors
             var floors = new List<(ulong seed, int floor, HashSet<string> names)>();
             for (ulong s = 1; s <= 150; s++)
                 for (int floor = 1; floor <= 5; floor++)
