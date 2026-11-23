@@ -192,8 +192,7 @@ namespace Roguelike.PlayModeTests
             Bounds body = BodyOf(a);
             yield return UntilLaser();
 
-            var table = new StringBuilder("The cursor on an enemy's drawn body, 8 m east (touch = the line's half width + its radius)
-");
+            var table = new StringBuilder("The cursor on an enemy's drawn body, 8 m east (touch = the line's half width + its radius)" + "\n");
             float touch = _player.BasicShotHalfWidth + a.Radius;
             bool middleHit = false;
             foreach (bool on in new[] { false, true })
