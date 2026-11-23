@@ -140,6 +140,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheSwitchOff_TheKeyHeld_SheRunsAsBefore_ShootsAndDoesNotJump()
         {
+            Assert.That(FindJumpable(out Shelter prop, out Vector3 from, out Vector3 way), Is.True, "a low prop to run at, that the sprint would jump");
             _feel.Sprint = false;
             Assert.That(FreeLine(out Vector3 a, out Vector3 b), Is.True);
             float metres = 0f;
@@ -147,10 +148,15 @@ namespace Roguelike.PlayModeTests
             Assert.That(metres, Is.EqualTo(12f).Within(0.4f), "her run speed with the key held");
             Assert.That(_player.IsSprinting, Is.False);
             Assert.That(_reports.Count(r => r.Kind == PlayerReportKind.SprintStarted), Is.EqualTo(0));
-            Assert.That(FindJumpable(out Shelter prop, out Vector3 from, out Vector3 way), Is.True, "a low prop to run at");
-            yield return RunAt(from, way, sprint: true, seconds: 1.5f);
+            prop.TryShape(out CoverShape shape);
+            float nearest = float.PositiveInfinity;
+            yield return RunAt(from, way, sprint: true, seconds: 1.5f, each: () =>
+            {
+                nearest = Mathf.Min(nearest, shape.Distance(_player.GroundPosition));
+                Assert.That(_player.IsJumping, Is.False);
+            });
             Assert.That(_player.Jumps, Is.EqualTo(0), "no jump with the switch off");
-            Assert.That(Vector3.Dot(Flat(_player.Position - prop.transform.position), way), Is.LessThan(0f), "the prop stopped her, as today");
+            Assert.That(nearest, Is.GreaterThan(0.3f), "never over the prop: it stopped her or she went round it, as today");
             _player.HoldSprint(true);
             _player.Steer(way);
             yield return null;
@@ -201,20 +207,29 @@ namespace Roguelike.PlayModeTests
         public IEnumerator SprintingIntoAPlacedLowProp_SheGoesOverIt_AndStandsOnItsFarSideOnTheNavMesh()
         {
             Assert.That(FindJumpable(out Shelter prop, out Vector3 from, out Vector3 way), Is.True, "a low prop with free floor on both sides (seed " + Seed + ")");
-            bool lifted = false;
-            float landsAt = 0f;
-            yield return RunAt(from, way, sprint: true, seconds: 1.2f, each: () =>
+            bool lifted = false, wasJumping = false, landedOnMesh = false;
+            Vector3 landed = Vector3.zero, agentAt = Vector3.zero;
+            NavMeshAgent agent = _player.GetComponent<NavMeshAgent>();
+            yield return RunAt(from, way, sprint: true, seconds: 0.9f, each: () =>
             {
                 if (_player.IsJumping && _player.JumpLift > 0.1f) lifted = true;
-                if (_player.IsJumping) landsAt = _player.JumpLandsAt;
+                if (wasJumping && !_player.IsJumping)
+                {
+                    landed = _player.Position;
+                    agentAt = agent.nextPosition;
+                    landedOnMesh = NavMesh.SamplePosition(Flat(landed), out NavMeshHit on, 0.3f, NavMesh.AllAreas) && Flat(on.position - landed).magnitude < 0.2f;
+                    _player.HoldSprint(false); // landed: for the look, no more sprint
+                }
+                wasJumping = _player.IsJumping;
             });
             Assert.That(_player.Jumps, Is.EqualTo(1), "one jump: " + _player.LastJumpRefusal);
             Assert.That(lifted, Is.True, "the model lifted in the air");
-            Vector3 past = Flat(_player.Position - prop.transform.position);
-            Assert.That(Vector3.Dot(past, way), Is.GreaterThan(0.5f), "on its far side");
-            Assert.That(NavMesh.SamplePosition(_player.Position, out NavMeshHit hit, 0.2f, NavMesh.AllAreas), Is.True, "on the NavMesh");
-            Assert.That(_player.GetComponent<NavMeshAgent>().isOnNavMesh, Is.True);
             Assert.That(_player.IsJumping, Is.False, "landed");
+            Vector3 past = Flat(landed - prop.transform.position);
+            Assert.That(Vector3.Dot(past, way), Is.GreaterThan(0.5f), "on its far side: landed at " + landed + ", the prop at " + prop.transform.position);
+            Assert.That(landedOnMesh, Is.True, "on the NavMesh at " + landed + " (the agent at " + agentAt + ")");
+            Assert.That(Flat(agentAt - landed).magnitude, Is.LessThan(0.05f), "the agent put down where she is: " + agentAt + " against " + landed);
+            Assert.That(agent.isOnNavMesh, Is.True);
             PlayerReport jump = _reports.Single(r => r.Kind == PlayerReportKind.SprintJumped);
             Assert.That(jump.By, Is.EqualTo(prop.name));
             Assert.That(jump.Metres, Is.LessThanOrEqualTo(_feel.SprintJumpMost + 1e-3f));
@@ -226,9 +241,15 @@ namespace Roguelike.PlayModeTests
         public IEnumerator SprintingIntoATallProp_SheDoesNotJump_ItStopsHer()
         {
             Assert.That(FindTall(out Shelter prop, out Vector3 from, out Vector3 way), Is.True, "a tall prop to run at (seed " + Seed + ")");
-            yield return RunAt(from, way, sprint: true, seconds: 1.2f, each: () => Assert.That(_player.IsJumping, Is.False));
+            prop.TryShape(out CoverShape shape);
+            float nearest = float.PositiveInfinity;
+            yield return RunAt(from, way, sprint: true, seconds: 1.2f, each: () =>
+            {
+                nearest = Mathf.Min(nearest, shape.Distance(_player.GroundPosition));
+                Assert.That(_player.IsJumping, Is.False);
+            });
             Assert.That(_player.Jumps, Is.EqualTo(0));
-            Assert.That(Vector3.Dot(Flat(_player.Position - prop.transform.position), way), Is.LessThan(0f), "still on her side of it");
+            Assert.That(nearest, Is.GreaterThan(0.3f), "never over it: it stopped her or she went round it, as at a tall prop today");
         }
 
         [UnityTest]
@@ -251,7 +272,7 @@ namespace Roguelike.PlayModeTests
                     float toMid = (_player.JumpLandsAt - Time.time) * 0.5f - Frame;
                     Vector3 side = Vector3.Cross(Vector3.up, way);
                     Vector3 bow = mid + side * (shooter.Tuning.ArrowSpeed * Mathf.Max(Frame, toMid));
-                    ThingsThatFly.Ensure().Fire(shooter, shooter.Attack, ProjectileRules.Arrow(shooter.Tuning, new GroundPoint(bow.x, bow.z), new GroundPoint(-side.x, -side.z)));
+                    ThingsThatFly.Ensure().Fire(shooter, Arrow(shooter), ProjectileRules.Arrow(shooter.Tuning, new GroundPoint(bow.x, bow.z), new GroundPoint(-side.x, -side.z)));
                 }
                 if (wasJumping && !_player.IsJumping && _player.IsStunned) staggeredAtLanding = true;
                 wasJumping = _player.IsJumping;
@@ -471,8 +492,16 @@ namespace Roguelike.PlayModeTests
         EnemyShooter KeepAShooter()
         {
             Assume.That(_shooter, Is.Not.Null, "a shooter on the floor");
-            Assume.That(_shooter.Attack, Is.Not.Null, "its arrow");
             return _shooter;
+        }
+
+        /// <summary>Its arrow, from its attacks (the one named so, else the first that does damage).</summary>
+        static EnemyAttackDefinition Arrow(Enemy e)
+        {
+            EnemyAttackDefinition a = e.Values.Attacks.FirstOrDefault(x => x != null && x.Name == ShooterValues.Arrow)
+                                      ?? e.Values.Attacks.FirstOrDefault(x => x != null && x.Damage > 0);
+            Assert.That(a, Is.Not.Null, "its arrow");
+            return a;
         }
 
         static IEnumerator Frames(int n)

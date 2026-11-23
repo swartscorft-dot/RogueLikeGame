@@ -270,21 +270,18 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.PressSkill(slot, Stand + _side * 5f), Is.EqualTo(IntentResult.Started));
             _player.ReleaseSkill(slot);
             Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill));
-            _player.HoldCover(true);
+            _input.CoverHeld = true; // pressed through the driver in the next frame, in the skill
+            yield return null;
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill), "still in the skill at the press");
             Assert.That(_player.IsQuickDucking, Is.False, "in the skill: not yet");
             float until = Time.realtimeSinceStartup + 4f;
-            while (_player.Action == ActionKind.Skill && Time.realtimeSinceStartup < until)
-            {
-                _player.HoldCover(true);
-                yield return null;
-            }
-            _player.HoldCover(true);
+            while (_player.Action == ActionKind.Skill && Time.realtimeSinceStartup < until) yield return null;
             yield return null;
             yield return null;
             Assert.That(_player.IsQuickDucking, Is.True, "the press was kept: down once the skill let her go, the key held");
 
             _feel.DuckPressKeptWhenBusy = false;
-            _player.HoldCover(false);
+            _input.CoverHeld = false;
             yield return Frames(10);
             Assert.That(_player.SkillCooldownRemaining(slot), Is.GreaterThan(0f));
             int other = -1;
@@ -293,15 +290,15 @@ namespace Roguelike.PlayModeTests
                     && _player.Skills[s].Lock != SkillLock.Light && _player.Skills[s].RecastCount <= 1 && _player.Skills[s].MoveDistance == 0f)
                     other = s;
             if (other < 0) yield break; // no second skill to show the switch off with
-            Assert.That(_player.PressSkill(other, Stand + _side * 5f), Is.EqualTo(IntentResult.Started));
+            Assert.That(_player.PressSkill(other, Stand + _side * 5f), Is.Not.EqualTo(IntentResult.Rejected)); // it may wait out the first's recovery
             _player.ReleaseSkill(other);
-            _player.HoldCover(true);
             until = Time.realtimeSinceStartup + 4f;
-            while (_player.Action == ActionKind.Skill && Time.realtimeSinceStartup < until)
-            {
-                _player.HoldCover(true);
-                yield return null;
-            }
+            while (_player.Action != ActionKind.Skill && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(_player.Action, Is.EqualTo(ActionKind.Skill));
+            _input.CoverHeld = true;
+            yield return null;
+            until = Time.realtimeSinceStartup + 4f;
+            while (_player.Action == ActionKind.Skill && Time.realtimeSinceStartup < until) yield return null;
             yield return Frames(3);
             Assert.That(_player.IsQuickDucking, Is.False, "the switch off: the press was lost, as before");
         }
@@ -313,7 +310,10 @@ namespace Roguelike.PlayModeTests
             Vector3 from = Stand + _ahead * 2.6f;
             var bow = new GroundPoint(from.x, from.z);
             Projectile p = ProjectileRules.Arrow(shooter.Tuning, bow, new GroundPoint(-_ahead.x, -_ahead.z));
-            _fly.Fire(shooter, shooter.Attack, p);
+            EnemyAttackDefinition arrow = shooter.Values.Attacks.FirstOrDefault(x => x != null && x.Name == ShooterValues.Arrow)
+                                          ?? shooter.Values.Attacks.FirstOrDefault(x => x != null && x.Damage > 0);
+            Assert.That(arrow, Is.Not.Null, "its arrow");
+            _fly.Fire(shooter, arrow, p);
             return Time.frameCount;
         }
 
@@ -326,7 +326,6 @@ namespace Roguelike.PlayModeTests
             e.Values.MoveSpeed = 0f;
             Assert.That(e.GetComponent<NavMeshAgent>().Warp(at), Is.True);
             e.enabled = false; // it looses nothing of its own
-            Assume.That(e.Attack, Is.Not.Null, "its arrow");
             return e;
         }
 
