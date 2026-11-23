@@ -107,6 +107,10 @@ namespace Roguelike.Rules
         public const string Duck = "duck";                    // a tap ducked her: name what she ducked beside
         public const string DuckEnd = "duck_end";             // the duck ended: result how (rose, moved, dash, other; work order 086: released, acted), stopped how many it stopped, seconds how long she was down (086)
         public const string DuckNothing = "duck_nothing";     // a tap with no low prop in reach: nothing happened
+        // The sprint (work order 092). Its stagger is a player_stunned named "sprint stagger" (SprintRules.StaggerName).
+        public const string SprintEnd = "sprint_end";         // a sprint ended: seconds how long it ran (its jumps in it), result why (released, stopped, dash, duck, held, other)
+        public const string SprintJump = "sprint_jump";       // she jumped a low prop while sprinting: name the prop, metres from the take-off to the landing
+        public const string SprintRefused = "sprint_refused"; // a click or a skill key while sprinting did nothing: name the skill or the basic shot
         // The door closes behind her (work order 086): a room's doors closed or opened.
         public const string RoomDoor = "room_door";           // name "closed" or "opened"; floor, room (as the run box counts), order; opened: seconds since they closed, why (cleared, her death, she left)
         // The fourth review of 2026-11-21 (work order 055): the basic shot's cooldown use is measured against her real interval.

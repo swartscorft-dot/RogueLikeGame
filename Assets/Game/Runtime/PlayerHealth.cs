@@ -86,6 +86,7 @@ namespace Roguelike
             {
                 HitsTaken++;
                 Damaged?.Invoke(applied);
+                if (!_health.IsDead) _player.TookHit(applied); // work order 092: hurt while sprinting, a small stagger
             }
             if (_health.IsDead)
             {

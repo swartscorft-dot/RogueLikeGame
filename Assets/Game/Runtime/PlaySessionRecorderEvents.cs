@@ -52,6 +52,7 @@ namespace Roguelike
             try
             {
                 double t = Now();
+                if (RecordSprint(r, t)) return; // work order 092 (PlaySessionRecorderSprint.cs)
                 switch (r.Kind)
                 {
                     case PlayerReportKind.SkillPressed:

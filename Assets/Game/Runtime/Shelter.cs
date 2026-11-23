@@ -35,6 +35,12 @@ namespace Roguelike
         /// </summary>
         public bool IsTall => TryGetComponent(out Cover cover) && cover.Stops;
 
+        /// <summary>
+        /// A low prop by the one sorted table (<see cref="PropHeights.Low"/>, what the greybox draws blue; work order 092): the sprint
+        /// can jump it. Set by the level for each prop it builds; a wall, and a shelter made elsewhere, is not one.
+        /// </summary>
+        public bool LowProp;
+
         /// <summary>Its footprint on the ground, from its box or upright capsule collider; false with neither.</summary>
         public bool TryShape(out CoverShape shape)
         {

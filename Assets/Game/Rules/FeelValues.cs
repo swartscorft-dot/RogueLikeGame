@@ -62,8 +62,22 @@ namespace Roguelike.Rules
         // The held duck (work order 086; Kristian 2026-11-22: "vil at den skal være hold for duck. Så kan man gjøre det så lenge
         // man vil"; HeldDuckRules). With it on, DuckSeconds and DuckWait above are the tap's and are not read.
         public bool DuckHold = true;              // the switch: down while the key is held, up at once when it goes up; off, the tap above as before
-        public float DuckHoldWait = 0.2f;         // s from the moment she is up again until a press can put her down again (the producer's proposal: short, so it cannot be flickered for free)
+        public float DuckHoldWait = 0.05f;        // s from the moment she is up again until a press can put her down again (work order 092, "skulle gjerne vært mer snappy": was 0.2; it only has to stop a flicker within one frame)
         public bool DuckHoldDownAgain = true;     // the key still held after her own shot or skill brought her up: down again once she is free and the wait is over
+        public bool DuckPressKeptWhenBusy = true; // work order 092: a press while she cannot duck (in a skill, a dash, a stun) is kept while the key is held and puts her down the moment she can; off, it was lost, as before
+        public bool DuckDownWhenShotLeft = true;  // work order 092: that down again comes as soon as her basic shot has gone off (its recovery is cut; the next shot still waits its whole cycle); off, after its recovery, as before
+
+        // Sprint (work order 092; Kristian 2026-11-23: "innføre en sprint funksjon med shift knappen. da kan man ikke skyte samtidig. men
+        // også hoppe over blå props. ved å sprinte og ta skade får man en liten stagger"; SprintRules). The producer's starting values.
+        // Not in the feel spec's table nor in the settings asset: these defaults are what the game reads.
+        public bool Sprint = true;                // the switch: off, the sprint key does nothing and she moves exactly as before
+        public float SprintSpeedShare = 1.5f;     // times her run speed while she sprints (9 m/s against 6)
+        public float SprintRampTime = 0.1f;       // s from her run speed up to the sprint's once it starts; it ends at once
+        public float SprintJumpLookAhead = 1f;    // m from her middle along the way she sprints to a low prop's edge: within it she jumps the prop
+        public float SprintJumpRoom = 0.6f;       // m from the prop's far edge to her middle where she lands: her own room (her 0.5 m radius and a little)
+        public float SprintJumpMost = 4f;         // m, the longest jump, from where she takes off to where she lands
+        public float SprintJumpLift = 0.9f;       // m the model is lifted at the jump's middle (a lift of the model in place of a clip, for a look order to replace)
+        public float SprintStagger = 0.35f;       // s she cannot move, shoot, dash, duck or sprint after a hit that hurt her while sprinting (in a jump: from the landing)
 
         // Aiming and shooting on the move (basic shot only)
         public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)

@@ -226,6 +226,7 @@ namespace Roguelike
                 Report(new PlayerReport { Kind = PlayerReportKind.SkillPressed, Slot = slot, Result = IntentResult.Rejected, NotEquipped = true });
                 return IntentResult.Rejected;
             }
+            if (RefuseWhileSprinting(slot)) return IntentResult.Rejected; // work order 092: no skill while she sprints, and the press is not kept
             // A recast (decision 0005): inside the window it fires the next shot at once, whatever the cooldown; before
             // the shot it follows has gone off it waits like any press during a skill.
             ExpireChain(Time.time);

@@ -130,6 +130,18 @@ namespace Roguelike.Rules
             return Math.Max(0f, enter);
         }
 
+        /// <summary>
+        /// Metres along <paramref name="dir"/> (any length but zero) from <paramref name="from"/> to where the line leaves the shape
+        /// (work order 092, the sprint's jump: its far side); -1 when the line ahead does not pass through it.
+        /// </summary>
+        public float Exit(GroundPoint from, GroundPoint dir)
+        {
+            float length = dir.Length;
+            if (length < 1e-6f) return -1f;
+            if (!Clip(from, dir * (1f / length), out float enter, out float exit) || exit <= 0f || exit - Math.Max(0f, enter) <= 1e-3f) return -1f;
+            return exit;
+        }
+
         /// <summary>Does the straight segment from <paramref name="a"/> to <paramref name="b"/> pass through the shape?</summary>
         public bool Crosses(GroundPoint a, GroundPoint b)
         {
