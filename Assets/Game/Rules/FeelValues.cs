@@ -59,6 +59,11 @@ namespace Roguelike.Rules
         public float DuckWait = 1f;               // s from the moment she is up again until the key works again
         public bool DuckPeekShot = true;          // her first basic shot soon after a duck that stopped something staggers as Scatter Blast's hit does
         public float DuckPeekWindow = 0.4f;       // s after she rose in which that shot must start
+        // The held duck (work order 086; Kristian 2026-11-22: "vil at den skal være hold for duck. Så kan man gjøre det så lenge
+        // man vil"; HeldDuckRules). With it on, DuckSeconds and DuckWait above are the tap's and are not read.
+        public bool DuckHold = true;              // the switch: down while the key is held, up at once when it goes up; off, the tap above as before
+        public float DuckHoldWait = 0.2f;         // s from the moment she is up again until a press can put her down again (the producer's proposal: short, so it cannot be flickered for free)
+        public bool DuckHoldDownAgain = true;     // the key still held after her own shot or skill brought her up: down again once she is free and the wait is over
 
         // Aiming and shooting on the move (basic shot only)
         public float ShotFrontAngle = 120f;       // degrees to each side of the facing: an aim within it turns only the upper body (Kristian 2026-11-18: 120 in play, works fine)

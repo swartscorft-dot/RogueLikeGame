@@ -680,7 +680,7 @@ namespace Roguelike.PlayModeTests
         EnemyBrute _practiceEnemy;
         RunHud _hud;
         FeelValues _feel;
-        bool _takeCoverWas, _quickDuckWas;
+        bool _takeCoverWas, _quickDuckWas, _duckHoldWas;
         Keyboard _keyboard;
         ActsFirstInFrame _first;
         ActsLastInFrame _last;
@@ -706,8 +706,10 @@ namespace Roguelike.PlayModeTests
             _feel = _player.Feel;
             _takeCoverWas = _feel.TakeCover;
             _quickDuckWas = _feel.QuickDuck;
+            _duckHoldWas = _feel.DuckHold;
             _feel.TakeCover = true;
             _feel.QuickDuck = true;
+            _feel.DuckHold = false; // work order 086: the duck's tests here are the tap's (its switch off); the held duck's are QuickDuckHeldTests
             _practiceEnemy = Object.FindAnyObjectByType<EnemyBrute>();
             Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy, to copy");
             _practiceEnemy.enabled = false;
@@ -727,6 +729,7 @@ namespace Roguelike.PlayModeTests
             {
                 _feel.TakeCover = _takeCoverWas; // the feel values live in an asset
                 _feel.QuickDuck = _quickDuckWas;
+                _feel.DuckHold = _duckHoldWas;
             }
             if (_keyboard != null) InputSystem.RemoveDevice(_keyboard);
             _keyboard = null;
@@ -1160,6 +1163,10 @@ namespace Roguelike.PlayModeTests
             yield return null;
             string CoverKeyLine() => _hud.KeyLines().Single(l => l.StartsWith("Cover"));
             Assert.That(CoverKeyLine(), Does.Contain("tap to duck by a low prop").And.Not.Contain("(hold)"));
+            // Work order 086: with the held duck on (the default since; this class turns it off for its tap tests), the line says so.
+            _feel.DuckHold = true;
+            Assert.That(CoverKeyLine(), Does.Contain("(hold: duck by a low prop)").And.Not.Contain("tap"));
+            _feel.DuckHold = false;
             _feel.QuickDuck = false;
             Assert.That(CoverKeyLine(), Does.Contain("(hold)"), "with it off, held as before");
         }

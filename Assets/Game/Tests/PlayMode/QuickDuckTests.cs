@@ -36,7 +36,7 @@ namespace Roguelike.PlayModeTests
         PlayerCharacter _player;
         PlayerHealth _health;
         FeelValues _feel;
-        bool _takeCoverWas, _coverStopsWas, _quickDuckWas;
+        bool _takeCoverWas, _coverStopsWas, _quickDuckWas, _duckHoldWas;
         Vector3 _ahead, _side;
         GeneratedLevels _levels;
         ThingsThatFly _fly;
@@ -63,9 +63,11 @@ namespace Roguelike.PlayModeTests
             _takeCoverWas = _feel.TakeCover;
             _coverStopsWas = _feel.CoverStopsShots;
             _quickDuckWas = _feel.QuickDuck;
+            _duckHoldWas = _feel.DuckHold;
             _feel.TakeCover = true;
             _feel.CoverStopsShots = true;
             _feel.QuickDuck = true;
+            _feel.DuckHold = false; // work order 086: these are the tap's tests (its switch off); the held duck's are QuickDuckHeldTests
             _reports.Clear();
             _player.Reported += r => _reports.Add(r);
             _folder = Path.Combine(Path.GetTempPath(), "QuickDuckTests-" + Guid.NewGuid().ToString("N"));
@@ -98,6 +100,7 @@ namespace Roguelike.PlayModeTests
                 _feel.TakeCover = _takeCoverWas; // the feel values live in an asset
                 _feel.CoverStopsShots = _coverStopsWas;
                 _feel.QuickDuck = _quickDuckWas;
+                _feel.DuckHold = _duckHoldWas;
             }
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;

@@ -230,6 +230,9 @@ namespace Roguelike
             // the shot it follows has gone off it waits like any press during a skill.
             ExpireChain(Time.time);
             RecastPress recast = JudgeRecast(slot, Time.time);
+            // Work order 086: down in a held duck, a skill that can go off now (ready, or a recast) brings her up and goes off;
+            // one on its cooldown leaves her down.
+            RiseToAct(recast != RecastPress.None || CooldownFor(slot).IsReady(Time.time));
             if ((_held.IsHeld || _duck.IsDown) && recast != RecastPress.None)
             {
                 // Stunned or pulled (work order 035), or down in a quick duck (work order 043): even a recast waits, as in a lock.

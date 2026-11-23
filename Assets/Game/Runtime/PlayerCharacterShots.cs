@@ -35,6 +35,7 @@ namespace Roguelike
         public void Shoot(Vector3 point)
         {
             _shotCursor = point;
+            RiseToAct(wouldGoOff: true); // work order 086: down in a held duck, a click brings her up and goes off
             if (!_clicks.Click(Busy, Time.time, _nextShotAt))
             {
                 Report(new PlayerReport { Kind = PlayerReportKind.ShotClicked, Result = IntentResult.Buffered });

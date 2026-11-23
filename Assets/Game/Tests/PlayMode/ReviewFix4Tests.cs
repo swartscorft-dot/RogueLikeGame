@@ -42,7 +42,7 @@ namespace Roguelike.PlayModeTests
         PlaceholderSounds _sounds;
         Damageable _a;
         FeelValues _feel;
-        bool _takeCoverWas, _quickDuckWas;
+        bool _takeCoverWas, _quickDuckWas, _duckHoldWas;
         Keyboard _keyboard;
         Mouse _mouse;
         readonly List<Object> _made = new List<Object>();
@@ -71,6 +71,7 @@ namespace Roguelike.PlayModeTests
             _feel = _player.Feel;
             _takeCoverWas = _feel.TakeCover;
             _quickDuckWas = _feel.QuickDuck;
+            _duckHoldWas = _feel.DuckHold;
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _a.SetMaxHealth(1000000);
             _levels = GeneratedLevels.Ensure();
@@ -94,6 +95,7 @@ namespace Roguelike.PlayModeTests
             {
                 _feel.TakeCover = _takeCoverWas; // the feel values live in an asset
                 _feel.QuickDuck = _quickDuckWas;
+                _feel.DuckHold = _duckHoldWas;
             }
             if (_keyboard != null) InputSystem.RemoveDevice(_keyboard);
             if (_mouse != null) InputSystem.RemoveDevice(_mouse);
@@ -612,6 +614,7 @@ namespace Roguelike.PlayModeTests
         {
             _feel.TakeCover = true;
             _feel.QuickDuck = true;
+            _feel.DuckHold = false; // work order 086: the tap's rule of a move key (its switch off); held, the move keys do nothing
             LowProp(Practice, Vector3.right);
             yield return null;
             UseKeyboardAndMouse();

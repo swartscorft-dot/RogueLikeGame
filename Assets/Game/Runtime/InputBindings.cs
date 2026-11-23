@@ -103,7 +103,13 @@ namespace Roguelike
         public string HelpLine() => HelpLine(false);
 
         /// <summary>The help line; with <paramref name="quickDuck"/> (work order 043) the cover key reads as a tap to duck.</summary>
-        public string HelpLine(bool quickDuck)
+        public string HelpLine(bool quickDuck) => HelpLine(quickDuck, false);
+
+        /// <summary>
+        /// The help line; with <paramref name="quickDuck"/> (work order 043) the cover key reads as a tap to duck, and with
+        /// <paramref name="duckHeld"/> too (work order 086, the held duck) as held to duck.
+        /// </summary>
+        public string HelpLine(bool quickDuck, bool duckHeld)
         {
             string Name(Key k) { string n = k.ToString(); return n.StartsWith("Digit") ? n.Substring(5) : n; }
             var skills = new System.Text.StringBuilder();
@@ -112,7 +118,7 @@ namespace Roguelike
             // The dash direction as in use: the pause menu's override, if chosen, else this asset's (work order 018).
             return Name(MoveUp) + Name(MoveLeft) + Name(MoveDown) + Name(MoveRight) + " move  |  " + Shoot.Label + " shoot at the cursor  |  "
                  + Name(Dash) + (GameSettings.Dash(DashDirection) == DashDirection.TowardMovement ? " dash the way you move" : " dash to the cursor") + "  |  " + skills + " skills  |  " + Name(Focus) + " focus"
-                 + (TakeCover != Key.None ? "  |  " + Name(TakeCover) + (quickDuck ? " tap to duck by a low prop" : " hold to take cover") : "");
+                 + (TakeCover != Key.None ? "  |  " + Name(TakeCover) + (quickDuck ? (duckHeld ? " hold to duck by a low prop" : " tap to duck by a low prop") : " hold to take cover") : "");
         }
 
         [ContextMenu("Reset to the start values")]

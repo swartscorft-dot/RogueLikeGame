@@ -389,7 +389,9 @@ namespace Roguelike
             if (_brain.State == EnemyState.Chase && mayAttack && Turns.Holds(sort) && playerAlive && (held || distance <= values.LeashRange)
                 && AttackTurns.TakesTurn(WouldChoose(distance, values)))
                 mayAttack = Turns.Ask(Id, sort, now);
-            bool strike = _brain.Step(now, distance, playerAlive, _provoked, values, mayAttack, _choose, held);
+            // Work order 086 (the doors on): a room's enemy that sleeps wakes by her line or a hurt, not by its own range.
+            float wakeDistance = _brain.State == EnemyState.Idle && !held && !_provoked && Fight != null && Fight.WakesOnlyByLineOrHurt ? float.PositiveInfinity : distance;
+            bool strike = _brain.Step(now, wakeDistance, playerAlive, _provoked, values, mayAttack, _choose, held);
             EnemyState state = _brain.State;
             if (before == EnemyState.Windup && state != EnemyState.Windup) Turns.Ended(Id);
 

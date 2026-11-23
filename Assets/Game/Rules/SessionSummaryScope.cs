@@ -203,6 +203,7 @@ namespace Roguelike.Rules
                                                    && int.TryParse(e.ExtraValue("stopped"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) && n > 0);
             s.DuckTapsWithNothing = events.Count(e => e.Type == SessionEventTypes.DuckNothing);
             s.StoppedByDuck = s.StrikesStoppedByCover;
+            ComputeHeldDuck(s, events); // work order 086: the seconds she was down, and what was stopped (SessionSummaryDoorsAndDuck.cs)
 
             // Stunned and pulled (work order 035).
             s.Stuns = events.Count(e => e.Type == SessionEventTypes.PlayerStunned);

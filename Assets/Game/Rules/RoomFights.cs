@@ -47,6 +47,53 @@ namespace Roguelike.Rules
         public PlaceholderSound CueSound = PlaceholderSound.BossAnger;
         /// <summary>Times the growl's own volume (0.5 of the basic shot's): quieter than the boss's own, as it comes in every room.</summary>
         public float CueGain = 0.6f;
+
+        // ---------------- The door closes behind her (work order 086) ----------------
+        // Kristian's answer of 2026-11-22 (answers file, row 4): "Døra stenges bak deg, men vi bør balansere rommene med flere
+        // muligheter og, slik at man kan bruke miljøet til sin fordel". The rules are in RoomDoorRules (RoomDoors.cs). First
+        // guesses; he tunes them by playing. Off (Doors false): every door stays open and every enemy wakes as on main 9a79acf.
+
+        /// <summary>
+        /// The switch: while a room's fight is on and she is inside it, every door of the room is shut by a block until the fight
+        /// ends (the room cleared, or she dies). Off: as on main, field for field (no door is ever made, and the wake by range below
+        /// is not changed).
+        /// </summary>
+        public bool Doors = true;
+        /// <summary>
+        /// With <see cref="Doors"/> on: an enemy of a room's fight that has not woken wakes only by her crossing the room's line or
+        /// by being hurt (or provoked, as the benchmark does), not by her coming within its own range (its aggro range, 9 m for the
+        /// melee kinds, 14 m for the ranged, reached through the open door from the passage, since enemies stand at least 8 m from
+        /// the door in). The producer's proposal 4 of metrics.md, which his answer of row 4 reads as: "the room must still wake at
+        /// the line, not from outside". Off: they wake by range as before.
+        /// </summary>
+        public bool WakeByLineOrHurtOnly = true;
+        /// <summary>
+        /// m from every door's opening of the room (her middle, or an enemy's, to the nearest point of the opening) that counts as
+        /// "inside": the doors close only while she is on the room's own floor at least this far from each of its doors, and every
+        /// living enemy of the fight is too. 1.5 m: the door's block is 0.5 m thick (the wall's), half of it 0.25 m on her side, and
+        /// her body and the NavMesh's agent radius are under 0.6 m: so she is never in the block's footprint, and the line, 5 m in,
+        /// is well past it. The same as the level's clearance of every enemy point from a door (<see cref="LevelValues.WallClearance"/>).
+        /// </summary>
+        public float DoorClear = 1.5f;
+        /// <summary>
+        /// s the doors wait, she inside and the fight on, for enemies of the fight that are not inside (in the passage, or in a
+        /// doorway) before those are pulled in: each is put at once 1 m past <see cref="DoorClear"/> inside the room, in from the
+        /// door nearest it, and the doors close. So she is never shut in with one of them left on the other side.
+        /// </summary>
+        public float DoorPullAfter = 2f;
+        /// <summary>s the block takes to rise out of the floor into the doorway when the doors close. It stops her, the enemies and the shots from the first frame.</summary>
+        public float DoorRiseSeconds = 0.35f;
+        /// <summary>s the block takes to sink back into the floor when the doors open (the room cleared): slower than it rose, so the way on is seen opening.</summary>
+        public float DoorSinkSeconds = 0.8f;
+        /// <summary>The placeholder the doors closing plays: the heavy low impact (an enemy's strike landing, the duck's stop). Opening is heard by the room's own "way opens" (or the floor's cleared) that plays as it is cleared.</summary>
+        public PlaceholderSound DoorCloseSound = PlaceholderSound.Strike;
+        /// <summary>Times that sound's own volume.</summary>
+        public float DoorCloseGain = 0.9f;
+        /// <summary>
+        /// The block glows in its own colour (the greybox view's door orange) by this share, so it reads in the dark of the cave
+        /// and of the lamplit light from across the room; 0 is the plain lit colour. Its look is a later order's.
+        /// </summary>
+        public float DoorGlow = 0.5f;
     }
 
     /// <summary>
@@ -181,6 +228,11 @@ namespace Roguelike.Rules
         public float StartedAt { get; private set; } = float.NegativeInfinity;
         /// <summary>How many times it has started on this floor (once, unless she got away and it woke again).</summary>
         public int Starts { get; private set; }
+        /// <summary>
+        /// Work order 086 (<see cref="RoomFightValues.WakeByLineOrHurtOnly"/>, with the doors on): set by the floor. True, its
+        /// enemies do not wake by their own range before the fight is on: only her crossing the line, a hurt or a provoke wakes it.
+        /// </summary>
+        public bool WakesOnlyByLineOrHurt { get; set; }
 
         /// <summary>
         /// One of its enemies stirs, or she crossed its point: the fight starts, unless it is on already. True when it

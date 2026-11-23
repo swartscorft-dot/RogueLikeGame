@@ -79,7 +79,7 @@ namespace Roguelike.Rules
                 case GreyboxPart.Wall: return "dark grey: wall";
                 case GreyboxPart.Door: return "orange: door";
                 case GreyboxPart.HighCover: return "red: high cover (stops shots)";
-                case GreyboxPart.LowCover: return "blue: low cover (shoot over, Ctrl ducks)";
+                case GreyboxPart.LowCover: return "blue: low cover (shoot over, hold Ctrl: duck)"; // work order 086: the duck is held
                 case GreyboxPart.BlocksWalking: return "purple: blocks walking only";
                 case GreyboxPart.FightLine: return "cyan line: the room wakes here";
                 case GreyboxPart.Hidden: return "no collider: not shown";

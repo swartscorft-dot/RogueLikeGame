@@ -241,9 +241,12 @@ namespace Roguelike
                         var e = new SessionEvent(t, SessionEventTypes.DuckEnd)
                         {
                             Result = r.DuckEnd == DuckEnd.Rose ? SessionWords.Rose : r.DuckEnd == DuckEnd.Moved ? SessionWords.Moved
-                                   : r.DuckEnd == DuckEnd.Dashed ? SessionWords.DashLeft : SessionWords.Other,
+                                   : r.DuckEnd == DuckEnd.Dashed ? SessionWords.DashLeft
+                                   : r.DuckEnd == DuckEnd.Released ? SessionWords.Released : r.DuckEnd == DuckEnd.Acted ? SessionWords.Acted // work order 086
+                                   : SessionWords.Other,
                         };
                         e.AddExtra("stopped", r.Shot.ToString(CultureInfo.InvariantCulture));
+                        e.AddExtra("seconds", Text(r.Seconds)); // work order 086: how long she was down
                         Add(e);
                         break;
                     }

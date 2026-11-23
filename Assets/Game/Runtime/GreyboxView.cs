@@ -165,6 +165,7 @@ namespace Roguelike
         static bool AsItIs(Renderer r, HashSet<Transform> keep)
         {
             if (r.GetComponentInParent<Enemy>(true) != null || r.GetComponentInParent<RewardDrop>(true) != null) return true;
+            if (r.GetComponentInParent<RoomDoor>(true) != null) return true; // work order 086: a shut door's block is drawn as the door it is
             for (Transform t = r.transform; t != null; t = t.parent)
                 if (keep.Contains(t)) return true;
             return false;

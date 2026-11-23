@@ -119,6 +119,8 @@ namespace Roguelike
         public int ShotsStoppedByDuck { get; private set; }
         /// <summary>Basic shots that were the timing's reward: the first soon after a duck that stopped something.</summary>
         public int PeekShots { get; private set; }
+        /// <summary>Seconds she has been down in ducks that ended (work order 086: the held duck's length).</summary>
+        public float DuckSecondsDown { get; private set; }
         /// <summary>The low prop the rim light is on now, or null.</summary>
         public Shelter DuckRimOn => _rim.Shown ? _rim.On : null;
         /// <summary>The rim light itself, for tests.</summary>
@@ -136,7 +138,75 @@ namespace Roguelike
             bool pressed = held && !_coverHeld;
             _coverHeld = held;
             if (!held && _inCover) LeaveCover(CoverLeaving.Released);
+            // Work order 086, the held duck: let go, she is up at once, and no "down again" is owed.
+            if (!held)
+            {
+                _duckRoseFrom = null;
+                _duckPressWaits = false;
+            }
+            if (!held && _duck.IsDown && HeldDuckRules.Released(Feel, false)) EndDuck(DuckEnd.Released);
             if (pressed && QuickDuckOn) TapCover();
+        }
+
+        // ---------------- The held duck (work order 086) ----------------
+
+        /// <summary>True while the duck is held (work order 086, <see cref="HeldDuckRules"/>): the key held keeps her down; with the quick duck on.</summary>
+        public bool DuckIsHeld => QuickDuckOn && HeldDuckRules.Held(Feel);
+
+        /// <summary>
+        /// The low prop she came up from to shoot or use a skill with the key held (work order 086), at which she goes down again
+        /// once she is free; null when none is owed (the key let go, she went down again, it went away).
+        /// </summary>
+        Shelter _duckRoseFrom;
+
+        /// <summary>For the readout and tests: the prop she will go down at again, the key still held after her shot or skill, or null.</summary>
+        public Shelter DuckDownAgainAt => _duckRoseFrom;
+
+        /// <summary>
+        /// A shot, or a skill that can go off now, was pressed while she is down in a held duck (work order 086): she is up at once
+        /// (the duck ends as "acted"), and it goes off; with the key still held she will go down again at the same prop.
+        /// </summary>
+        void RiseToAct(bool wouldGoOff)
+        {
+            if (!QuickDuckOn || !HeldDuckRules.ActEnds(Feel, _duck.IsDown, wouldGoOff)) return;
+            Shelter at = _duckShelter;
+            EndDuck(DuckEnd.Acted);
+            _duckRoseFrom = _coverHeld ? at : null;
+        }
+
+        /// <summary>A press of the key in the held duck's short wait (work order 086): kept until the wait is over, the key still held.</summary>
+        bool _duckPressWaits;
+
+        /// <summary>
+        /// Every frame she is up with the held duck (work order 086). The key still held after her own shot or skill brought her
+        /// up: down again at the same prop once she is free (no shot, skill, dash, stun or pull, no click or press waiting) and the
+        /// wait is over, if it is still in reach; then it is owed no longer either way. A press made in the wait: down at the
+        /// nearest low prop in reach once the wait is over, the key still held.
+        /// </summary>
+        void HeldDuckTick(FeelValues feel, float now)
+        {
+            if (_duck.IsDown || (_duckRoseFrom == null && !_duckPressWaits)) return;
+            if (!_coverHeld || !HeldDuckRules.Held(feel) || (_duckRoseFrom != null && !_duckRoseFrom.isActiveAndEnabled))
+            {
+                _duckRoseFrom = null;
+                _duckPressWaits = false;
+                return;
+            }
+            bool free = MayDuckNow && _actionKind == ActionKind.None && !_clicks.Waiting && !_buffer.HasItem;
+            if (!free || !_duck.Ready(now)) return; // not yet: her shot or skill still going, or the wait
+            Shelter at;
+            CoverShape shape;
+            bool inReach;
+            if (_duckRoseFrom != null)
+            {
+                at = _duckRoseFrom;
+                inReach = at.TryShape(out shape) && !at.IsTall && shape.Distance(GroundPosition) <= feel.DuckReach;
+                inReach &= HeldDuckRules.DownAgain(feel, _coverHeld, true, false, true, true, inReach);
+            }
+            else inReach = FindLowProp(feel, out at, out shape);
+            _duckRoseFrom = null; // once she is free it is owed no longer: down now, or (moved off by a skill, a dash, a teleport) never
+            _duckPressWaits = false;
+            if (inReach && _duck.Tap(now, true, true, HeldDuckRules.Seconds(feel)) == DuckTap.Ducked) StartDuck(at, shape);
         }
 
         /// <summary>
@@ -155,7 +225,11 @@ namespace Roguelike
             Shelter at = null;
             CoverShape shape = default;
             bool found = _duck.Ready(now) && may && FindLowProp(feel, out at, out shape);
-            DuckTap tap = _duck.Tap(now, may, found, feel.DuckSeconds);
+            DuckTap tap = _duck.Tap(now, may, found, HeldDuckRules.Seconds(feel)); // work order 086: held, without end
+            // Work order 086, the held duck: a press of its own owes no "down again" at a prop; one in the short wait after she
+            // rose is kept, and puts her down when the wait is over if the key is still held (HeldDuckTick).
+            if (tap != DuckTap.Down) _duckRoseFrom = null;
+            _duckPressWaits = tap == DuckTap.Waiting && HeldDuckRules.Held(feel);
             if (tap == DuckTap.Ducked) StartDuck(at, shape);
             else if (tap == DuckTap.NothingInReach)
             {
@@ -309,14 +383,16 @@ namespace Roguelike
                 if (_moveInput == Vector3.zero || (_steeredByKeys && !_moveKeyWentDown)) _duckHeldAtTap = _moveInput;
                 if (!feel.TakeCover || !feel.QuickDuck || !DuckMayGoOn || _duckShelter == null || !_duckShelter.isActiveAndEnabled)
                     EndDuck(DuckEnd.Other);
+                else if (HeldDuckRules.Released(feel, _coverHeld)) EndDuck(DuckEnd.Released); // work order 086: the key is up
                 else if (_duck.RisesBy(now)) EndDuck(DuckEnd.Rose);
                 // Steered by the keys, a key going down ends it, whatever the direction comes to (the fourth review of
                 // 2026-11-21, work order 055: the opposite key, pressed with one held, gives no direction); steered by a
-                // direction alone, a direction not held at the tap, as before.
-                else if (_steeredByKeys ? _moveKeyWentDown
-                         : QuickDuckRules.MoveEnds(new GroundPoint(_duckHeldAtTap.x, _duckHeldAtTap.z), new GroundPoint(_moveInput.x, _moveInput.z)))
+                // direction alone, a direction not held at the tap, as before. Work order 086: held, the move keys do nothing.
+                else if (HeldDuckRules.MoveMayEnd(feel) && (_steeredByKeys ? _moveKeyWentDown
+                         : QuickDuckRules.MoveEnds(new GroundPoint(_duckHeldAtTap.x, _duckHeldAtTap.z), new GroundPoint(_moveInput.x, _moveInput.z))))
                     EndDuck(DuckEnd.Moved);
             }
+            else if (feel.TakeCover && feel.QuickDuck) HeldDuckTick(feel, now); // work order 086
             _steeredByKeys = false; // looked at once a frame (work order 047)
             _moveKeyWentDown = false;
             if (feel.TakeCover && feel.QuickDuck && _duck.Ready(now) && MayDuckNow && FindLowProp(feel, out Shelter at, out CoverShape shape))
@@ -375,12 +451,15 @@ namespace Roguelike
         void EndDuck(DuckEnd why)
         {
             if (!_duck.IsDown) return;
-            _duck.End(why == DuckEnd.Rose ? _duck.UpAt : Time.time, Feel.DuckWait);
+            float up = why == DuckEnd.Rose ? _duck.UpAt : Time.time;
+            float downFor = Mathf.Max(0f, up - _duck.DownAt); // work order 086: the seconds she was down, for the recorder
+            _duck.End(up, HeldDuckRules.Wait(Feel)); // work order 086: the held duck's short wait, or the tap's
             int stopped = _duck.StoppedLast;
             if (stopped > 0) DucksThatStopped++;
+            DuckSecondsDown += downFor;
             _duckShelter = null;
             _duckStopAtKnown = false;
-            Report(new PlayerReport { Kind = PlayerReportKind.DuckEnded, DuckEnd = why, Shot = stopped });
+            Report(new PlayerReport { Kind = PlayerReportKind.DuckEnded, DuckEnd = why, Shot = stopped, Seconds = downFor });
         }
 
         /// <summary>

@@ -64,6 +64,10 @@ namespace Roguelike.Rules
                         counts.MostWoke = Math.Max(counts.MostWoke, Number(e, "woke"));
                         break;
                     }
+                    // Work order 086: the doors closed behind her, and how long they stood.
+                    case SessionEventTypes.RoomDoor:
+                        CountRoomDoor(run, e, Number(e, "floor"));
+                        break;
                     case SessionEventTypes.EliteClear:
                         run.ElitesCleared++;
                         if (float.TryParse(e.ExtraValue("seconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out float es)) run.EliteSeconds.Add(es);

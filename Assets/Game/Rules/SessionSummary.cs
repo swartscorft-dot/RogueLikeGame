@@ -99,6 +99,11 @@ namespace Roguelike.Rules
         public int DuckTapsWithNothing;
         /// <summary>Things a duck stopped: with the switch on, the strikes stopped by what she was behind.</summary>
         public int StoppedByDuck;
+        /// <summary>Work order 086 (the held duck): the seconds she was down, over the ducks that ended in this scope, in all and the median (NaN with none).</summary>
+        public float DuckSecondsTotal;
+        public float DuckSecondsMedian = float.NaN;
+        /// <summary>Work order 086: what a duck stopped, by the enemy's kind and its attack ("shooter Arrow"), most first.</summary>
+        public readonly List<KeyValuePair<string, int>> StoppedByDuckWhat = new List<KeyValuePair<string, int>>();
 
         // Melee you read (work order 035): two things that happen to her.
         /// <summary>Times she was stunned, and times she was pulled in, in this scope.</summary>
@@ -283,6 +288,9 @@ namespace Roguelike.Rules
         /// <summary>The most enemies that woke at once in one of them.</summary>
         public int MostWoke;
         public int FromOutside => Hit + Seen + Provoked;
+        /// <summary>Work order 086: times a room's doors closed behind her, and the seconds from each closing to its opening (those that opened).</summary>
+        public int DoorsClosed;
+        public readonly List<float> DoorSeconds = new List<float>();
     }
 
     /// <summary>One kind of enemy in a session: its kills, and the damage it did her, by attack.</summary>
@@ -475,7 +483,8 @@ namespace Roguelike.Rules
                 if (run.RoomFights.Count > 0)
                     sb.Append("  room fights      ").AppendLine(string.Join(";  ", run.RoomFights.Select(p =>
                         "floor " + p.Key + ": " + p.Value.Point + " at the point, " + p.Value.Inside + " inside short of it, " + p.Value.FromOutside + " from outside (" + p.Value.Hit + " hit, "
-                        + p.Value.Seen + " seen" + (p.Value.Provoked > 0 ? ", " + p.Value.Provoked + " provoked" : "") + "), most woke at once " + p.Value.MostWoke)));
+                        + p.Value.Seen + " seen" + (p.Value.Provoked > 0 ? ", " + p.Value.Provoked + " provoked" : "") + "), most woke at once " + p.Value.MostWoke
+                        + DoorsWords(p.Value)))); // work order 086: the doors closed, and how long they stood
                 // Work order 025: the focus choice, and how the gauge was spent after it.
                 sb.Append("  focus choice     ").AppendLine(run.FocusChoice.Length == 0 ? "-"
                     : run.FocusChoice + "   spent " + run.FocusSpends + (run.PrimesUsed + run.PrimesLapsed > 0
@@ -515,6 +524,8 @@ namespace Roguelike.Rules
             {
                 t.Add("Quick ducks / that stopped something", a.Ducks + " / " + a.DucksThatStopped, fights ? f.Ducks + " / " + f.DucksThatStopped : "-");
                 t.Add("  taps with no low prop in reach", Int(a.DuckTapsWithNothing), fights ? Int(f.DuckTapsWithNothing) : "-");
+                // Work order 086, the held duck: how long she was down.
+                t.Add("  seconds down: total, median", DuckSecondsCell(a), fights ? DuckSecondsCell(f) : "-");
             }
             else if (stats.HasCover)
                 t.Add("Time in cover, share of the time", Duration(a.CoverSeconds) + ", " + Percent(a.CoverShare),
@@ -588,7 +599,11 @@ namespace Roguelike.Rules
             d.Add("  avoided by moving out of the area", Int(a.StrikesOutOfArea), fights ? Int(f.StrikesOutOfArea) : "-");
             d.Add("  avoided by the dash", Int(a.StrikesAvoidedByDash), fights ? Int(f.StrikesAvoidedByDash) : "-");
             if (stats.HasDuck) // work order 043
+            {
                 d.Add("  stopped by a quick duck", Int(a.StoppedByDuck), fights ? Int(f.StoppedByDuck) : "-");
+                if (a.StoppedByDuckWhat.Count > 0) // work order 086: what it stopped while she was down
+                    d.Add("    what it stopped", StoppedWhatCell(a), fights ? StoppedWhatCell(f) : "-");
+            }
             else if (stats.HasCover)
                 d.Add("  stopped by the cover she ducked behind", Int(a.StrikesStoppedByCover), fights ? Int(f.StrikesStoppedByCover) : "-");
             if (a.StrikesStoppedByWall > 0) // work order 036, only in a log that has any

@@ -92,6 +92,60 @@ namespace Roguelike.Rules
         Dashed,
         /// <summary>Anything else: stunned or pulled, death, a restart, leaving a floor, the switch, the prop gone.</summary>
         Other,
+        /// <summary>The held duck (work order 086): the key went up.</summary>
+        Released,
+        /// <summary>The held duck (work order 086): she came up to shoot or to use a skill, which goes off at once.</summary>
+        Acted,
+    }
+
+    /// <summary>
+    /// The held duck (work order 086; Kristian's answer of 2026-11-22, answers file row 5: "Plasser dekning for den, men vil at den
+    /// skal være hold for duck. Så kan man gjøre det så lenge man vil"), with <see cref="FeelValues.DuckHold"/> on, in place of the
+    /// tap of work order 043. No engine; the state is <see cref="QuickDuck"/>'s, its down time without end.
+    ///
+    /// - The cover key going down with a low prop in reach (as before: <see cref="FeelValues.DuckReach"/>, her middle to its
+    ///   edge) puts her down where she stands, and she stays down as long as the key is held, with no longest time. Let go, she
+    ///   is up at once; from that moment she cannot go down again for <see cref="FeelValues.DuckHoldWait"/> (0.2 s), so it cannot
+    ///   be flickered for free: a press in that wait is kept, and puts her down when it is over if the key is still held. With
+    ///   nothing in reach the press does nothing, as before; holding the key on and walking up to a prop does not put her down (a
+    ///   press does, the third review's rule of work order 047 for a key held through a new floor).
+    /// - While she is down the move keys do nothing: she stays at the prop. The dash ends it at once, as before.
+    /// - A click or a skill pressed while she is down brings her up at once and it goes off (<see cref="ActEnds"/>); the timing's
+    ///   reward is as before: her first basic shot within <see cref="FeelValues.DuckPeekWindow"/> of rising from a duck that
+    ///   stopped something staggers. A skill on its cooldown does not bring her up. With the key still held she goes down again
+    ///   at the same prop once she is free and the wait is over (<see cref="DownAgain"/>; <see cref="FeelValues.DuckHoldDownAgain"/>).
+    /// - What it stops is as before: arrows only (<see cref="QuickDuckRules.Shields"/>).
+    /// </summary>
+    public static class HeldDuckRules
+    {
+        /// <summary>Is the duck held (its switch and the quick duck's both on)?</summary>
+        public static bool Held(FeelValues f) => f != null && f.QuickDuck && f.DuckHold;
+
+        /// <summary>The seconds a duck lasts by itself: without end when it is held, else the tap's <see cref="FeelValues.DuckSeconds"/>.</summary>
+        public static float Seconds(FeelValues f) => Held(f) ? float.PositiveInfinity : f.DuckSeconds;
+
+        /// <summary>The wait from the moment she is up until she can go down again: the held duck's, else the tap's.</summary>
+        public static float Wait(FeelValues f) => Held(f) ? f.DuckHoldWait : f.DuckWait;
+
+        /// <summary>Does a held duck end now because the key is up? Always when it is up; never with the tap.</summary>
+        public static bool Released(FeelValues f, bool keyHeld) => Held(f) && !keyHeld;
+
+        /// <summary>Does a move key end a duck? With the tap, by <see cref="QuickDuckRules.MoveEnds"/>; held, never: she stays at the prop.</summary>
+        public static bool MoveMayEnd(FeelValues f) => !Held(f);
+
+        /// <summary>
+        /// Does a press of a shot or a skill bring her up (and it goes off at once)? Held, when it can go off now: a click always,
+        /// a skill when it is ready (or a recast in its window); with the tap never: it waits until she rises.
+        /// </summary>
+        public static bool ActEnds(FeelValues f, bool down, bool wouldGoOff) => Held(f) && down && wouldGoOff;
+
+        /// <summary>
+        /// Does she go down again now, the key still held after her own shot or skill brought her up? Held and its switch on, up,
+        /// the key held all along since, the wait over, free (no shot, skill, dash, stun or pull, nothing waiting to go off), and
+        /// a low prop in reach.
+        /// </summary>
+        public static bool DownAgain(FeelValues f, bool keyHeld, bool roseToAct, bool down, bool ready, bool free, bool lowPropInReach) =>
+            Held(f) && f.DuckHoldDownAgain && keyHeld && roseToAct && !down && ready && free && lowPropInReach;
     }
 
     /// <summary>

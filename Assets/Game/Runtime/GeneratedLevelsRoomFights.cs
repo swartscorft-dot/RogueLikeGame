@@ -53,6 +53,7 @@ namespace Roguelike
                 _fightList.Add(fight);
                 foreach (Enemy e in list) if (e != null) e.Fight = fight;
             }
+            SetUpRoomDoors(); // work order 086: the doors that close behind her (GeneratedLevelsRoomDoors.cs)
             if (_fightList.Count == 0) return;
             _fightsOf = _level;
             _level.EnemyCalled += OnCalledIntoAFight;
@@ -66,6 +67,7 @@ namespace Roguelike
             _fightList.Clear();
             _fightRoomIn = null;
             _fightDoor = null;
+            ForgetRoomDoors(); // work order 086
         }
 
         /// <summary>A swarmer the boss calls belongs to the boss's room's fight at once (work order 070): it comes for her awake.</summary>
@@ -102,6 +104,7 @@ namespace Roguelike
                 bool within = alive > 0 && AnyWithinLeash(f.Room);
                 if (RoomFightRules.Ends(herAlive, alive, here != null && here.Order == f.Room, within)) f.End();
             }
+            TickRoomDoors(); // work order 086: after the fights, the doors that close behind her and open as the room is cleared
         }
 
         /// <summary>A room's fight started: one cue for the room, and the recorder told (work order 070).</summary>
