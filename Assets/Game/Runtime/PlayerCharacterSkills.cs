@@ -373,40 +373,60 @@ namespace Roguelike
         /// </summary>
         public void AimAt(Vector3 point)
         {
-            AimAt(point, point);
+            SetCursor(point, point);
             _cursorOnCamera = false; // a point in the world (tests, tools): it stays where it is
         }
 
         /// <summary>
-        /// Work order 094: the cursor as the input driver reads it, as two points. <paramref name="point"/> is under where its
-        /// ray meets the gun's height (<see cref="ShotHeight"/>): the shot, her look, a held line or cone follow it, as
-        /// <see cref="AimAt(Vector3)"/> says. <paramref name="ground"/> is where it meets the floor: a skill placed on the ground
-        /// (<see cref="PlacedOnTheGround"/>) that waited for its cooldown lands there.
+        /// Work order 094: the cursor as the input driver reads it, as two points on its ray, both laid on the ground.
+        /// <paramref name="point"/> is under where the ray meets the level at <paramref name="height"/>, the gun's
+        /// (<see cref="ShotHeight"/>): the shot, her look, a held line or cone follow it, as <see cref="AimAt(Vector3)"/> says.
+        /// <paramref name="ground"/> is where it meets the floor: a skill placed on the ground (<see cref="PlacedOnTheGround"/>)
+        /// that waited for its cooldown lands there.
         /// </summary>
-        public void AimAt(Vector3 point, Vector3 ground)
+        public void AimAt(Vector3 point, Vector3 ground, float height)
+        {
+            SetCursor(point, ground);
+            _cursorHeight = height;
+            _cursorReadFrom = transform.position;
+            _cursorOnCamera = true;
+        }
+
+        void SetCursor(Vector3 point, Vector3 ground)
         {
             _cursorPoint = point;
             _hasCursor = true;
             _cursorKnown = true;
             _shotCursor = point;
             _groundCursor = ground;
-            _cursorReadFrom = transform.position;
-            _cursorOnCamera = true;
         }
 
         Vector3 _groundCursor;   // work order 094: the cursor's point on the floor, the latest report
+        float _cursorHeight;     // the height its ray was met at for the aim
         Vector3 _cursorReadFrom; // where she stood when the driver read it
         bool _cursorOnCamera;    // it came from the screen (the driver), not a point in the world
 
         /// <summary>
-        /// Work order 094, her aim while she runs: the driver reads the cursor before she moves in a frame, through the camera
-        /// as the frame before left it; the camera follows her, so the ground under a cursor held still on the screen moves
-        /// with her. The Laser Sight's line, drawn after her move, and a shot that goes off before the driver's next read take
-        /// the cursor's point moved on by her move since the read (one frame's, 0.1 m at a run at 60 frames a second). Zero
-        /// for a point in the world (<see cref="AimAt(Vector3)"/>) and with <see cref="FeelValues.AimAtShotHeight"/> off.
+        /// Work order 094, her aim while she runs: the camera follows her, so the ground under a cursor held still on the screen
+        /// moves with her. A shot that goes off, or a line drawn, after she has moved since the driver's read takes the cursor's
+        /// point moved on by that move (one frame's at most, 0.1 m at a run at 60 frames a second). Zero for a point in the world
+        /// (<see cref="AimAt(Vector3)"/>) and with <see cref="FeelValues.AimAtShotHeight"/> off.
         /// </summary>
         Vector3 CursorDrift =>
             _cursorOnCamera && Feel.AimAtShotHeight ? new Vector3(transform.position.x - _cursorReadFrom.x, 0f, transform.position.z - _cursorReadFrom.z) : Vector3.zero;
+
+        /// <summary>
+        /// Work order 094: the cursor's point slid along its ray to another height. The Laser Sight's line is drawn after the
+        /// animation has moved her pistols (at a run by up to a tenth of a metre a frame), at a height a little off the one the
+        /// driver met the ray at; the point under the ray at the line's own height keeps the line through the cursor. Both
+        /// points the driver gave lie under the one ray, which runs straight, so the point at any height lies on the line
+        /// through them, as far along as the height is. Any other point, and with the switch off, as it is.
+        /// </summary>
+        Vector3 AtHeight(Vector3 cursor, float height)
+        {
+            if (!_cursorOnCamera || !Feel.AimAtShotHeight || _cursorHeight <= 1e-3f || cursor != _cursorPoint) return cursor;
+            return _groundCursor + (cursor - _groundCursor) * (height / _cursorHeight);
+        }
 
         /// <summary>
         /// Work order 094: the slot's skill lands on the floor under the cursor (a circle, a press on a point: Powder Keg), so it

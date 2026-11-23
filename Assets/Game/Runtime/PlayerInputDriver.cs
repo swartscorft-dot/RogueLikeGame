@@ -186,7 +186,7 @@ namespace Roguelike
             if (_camera == null) _camera = Camera.main;
             if (_camera == null) return;
             if (!TryGroundPoint(input.CursorScreen, out Vector3 cursor)) return;
-            Vector3 aim = ShotAim(input.CursorScreen, cursor); // work order 094: the shot's, a line's and a cone's; the cursor's ground point for what lands on the floor
+            Vector3 aim = ShotAim(input.CursorScreen, cursor, out float aimHeight); // work order 094: the shot's, a line's and a cone's; the cursor's ground point for what lands on the floor
             Vector3 lag = CameraLag(); // work order 094: both as the cursor lies in the frame that will be drawn
             cursor += lag;
             aim += lag;
@@ -206,7 +206,7 @@ namespace Roguelike
                                                       : Rules.QuickDuckRules.MoveKeyWentDown(_moveBefore.x, _moveBefore.y, input.Move.x, input.Move.y));
             _moveBefore = input.Move;
             _player.HoldCover(input.CoverHeld);
-            _player.AimAt(aim, cursor);
+            _player.AimAt(aim, cursor, aimHeight);
             if (input.IdentityPressed) _player.ActivateIdentity();
             if (input.DashPressed) _player.DashToward(DashPoint(cursor));
 
@@ -311,13 +311,17 @@ namespace Roguelike
         /// aim at. The shot is drawn and flies at the gun's height (<see cref="PlayerCharacter.ShotHeight"/>), and the camera
         /// looks down at a slant, so the cursor's ray is met with the level plane at that height, not with the ground: the
         /// drawn line then passes through the cursor on the screen. Laid on the ground under that point, as every aim point is.
-        /// With <see cref="Rules.FeelValues.AimAtShotHeight"/> off, or a ray that never meets it, the cursor's ground point as before.
+        /// With <see cref="Rules.FeelValues.AimAtShotHeight"/> off, or a ray that never meets it, the cursor's ground point as before
+        /// (and a <paramref name="height"/> of 0).
         /// </summary>
-        Vector3 ShotAim(Vector2 screen, Vector3 ground)
+        Vector3 ShotAim(Vector2 screen, Vector3 ground, out float height)
         {
+            height = 0f;
             if (!_player.Feel.AimAtShotHeight) return ground;
+            float at = _player.ShotHeight;
             Ray ray = _camera.ScreenPointToRay(screen);
-            if (!new Plane(Vector3.up, new Vector3(0f, _player.ShotHeight, 0f)).Raycast(ray, out float distance)) return ground;
+            if (!new Plane(Vector3.up, new Vector3(0f, at, 0f)).Raycast(ray, out float distance)) return ground;
+            height = at;
             Vector3 point = ray.GetPoint(distance);
             return new Vector3(point.x, 0f, point.z);
         }

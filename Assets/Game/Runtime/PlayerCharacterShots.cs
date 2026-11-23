@@ -182,7 +182,8 @@ namespace Roguelike
                 return;
             }
             GroundPoint origin = GroundPosition;
-            Vector3 aimEnd = AimEnd(_shotCursor);
+            float height = ShotHeight;
+            Vector3 aimEnd = AimEnd(AtHeight(_shotCursor, height)); // work order 094: under the cursor at the height it is drawn at
             var aim = new GroundPoint(aimEnd.x, aimEnd.z);
             Damageable hit = BasicShotEnd(origin, aim, out float range, out float stop);
             Vector3 end = hit != null ? hit.transform.position : aimEnd;
@@ -191,7 +192,6 @@ namespace Roguelike
                 GroundPoint at = CoverStopPoint(origin, aim, stop);
                 end = new Vector3(at.X, 0f, at.Z);
             }
-            float height = ShotHeight;
             Vector3 p = transform.position;
             _laser.Show(new Vector3(p.x, height, p.z), new Vector3(end.x, height, end.z), hit, ShotFxMaterial);
         }
