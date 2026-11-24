@@ -79,6 +79,10 @@ namespace Roguelike
         readonly List<int> _sconceRoom = new List<int>();
         readonly List<Flash> _flashes = new List<Flash>();
         readonly List<Object> _owned = new List<Object>();
+        LookListTops _tops; // work order 112: the lids on the blocks' and the piers' tops
+
+        /// <summary>Work order 112: the lids on the tops of the carved blocks and the piers (<see cref="LookListTops"/>); null with its switch off, before it was first on, or when the floor has none.</summary>
+        public LookListTops Tops => _tops;
 
         /// <summary>The level it is on now; null when off (as before, or the greybox view on).</summary>
         public LamplitValues On => _on;
@@ -141,6 +145,7 @@ namespace Roguelike
             if (level != null && !_built) Build();
             _on = level;
             if (_level.Mood != null) _level.Mood.Lamplit = level;
+            _tops?.Light(level); // work order 112
             if (level == null)
             {
                 for (int i = 0; i < _lamps.Count; i++) if (_lamps[i].Light != null) _lamps[i].Light.enabled = false;
@@ -188,6 +193,7 @@ namespace Roguelike
             _sconceRenderers.Clear();
             _sconceRoom.Clear();
             _flashes.Clear();
+            _tops = null; // work order 112: its objects were the root's and owned
             _built = false;
         }
 
@@ -223,6 +229,7 @@ namespace Roguelike
                 _lamps.Add(new LampLight { Light = light, Room = lamp.Room, Source = lamp.Source, Intensity = lamp.Intensity(v), Phase = i * 1.91f + lamp.Room * 0.37f });
             }
             BuildSconces();
+            _tops = LookListTops.Make(_level, _plan, _root.transform, _owned); // work order 112
             while (_flashes.Count < Mathf.Max(1, v.MostFlashes)) MakeFlash(); // the flashes' pool, made now: no shot makes one
         }
 
@@ -243,7 +250,7 @@ namespace Roguelike
                 CryptKitSection s = kit.Sections[lamp.Section];
                 float face = wall == null ? _level.Values.WallThickness * 0.5f : lamp.Side == s.Facing ? wall.Bounds.max.z : -wall.Bounds.min.z;
                 Vector3 into = s.Vertical ? new Vector3(lamp.Side, 0f, 0f) : new Vector3(0f, 0f, lamp.Side);
-                Vector3 onWall = _level.ToWorld(LampPlan.OnFace(s, lamp.Side, cs, face));
+                Vector3 onWall = _level.ToWorld(LampPlan.OnFace(s, lamp.Side, cs, face)) + (s.Vertical ? Vector3.forward : Vector3.right) * (float)lamp.Along; // work order 112: beside a passage's lantern
                 float h = v.SconceHeight;
                 float yaw = Mathf.Atan2(into.x, into.z) * Mathf.Rad2Deg;
                 if (!iron.TryGetValue(lamp.Room, out MoodShapes.Build b)) iron[lamp.Room] = b = new MoodShapes.Build();
@@ -308,6 +315,7 @@ namespace Roguelike
                 _on = on;
                 _here = -2;
                 mood.Lamplit = on;
+                _tops?.Light(on); // work order 112
             }
             if (_player == null && Time.unscaledTime - _lookedForPlayer > 1f)
             {
@@ -324,6 +332,7 @@ namespace Roguelike
                     if (_lamps[i].Light != null) _lamps[i].Light.enabled = Shown(_lamps[i].Room);
                 for (int i = 0; i < _sconceRenderers.Count; i++)
                     if (_sconceRenderers[i] != null) _sconceRenderers[i].enabled = Shown(_sconceRoom[i]);
+                _tops?.Shown(_shown); // work order 112
             }
             float t = Time.time, level = Mathf.Max(0f, _on.LampLevel);
             LampValues v = Lamps;

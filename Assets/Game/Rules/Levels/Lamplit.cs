@@ -221,13 +221,19 @@ namespace Roguelike.Rules
         public int Carries;
         /// <summary>Work order 100: a brazier of the entrance room, which burns warm (<see cref="LampValues.EntranceBrazier"/>) with <see cref="LampValues.WarmEntrance"/> on.</summary>
         public bool Warm;
+        /// <summary>Work order 112: the share of its kind's light it gives (a passage's lantern <see cref="LookListValues.LanternShare"/>); 1 as before.</summary>
+        public float Share = 1f;
+        /// <summary>Work order 112: a sconce of a passage hung beside a lantern, this many metres along its section from the middle; 0 as before.</summary>
+        public double Along;
+        /// <summary>Work order 112: a lamp the look list added (a set of the ossuary's candles, <see cref="MoodSource.ByLookList"/>, which the rule for sconces leaves out; a passage's warm sconce, by its own rule).</summary>
+        public bool ByLookList;
 
         /// <summary>Its light's intensity at level 1: its kind's, stronger for each lamp it carries; 0 for a carried one.</summary>
         public float Intensity(LampValues v)
         {
             if (CarriedBy != null) return 0f;
             v.Of(Kind, out float intensity, out _);
-            return intensity * Math.Min(Math.Max(1f, v.JoinMost), 1f + v.JoinShare * Carries);
+            return intensity * Math.Min(Math.Max(1f, v.JoinMost), 1f + v.JoinShare * Carries) * Share;
         }
     }
 
@@ -269,7 +275,7 @@ namespace Roguelike.Rules
                         MoodSource s = mr.Sources[i];
                         LampKind kind = s.Kind == MoodSourceKind.Candle ? LampKind.Candle : s.Kind == MoodSourceKind.Gold ? LampKind.Gold : LampKind.Brazier;
                         bool warm = v.WarmEntrance && kind == LampKind.Brazier && mr.Room.Kind == RoomKind.Entrance; // work order 100
-                        plan.Lamps.Add(new Lamp { Room = mr.Room.Order, Kind = kind, At = s.At, Height = s.Height + v.SourceLift, Source = i, Warm = warm });
+                        plan.Lamps.Add(new Lamp { Room = mr.Room.Order, Kind = kind, At = s.At, Height = s.Height + v.SourceLift, Source = i, Warm = warm, ByLookList = s.ByLookList });
                     }
             if (kit != null)
                 for (int i = 0; i < kit.Lanterns.Count; i++)
@@ -307,7 +313,7 @@ namespace Roguelike.Rules
             {
                 var own = new List<Lamp>();
                 foreach (Lamp l in plan.Lamps)
-                    if (l.Room == room.Order) own.Add(l);
+                    if (l.Room == room.Order && !l.ByLookList) own.Add(l); // work order 112: the look list's candles add to the sconces as before
                 List<LevelPoint> floor = FloorPoints(layout, room);
                 bool[] lit = new bool[floor.Count];
                 foreach (Lamp l in own) Light(floor, lit, l, v);
@@ -354,6 +360,7 @@ namespace Roguelike.Rules
                 }
                 plan.CoverAfter[room.Order] = cover;
             }
+            if (LookListValues.Passages) LookListLamps.WarmPassages(plan, layout, kit, v); // work order 112: a warm main light in every passage
             return plan;
         }
 
