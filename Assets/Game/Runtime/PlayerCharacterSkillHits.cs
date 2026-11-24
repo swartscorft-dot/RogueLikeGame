@@ -237,6 +237,7 @@ namespace Roguelike
                 int applied = Deal(d, dealt, out float focus, hitStagger, sureCrit, foldedCrit, marked); // work order 050: a clean press's or a perfect release's hit is a crit
                 if (!d.IsAlive) killed = true;
                 else if (!wasDazed && d.IsDazed) dazed = true;
+                if (counteredThis && skill.CounterMarks > 0) AddMarks(d, skill.CounterMarks, slot); // work order 111: Marked Opening
                 if (spends)
                 {
                     // The primed extra mark counts for the damage (or Breaker Slug's stagger) only: a primed spender must

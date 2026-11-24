@@ -124,6 +124,11 @@ namespace Roguelike.Rules
         public float SmokeSeconds = 0f;    // above 0: a circle that lands as a cloud of smoke and stands this long, hitting nothing (Smoke Round: 3)
         public int DeadeyeMost = 0;        // above 0: one shot at every marked enemy in sight within its range, at most this many, nearest first (Deadeye: 6)
 
+        // Work order 111 (2026-11-24, "De åtte skillsene som har ett eller to valg, får opptil tre"): the two small new kinds of
+        // change its nine rows need; every skill starts with them off, an upgrade sets them on the run's own copy.
+        public float SlideShotDamage = 0f; // KeyMove: a basic shot that hits during the move deals this share more (Gun Slide: 0.5)
+        public int CounterMarks = 0;       // a counter by this skill puts this many marks on the enemy it stopped (Marked Opening: 3)
+
         /// <summary>A copy, field for field: a run's own view of the skill, patched by its upgrades (work order 017).</summary>
         public SkillDefinition Copy() => (SkillDefinition)MemberwiseClone();
 

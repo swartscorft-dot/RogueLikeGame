@@ -359,6 +359,14 @@ namespace Roguelike.Rules
         /// is the eight of work order 015 and every offer is as before.
         /// </summary>
         public bool NewSkills = true;
+
+        /// <summary>
+        /// Three upgrade choices a skill (work order 111; Kristian, 2026-11-24, ticked "Hennes kit": "flere oppgraderinger og
+        /// skill-nivåer", and said yes to "De åtte skillsene som har ett eller to valg, får opptil tre (27 → 36)"), on by default: the
+        /// elite room's table holds the nine rows at its end (<see cref="SkillUpgradeTable.MoreRows"/>), and an epic may draw them.
+        /// Off, the table is the 27 and work order 109's six, and every offer and epic is as before.
+        /// </summary>
+        public bool MoreSkillUpgrades = true;
     }
 
     /// <summary>

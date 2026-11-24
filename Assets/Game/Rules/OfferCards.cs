@@ -639,6 +639,7 @@ namespace Roguelike.Rules
                 case "Long Shot: Overcharge": return "The perfect band is half as wide.";
                 case "Scatter Blast: Point Blank": return "Farther than 2.5 m: no bonus, and the marks stay.";
                 case "Scatter Blast: Slug": return "No more cone: it hits only what is on its line.";
+                case "Fan Fire: Focused Fire": return "The cone is half as wide."; // work order 111
                 default: return "";
             }
         }
@@ -693,6 +694,11 @@ namespace Roguelike.Rules
             Diff("the cloud stands", Sec(before.SmokeSeconds), Sec(after.SmokeSeconds));
             Diff("enemies shot at most", before.DeadeyeMost.ToString(s_Inv), after.DeadeyeMost.ToString(s_Inv));
             Diff("bonus per mark", Pct(before.MarkDamageBonus), Pct(after.MarkDamageBonus));
+            // Work order 111: what its nine rows change that no line above says.
+            Diff("marks a hit", before.MarksAdded.ToString(s_Inv), after.MarksAdded.ToString(s_Inv));
+            Diff("stagger per mark", Plus(before.MarkStaggerBonus), Plus(after.MarkStaggerBonus));
+            Diff("a counter marks", before.CounterMarks.ToString(s_Inv), after.CounterMarks.ToString(s_Inv));
+            Diff("a basic hit while sliding deals", Plus(before.SlideShotDamage), Plus(after.SlideShotDamage));
             return lines;
         }
 

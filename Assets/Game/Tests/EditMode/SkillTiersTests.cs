@@ -204,7 +204,8 @@ namespace Roguelike.Rules.Tests
         {
             var allEpic = new SkillTierValues { Odds = new[] { 0f, 0f, 100f } };
             // Snap Shot taken: Overcharge is excluded, and Long Shot has no change left.
-            var taken = new[] { SkillUpgradeTable.Find(s_Table, "Long Shot", "Snap Shot") };
+            // Changed deliberately (work order 111): Long Shot has a third change, Tracer Round; taken too, nothing is left.
+            var taken = new[] { SkillUpgradeTable.Find(s_Table, "Long Shot", "Snap Shot"), SkillUpgradeTable.Find(s_Table, "Long Shot", "Tracer Round") };
             Assert.That(SkillTiers.OpenChanges(s_Table, "Long Shot", taken), Is.Empty);
             for (int i = 0; i < 200; i++)
             {
@@ -213,7 +214,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(offer[0].Change, Is.Null);
                 Assert.That(offer[0].Rows, Is.EqualTo(new[] { offer[0].Step }));
                 Assert.That(offer[1].Tier, Is.EqualTo(UpgradeTier.Epic));
-                Assert.That(offer[1].Change.Name, Is.EqualTo("Walking Fire"), "Fan Fire's one change");
+                Assert.That(offer[1].Change.Name, Is.EqualTo("Walking Fire").Or.EqualTo("Focused Fire"), "Fan Fire's changes (Focused Fire since work order 111)");
             }
         }
 
@@ -315,9 +316,9 @@ namespace Roguelike.Rules.Tests
                     Assert.That(u.Name, Is.Not.EqualTo("Snap Shot"), "the epic's change is taken");
                     Assert.That(u.Name, Is.Not.EqualTo("Overcharge"), "and Snap Shot excludes it");
                     Assert.That(u.TierStep, Is.False, "a step is never offered");
-                    if (u.Skill == "Long Shot") longShots++;
+                    if (u.Skill == "Long Shot" && u.Name != "Tracer Round") longShots++; // changed deliberately (work order 111): its third row stays open
                 }
-            Assert.That(longShots, Is.Zero, "Long Shot has nothing left in the table");
+            Assert.That(longShots, Is.Zero, "Long Shot has nothing left in the table but work order 111's Tracer Round");
 
             var other = new RunSkillUpgrades();
             other.TakeTier(Epic("Long Shot", "Overcharge"));

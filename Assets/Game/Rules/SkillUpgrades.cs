@@ -233,6 +233,35 @@ namespace Roguelike.Rules
                 SkillPatch.Set(nameof(SkillDefinition.Startup), 0.2f)),
             Row("Deadeye", "Hollow Points", N, "Each mark a shot spends adds 60% instead of 40%.",
                 SkillPatch.Set(nameof(SkillDefinition.MarkDamageBonus), 0.6f)),
+
+            // Work order 111 (2026-11-24): a third row for the eight skills with one or two, two for Breaker Slug; each a change
+            // that leans the skill toward a job its other rows do not, first guesses.
+            Row("Long Shot", "Tracer Round", C, "It marks: two marks on every enemy it hits.",
+                SkillPatch.Set(nameof(SkillDefinition.MarksAdded), 2f)),
+            Row("Powder Keg", "Concussion Keg", C, "Its burst breaks guards: 50 stagger instead of 20.",
+                SkillPatch.Scale(nameof(SkillDefinition.Stagger), 2.5f)),
+            Row("Fan Fire", "Focused Fire", C, "A narrow cone of 25 degrees that reaches 10 m; each hit deals 50% more.",
+                SkillPatch.Set(nameof(SkillDefinition.Angle), 25f), SkillPatch.Set(nameof(SkillDefinition.Range), 10f),
+                SkillPatch.Scale(nameof(SkillDefinition.Damage), 1.5f)),
+            Row("Heavy Volley", "Breaching Volley", C, "Each mark it spends adds 30% stagger as well.",
+                SkillPatch.Set(nameof(SkillDefinition.MarkStaggerBonus), 0.3f)),
+            Row("Tag Round", "Painted Target", C, "It puts three marks on what it hits instead of one.",
+                SkillPatch.Set(nameof(SkillDefinition.MarksAdded), 3f)),
+            Row("Slide", "Gun Slide", C, "Basic shots that hit during the slide deal 50% more.",
+                SkillPatch.Set(nameof(SkillDefinition.SlideShotDamage), 0.5f)),
+            Row("Stopping Shot", "Marked Opening", C, "A counter puts three marks on the enemy it stops.",
+                SkillPatch.Set(nameof(SkillDefinition.CounterMarks), 3f)),
+            Row("Breaker Slug", "Recoil Slug", C, "The slug's kick carries you 3 m back as you fire it.",
+                SkillPatch.Set(nameof(SkillDefinition.MoveDistance), -3f)),
+            Row("Breaker Slug", "Heavy Slug", C, "It spends marks for damage too: 25% more a mark.",
+                SkillPatch.Set(nameof(SkillDefinition.MarkDamageBonus), 0.25f)),
+        };
+
+        /// <summary>The nine rows of work order 111, by their full names ("Long Shot: Tracer Round"): left out with its switch off.</summary>
+        public static readonly string[] MoreRows =
+        {
+            "Long Shot: Tracer Round", "Powder Keg: Concussion Keg", "Fan Fire: Focused Fire", "Heavy Volley: Breaching Volley",
+            "Tag Round: Painted Target", "Slide: Gun Slide", "Stopping Shot: Marked Opening", "Breaker Slug: Recoil Slug", "Breaker Slug: Heavy Slug",
         };
 
         /// <summary>The row of this skill and name in a table, or null.</summary>
@@ -241,15 +270,16 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The table as the run's switches have it (work order 109): the table itself with <see cref="RunValues.NewSkills"/> on;
-        /// off, without the rows of the three new skills (<see cref="NewSkillRules.IsNew"/>), a new array. Asked when an offer is
+        /// off, without the rows of the three new skills (<see cref="NewSkillRules.IsNew"/>), a new array. Work order 111: with
+        /// <see cref="RunValues.MoreSkillUpgrades"/> off, without its nine rows (<see cref="MoreRows"/>) too. Asked when an offer is
         /// made, never in a frame of play.
         /// </summary>
         public static SkillUpgradeDefinition[] Switched(SkillUpgradeDefinition[] table, RunValues values)
         {
             if (table == null || values == null) return table;
-            bool keepNew = values.NewSkills;
-            if (keepNew) return table;
-            return table.Where(u => u == null || !NewSkillRules.IsNew(u.Skill)).ToArray();
+            bool keepNew = values.NewSkills, keepMore = values.MoreSkillUpgrades;
+            if (keepNew && keepMore) return table;
+            return table.Where(u => u == null || ((keepNew || !NewSkillRules.IsNew(u.Skill)) && (keepMore || !MoreRows.Contains(u.FullName)))).ToArray();
         }
     }
 
