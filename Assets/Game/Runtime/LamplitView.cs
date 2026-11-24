@@ -216,7 +216,7 @@ namespace Roguelike
                 light.shadows = LightShadows.None; // no lamp casts a shadow: see the work order's report (cost, and the kit's walls already shade)
                 v.Of(lamp.Kind, out _, out float range);
                 light.range = range;
-                Rgb c = v.ColourOf(lamp.Kind);
+                Rgb c = v.ColourOf(lamp); // work order 100: an entrance brazier warm
                 light.color = new Color(c.R, c.G, c.B, 1f);
                 light.intensity = 0f;
                 light.enabled = false;

@@ -153,6 +153,7 @@ namespace Roguelike
             Off(_level.Mood);
             Off(_level.Cave);
             foreach (Renderer r in _mine) r.enabled = true;
+            foreach (RoomDoor d in _level.GetComponentsInChildren<RoomDoor>(true)) d.SetGreyboxLook(true); // work order 100: the door orange all over, as before
         }
 
         void Off(Behaviour part)
@@ -202,6 +203,7 @@ namespace Roguelike
             _was.Clear();
             _lightsWas.Clear();
             _partsWas.Clear();
+            foreach (RoomDoor d in _level.GetComponentsInChildren<RoomDoor>(true)) d.SetGreyboxLook(false); // work order 100: the game's dark face again
         }
 
         // ---------------- What it draws ----------------

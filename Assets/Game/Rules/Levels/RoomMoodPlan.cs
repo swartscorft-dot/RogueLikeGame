@@ -33,7 +33,8 @@ namespace Roguelike.Rules
         public Rgb CandleColour = new Rgb(1f, 0.62f, 0.3f);
         public Rgb Teal = new Rgb(0.25f, 0.85f, 0.85f); // the game's cyan (CryptKitValues.Cyan)
         public Rgb GoldColour = new Rgb(1f, 0.78f, 0.32f);
-        public float FlameGlow = 2.4f;          // a flame's core, over the bloom's threshold
+        public bool WarmEntrance = true;        // work order 100 ("Varmt som de andre"): the entrance room's braziers' flames, pools and real lights in CandleColour, not teal (off: teal, as before; the lamplit lamps follow LampValues.WarmEntrance)
+        public float FlameGlow = 2.4f;         // a flame's core, over the bloom's threshold
         public float CandleFlicker = 0.05f;     // a candle's brightness moves by up to this share (slow, not a strobe)
         public float CandleFlickerSpeed = 1.3f; // about this many times a second
         public float BrazierFlicker = 0.08f;
