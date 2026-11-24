@@ -72,7 +72,7 @@ namespace Roguelike.Rules
         // også hoppe over blå props. ved å sprinte og ta skade får man en liten stagger"; SprintRules). The producer's starting values.
         // Not in the feel spec's table nor in the settings asset: these defaults are what the game reads.
         public bool Sprint = true;                // the switch: off, the sprint key does nothing and she moves exactly as before
-        public float SprintSpeedShare = 1.5f;     // times her run speed while she sprints (9 m/s against 6)
+        public float SprintSpeedShare = 1.3f;     // times her run speed while she sprints (7.8 m/s against 6; 1.5 until 2026-11-24, when Kristian chose 1.3 after playing: "litt for fort")
         public float SprintRampTime = 0.1f;       // s from her run speed up to the sprint's once it starts; it ends at once
         public float SprintJumpLookAhead = 1f;    // m from her middle along the way she sprints to a low prop's edge: within it she jumps the prop
         public float SprintJumpRoom = 0.6f;       // m from the prop's far edge to her middle where she lands: her own room (her 0.5 m radius and a little)

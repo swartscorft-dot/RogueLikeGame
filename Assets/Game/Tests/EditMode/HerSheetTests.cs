@@ -64,7 +64,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(Line(lines, "Health").Value, Is.EqualTo("72 / 100"), "now and most");
             Assert.That(Line(lines, "Room heal").Value, Is.EqualTo("8"), "8 % of 100");
             Assert.That(Line(lines, "Run speed").Value, Is.EqualTo("6.0 m/s"));
-            Assert.That(Line(lines, "Sprint speed").Value, Is.EqualTo("9.0 m/s"));
+            Assert.That(Line(lines, "Sprint speed").Value, Is.EqualTo("7.8 m/s"));
             Assert.That(Line(lines, "Dash cooldown").Value, Is.EqualTo("10 s"));
             Assert.That(Line(lines, "Cooldowns").Value, Is.EqualTo("0 %"));
             Assert.That(Line(lines, "Marks last").Value, Is.EqualTo("6 s"));

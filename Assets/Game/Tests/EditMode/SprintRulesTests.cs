@@ -30,8 +30,8 @@ namespace Roguelike.Rules.Tests
         public void TheStartValues_AreTheOrdersNumbers()
         {
             Assert.That(Feel.Sprint, Is.True, "on by default");
-            Assert.That(Feel.SprintSpeedShare, Is.EqualTo(1.5f), "9 m/s against 6");
-            Assert.That(Feel.RunSpeed * Feel.SprintSpeedShare, Is.EqualTo(9f));
+            Assert.That(Feel.SprintSpeedShare, Is.EqualTo(1.3f), "7.8 m/s against 6 (Kristian 2026-11-24; 1.5 before)");
+            Assert.That(Feel.RunSpeed * Feel.SprintSpeedShare, Is.EqualTo(7.8f).Within(1e-4f));
             Assert.That(Feel.SprintRampTime, Is.LessThanOrEqualTo(0.1f), "full speed within 0.1 s");
             Assert.That(Feel.SprintJumpLookAhead, Is.EqualTo(1f), "her path over the next 1 m");
             Assert.That(Feel.SprintJumpMost, Is.EqualTo(4f), "at most 4 m in all");
@@ -53,15 +53,15 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void TheSpeed_RisesToOneAndAHalfWithinItsRamp_AndIsOneOtherwise()
+        public void TheSpeed_RisesToItsShareWithinItsRamp_AndIsOneOtherwise()
         {
             Assert.That(SprintRules.SpeedShare(Feel, false, 5f), Is.EqualTo(1f), "not sprinting: her run speed");
             Assert.That(SprintRules.SpeedShare(Feel, true, 0f), Is.EqualTo(1f).Within(1e-4f), "from her run speed");
-            Assert.That(SprintRules.SpeedShare(Feel, true, Feel.SprintRampTime * 0.5f), Is.EqualTo(1.25f).Within(1e-4f));
-            Assert.That(SprintRules.SpeedShare(Feel, true, 0.1f), Is.EqualTo(1.5f).Within(1e-4f), "full within 0.1 s");
-            Assert.That(SprintRules.SpeedShare(Feel, true, 30f), Is.EqualTo(1.5f), "no longest time: no stamina");
+            Assert.That(SprintRules.SpeedShare(Feel, true, Feel.SprintRampTime * 0.5f), Is.EqualTo(1.15f).Within(1e-4f));
+            Assert.That(SprintRules.SpeedShare(Feel, true, 0.1f), Is.EqualTo(1.3f).Within(1e-4f), "full within 0.1 s");
+            Assert.That(SprintRules.SpeedShare(Feel, true, 30f), Is.EqualTo(1.3f), "no longest time: no stamina");
             Assert.That(SprintRules.SpeedShare(new FeelValues { Sprint = false }, true, 1f), Is.EqualTo(1f), "the switch off: today's speed");
-            Assert.That(SprintRules.SpeedShare(new FeelValues { SprintRampTime = 0f }, true, 0f), Is.EqualTo(1.5f), "no ramp: at once");
+            Assert.That(SprintRules.SpeedShare(new FeelValues { SprintRampTime = 0f }, true, 0f), Is.EqualTo(1.3f), "no ramp: at once");
             // 18 m in 2 s where she ran 12, short of it by the ramp's 0.15 m (half of the 3 m/s more, for 0.1 s).
             float metres = 0f;
             for (int i = 0; i < 2000; i++) metres += Feel.RunSpeed * SprintRules.SpeedShare(Feel, true, (i + 0.5f) * 0.001f) * 0.001f;

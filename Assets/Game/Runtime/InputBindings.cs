@@ -81,7 +81,7 @@ namespace Roguelike
         public Key Interact = Key.E;
         [Tooltip("Held: take cover against a wall or prop in reach (Kristian 2026-11-19, an experiment). An asset made before it has no such line and gets Left Ctrl.")]
         public Key TakeCover = Key.LeftCtrl;
-        [Tooltip("Held with a move key: sprint, half again her run speed, no shots, over the low props (work order 092, Kristian 2026-11-23). An asset made before it has no such line and gets Left Shift.")]
+        [Tooltip("Held with a move key: sprint, faster than her run (FeelValues.SprintSpeedShare), no shots, over the low props (work order 092, Kristian 2026-11-23). An asset made before it has no such line and gets Left Shift.")]
         public Key Sprint = Key.LeftShift;
         [Tooltip("Opens her sheet, every stat and each skill's numbers; it or Esc closes it (work order 095, Kristian 2026-11-23). An asset made before it has no such line and gets Tab.")]
         public Key Sheet = Key.Tab;
