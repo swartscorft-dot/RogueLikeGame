@@ -44,6 +44,8 @@ namespace Roguelike.Rules.Tests
             { PlaceholderSound.WardHum, 1.2f }, { PlaceholderSound.WardBreaks, 0.35f },
             // Changed deliberately (work order 109): the three new skills' sounds.
             { PlaceholderSound.RicochetJump, 0.09f }, { PlaceholderSound.SmokePuff, 0.4f }, { PlaceholderSound.DeadeyeAim, 0.45f },
+            // Changed deliberately (work order 108): the lancer's wind-up, charge and crash.
+            { PlaceholderSound.LancerWindup, 0.6f }, { PlaceholderSound.LancerCharge, 0.35f }, { PlaceholderSound.LancerCrash, 0.4f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;

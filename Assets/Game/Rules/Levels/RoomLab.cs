@@ -20,11 +20,18 @@ namespace Roguelike.Rules
     {
         public readonly string Name;
         public readonly int Floor;
+        /// <summary>
+        /// Work order 108: lancers this mix stands in its room (in a combat room, each in place of a swarmer, after the floor's own
+        /// bombers and warders; with <see cref="LevelValues.Lancers"/> on): the floors hold none yet (<see cref="LevelLancers"/>),
+        /// so the lab's preset "floor 4 with a lancer" is where he meets one in a room. 0 for every mix of the floors' own.
+        /// </summary>
+        public readonly int Lancers;
 
-        public LabMix(string name, int floor)
+        public LabMix(string name, int floor, int lancers = 0)
         {
             Name = name;
             Floor = floor;
+            Lancers = lancers;
         }
 
         public override string ToString() => Name;
@@ -94,6 +101,7 @@ namespace Roguelike.Rules
             new LabMix("floor 3", 3),
             new LabMix("floor 4", 4),
             new LabMix("floor 5", 5),
+            new LabMix("floor 4 with a lancer", 4, lancers: 1), // work order 108: the lancer in a room, as the floors do not hold one yet
         };
 
         public static string Word(LabKind kind) =>
@@ -191,13 +199,19 @@ namespace Roguelike.Rules
                 EnemyKind[] kinds = v.EliteKinds(mix.Floor);
                 groups.Add(new EnemyGroup(kinds[rng.Below(kinds.Length)], 1, elite: true));
             }
-            if (BombersIn(kind, mix, v) <= 0 && WardersIn(kind, mix, groups, v) <= 0) return groups;
+            // Work order 108: a mix's lancers, after the floor's bombers and warders, each in place of a swarmer (no draw of its own).
+            List<EnemyGroup> Lanced(List<EnemyGroup> g)
+            {
+                if (mix.Lancers > 0 && v.Lancers && k == RoomKind.Combat) LevelLancers.Convert(g, mix.Lancers);
+                return g;
+            }
+            if (BombersIn(kind, mix, v) <= 0 && WardersIn(kind, mix, groups, v) <= 0) return Lanced(groups);
             ulong floorSeed = rng.NextBits();
             var fights = new List<List<EnemyGroup>> { new List<EnemyGroup>(), groups };
             if (k == RoomKind.Combat) fights.Add(new List<EnemyGroup>());
             LevelBombers.Put(fights, floorSeed, mix.Floor, v);
             LevelWarders.Put(fights, floorSeed, mix.Floor, v);
-            return groups;
+            return Lanced(groups);
         }
 
         /// <summary>
@@ -265,6 +279,11 @@ namespace Roguelike.Rules
             int wardersMost = LevelWarders.Most(v, room.Kind, mix != null ? mix.Floor : level.Floor, false, othersThanWarders);
             if (warders > wardersMost) faults.Add($"{Name(room)} holds {warders} warders, and its floor at most {wardersMost}");
             if (room.EnemyGroups.Any(g => g != null && g.Kind == EnemyKind.Warder && (g.Count != 1 || g.Elite || g.Boss))) faults.Add($"{Name(room)} has a warder not alone");
+            // Work order 108: the lancers, no more than the mix stands (none with their switch off, none outside a combat room), each alone.
+            int lancers = LevelLancers.Count(room.EnemyGroups);
+            int lancersMost = mix != null && v.Lancers && room.Kind == RoomKind.Combat ? mix.Lancers : 0;
+            if (lancers > lancersMost) faults.Add($"{Name(room)} holds {lancers} lancers, and its mix at most {lancersMost}");
+            if (room.EnemyGroups.Any(g => g != null && g.Kind == EnemyKind.Lancer && (g.Count != 1 || g.Elite || g.Boss))) faults.Add($"{Name(room)} has a lancer not alone");
 
             // The theme and the props, as the validator holds a floor's room to them.
             if (room.Theme != RoomTheme.None && (Array.IndexOf(RoomThemes.ThemesFor(room.Kind), room.Theme) < 0 || v.ThemeRules?.Of(room.Theme, room.Kind) == null))

@@ -47,6 +47,12 @@ namespace Roguelike
         /// orange (1, 0.55, 0.32).
         /// </summary>
         public static readonly Color EliteTint = new Color(1f, 0.86f, 0.22f);
+        /// <summary>
+        /// The lancer's colour (work order 108): a dark blood red, its capsule's and the tint over the skeleton warrior's model it
+        /// wears (the brute's, untinted bone), so it is its own kind at a glance; far from the daze's pale blue, the elite's gold,
+        /// the bomber's ember, the warder's green and the angry boss's orange (1, 0.55, 0.32).
+        /// </summary>
+        public static readonly Color LancerTint = new Color(0.72f, 0.18f, 0.2f);
 
         /// <summary>
         /// One enemy of a kind, standing at <paramref name="at"/> (on the ground), under <paramref name="parent"/>.
@@ -137,6 +143,17 @@ namespace Roguelike
                     color = WarderTint;
                     go.transform.localScale = Vector3.one * Mathf.Max(0.1f, w.Tuning.Shown);
                     enemy = w;
+                    break;
+                }
+                case EnemyKind.Lancer:
+                {
+                    // Work order 108: tall, blood red, a lance in its hands; shown larger than a brute, whose model it wears.
+                    var l = go.AddComponent<EnemyLancer>();
+                    radius = l.Tuning.BodyRadius;
+                    height = l.Tuning.BodyHeight;
+                    color = LancerTint;
+                    go.transform.localScale = Vector3.one * Mathf.Max(0.1f, l.Tuning.Shown);
+                    enemy = l;
                     break;
                 }
                 case EnemyKind.Boss:

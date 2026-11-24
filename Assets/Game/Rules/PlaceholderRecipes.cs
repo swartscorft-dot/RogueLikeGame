@@ -321,6 +321,26 @@ namespace Roguelike.Rules
                         Sine(660f, 1320f, 0f, 0.42f, 0.8f, 0.03f, 0f, release: 0.04f),
                         Sine(990f, 1980f, 0f, 0.4f, 0.2f, 0.03f, 0f, release: 0.04f),
                         Noise(0.4f, 0.04f, 0.3f, 0.0005f, 0.006f, high: 5000f));
+                // ---- Work order 108 (the lancer), first guesses, made without hearing them ----
+                case PlaceholderSound.LancerWindup:
+                    // The lance coming down: a low scrape of noise rising through a band as it lowers, a rough low tone climbing
+                    // under it, and a cold high ring over the end (blue: it can be countered).
+                    return Recipe(0.6f, 1.3f,
+                        Noise(0f, 0.55f, 0.8f, 0.2f, 0.1f, low: 700f, lowTo: 2600f, high: 180f, highTo: 600f, release: 0.06f),
+                        Rough(Sine(85f, 140f, 0f, 0.55f, 0.6f, 0.2f, 0.1f, release: 0.06f), 1.8f),
+                        Sine(1480f, 1660f, 0.3f, 0.28f, 0.3f, 0.02f, 0.1f, release: 0.04f));
+                case PlaceholderSound.LancerCharge:
+                    // It sets off: a fast rush of noise sweeping up, a low drum under it.
+                    return Recipe(0.35f, 1.4f,
+                        Noise(0f, 0.35f, 1f, 0.05f, 0.1f, low: 1200f, lowTo: 7000f, high: 300f, highTo: 1500f, release: 0.06f),
+                        Rough(Sine(70f, 55f, 0f, 0.3f, 0.8f, 0.004f, 0.12f, release: 0.05f), 2f));
+                case PlaceholderSound.LancerCrash:
+                    // It meets a wall or a prop: a heavy dull crash (a rough low sine falling fast, wide dull noise), then a short
+                    // rattle of bone (quick wobbling bright noise).
+                    return Recipe(0.4f, 1.7f,
+                        Rough(Sine(110f, 45f, 0f, 0.3f, 1f, 0.001f, 0.09f, release: 0.04f), 2.4f),
+                        Noise(0f, 0.25f, 0.9f, 0.001f, 0.07f, low: 1800f, lowTo: 500f, release: 0.04f),
+                        Wobble(Noise(0.06f, 0.3f, 0.45f, 0.005f, 0.08f, low: 6000f, high: 1800f, release: 0.04f), 28f, 0.8f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,

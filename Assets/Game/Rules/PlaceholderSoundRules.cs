@@ -67,6 +67,10 @@ namespace Roguelike.Rules
         RicochetJump,  // Ricochet's shot jumped on to another enemy: a short bright metal ping
         SmokePuff,     // Smoke Round's cloud came up: a soft wide hiss
         DeadeyeAim,    // Deadeye's aim began: a short rising tone over its half second
+        // Work order 108 (the lancer, "Lansereren (ny fiende)", 2026-11-24): its own three, made in code.
+        LancerWindup,  // a lancer began its wind-up: a low scrape of the lance coming down, rising, with a cold ring over it
+        LancerCharge,  // a lancer began to run its charge: a fast rush of noise sweeping up, a low drum under it
+        LancerCrash,   // a lancer's charge met a wall, a shut door or a prop: a heavy dull crash and a rattle of bone
     }
 
     /// <summary>
@@ -92,6 +96,8 @@ namespace Roguelike.Rules
         WardStanding, WardFell,
         // Work order 109: Ricochet's shot jumped on, Smoke Round's cloud came up, Deadeye's aim began.
         RicochetJumped, SmokeCameUp, DeadeyeAimed,
+        // Work order 108: a lancer's charge set off (its run began), and its charge crashed on a wall, a shut door or a prop.
+        LancerCharged, LancerCrashed,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -214,6 +220,11 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.RicochetJump, 0.22f, 10),
             new PlaceholderSoundSetting(PlaceholderSound.SmokePuff, 0.3f, 4),
             new PlaceholderSoundSetting(PlaceholderSound.DeadeyeAim, 0.28f, 3),
+            // Work order 108, first guesses, made without hearing them: the wind-up as loud as a blue wind-up (it is one), the
+            // charge under the boss's, the crash between a strike and the boss's charge.
+            new PlaceholderSoundSetting(PlaceholderSound.LancerWindup, 0.4f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.LancerCharge, 0.4f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.LancerCrash, 0.45f, 4),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -259,6 +270,7 @@ namespace Roguelike.Rules
                 case SoundMoment.EnemyDied: return PlaceholderSound.EnemyDies;
                 case SoundMoment.WindupStarted:
                     if (ordinary) return null;
+                    if (kind == EnemyKind.Lancer) return PlaceholderSound.LancerWindup; // work order 108: its own, the lance coming down
                     return counterable ? PlaceholderSound.WindupBlue : PlaceholderSound.WindupRed;
                 case SoundMoment.EnemyStruck: return kind == EnemyKind.Shooter ? PlaceholderSound.Arrow : PlaceholderSound.Strike;
                 case SoundMoment.EnemyDazed: return PlaceholderSound.Dazed;
@@ -311,6 +323,9 @@ namespace Roguelike.Rules
                 case SoundMoment.RicochetJumped: return PlaceholderSound.RicochetJump;
                 case SoundMoment.SmokeCameUp: return PlaceholderSound.SmokePuff;
                 case SoundMoment.DeadeyeAimed: return PlaceholderSound.DeadeyeAim;
+                // Work order 108: the lancer's charge setting off, and its crash on a wall, a shut door or a prop.
+                case SoundMoment.LancerCharged: return PlaceholderSound.LancerCharge;
+                case SoundMoment.LancerCrashed: return PlaceholderSound.LancerCrash;
                 default: return null;
             }
         }

@@ -217,12 +217,26 @@ namespace Roguelike.Rules
             Clips = Caster.Clips,
         };
 
-        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber, Warder };
+        /// <summary>
+        /// The lancer (work order 108, 2026-11-24: "Lages av skjelettmodellene som finnes"): no model of its own (no new art). It
+        /// wears the brute's, the skeleton warrior, as made (the same file, height and clips, so the look measures it as the
+        /// brute's), shown larger (<see cref="LancerValues.Shown"/>) and tinted by its factory, its sword hidden and a lance made in
+        /// code in its hands (<see cref="LancerValues.LanceLength"/>). Its charge has no clip: through the wind-up it stands (Idle)
+        /// while it lowers the lance and leans, and it runs its charge in Run, as the boss's charge does.
+        /// </summary>
+        public static readonly EnemyModelSpec Lancer = new EnemyModelSpec
+        {
+            Kind = EnemyKind.Lancer, Name = Brute.Name, Height = Brute.Height,
+            WalkStride = Brute.WalkStride, RunStride = Brute.RunStride,
+            Clips = Brute.Clips,
+        };
+
+        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber, Warder, Lancer };
 
         public static EnemyModelSpec Of(EnemyKind kind) =>
             kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard
             : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : kind == EnemyKind.Bomber ? Bomber
-            : kind == EnemyKind.Warder ? Warder : Brute; // work order 079
+            : kind == EnemyKind.Warder ? Warder : kind == EnemyKind.Lancer ? Lancer : Brute; // work order 079; 108 the lancer
 
         /// <summary>
         /// The clip's own name in a take name as an exporter writes it: "Armature|Idle" is "Idle". The part after the

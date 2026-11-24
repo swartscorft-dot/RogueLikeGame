@@ -253,6 +253,8 @@ namespace Roguelike.Rules
         public List<BossFightRow> BossFights = new List<BossFightRow>();
         /// <summary>Work order 109: the three new skills' own counts (SessionSummaryNewSkills.cs); none for a log without them.</summary>
         public NewSkillStats NewSkills = new NewSkillStats();
+        /// <summary>Work order 108: the lancers' charges and how they ended (SessionSummaryLancers.cs); none for a log from before.</summary>
+        public LancerStats Lancers = new LancerStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -484,6 +486,7 @@ namespace Roguelike.Rules
             stats.CasterPosts = ComputeCasterPosts(events); // work order 101
             stats.BossFights = ComputeBossFights(events); // work order 106
             stats.NewSkills = ComputeNewSkills(events); // work order 109
+            stats.Lancers = ComputeLancers(events); // work order 108
             return stats;
         }
 
@@ -705,6 +708,7 @@ namespace Roguelike.Rules
             }
             WriteBombers(sb, stats); // work order 073
             WriteWarders(sb, stats); // work order 079
+            WriteLancers(sb, stats.Lancers); // work order 108: nothing without a lancer's charge
             LabRoomsSummary.Write(sb, stats.LabRooms); // work order 084: nothing without the lab
             FrameTimesSummary.Write(sb, stats.Frames); // work order 074: its own block, under every line before it
             WriteRoomUse(sb, stats.RoomUse); // work order 097: its own block, at the end
