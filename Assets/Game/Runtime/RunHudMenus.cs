@@ -610,7 +610,7 @@ namespace Roguelike
             }
             for (int b = 0; b < 3; b++)
             {
-                string text = b == 0 ? "Enter  new run" : b == 1 ? EndSameRunButton : EndPracticeButton;
+                string text = b == 0 ? EndNewRunButton : b == 1 ? EndSameRunButton : EndPracticeButton;
                 MenuWords.Button(text, out _buttonKey[b], out _buttonWords[b]);
                 _buttonWords[b] = _buttonWords[b].ToUpperInvariant();
                 _buttonCapW[b] = _buttonKey[b].Length > 0 ? Mathf.Max(m.KeyCapHeight * 1.35f, InterfaceStyle.Measure(_buttonKey[b], CapStyle(m)).x + 18f) : 0f;

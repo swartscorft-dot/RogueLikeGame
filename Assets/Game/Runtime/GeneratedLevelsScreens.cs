@@ -85,7 +85,7 @@ namespace Roguelike
             if (Ending == EndKind.None) return false;
             switch (answer)
             {
-                case EndAnswer.NewRun: StartNewRun(); break;
+                case EndAnswer.NewRun: if (!StartMenu.TakeEndScreen(this)) StartNewRun(); break; // work order 114: with the start menu, its main menu
                 case EndAnswer.SameRun: RestartRun(); break;
                 default: BackToPracticeRoom(); break;
             }

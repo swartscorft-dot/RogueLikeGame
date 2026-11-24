@@ -569,11 +569,11 @@ namespace Roguelike
             {
                 // Work order 066: F5 works in every build; F6, F7, F8 to F12 and C only while the developer's keys are on.
                 bool dev = DeveloperKeys.On;
-                if (dev && ToolKeys(keyboard)) { } // work order 084: the greybox view's and the room lab's keys (GeneratedLevelsGreybox.cs)
+                if (dev && !StartMenu.Holds && ToolKeys(keyboard)) { } // work order 084 (not under the start menu, work order 114): the greybox view's and the room lab's keys (GeneratedLevelsGreybox.cs)
                 else if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
                 else if (dev && keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
                 else if (dev && keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
-                else if (Paused || Ending != EndKind.None || BetweenRunsUp) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029)
+                else if (Paused || Ending != EndKind.None || BetweenRunsUp || StartMenu.Holds) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029), or the start menu (114)
                 else if (dev && keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
                 else if (dev && keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (dev && keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
