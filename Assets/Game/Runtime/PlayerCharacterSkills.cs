@@ -417,9 +417,10 @@ namespace Roguelike
             _cursorOnCamera && Feel.AimAtShotHeight ? new Vector3(transform.position.x - _cursorReadFrom.x, 0f, transform.position.z - _cursorReadFrom.z) : Vector3.zero;
 
         /// <summary>
-        /// Work order 094: the cursor's point slid along its ray to another height. The Laser Sight's line is drawn after the
-        /// animation has moved her pistols (at a run by up to a tenth of a metre a frame), at a height a little off the one the
-        /// driver met the ray at; the point under the ray at the line's own height keeps the line through the cursor. Both
+        /// Work order 094: the cursor's point slid along its ray to another height. The shot's aim line (<see cref="BasicShotAimLine"/>;
+        /// until work order 102 the Laser Sight's line) is read after the animation has moved her pistols (at a run by up to a
+        /// tenth of a metre a frame), at a height a little off the one the driver met the ray at; the point under the ray at the
+        /// line's own height keeps the line through the cursor. Both
         /// points the driver gave lie under the one ray, which runs straight, so the point at any height lies on the line
         /// through them, as far along as the height is. Any other point, and with the switch off, as it is.
         /// </summary>

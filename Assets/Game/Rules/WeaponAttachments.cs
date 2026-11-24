@@ -66,7 +66,7 @@ namespace Roguelike.Rules
         public float MovingSpeedShare;
         /// <summary>A basic shot started on the move deals this share of its damage.</summary>
         public float MovingDamageScale = 1f;
-        /// <summary>A line shows where the basic shot would end (the Laser Sight).</summary>
+        /// <summary>A thin red beam shows on her pistols, along each barrel (the Laser Sight; work order 102: until then a line showed where the basic shot would end).</summary>
         public bool ShowsLine;
 
         public WeaponAttachment() { }
@@ -90,7 +90,8 @@ namespace Roguelike.Rules
     /// table, in its order: decision 0014's proposal, every number a first guess he will judge by playing). Each is unlocked
     /// by buying it for <see cref="WeaponAttachment.Price"/> Echoes, and fitted at once. Each of these four is a trade, by the
     /// proposal; a later part may be a plain gain (Kristian, 2026-11-21: "ikke nødvendigvis et bytte").
-    /// - Laser Sight (sight, 30): reach +2 m (10 to 12), a line shows where the shot would end; its cost a narrower shot
+    /// - Laser Sight (sight, 30): reach +2 m (10 to 12), a thin red beam on her pistols (work order 102; it was a line showing
+    ///   where the shot would end); its cost a narrower shot
     ///   (half width 0.5 to 0.35 m). Kristian's own example, given a cost so it is a choice (0014: a plain "+range" sight
     ///   would be the chest's Longer barrel bought for good).
     /// - Ghost Ring (sight, 30): a wider shot (half width 0.5 to 0.8 m); its cost reach 10 to 8 m.
@@ -122,7 +123,7 @@ namespace Roguelike.Rules
         public static WeaponAttachment[] Create() => new[]
         {
             new WeaponAttachment(LaserSight, "Laser Sight", WeaponKind.Pistols, WeaponSlot.Sight, 30,
-                                 "A line shows where the shot would end. Reach 12 m.", "The shot's line is narrower: aim truer.")
+                                 "A red beam on her pistols. Reach 12 m.", "The shot's line is narrower: aim truer.") // work order 102: it was "A line shows where the shot would end. Reach 12 m."
                 { ReachAdd = 2f, HalfWidthScale = 0.7f, ShowsLine = true },
             new WeaponAttachment(GhostRing, "Ghost Ring", WeaponKind.Pistols, WeaponSlot.Sight, 30,
                                  "A wider shot, forgiving up close.", "Reach 8 m.")

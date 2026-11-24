@@ -7,7 +7,8 @@ namespace Roguelike
 {
     /// <summary>
     /// The basic shot of <see cref="PlayerCharacter"/>: the click, the shot's start, what it hits, the pistols' reach and parts,
-    /// and the Laser Sight's line (work order 081 moved them here from PlayerCharacter.cs, code unchanged).
+    /// and the Laser Sight's beams (work order 081 moved them here from PlayerCharacter.cs, code unchanged; work order 102 made
+    /// the line a beam on each pistol).
     /// </summary>
     public sealed partial class PlayerCharacter
     {
@@ -24,7 +25,7 @@ namespace Roguelike
         /// <summary>Her pistols' parts in the run (work order 060), or null outside a run: the stock gun.</summary>
         public AttachmentEffects Weapon => Modifiers != null ? Modifiers.Weapon : null;
 
-        /// <summary>The Laser Sight's line (work order 060); its object exists only once it has shown.</summary>
+        /// <summary>The Laser Sight's beams (work order 060; 102); its objects exist only once she has had the part.</summary>
         public LaserSight Laser => _laser;
 
         /// <summary>
@@ -107,7 +108,7 @@ namespace Roguelike
 
             GroundPoint origin = GroundPosition;
             var aim = new GroundPoint(_aimPoint.x, _aimPoint.z);
-            // Work order 060: where it ends is one calculation, the Laser Sight's line's too (BasicShotEnd).
+            // Work order 060: where it ends is one calculation (BasicShotEnd). Work order 102: the Laser Sight no longer draws it.
             Damageable hit = BasicShotEnd(origin, aim, out float range, out float stop);
             float halfWidth = BasicShotHalfWidth; // work order 060: a sight's
 
@@ -145,7 +146,7 @@ namespace Roguelike
 
         /// <summary>
         /// Where a basic shot from <paramref name="origin"/> toward <paramref name="aim"/> ends now (work order 060: the one
-        /// calculation, for the shot and the Laser Sight's line, so the two never disagree): the first living target its line
+        /// calculation; until work order 102 the Laser Sight's line was drawn by it too): the first living target its line
         /// touches before any cover (returned), or null; its reach (<paramref name="range"/>) and where cover stops its
         /// centre line (<paramref name="stop"/>, the range when nothing does). Nothing is allocated.
         /// </summary>
@@ -160,47 +161,67 @@ namespace Roguelike
             return index >= 0 ? all[index] : null;
         }
 
-        // ---------------- The Laser Sight's line (work order 060) ----------------
+        // ---------------- The Laser Sight's beams (work order 060; 102) ----------------
 
-        void LateUpdate() => TickLaser();
+        // Work order 102: her LateUpdate only makes the beams' objects the first time she has the part; they are drawn later in
+        // the frame, after her arms are posed (LaserSightLate).
+        void LateUpdate()
+        {
+            if (LaserWanted) _laser.Ensure(this);
+        }
 
         /// <summary>
-        /// The Laser Sight's line, once a frame (and by tests): shown in a run with a part fitted that shows it
-        /// (<see cref="AttachmentEffects.ShowsLine"/>), while she is alive, not dashing, not stunned, and no screen or choice
-        /// holds the game. It runs from her at the height the next shot's streak leaves the gun, along the live cursor as the
-        /// shot aims, to where the basic shot would end now (<see cref="BasicShotEnd"/>): the first living target (a brighter
-        /// square there), the cover that stops it, or its full reach. It never alternates the hands: the muzzle is only looked at.
+        /// Work order 102: the beams show whenever she is alive in a run with a part fitted that shows them
+        /// (<see cref="AttachmentEffects.ShowsLine"/>): in the dash and when stunned too, and under a screen or a choice that
+        /// holds the game (Kristian, 2026-11-24: "hele tiden"; the world stands still under them, the beams with it).
+        /// </summary>
+        bool LaserWanted
+        {
+            get
+            {
+                if (Modifiers == null || !Modifiers.Weapon.ShowsLine) return false;
+                if (_herHealth == null) _herHealth = GetComponent<PlayerHealth>();
+                return _herHealth == null || _herHealth.IsAlive;
+            }
+        }
+
+        /// <summary>
+        /// The Laser Sight's beams, once a frame after her arms are posed (<see cref="LaserSightLate"/>), and by tests. Work order
+        /// 102 (Kristian, 2026-11-24, of 060's line from her middle along the cursor to where the shot would end, which jumped to
+        /// an enemy's middle: "sikte 'snapper' til fienden, det liker jeg ikke i det hele tatt ... vil at de skal følge våpenets
+        /// retning hele tiden"): a thin red beam from each pistol's muzzle along its barrel (<see cref="LaserSight"/>), while
+        /// <see cref="LaserWanted"/>; a muzzle that is missing or hidden (her model not shown) shows none. It reads no cursor,
+        /// no target and nothing of the shot.
         /// </summary>
         public void TickLaser()
         {
-            bool show = Modifiers != null && Modifiers.Weapon.ShowsLine && !_dashing && !IsStunned
-                        && !PlayerInputDriver.HeldByScreen && !PlayerInputDriver.HeldByChoice;
-            if (show && _herHealth == null) _herHealth = GetComponent<PlayerHealth>();
-            if (show && _herHealth != null && !_herHealth.IsAlive) show = false;
-            if (!show)
+            if (!LaserWanted)
             {
                 _laser.Hide();
                 return;
             }
-            GroundPoint origin = GroundPosition;
+            _laser.Draw(this, RightMuzzle, LeftMuzzle, Time.time);
+        }
+
+        /// <summary>
+        /// Where the basic shot aims now, as a line at the gun's height (<see cref="ShotHeight"/>) from her, along the live cursor
+        /// as the shot aims (work order 094's aim), out to its full reach, whatever it would meet; for tests and tools. Until work
+        /// order 102 the Laser Sight's line was drawn along it; now nothing draws it. Nothing is allocated, nothing changes.
+        /// </summary>
+        public void BasicShotAimLine(out Vector3 from, out Vector3 to)
+        {
             float height = ShotHeight;
-            Vector3 aimEnd = AimEnd(AtHeight(_shotCursor, height)); // work order 094: under the cursor at the height it is drawn at
-            var aim = new GroundPoint(aimEnd.x, aimEnd.z);
-            Damageable hit = BasicShotEnd(origin, aim, out float range, out float stop);
-            Vector3 end = hit != null ? hit.transform.position : aimEnd;
-            if (hit == null && stop < range)
-            {
-                GroundPoint at = CoverStopPoint(origin, aim, stop);
-                end = new Vector3(at.X, 0f, at.Z);
-            }
+            Vector3 aimEnd = AimEnd(AtHeight(_shotCursor, height)); // work order 094: under the cursor at the gun's height
             Vector3 p = transform.position;
-            _laser.Show(new Vector3(p.x, height, p.z), new Vector3(end.x, height, end.z), hit, ShotFxMaterial);
+            from = new Vector3(p.x, height, p.z);
+            to = new Vector3(aimEnd.x, height, aimEnd.z);
         }
 
         /// <summary>
         /// The one height the shot is drawn and aimed at (work order 094): the next shot's muzzle (<see cref="MuzzleHeightNext"/>).
-        /// The Laser Sight's line is drawn at it, the streak leaves the gun at it, and the input driver meets the cursor's ray
-        /// with the level plane at it (<see cref="FeelValues.AimAtShotHeight"/>), so the line passes through the cursor on the screen.
+        /// The streak leaves the gun at it, and the input driver meets the cursor's ray with the level plane at it
+        /// (<see cref="FeelValues.AimAtShotHeight"/>), so the shot's line passes through the cursor on the screen
+        /// (<see cref="BasicShotAimLine"/>; work order 102: the Laser Sight's beams no longer follow it).
         /// </summary>
         public float ShotHeight => MuzzleHeightNext();
 

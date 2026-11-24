@@ -56,7 +56,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(WeaponRack.WholePrice(v), Is.EqualTo(150), "the whole set");
             Assert.That(v.Parts.Select(p => p.Line), Is.EqualTo(new[]
             {
-                "A line shows where the shot would end. Reach 12 m.", "A wider shot, forgiving up close.",
+                "A red beam on her pistols. Reach 12 m.", "A wider shot, forgiving up close.", // work order 102: the Laser Sight's words no longer promise where the shot ends
                 "Each shot hits 35 % harder and staggers.", "Shooting on the move slows you to 75 %, not 50 %.",
             }));
             Assert.That(v.Parts.Select(p => p.CostLine), Is.EqualTo(new[]

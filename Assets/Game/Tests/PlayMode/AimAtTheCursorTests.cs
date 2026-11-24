@@ -16,8 +16,10 @@ namespace Roguelike.PlayModeTests
     /// the shot goes where the cursor is ON THE SCREEN. Measured with the game's own camera at its default distance, through
     /// the input driver as the mouse feeds it, with the Laser Sight fitted: the cursor is put on the screen 6 m from her gun
     /// at eight bearings (east and west on the row of her gun), and for each the angle on the screen between (her gun's screen
-    /// point to the cursor) and (the drawn line's two screen ends), and how far the line passes from the cursor, in pixels at
-    /// 1080 rows and in metres at the line's height. Standing, and running north at full speed. Then the body under the
+    /// point to the cursor) and (the shot's aim line's two screen ends), and how far the line passes from the cursor, in pixels
+    /// at 1080 rows and in metres at the line's height. Work order 102: the Laser Sight's line no longer follows the cursor (its
+    /// beams follow her barrels), so these measure the shot's own aim line (<see cref="PlayerCharacter.BasicShotAimLine"/>,
+    /// the calculation the line was drawn by until then). Standing, and running north at full speed. Then the body under the
     /// cursor at 8 m east is hit, and a skill placed on the ground still lands under the cursor.
     /// </summary>
     public class AimAtTheCursorTests
@@ -38,6 +40,9 @@ namespace Roguelike.PlayModeTests
         int _skillOnce;
         readonly HashSet<ShotFx> _seenStreaks = new HashSet<ShotFx>();
         readonly List<Damageable> _putAway = new List<Damageable>();
+        // Work order 102: the shot's aim line as each frame's end left it (after her move, her pose and the camera's), as the
+        // Laser Sight's line was drawn late in the frame until then.
+        Vector3 _lineFrom, _lineTo;
 
         [UnitySetUp]
         public IEnumerator LoadScene()
@@ -65,6 +70,8 @@ namespace Roguelike.PlayModeTests
                 _skillOnce = 0;
                 return f;
             };
+            var end = new GameObject("AimTest_FramesEnd").AddComponent<LooksAtTheFramesEnd>(); // goes with the scene
+            end.Look = () => { if (_player != null) _player.BasicShotAimLine(out _lineFrom, out _lineTo); };
             // Nothing in the way of the line: every target is put away (a test that wants one brings it back).
             _putAway.Clear();
             _putAway.AddRange(Damageable.All);
@@ -105,7 +112,7 @@ namespace Roguelike.PlayModeTests
             float worstPx = 0f, worstDeg = 0f;
             foreach ((string name, float bearing) in Bearings)
             {
-                Vector3 gun = _player.Laser.From;
+                Vector3 gun = AimFrom();
                 Vector3 at = gun + Compass(bearing) * CursorMetres; // at the gun's height: east and west lie on its row of the screen
                 _cursor = ScreenOf(at);
                 for (int i = 0; i < 4; i++) yield return null;
@@ -129,7 +136,7 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return null;
             yield return UntilLaser();
-            _cursor = ScreenOf(_player.Laser.From + Vector3.right * CursorMetres);
+            _cursor = ScreenOf(AimFrom() + Vector3.right * CursorMetres);
             _move = Vector2.up; // W: up the screen, north
             Vector3 last = _player.Position;
             int moving = 0;
@@ -226,7 +233,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator TheSwitchOff_GivesTheOldAim_TheCursorsGroundPoint_AndOn_ThePointAtTheGunsHeight()
         {
             yield return UntilLaser();
-            _cursor = ScreenOf(_player.Laser.From + Vector3.right * CursorMetres);
+            _cursor = ScreenOf(AimFrom() + Vector3.right * CursorMetres);
             _player.Feel.AimAtShotHeight = false;
             for (int i = 0; i < 4; i++) yield return null;
             Vector3 ground = Flat(OnLevel(_cursor, 0f));
@@ -275,10 +282,10 @@ namespace Roguelike.PlayModeTests
             public override string ToString() => $"{Degrees,6:+0.00;-0.00;0.00} deg   {Px1080,5:0.0} px   {Metres:0.000} m";
         }
 
-        /// <summary>The drawn line (the Laser Sight's two ends, on the screen) against the cursor.</summary>
+        /// <summary>The shot's aim line (its two ends, on the screen; until work order 102 the Laser Sight's drawn line) against the cursor.</summary>
         Sample Measure()
         {
-            Vector3 from = _player.Laser.From, to = _player.Laser.To;
+            Vector3 from = _lineFrom, to = _lineTo;
             Vector2 fs = ScreenOf(from), ts = ScreenOf(to);
             Vector2 line = ts - fs, toCursor = _cursor - fs;
             // How far the cursor lies off the line, + when the line passes anticlockwise of it (above it, pointing east).
@@ -321,10 +328,14 @@ namespace Roguelike.PlayModeTests
             return b;
         }
 
+        /// <summary>Where the shot's aim line leaves her, at the gun's height, as the last frame's end left it (until work order 102 the Laser Sight's line's start).</summary>
+        Vector3 AimFrom() => _lineFrom;
+
+        /// <summary>Frames until the cursor has reached her (until work order 102: until the Laser Sight's line showed).</summary>
         IEnumerator UntilLaser()
         {
-            yield return For(() => _player.Laser != null && _player.Laser.Shown, 2f);
-            Assert.That(_player.Laser != null && _player.Laser.Shown, Is.True, "the Laser Sight's line shows");
+            yield return For(() => _player.HasLookPoint && _lineFrom != Vector3.zero, 2f);
+            Assert.That(_player.HasLookPoint, Is.True, "the cursor has reached her");
         }
 
         /// <summary>Frames until the condition holds, or this many seconds of game time (and a few more of real time) have gone.</summary>
