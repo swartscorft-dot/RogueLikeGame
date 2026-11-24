@@ -21,11 +21,11 @@ namespace Roguelike.PlayModeTests
     /// on), in the ControlRoom scene, through the intents. Off (the default): with the between-runs trial on and a save that
     /// owns every part, the screen, a run's basic shot, its earnings and the save are 029's, and no laser object exists; with
     /// the trial off nothing is shown, earned or written. On: a run that clears floor 1 earns its rooms too, the end screen
-    /// says so and what the Echoes buy; buying the Laser Sight on the screen fits it, and in the next run its line ends on a
-    /// dummy and at cover; each part is felt only when fitted (reach, width, damage, stagger, the interval counted over real
+    /// says so and what the Echoes buy; buying the Laser Sight on the screen fits it, and in the next run its beams show from
+    /// her muzzles and never end on the dummy her shot aims at, and the shot still ends at cover (work order 102); each part is felt only when fitted (reach, width, damage, stagger, the interval counted over real
     /// time, the speed on the move); no timing window changes; the practice room keeps the stock gun; the pause menu's line
     /// turns both switches on, and its stats name the parts; the recorder writes the weapon only when on; a run started as the
-    /// test pilot starts one has the stock gun; and the line allocates nothing per frame.
+    /// test pilot starts one has the stock gun; and the beams allocate nothing per frame.
     ///
     /// The save is written only under a temporary folder of each test (<see cref="GeneratedLevels.BetweenRunsSavePath"/>, set
     /// before any switch is on), and the game's own save file is checked untouched, its bytes and its time, at the end. Every
@@ -431,7 +431,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_hud.WeaponLines[1], Is.EqualTo("put together before the run: owned parts fit and come off freely"));
             Assert.That(_hud.WeaponLines.Where(l => !l.Contains("\n")).Skip(2), Is.EqualTo(new[] { "Pistols:  the basic shot", "SIGHT", "BARREL", "GRIP" }),
                         "the weapon's head, then a head each slot");
-            StringAssert.StartsWith("Laser Sight   30 Echoes, 30 more\nA line shows where the shot would end. Reach 12 m.\nCost:  The shot's line is narrower: aim truer.", _hud.WeaponText.Split(new[] { "SIGHT\n" }, StringSplitOptions.None)[1]);
+            StringAssert.StartsWith("Laser Sight   30 Echoes, 30 more\nA red beam on her pistols. Reach 12 m.\nCost:  The shot's line is narrower: aim truer.", _hud.WeaponText.Split(new[] { "SIGHT\n" }, StringSplitOptions.None)[1]); // work order 102: its words
             Assert.That(_levels.StartFromBetweenRuns(), Is.Not.Null);
             yield return null;
             _health.Untouchable = true;
@@ -468,7 +468,8 @@ namespace Roguelike.PlayModeTests
             MetaState saved = MetaSaveFile.Load(SavePath, new MetaValues(), out _, out _);
             Assert.That(saved.AttachmentsFitted, Is.EqualTo(new[] { WeaponAttachments.LaserSight }), "the save is written");
 
-            // The run from the screen: in floor 1's first room, the line ends on a dummy in its path.
+            // The run from the screen: in floor 1's first room, the beams show from her muzzles (work order 102: no longer a line
+            // that ends on the dummy her aim passes, nor a square on it).
             Assert.That(_levels.StartFromBetweenRuns(), Is.Not.Null);
             yield return null;
             Assert.That(_levels.Modifiers.Weapon.Parts, Is.EqualTo(new[] { "Laser Sight" }));
@@ -479,42 +480,46 @@ namespace Roguelike.PlayModeTests
             Physics.SyncTransforms();
             yield return null;
             yield return null;
-            Assert.That(_player.Laser.Shown, Is.True, "the line shows");
-            Assert.That(_player.Laser.Target, Is.SameAs(_a), "and ends on the dummy");
-            Assert.That(Vector3.Distance(Flat(_player.Laser.To), Flat(_a.transform.position)), Is.LessThan(1e-3f));
-            Assert.That(_player.Laser.DotShown, Is.True, "with its square there");
-            Assert.That(_player.Laser.From.y, Is.GreaterThan(0.1f), "at the gun's height");
+            LaserSight laser = _player.Laser;
+            Assert.That(laser.Shown, Is.True, "the beams show");
+            for (int b = 0; b < LaserSight.Count; b++)
+            {
+                Transform muzzle = b == LaserSight.Right ? _player.RightMuzzle : _player.LeftMuzzle;
+                Assert.That(laser.ShownOf(b), Is.True, "from each pistol");
+                Assert.That(Vector3.Distance(laser.FromOf(b), muzzle.position), Is.LessThan(0.05f), "at its muzzle");
+                Assert.That(laser.DotShownOf(b), Is.False, "no dot or square");
+                Assert.That(Vector3.Distance(Flat(laser.EndOf(b)), Flat(_a.transform.position)), Is.GreaterThan(0.3f), "never ending on the dummy's middle");
+                Assert.That(laser.LengthOf(b), Is.LessThanOrEqualTo(laser.Values.Length + 1e-4f));
+            }
 
-            // Cover between: it ends at the cover.
+            // Cover between: the shot still ends at the cover (the beams stop at what is in their own way: LaserBeamPlayTests).
             Vector3 pillarAt = _player.Position + way * 2f;
             Pillar(pillarAt);
             Physics.SyncTransforms();
             yield return null;
             yield return null;
-            Assert.That(_player.Laser.Target, Is.Null, "the pillar takes it");
-            Assert.That(_player.Laser.DotShown, Is.False);
             float stop = Cover.ClearDistance(_player.GroundPosition, new GroundPoint(_player.Position.x + way.x * 12f, _player.Position.z + way.z * 12f));
             Assert.That(stop, Is.LessThan(2f));
-            Assert.That(Vector3.Distance(Flat(_player.Laser.To), Flat(_player.Position)), Is.EqualTo(stop).Within(0.02f), "where the shot would stop");
-
-            // And the shot agrees.
             int hits = _a.HitsTaken;
+            Vector3 shotFrom = _player.Position;
             _player.Shoot(_player.Position + way * 8f);
             yield return Until(() => _player.ShotsStoppedByCover > 0, 2f);
-            Assert.That(Vector3.Distance(Flat(_player.LastCoverStop), Flat(_player.Laser.To)), Is.LessThan(0.02f), "the shot ends where the line does");
+            Assert.That(Vector3.Distance(Flat(_player.LastCoverStop), Flat(shotFrom)), Is.EqualTo(stop).Within(0.02f), "the shot ends at the cover");
             Assert.That(_a.HitsTaken, Is.EqualTo(hits));
 
-            // A screen holds the game: no line.
+            // Work order 102: a screen that holds the game leaves them as they are (the world stands still under it), and the
+            // dash shows them ("hele tiden").
             Assert.That(_hud.Escape(), Is.True);
             yield return null;
-            Assert.That(_player.Laser.Shown, Is.False, "not under the pause menu");
+            Assert.That(_player.Laser.Shown, Is.True, "under the pause menu too");
             _hud.Escape();
             yield return null;
             Assert.That(_player.Laser.Shown, Is.True);
             yield return UntilFree();
             Assert.That(_player.DashToward(_player.Position - way * 3f), Is.EqualTo(IntentResult.Started));
             yield return null;
-            Assert.That(_player.Laser.Shown, Is.False, "not while she dashes");
+            Assert.That(_player.IsDashing, Is.True);
+            Assert.That(_player.Laser.Shown, Is.True, "while she dashes too");
         }
 
         [UnityTest]
@@ -1010,7 +1015,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.Laser.Object, Is.Null);
         }
 
-        // ---------------- The line's cost ----------------
+        // ---------------- The beams' cost ----------------
 
         [UnityTest]
         public IEnumerator TheLine_WithTwentyTargetsAlive_AllocatesNothingPerFrame_AndItsCostIsMeasured()
@@ -1029,20 +1034,20 @@ namespace Roguelike.PlayModeTests
             Assert.That(Damageable.All.Count(d => d.IsAlive), Is.GreaterThanOrEqualTo(20), "twenty targets alive");
             _player.AimAt(_a.transform.position);
             yield return null;
-            Assert.That(_player.Laser.Shown, Is.True);
-            Assert.That(_player.Laser.Target, Is.SameAs(_a));
+            yield return null;
+            Assert.That(_player.Laser.Shown, Is.True, "the beams show"); // work order 102: they end on no target of the aim
 
             // The measure is the test framework's own (it counts the GC.Alloc samples on this thread); first, that it sees one.
             Assert.That(() => { s_junk = new byte[64]; }, AllocIs.AllocatingGCMemory(), "the measure sees an allocation");
             for (int i = 0; i < 10; i++) _player.TickLaser();
-            Assert.That(() => { for (int i = 0; i < 300; i++) _player.TickLaser(); }, AllocExt.AllocatingGCMemory(NUnit.Framework.Is.Not), "the line's frame allocates nothing");
+            Assert.That(() => { for (int i = 0; i < 300; i++) _player.TickLaser(); }, AllocExt.AllocatingGCMemory(NUnit.Framework.Is.Not), "the beams' frame allocates nothing");
 
             var watch = Stopwatch.StartNew();
             const int ticks = 2000;
             for (int i = 0; i < ticks; i++) _player.TickLaser();
             watch.Stop();
             double ms = watch.Elapsed.TotalMilliseconds / ticks;
-            Debug.Log("Work order 060: the Laser Sight's line costs " + ms.ToString("0.0000") + " ms a frame with " + Damageable.All.Count(d => d.IsAlive) + " targets alive");
+            Debug.Log("Work order 102: the Laser Sight's beams cost " + ms.ToString("0.0000") + " ms a frame with " + Damageable.All.Count(d => d.IsAlive) + " targets alive");
             Assert.That(ms, Is.LessThan(0.5), "well under a frame's budget");
             _player.Modifiers = null;
             yield return null;

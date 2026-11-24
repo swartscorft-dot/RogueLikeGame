@@ -280,7 +280,7 @@ namespace Roguelike
         // The quick duck (Kristian's answer of 2026-11-20 to the cover report, proposal C; work order 043).
         readonly QuickDuck _duck = new QuickDuck();
         readonly QuickDuckRim _rim = new QuickDuckRim();
-        readonly LaserSight _laser = new LaserSight(); // work order 060: the Laser Sight's line, made the first time it shows
+        readonly LaserSight _laser = new LaserSight(); // work order 060: the Laser Sight's line; 102: its beams, made the first time she has the part
         Shelter _duckShelter;   // what she ducked beside
         CoverShape _duckShape;  // its footprint at the tap
         Vector3 _duckHeldAtTap; // the move keys held at the tap, until they are let go
@@ -400,7 +400,7 @@ namespace Roguelike
         }
 
         // The quick duck's rim goes with her, its object and its mesh (the third review of 2026-11-20, work order 047); the
-        // Laser Sight's line too (work order 060).
+        // Laser Sight's beams too, their object, meshes and material (work order 060; 102).
         void OnDestroy()
         {
             _rim.Dispose();
