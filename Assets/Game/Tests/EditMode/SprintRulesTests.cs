@@ -62,10 +62,10 @@ namespace Roguelike.Rules.Tests
             Assert.That(SprintRules.SpeedShare(Feel, true, 30f), Is.EqualTo(1.3f), "no longest time: no stamina");
             Assert.That(SprintRules.SpeedShare(new FeelValues { Sprint = false }, true, 1f), Is.EqualTo(1f), "the switch off: today's speed");
             Assert.That(SprintRules.SpeedShare(new FeelValues { SprintRampTime = 0f }, true, 0f), Is.EqualTo(1.3f), "no ramp: at once");
-            // 18 m in 2 s where she ran 12, short of it by the ramp's 0.15 m (half of the 3 m/s more, for 0.1 s).
+            // 15.6 m in 2 s where she ran 12, short of it by the ramp's 0.09 m (half of the 1.8 m/s more, for 0.1 s).
             float metres = 0f;
             for (int i = 0; i < 2000; i++) metres += Feel.RunSpeed * SprintRules.SpeedShare(Feel, true, (i + 0.5f) * 0.001f) * 0.001f;
-            Assert.That(metres, Is.EqualTo(18f - 0.15f).Within(0.01f));
+            Assert.That(metres, Is.EqualTo(15.6f - 0.09f).Within(0.01f));
         }
 
         [Test]

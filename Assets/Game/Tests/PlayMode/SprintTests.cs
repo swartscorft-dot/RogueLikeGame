@@ -16,7 +16,7 @@ namespace Roguelike.PlayModeTests
     /// The sprint (work order 092; Kristian 2026-11-23: a sprint on Shift, no shots meanwhile, a jump over the blue props, a small
     /// stagger when hit; <see cref="SprintRules"/>), in a floor of a fixed seed built in the ControlRoom scene, its enemies taken away,
     /// through the intents (<see cref="PlayerCharacter.HoldSprint"/>, <see cref="PlayerCharacter.Steer(Vector3)"/>,
-    /// <see cref="PlayerCharacter.Shoot"/>) at a fixed 60 frames a second of game time: 18 m in 2 s where she ran 12; a click while
+    /// <see cref="PlayerCharacter.Shoot"/>) at a fixed 60 frames a second of game time: 15.6 m in 2 s where she ran 12; a click while
     /// sprinting fires nothing and is not kept, one after the release fires at once; she crosses a low prop the floor placed and
     /// stands on its far side on the NavMesh, and a tall one stops her; an arrow in her path meets her in the air and she is staggered
     /// on landing; hit while sprinting she stands still for the stagger, hit while running she does not; with the switch off she moves
@@ -124,7 +124,7 @@ namespace Roguelike.PlayModeTests
         // ---------------- How fast ----------------
 
         [UnityTest]
-        public IEnumerator Sprinting_SheGoes18MetresIn2Seconds_WhereSheRan12()
+        public IEnumerator Sprinting_SheGoes15Point6MetresIn2Seconds_WhereSheRan12()
         {
             Assert.That(FreeLine(out Vector3 a, out Vector3 b), Is.True, "a stretch of free floor in the built floor (seed " + Seed + " floor " + FloorNumber + ")");
             float ran = 0f, sprinted = 0f;
@@ -133,7 +133,7 @@ namespace Roguelike.PlayModeTests
             TestContext.WriteLine("SPRINT in 2 s of game time at 60 fps: ran " + ran.ToString("0.00", CultureInfo.InvariantCulture) + " m, sprinted "
                                   + sprinted.ToString("0.00", CultureInfo.InvariantCulture) + " m on a stretch of " + Flat(b - a).magnitude.ToString("0.0", CultureInfo.InvariantCulture) + " m");
             Assert.That(ran, Is.EqualTo(12f).Within(0.4f), "her run speed, 6 m/s");
-            Assert.That(sprinted, Is.EqualTo(18f).Within(0.5f), "the sprint's 9 m/s, full within 0.1 s");
+            Assert.That(sprinted, Is.EqualTo(15.6f).Within(0.5f), "the sprint's 7.8 m/s, full within 0.1 s");
             Assert.That(_reports.Count(r => r.Kind == PlayerReportKind.SprintStarted), Is.EqualTo(1));
         }
 
