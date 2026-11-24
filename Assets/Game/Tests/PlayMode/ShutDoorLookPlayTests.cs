@@ -372,7 +372,9 @@ namespace Roguelike.PlayModeTests
                     if (parts[1] == "Brazier" && room == entrance)
                     {
                         warm++;
-                        Assert.That(Diff(l.color, lamps.EntranceBrazier), Is.LessThan(1e-3f), "floor " + floor + ": the entrance's brazier warm by its named value: " + l.color);
+                        FloorPaletteView palette = level.GetComponent<FloorPaletteView>(); // changed deliberately (work order 105): on floor 2 times its palette's lamp tint
+                        Rgb want = palette != null ? FloorPaletteRules.Times(lamps.EntranceBrazier, palette.Palette.Lamps) : lamps.EntranceBrazier;
+                        Assert.That(Diff(l.color, want), Is.LessThan(1e-3f), "floor " + floor + ": the entrance's brazier warm by its named value: " + l.color);
                     }
                     else if (parts[1] == "Brazier" || parts[1] == "Lantern")
                     {
