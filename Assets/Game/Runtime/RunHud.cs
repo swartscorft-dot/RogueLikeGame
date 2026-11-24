@@ -58,7 +58,7 @@ namespace Roguelike
         /// CameraDistance (work order 083): the camera's distance, 28, 25 or 22 m, beside the kick. Light (work order 085): as
         /// before or one of three lamplit levels, under the greybox view (RunHudLight.cs).
         /// </summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, Music, MusicVolume }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -259,6 +259,8 @@ namespace Roguelike
                 case MenuLine.Light: ChangeSetting(line, 1); break; // work order 085
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
                 case MenuLine.Attachments: ChangeSetting(line, 1); break; // work order 060
+                case MenuLine.Music:
+                case MenuLine.MusicVolume: PickMusic(line); break; // work order 116 (RunHudMusic.cs)
             }
             return true;
         }
@@ -313,6 +315,11 @@ namespace Roguelike
             if (line == MenuLine.Attachments)
             {
                 FlipAttachments(); // work order 060 (RunHudWeapon.cs): on turns the trial on too
+                return true;
+            }
+            if (IsMusicLine(line))
+            {
+                ChangeMusic(line, delta); // work order 116 (RunHudMusic.cs)
                 return true;
             }
             return false;
@@ -522,6 +529,7 @@ namespace Roguelike
             _menu.Add(MenuLine.Greybox); // work order 084: the greybox view, under the camera's two lines
             _menu.Add(MenuLine.Light); // work order 085: as before or lamplit, under the greybox view (which wins over it)
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
+            AddMusicLines(); // work order 116: the music's switch and volume (RunHudMusic.cs), before the attachments' line
             _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
@@ -543,6 +551,8 @@ namespace Roguelike
                 case MenuLine.Greybox: return GameSettings.Greybox ? "Greybox view:  on" : "Greybox view:  off"; // work order 084
                 case MenuLine.CameraDistance: return CameraDistanceText; // work order 083 (RunHudCamera.cs)
                 case MenuLine.Light: return LightText; // work order 085 (RunHudLight.cs)
+                case MenuLine.Music:
+                case MenuLine.MusicVolume: return MusicText(line); // work order 116 (RunHudMusic.cs)
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));

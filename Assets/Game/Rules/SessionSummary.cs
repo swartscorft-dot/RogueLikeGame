@@ -249,6 +249,8 @@ namespace Roguelike.Rules
         public ShooterPostStats ShooterPosts = new ShooterPostStats();
         /// <summary>Work order 101: the casters that held their posts, counted as the shooters (SessionSummaryShooterPosts.cs); none for a log from before.</summary>
         public ShooterPostStats CasterPosts = new ShooterPostStats();
+        /// <summary>Work order 116: the music's seconds in each state and its changes (SessionSummaryMusic.cs); none for a log from before.</summary>
+        public MusicStats Music = new MusicStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -478,6 +480,7 @@ namespace Roguelike.Rules
             stats.RoomUse = ComputeRoomUse(events); // work order 097
             stats.ShooterPosts = ComputeShooterPosts(events); // work order 098
             stats.CasterPosts = ComputeCasterPosts(events); // work order 101
+            stats.Music = ComputeMusic(events, length); // work order 116
             return stats;
         }
 
@@ -510,6 +513,8 @@ namespace Roguelike.Rules
             if (posts != null) sb.Append("Shooters ").AppendLine(posts);
             string casterPosts = CasterPostLine(stats.CasterPosts); // work order 101: the casters' the same, a line of their own beside it
             if (casterPosts != null) sb.Append("Casters ").AppendLine(casterPosts);
+            string music = MusicLine(stats.Music); // work order 116: seconds in each state of the music, and its changes
+            if (music != null) sb.Append("Music ").AppendLine(music);
             // The runs (work order 012): a short block each.
             foreach (RunRow run in stats.Runs)
             {
