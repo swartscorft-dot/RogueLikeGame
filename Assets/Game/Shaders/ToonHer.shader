@@ -1,0 +1,360 @@
+// Her model's toon look, a trial (work order 115; Kristian, 2026-11-24, of the key art drawn of her: "Jeg liker også denne
+// tegnestilen veldig godt. Klarer vi å få modellen i spillet til å ha mer av det?"). Hand-written for URP 17 (Forward+), the
+// project's first shader of its own. The values come from ToonLookValues (Rules/ToonLook.cs) through ToonLook.cs, which puts
+// this on her model's renderers and takes it off again; the defaults here are the same values.
+//
+// - Two tones: every light (the key light, the room's lamps, her own light) is cut at a hard, named threshold of N·L into a lit
+//   tone and a shadow tone; the shadow tone is a dark, slightly cool share of the light, not grey. A cast shadow cuts the same
+//   way. The ambient is laid on flat. Her texture is read a little blurred (a mip bias) to calm its small detail; her normal map
+//   is not read.
+// - The edge light: a thin cyan-teal light along her outer edge, kept to the side away from the key light.
+// - Teal lights: texels whose green and blue stand well over their red glow (her pistols' lights), under the bloom.
+// - The ink line: a second pass, her mesh drawn inside out (front faces culled) and pushed out along its own normals in clip
+//   space by a width named in pixels at 1080 rows, so it is as wide on the screen at every camera distance. It is depth tested
+//   as she is: hidden where she is hidden, never drawn through anything.
+Shader "Roguelike/Toon Her"
+{
+    Properties
+    {
+        [MainTexture] _BaseMap("Base map", 2D) = "white" {}
+        [MainColor] _BaseColor("Base colour", Color) = (1, 1, 1, 1)
+        _Cutoff("Alpha cutoff (not used)", Range(0, 1)) = 0.5
+
+        _LitThreshold("Lit threshold (N.L)", Range(-1, 1)) = 0.05
+        _LitSoftness("Lit edge softness (N.L)", Range(0.001, 0.5)) = 0.03
+        _LitLevel("Lit tone", Range(0, 2)) = 0.9
+        _ShadowTint("Shadow tone", Color) = (0.26, 0.23, 0.36, 1)
+        _ShadowEdge("Cast shadow edge", Range(0.01, 0.99)) = 0.5
+        _AmbientFlat("Ambient flattening", Range(0, 1)) = 1
+        _AmbientLevel("Ambient level", Range(0, 4)) = 1
+        _DetailCalm("Detail calm (mip bias)", Range(0, 4)) = 1.5
+
+        _RimColor("Edge light colour", Color) = (0.30, 0.95, 0.86, 1)
+        _RimStrength("Edge light strength", Range(0, 2)) = 0.4
+        _RimStart("Edge light start (1 - N.V)", Range(0, 1)) = 0.75
+        _RimSoftness("Edge light softness", Range(0.001, 0.5)) = 0.05
+        _RimAway("Edge light away from the key light", Range(0, 1)) = 0.85
+        _RimUnder("Edge light gone on faces turned down this far (-N.y)", Range(0.01, 1)) = 0.5
+
+        _TealGlow("Teal lights glow", Range(0, 3)) = 0
+        _TealStart("Teal mask start", Range(0, 1)) = 0.10
+        _TealSoftness("Teal mask softness", Range(0.01, 1)) = 0.15
+
+        _OutlineColor("Ink colour", Color) = (0.06, 0.04, 0.06, 1)
+        _OutlineWidth("Ink width (px at 1080 rows)", Range(0, 8)) = 2.25
+        _OutlineDepthPush("Ink pushed back (m)", Range(0, 0.5)) = 0.06
+    }
+
+    SubShader
+    {
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "UniversalMaterialType" = "Lit" "IgnoreProjector" = "True" "Queue" = "Geometry" }
+        LOD 300
+
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+        // One set of material values for every pass (the SRP batcher wants the same layout in each).
+        CBUFFER_START(UnityPerMaterial)
+            float4 _BaseMap_ST;
+            half4 _BaseColor;
+            half _Cutoff;
+            half _Surface;
+            half _LitThreshold;
+            half _LitSoftness;
+            half _LitLevel;
+            half4 _ShadowTint;
+            half _ShadowEdge;
+            half _AmbientFlat;
+            half _AmbientLevel;
+            half _DetailCalm;
+            half4 _RimColor;
+            half _RimStrength;
+            half _RimStart;
+            half _RimSoftness;
+            half _RimAway;
+            half _RimUnder;
+            half _TealGlow;
+            half _TealStart;
+            half _TealSoftness;
+            half4 _OutlineColor;
+            float _OutlineWidth;
+            float _OutlineDepthPush;
+        CBUFFER_END
+
+        TEXTURE2D(_BaseMap);
+        SAMPLER(sampler_BaseMap);
+        ENDHLSL
+
+        // ---------------- Her, in two tones ----------------
+        Pass
+        {
+            Name "ToonForward"
+            Tags { "LightMode" = "UniversalForward" }
+            Cull Back
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex ToonVertex
+            #pragma fragment ToonFragment
+
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile _ _LIGHT_LAYERS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            #pragma multi_compile _ SHADOWS_SHADOWMASK
+            #pragma multi_compile_fog
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                float2 uv         : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv         : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                half3 normalWS    : TEXCOORD2;
+                half fogFactor    : TEXCOORD3;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings ToonVertex(Attributes input)
+            {
+                Varyings output = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+                VertexPositionInputs p = GetVertexPositionInputs(input.positionOS.xyz);
+                output.positionCS = p.positionCS;
+                output.positionWS = p.positionWS;
+                output.normalWS = (half3)TransformObjectToWorldNormal(input.normalOS);
+                output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.fogFactor = ComputeFogFactor(p.positionCS.z);
+                return output;
+            }
+
+            // A light cut into two tones: the lit tone where N·L (and the cast shadow) is past the threshold, the shadow tone under it.
+            half3 Band(Light light, half3 normalWS, uint meshLayers)
+            {
+            #ifdef _LIGHT_LAYERS
+                if (!IsMatchingLightLayer(light.layerMask, meshLayers)) return 0;
+            #endif
+                half ndl = dot(normalWS, light.direction);
+                half lit = smoothstep(_LitThreshold - _LitSoftness, _LitThreshold + _LitSoftness, ndl);
+                half cast = smoothstep(_ShadowEdge - _LitSoftness, _ShadowEdge + _LitSoftness, light.shadowAttenuation);
+                lit = min(lit, cast);
+                half3 tone = lerp(_ShadowTint.rgb, _LitLevel.xxx, lit);
+                return light.color * light.distanceAttenuation * tone;
+            }
+
+            half4 ToonFragment(Varyings input) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+                // Her texture, read a little blurred: the fields stay, the fine noise goes.
+                half4 texel = SAMPLE_TEXTURE2D_BIAS(_BaseMap, sampler_BaseMap, input.uv, _DetailCalm);
+                half3 albedo = texel.rgb * _BaseColor.rgb;
+
+                half3 normalWS = normalize(input.normalWS);
+                half3 viewWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
+
+                InputData inputData = (InputData)0;
+                inputData.positionWS = input.positionWS;
+                inputData.normalWS = normalWS;
+                inputData.viewDirectionWS = viewWS;
+                inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
+            #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)
+                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
+            #endif
+                half4 shadowMask = half4(1, 1, 1, 1);
+                uint meshLayers = GetMeshRenderingLayer();
+
+                // The ambient, laid on flat (the same on every face), under the screen's ambient occlusion as today.
+                half3 ambient = lerp(EvaluateAmbientProbeSRGB(normalWS), EvaluateAmbientProbeSRGB(half3(0, 0, 0)), _AmbientFlat) * _AmbientLevel;
+            #if defined(_SCREEN_SPACE_OCCLUSION)
+                AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(inputData.normalizedScreenSpaceUV);
+                ambient *= ao.indirectAmbientOcclusion;
+            #endif
+                half3 light = ambient;
+
+                Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, shadowMask);
+                light += Band(mainLight, normalWS, meshLayers);
+
+            #if defined(_ADDITIONAL_LIGHTS)
+                uint pixelLightCount = GetAdditionalLightsCount();
+            #if USE_CLUSTER_LIGHT_LOOP
+                [loop] for (uint lightIndex = 0; lightIndex < min(URP_FP_DIRECTIONAL_LIGHTS_COUNT, MAX_VISIBLE_LIGHTS); lightIndex++)
+                {
+                    CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK
+                    Light dl = GetAdditionalLight(lightIndex, inputData.positionWS, shadowMask);
+                    light += Band(dl, normalWS, meshLayers);
+                }
+            #endif
+                LIGHT_LOOP_BEGIN(pixelLightCount)
+                    Light al = GetAdditionalLight(lightIndex, inputData.positionWS, shadowMask);
+                    light += Band(al, normalWS, meshLayers);
+                LIGHT_LOOP_END
+            #endif
+
+                half3 colour = albedo * light;
+
+                // The edge light: along her outer edge, on the side away from the key light.
+                half edge = 1.0h - saturate(dot(normalWS, viewWS));
+                half rim = smoothstep(_RimStart - _RimSoftness, _RimStart + _RimSoftness, edge);
+                half away = saturate(0.5h - 0.5h * dot(normalWS, mainLight.direction));
+                rim *= lerp(1.0h, saturate(away * 2.0h - 0.5h), _RimAway);
+                rim *= saturate((normalWS.y + _RimUnder) / _RimUnder); // not on the underside of the hat's brim and the like: a light from behind her does not reach faces turned down
+                colour += _RimColor.rgb * (_RimStrength * rim);
+
+                // Teal lights: a texel whose green and blue both stand over its red glows, at most at _TealGlow.
+                half over = min(texel.g, texel.b) - texel.r;
+                half teal = saturate((over - _TealStart) / _TealSoftness);
+                half peak = max(max(texel.r, texel.g), max(texel.b, 0.001h));
+                colour += (texel.rgb / peak) * (teal * _TealGlow);
+
+                colour = MixFog(colour, InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor));
+                return half4(colour, 1.0h);
+            }
+            ENDHLSL
+        }
+
+        // ---------------- The ink line ----------------
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Cull Front
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex OutlineVertex
+            #pragma fragment OutlineFragment
+            #pragma multi_compile_fog
+            #pragma multi_compile_instancing
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                half fogFactor    : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings OutlineVertex(Attributes input)
+            {
+                Varyings output = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+                // Pushed a little away from the camera: the line of a small piece lying on her (a buckle, a pouch, a button) stays
+                // behind the surface it lies on, so only real edges and the silhouette are inked.
+                float3 positionVS = TransformWorldToView(TransformObjectToWorld(input.positionOS.xyz));
+                positionVS.z -= _OutlineDepthPush;
+                float4 positionCS = TransformWViewToHClip(positionVS);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float2 normalCS = mul((float3x3)GetWorldToHClipMatrix(), normalWS).xy;
+                // The normal's way on the screen in pixels (clip space x and y are scaled by the screen's width and height).
+                float2 screen = _ScreenParams.xy;
+                float2 way = normalCS * screen;
+                float len = length(way);
+                way = len > 1e-6 ? way / len : float2(0, 0);
+                float pixels = _OutlineWidth * screen.y / 1080.0;
+                // Pixels to clip space: the screen spans 2 in normalised device coordinates, times w for the perspective divide.
+                positionCS.xy += way * (pixels * 2.0) / screen * positionCS.w;
+                output.positionCS = positionCS;
+                output.fogFactor = ComputeFogFactor(positionCS.z);
+                return output;
+            }
+
+            half4 OutlineFragment(Varyings input) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                half3 colour = MixFog(_OutlineColor.rgb, input.fogFactor);
+                return half4(colour, 1.0h);
+            }
+            ENDHLSL
+        }
+
+        // ---------------- What URP asks of every opaque material ----------------
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex ShadowPassVertex
+            #pragma fragment ShadowPassFragment
+            #pragma multi_compile_instancing
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
+            ZWrite On
+            ColorMask R
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+            #pragma multi_compile_instancing
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex DepthNormalsVertex
+            #pragma fragment DepthNormalsFragment
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/SimpleLitDepthNormalsPass.hlsl"
+            ENDHLSL
+        }
+    }
+
+    FallBack "Hidden/Universal Render Pipeline/FallbackError"
+}

@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ToonHer
+  m_Shader: {fileID: 4800000, guid: 6bf5c7f8281fb9b42b2e81936af62ef4, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AmbientFlat: 1
+    - _AmbientLevel: 1
+    - _Cutoff: 0.5
+    - _DetailCalm: 1.5
+    - _LitLevel: 0.9
+    - _LitSoftness: 0.03
+    - _LitThreshold: 0.05
+    - _OutlineWidth: 2.25
+    - _RimAway: 0.85
+    - _RimSoftness: 0.05
+    - _RimStart: 0.75
+    - _RimStrength: 0.4
+    - _ShadowEdge: 0.5
+    - _TealGlow: 0
+    - _TealSoftness: 0.15
+    - _TealStart: 0.1
+    m_Colors:
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _OutlineColor: {r: 0.059999965, g: 0.04, b: 0.059999965, a: 1}
+    - _RimColor: {r: 0.29999998, g: 0.95, b: 0.86, a: 1}
+    - _ShadowTint: {r: 0.25999996, g: 0.22999996, b: 0.35999998, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
