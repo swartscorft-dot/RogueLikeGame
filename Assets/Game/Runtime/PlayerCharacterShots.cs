@@ -83,9 +83,10 @@ namespace Roguelike
                 StartEasing(feel);
             }
             ActionsStarted++;
-            ActionLeadTime = feel.BasicShotStartup;
+            float startup = BasicShotStartupNow(feel); // work order 110: a grip's quicker first shot after a dash or a skill
+            ActionLeadTime = startup;
             _shotStartedAt = Time.time;
-            _action.Start(Time.time, feel.BasicShotStartup, feel.BasicShotActive, BasicShotRecoveryNow(feel)); // work order 050: attack speed
+            _action.Start(Time.time, startup, feel.BasicShotActive, BasicShotRecoveryNow(feel)); // work order 050: attack speed
             Report(new PlayerReport { Kind = PlayerReportKind.ShotStarted, Moving = onTheMove });
         }
 
@@ -132,7 +133,7 @@ namespace Roguelike
             // 065: her Marked prey, for a target that carries marks.
             int damage = Placeholders.BasicShotDamage + FlatFor(null);
             if (Modifiers != null) damage = Modifiers.Weapon.ShotDamage(damage, _movingShot);
-            int applied = Deal(hit, damage, out float focus, peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f), marked: hit.MarkCount > 0);
+            int applied = Deal(hit, damage, out float focus, peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f), marked: hit.MarkCount > 0, basicShot: true); // work order 110: a sight's crit
             if (applied <= 0) return ShotFired(false);
             ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);

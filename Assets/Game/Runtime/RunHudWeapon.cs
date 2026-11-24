@@ -112,6 +112,7 @@ namespace Roguelike
         MetaState _weaponMadeFor;
         MetaValues _weaponMadeWith;
         int _weaponCurrency;
+        bool _weaponMoreParts; // work order 110: the five more parts' switch the lines were made with
         readonly List<string> _weaponOwned = new List<string>();
         readonly List<string> _weaponFitted = new List<string>();
 
@@ -134,6 +135,7 @@ namespace Roguelike
             _weaponMadeFor = made;
             _weaponMadeWith = v;
             _weaponCurrency = made.Currency;
+            _weaponMoreParts = v.MoreParts;
             _weaponOwned.Clear();
             _weaponOwned.AddRange(made.AttachmentsOwned);
             _weaponFitted.Clear();
@@ -154,7 +156,7 @@ namespace Roguelike
                     _weaponRows.Add(null);
                     foreach (WeaponAttachment p in v.Parts ?? System.Array.Empty<WeaponAttachment>())
                     {
-                        if (p == null || p.Weapon != weapon || p.Slot != slot) continue;
+                        if (!WeaponRack.InStore(v, p) || p.Weapon != weapon || p.Slot != slot) continue; // work order 110: the store's
                         _weaponLines.Add(PartHead(p) + "\n" + p.Line + (string.IsNullOrEmpty(p.CostLine) ? "" : "\nCost:  " + p.CostLine));
                         _weaponRows.Add(p);
                         _weaponParts.Add(p);
@@ -167,7 +169,7 @@ namespace Roguelike
         bool WeaponLinesStale()
         {
             MetaState s = _levels.BetweenRunsState;
-            return s != _weaponMadeFor || _levels.MetaValues != _weaponMadeWith || s.Currency != _weaponCurrency
+            return s != _weaponMadeFor || _levels.MetaValues != _weaponMadeWith || s.Currency != _weaponCurrency || _levels.MetaValues.MoreParts != _weaponMoreParts
                    || !SameIds(s.AttachmentsOwned, _weaponOwned) || !SameIds(s.AttachmentsFitted, _weaponFitted);
         }
 
@@ -200,10 +202,13 @@ namespace Roguelike
         }
 
         /// <summary>A row's height for its words at this width: at least <paramref name="least"/>.</summary>
-        float RowHeight(string text, float width, float least)
+        float RowHeight(string text, float width, float least) => RowHeight(text, width, least, _pieceButton);
+
+        /// <summary>A row's height for its words at this width in this style: at least <paramref name="least"/>.</summary>
+        float RowHeight(string text, float width, float least, GUIStyle style)
         {
             _measure.text = text;
-            return Mathf.Max(least, Mathf.Ceil(_pieceButton.CalcHeight(_measure, width)));
+            return Mathf.Max(least, Mathf.Ceil(style.CalcHeight(_measure, width)));
         }
 
         /// <summary>
@@ -240,11 +245,10 @@ namespace Roguelike
             }
             float rackH = 50f + 44f + startH + gap + rowsH + 20f + 40f;
 
-            // The weapon's rows, measured at its width.
+            // The weapon's rows, measured at its width. Work order 110: nine parts in 060's rows run past the view's foot, so
+            // when the panel would, its parts' rows take the largest smaller type that fits (RunHudMoreParts.cs); four keep 060's.
             float ww = weaponAt.Width;
-            float weaponH = 72f + 22f + keysH;
-            for (int i = 2; i < _weaponLines.Count; i++)
-                weaponH += (_weaponRows[i] == null ? headH : RowHeight(_weaponLines[i], ww - 40f, rowH)) + gap;
+            float weaponH = FlatWeaponFit(ww, rowH, gap, headH, keysH, out GUIStyle partStyle, out GUIStyle partOn);
             float ranksH = ranks ? RanksPanelHeight(ranksAt.Width) : 0f; // work order 099
 
             float top = BetweenRunsLayout.Top(SkillBar.LayoutHeight, Mathf.Max(Mathf.Max(rackH, weapon ? weaponH : 0f), ranksH));
@@ -313,10 +317,10 @@ namespace Roguelike
                     continue;
                 }
                 part++;
-                float rh = RowHeight(_weaponLines[i], ww - 40f, rowH);
+                float rh = RowHeight(_weaponLines[i], ww - 40f, rowH, partStyle);
                 var row = new Rect(wr.x + 20f, y, ww - 40f, rh);
                 if (BetweenRunsRows + part == BetweenRunsSelected) Frame(new Rect(row.x - 3f, row.y - 2f, row.width + 6f, row.height + 4f), s_Accent);
-                if (GUI.Button(row, _weaponLines[i], WeaponRack.IsFitted(s, p.Id) ? _pieceOn : _pieceButton)) PickWeaponLine(part);
+                if (GUI.Button(row, _weaponLines[i], WeaponRack.IsFitted(s, p.Id) ? partOn : partStyle)) PickWeaponLine(part);
                 y += rh + gap;
             }
             GUI.Label(new Rect(wr.x + 20f, y + 4f, ww - 40f, keysH),

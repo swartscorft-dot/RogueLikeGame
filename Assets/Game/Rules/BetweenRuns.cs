@@ -51,6 +51,16 @@ namespace Roguelike.Rules
         public int FirstPrice = 40;
         /// <summary>Each next rank costs the one before times this, rounded to the nearest 5 (the producer's starting value): 40, 55, 80, ... 825.</summary>
         public float PriceGrowth = 1.4f;
+
+        // Work order 110 (Kristian, 2026-11-24: he ticked "Hennes kit" ("flere våpendeler") and said yes to the sprint plan's row
+        // "Tre valg per plass, hver med en buff og en kostnad. Det som synes av dem er lite og stille"): five more parts for her
+        // pistols, so each slot (sight, barrel, grip) holds three (WeaponAttachments.Create, the rows marked MorePart).
+        /// <summary>
+        /// The five more parts' switch, on: the store holds nine. Off, it holds 060's four, and the screen, the end screen and a
+        /// run are as before field for field; a save that owns one of the five keeps it, unshown and unused. Read only with the
+        /// attachments on (<see cref="Attachments"/>), as everything of the parts.
+        /// </summary>
+        public bool MoreParts = true;
     }
 
     /// <summary>A piece changes a rule of the run, or is a raw stat step (0009: a few, large and capped).</summary>

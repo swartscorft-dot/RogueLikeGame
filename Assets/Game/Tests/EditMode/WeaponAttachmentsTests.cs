@@ -45,21 +45,21 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSwitch_IsOffInCode_AndTheFourParts_AreTheOrdersTable()
         {
-            var v = new MetaValues();
+            var v = new MetaValues { MoreParts = false }; // work order 110: the store with its switch off holds these four, as before
             Assert.That(v.Attachments, Is.False, "off by default");
             Assert.That(v.Enabled, Is.False, "and the trial too");
             Assert.That(v.PerRoom, Is.EqualTo(3));
-            Assert.That(v.Parts.Select(p => p.Id), Is.EqualTo(new[] { "laser-sight", "ghost-ring", "bull-barrel", "runners-grip" }));
-            Assert.That(v.Parts.Select(p => p.Name), Is.EqualTo(new[] { "Laser Sight", "Ghost Ring", "Bull Barrel", "Runner's Grip" }));
-            Assert.That(v.Parts.Select(p => p.Slot), Is.EqualTo(new[] { WeaponSlot.Sight, WeaponSlot.Sight, WeaponSlot.Barrel, WeaponSlot.Grip }));
-            Assert.That(v.Parts.Select(p => p.Price), Is.EqualTo(new[] { 30, 30, 40, 50 }));
+            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Id), Is.EqualTo(new[] { "laser-sight", "ghost-ring", "bull-barrel", "runners-grip" }));
+            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Name), Is.EqualTo(new[] { "Laser Sight", "Ghost Ring", "Bull Barrel", "Runner's Grip" }));
+            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Slot), Is.EqualTo(new[] { WeaponSlot.Sight, WeaponSlot.Sight, WeaponSlot.Barrel, WeaponSlot.Grip }));
+            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Price), Is.EqualTo(new[] { 30, 30, 40, 50 }));
             Assert.That(WeaponRack.WholePrice(v), Is.EqualTo(150), "the whole set");
-            Assert.That(v.Parts.Select(p => p.Line), Is.EqualTo(new[]
+            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Line), Is.EqualTo(new[]
             {
                 "A red beam on her pistols. Reach 12 m.", "A wider shot, forgiving up close.", // work order 102: the Laser Sight's words no longer promise where the shot ends
                 "Each shot hits 35 % harder and staggers.", "Shooting on the move slows you to 75 %, not 50 %.",
             }));
-            Assert.That(v.Parts.Select(p => p.CostLine), Is.EqualTo(new[]
+            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.CostLine), Is.EqualTo(new[]
             {
                 "The shot's line is narrower: aim truer.", "Reach 8 m.", "35 % slower between shots.", "Shots on the move deal 20 % less.",
             }));
@@ -78,7 +78,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(WeaponAttachments.WeaponName(WeaponKind.Pistols), Is.EqualTo("Pistols"));
             Assert.That(v.Parts.All(p => p.Weapon == WeaponKind.Pistols), "the four are the pistols'");
             Assert.That(v.Parts.Select(p => p.Id).Distinct().Count(), Is.EqualTo(v.Parts.Length), "one id each, across every weapon");
-            Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Id), Is.EqualTo(new[] { "laser-sight", "ghost-ring", "bull-barrel", "runners-grip" }));
+            Assert.That(WeaponRack.InSlotOrder(new MetaValues { MoreParts = false }).Select(p => p.Id), Is.EqualTo(new[] { "laser-sight", "ghost-ring", "bull-barrel", "runners-grip" }),
+                        "work order 110: with its switch off, the four");
         }
 
         [Test]
@@ -348,7 +349,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void NextBuy_WhatTheEchoesBuy_OrWhatTheNextNeeds()
         {
-            var v = new MetaValues();
+            var v = new MetaValues { MoreParts = false }; // work order 110: the four's store, as before (the nine's: MoreWeaponPartsTests)
             var s = new MetaState { Currency = 30 };
             WeaponNextBuy n = WeaponRack.NextBuy(s, v);
             Assert.That(n.Affordable.Select(p => p.Id), Is.EqualTo(new[] { WeaponAttachments.LaserSight, WeaponAttachments.GhostRing }));
@@ -512,7 +513,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(new RunEarnings { FloorsCleared = 1, ElitesCleared = 1, RoomsCleared = 6 }.Total(v), Is.EqualTo(43), "died on floor 2 after two of its rooms");
             var act = new RunEarnings { FloorsCleared = 5, ElitesCleared = 5, RoomsCleared = 20, BossKilled = true };
             Assert.That(act.Total(v), Is.EqualTo(285), "the act cleared, every room: 225 + 60");
-            Assert.That(act.Total(v), Is.GreaterThanOrEqualTo(WeaponRack.WholePrice(v)), "the whole set in one cleared act");
+            Assert.That(act.Total(v), Is.GreaterThanOrEqualTo(WeaponRack.WholePrice(new MetaValues { MoreParts = false })), "the whole set of four in one cleared act (work order 110: the nine's 370 is not)");
 
             var s = new MetaState { Currency = 2 };
             MetaRack.Commit(s, v, floor1);
