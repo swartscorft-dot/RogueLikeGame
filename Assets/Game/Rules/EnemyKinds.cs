@@ -31,6 +31,12 @@ namespace Roguelike.Rules
         /// whom do you shoot first? (<see cref="WarderValues"/>)
         /// </summary>
         Warder,
+        /// <summary>
+        /// Keeps far from her with a clear line, winds up on its body and charges in a straight line, fast; a wall or a prop
+        /// stops it and leaves it dazed (work order 108, 2026-11-24, "Lansereren (ny fiende)"): do you stand in the open, or
+        /// put cover between you? (<see cref="LancerValues"/>)
+        /// </summary>
+        Lancer,
     }
 
     public static class EnemyKinds
@@ -39,7 +45,7 @@ namespace Roguelike.Rules
         public static string Word(EnemyKind kind) =>
             kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter"
             : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : kind == EnemyKind.Bomber ? "bomber"
-            : kind == EnemyKind.Warder ? "warder" : "guard"; // work order 079
+            : kind == EnemyKind.Warder ? "warder" : kind == EnemyKind.Lancer ? "lancer" : "guard"; // work order 079; 108 the lancer
 
         /// <summary>
         /// The letter for an enemy point on a level's text map: b brute, s swarmer, p a pack of swarmers, h shooter,
@@ -49,7 +55,7 @@ namespace Roguelike.Rules
         public static char Letter(EnemyKind kind, int count) =>
             kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h'
             : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : kind == EnemyKind.Bomber ? 'x'
-            : kind == EnemyKind.Warder ? 'w' : 'g'; // work order 079
+            : kind == EnemyKind.Warder ? 'w' : kind == EnemyKind.Lancer ? 'l' : 'g'; // work order 079; 108 the lancer, l (each alone)
     }
 
     /// <summary>

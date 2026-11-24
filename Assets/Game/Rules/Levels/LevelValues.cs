@@ -573,6 +573,7 @@ namespace Roguelike.Rules
             : kind == EnemyKind.Caster ? CasterHealth
             : kind == EnemyKind.Bomber ? BomberHealth // work order 073
             : kind == EnemyKind.Warder ? WarderHealth // work order 079
+            : kind == EnemyKind.Lancer ? LancerHealth // work order 108
             : EnemyHealth;
 
         /// <summary>The most guards a room of this kind may hold on this floor, the act boss counted.</summary>
@@ -581,6 +582,23 @@ namespace Roguelike.Rules
             : kind == RoomKind.Exit ? GuardsMostInExit
             : kind == RoomKind.Combat ? GuardsMostInRoom
             : 0;
+
+        // ---------------- The lancer (work order 108, 2026-11-24) ----------------
+
+        // The lancer (work order 108): he ticked "Fiender og boss" on 2026-11-24 and, asked by name, said yes to the producer's
+        // "Lansereren (ny fiende)": "Etasje 4: stormer i rett linje langveisfra, varslet på kroppen, og blir ør når den treffer
+        // en vegg eller rekvisitt. Lages av skjelettmodellene som finnes." ON: the lancer is in the game (the practice room's K,
+        // the room lab's preset "floor 4 with a lancer"), and the floors' rule for it (LevelLancers, from LancerFloors.FromFloor,
+        // read only with ActPlan on). Off: no lab room holds one, and every floor and every lab room is as before work order 108,
+        // field for field. The practice room's lancer does not depend on it (as the bomber's and the warder's do not). The floors
+        // do not hold one yet whatever this says: the generator does not call LevelLancers in this order (the sprint's rule 3,
+        // its version and pins are work orders 103's and 104's; see LevelLancers).
+        public bool Lancers = true;
+        public int LancerHealth = 800;         // work order 108: a floor's lancer, between a floor shooter's 400 and a floor brute's 1200
+        public LancerFloorValues LancerFloors = new LancerFloorValues();
+
+        /// <summary>The lancers are put into the floors (work order 108): their switch, and the act's plan on, as the bombers'.</summary>
+        public bool LancersInFloors => ActPlan && Lancers;
     }
 
     /// <summary>

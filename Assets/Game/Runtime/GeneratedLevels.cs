@@ -581,6 +581,7 @@ namespace Roguelike
                 else if (dev && keyboard[CasterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Caster);
                 else if (dev && keyboard[BomberKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Bomber); // work order 073
                 else if (dev && keyboard[WarderKey].wasPressedThisFrame) SpawnWarder(keyboard.shiftKey.isPressed); // work order 079: with Shift, its pack
+                else if (dev && keyboard[LancerKey].wasPressedThisFrame) SpawnLancer(); // work order 108
                 else if (dev && keyboard[ClearSpawnsKey].wasPressedThisFrame) ClearSpawned();
                 else if (keyboard[HairTriggerKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.HairTrigger); // work order 025
                 else if (keyboard[SteadyHandKey].wasPressedThisFrame) TryFocusInPractice(FocusMode.SteadyHand);

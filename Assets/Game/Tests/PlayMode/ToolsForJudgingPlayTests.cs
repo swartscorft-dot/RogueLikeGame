@@ -101,11 +101,13 @@ namespace Roguelike.PlayModeTests
         [UnityTest, Timeout(300000)]
         public IEnumerator TheLab_BuildsARoomWithEachPreset_OneAFloor_Floor3HoldsAWarder_Floor4ABomber()
         {
-            Assert.That(RoomLab.Mixes.Select(m => m.Name), Is.EqualTo(new[] { "floor 1", "floor 2", "floor 3", "floor 4", "floor 5" }), "one a floor, in order");
+            // Changed deliberately (work order 108): the floors' own five, then "floor 4 with a lancer" (the PlayMode LancerTests builds it).
+            Assert.That(RoomLab.Mixes.Select(m => m.Name), Is.EqualTo(new[] { "floor 1", "floor 2", "floor 3", "floor 4", "floor 5", "floor 4 with a lancer" }), "one a floor, in order");
             LabEntry nave = RoomLab.Entries(_levels.Values).First(e => e.Template != null && e.Kind == LabKind.Ordinary);
             for (int mix = 0; mix < RoomLab.Mixes.Length; mix++)
             {
                 LabMix m = RoomLab.Mixes[mix];
+                if (m.Lancers > 0) continue; // work order 108: not a floor's own preset
                 ulong seed = m.Floor == 3 ? SeedWith(nave, m, EnemyKind.Warder) : m.Floor == 4 ? SeedWith(nave, m, EnemyKind.Bomber) : 0x0900090UL;
                 GeneratedLevel level = _levels.StartLab(nave, mix, seed);
                 Assert.That(level, Is.Not.Null, m + " was built");

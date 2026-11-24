@@ -50,6 +50,10 @@ namespace Roguelike.Rules
         CleanTick,     // a press of a recast chain in its clean part: a short pitched tick, a step higher for each in a row
         ChainTop,      // the last press of a chain clean all through: a clear top note
         OffTick,       // a press of a chain off its clean part: a dull tick (silent unless ChainTickValues.DullTickWhenOff)
+        // Work order 108 (the lancer, "Lansereren (ny fiende)", 2026-11-24): its own three, made in code.
+        LancerWindup,  // a lancer began its wind-up: a low scrape of the lance coming down, rising, with a cold ring over it
+        LancerCharge,  // a lancer began to run its charge: a fast rush of noise sweeping up, a low drum under it
+        LancerCrash,   // a lancer's charge met a wall, a shut door or a prop: a heavy dull crash and a rattle of bone
     }
 
     /// <summary>
@@ -67,6 +71,8 @@ namespace Roguelike.Rules
         // Work order 080: her hit landing by its weight, a clean press's hit, her kill and the one that empties its room, a
         // press of a recast chain in its clean part, the last of a chain clean all through, and a press off its clean part.
         HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
+        // Work order 108: a lancer's charge set off (its run began), and its charge crashed on a wall, a shut door or a prop.
+        LancerCharged, LancerCrashed,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -169,6 +175,11 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.CleanTick, 0.3f, 10),
             new PlaceholderSoundSetting(PlaceholderSound.ChainTop, 0.35f, 4),
             new PlaceholderSoundSetting(PlaceholderSound.OffTick, 0.2f, 10),
+            // Work order 108, first guesses, made without hearing them: the wind-up as loud as a blue wind-up (it is one), the
+            // charge under the boss's, the crash between a strike and the boss's charge.
+            new PlaceholderSoundSetting(PlaceholderSound.LancerWindup, 0.4f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.LancerCharge, 0.4f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.LancerCrash, 0.45f, 4),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -214,6 +225,7 @@ namespace Roguelike.Rules
                 case SoundMoment.EnemyDied: return PlaceholderSound.EnemyDies;
                 case SoundMoment.WindupStarted:
                     if (ordinary) return null;
+                    if (kind == EnemyKind.Lancer) return PlaceholderSound.LancerWindup; // work order 108: its own, the lance coming down
                     return counterable ? PlaceholderSound.WindupBlue : PlaceholderSound.WindupRed;
                 case SoundMoment.EnemyStruck: return kind == EnemyKind.Shooter ? PlaceholderSound.Arrow : PlaceholderSound.Strike;
                 case SoundMoment.EnemyDazed: return PlaceholderSound.Dazed;
@@ -252,6 +264,9 @@ namespace Roguelike.Rules
                 case SoundMoment.CleanPress: return PlaceholderSound.CleanTick;
                 case SoundMoment.ChainAllClean: return PlaceholderSound.ChainTop;
                 case SoundMoment.PressOff: return PlaceholderSound.OffTick;
+                // Work order 108: the lancer's charge setting off, and its crash on a wall, a shut door or a prop.
+                case SoundMoment.LancerCharged: return PlaceholderSound.LancerCharge;
+                case SoundMoment.LancerCrashed: return PlaceholderSound.LancerCrash;
                 default: return null;
             }
         }

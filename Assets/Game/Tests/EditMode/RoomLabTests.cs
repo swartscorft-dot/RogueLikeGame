@@ -73,9 +73,10 @@ namespace Roguelike.Rules.Tests
             var v = new LevelValues();
             // Work order 090 (changed deliberately): one preset a floor, floor 1 to floor 5 in order, the floor alone saying what is in
             // it (before: 1, 3, 5, 4 with bombers, 2, 3 with a warder, 4 with a warder and bombers; the last three put the most).
-            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
-            Assert.That(RoomLab.Mixes.Select(m => m.Name), Is.EqualTo(new[] { "floor 1", "floor 2", "floor 3", "floor 4", "floor 5" }));
-            foreach (LabMix mix in RoomLab.Mixes)
+            // Changed deliberately (work order 108): after them the preset "floor 4 with a lancer" (LancerTests holds it to its rule).
+            Assert.That(RoomLab.Mixes.Select(m => m.Floor), Is.EqualTo(new[] { 1, 2, 3, 4, 5, 4 }));
+            Assert.That(RoomLab.Mixes.Select(m => m.Name), Is.EqualTo(new[] { "floor 1", "floor 2", "floor 3", "floor 4", "floor 5", "floor 4 with a lancer" }));
+            foreach (LabMix mix in RoomLab.Mixes.Where(m => m.Lancers == 0))
                 foreach (LabKind kind in new[] { LabKind.Ordinary, LabKind.Elite, LabKind.Exit })
                     for (ulong s = 1; s <= 40; s++)
                     {

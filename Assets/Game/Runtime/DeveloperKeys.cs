@@ -35,6 +35,7 @@ namespace Roguelike
             GeneratedLevels.GreyboxKey, // work order 084: G, the greybox view (the pause menu's line works in every build)
             GeneratedLevels.LabKey, GeneratedLevels.LabNewSeedKey, GeneratedLevels.LabNextKey, GeneratedLevels.LabPreviousKey, // work order 084: the room lab's L, N, . and ,
             GeneratedLevels.WarderKey, // work order 079: V, the practice room's warder (with Shift, a pack with one)
+            GeneratedLevels.LancerKey, // work order 108: K, the practice room's lancer
         };
 
         static int s_fromStart = -1; // -1 not read yet, 0 off, 1 on

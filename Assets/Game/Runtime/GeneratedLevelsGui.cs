@@ -99,6 +99,7 @@ namespace Roguelike
                     _practiceText = "F5 new run" + (RunSeed.HasValue ? "   F6 run " + RunSeedText + " again" : "")
                                 + "\nF8 boss   F9 swarmers   F10 shooter   F11 guard   F12 clear"
                                 + "\n" + CasterKey + " caster   " + BomberKey + " bomber   " + WarderKey + " warder (Shift: with a pack)" // work order 034: its own line, the line above being full; 073: the bomber; 079: the warder
+                                + "   " + LancerKey + " lancer" // work order 108
                                 + "\n" + PracticeFocusLine() // work order 025
                                 + ToolsPracticeLine // work order 084
                                 + (LastRunLine.Length > 0 ? "\n" + LastRunLine : "");

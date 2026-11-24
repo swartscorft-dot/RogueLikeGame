@@ -294,6 +294,7 @@ namespace Roguelike
                                  : SessionWords.NoEffect;
                         e.Damage = r.Damage > 0 ? r.Damage : (int?)null;
                         if (r.Flown) e.AddExtra("flown", "true"); // work order 036: the end of a thing that flew
+                        if (r.EnemyKind == EnemyKind.Lancer && r.Count > 0) e.AddExtra(SessionSummary.LancerCrashExtra, LancerRules.StopperWord((LancerStopper)r.Count)); // work order 108: what its charge crashed on
                         Add(e);
                         break;
                     }
