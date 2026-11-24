@@ -53,7 +53,7 @@ namespace Roguelike.Rules
             List<TemplatePlacement> placed = null;
             if (v.Templates && v.Shapes)
             {
-                RoomTemplates.Draw(kinds, elite, level.Floor, LevelRandom.Stream(level.Seed, TemplatesStage, level.Attempt - 1), v, out templates, out mirrors);
+                RoomTemplates.Draw(kinds, elite, level.Floor, LevelRandom.Stream(level.Seed, TemplatesStage, level.Attempt - 1), v, out templates, out mirrors, level.ExitBefore); // 103
                 placed = new List<TemplatePlacement>();
                 level.Templates = true;
             }

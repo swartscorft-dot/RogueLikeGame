@@ -394,7 +394,11 @@ namespace Roguelike.Rules
         // on) and the themes. Off: every floor is version 19's, field for field, with no new version (the library grew after its
         // other sets, and off they are never drawn). OFF by default: a room's form is judged by Kristian playing it in the room lab
         // (work order 084, where they are listed whatever this says) before a later order turns it on with a new version.
-        public bool ExitRoomsOfTheirOwn = false;
+        // Work order 103 (Kristian ticked "Etasjene får hver sin ting" on 2026-11-24, its words "tronrommet bare i etasje 5 og egne
+        // utgangsrom i etasje 1–4"; he has not tried them in the room lab and judges them in real floors): ON, the generator's
+        // version 20; in a run a floor of 1 to 4 does not end in the room the floor before ended in while another can stand
+        // (WayDowns). Off: every floor is version 19's, field for field, but for the version.
+        public bool ExitRoomsOfTheirOwn = true;
         // A room is a fight (work order 070; Kristian after his evening session of 2026-11-21: "nå rman kommer i et rom, så er
         // man i en combat ... man trenger et punkt in i rommet der alle flyr på"): on, every room of a floor in a line that holds
         // enemies has a point a little way in from the door she came by (Fights, RoomFightRules); crossing it, or any waking of
@@ -511,6 +515,7 @@ namespace Roguelike.Rules
         /// caster's floor is <see cref="CastersFromFloor"/>, the rooms' and the elite's alike (3, as the elite's was).
         /// </summary>
         public EnemyKind[] EliteKinds(int floor) =>
+            FloorCharacter && Character != null ? FloorCharacterRules.EliteKinds(floor, this) : // work order 104: no kind's elite on the kind's own floor
             floor < EliteKindsFromFloor ? new[] { EnemyKind.Brute }
             : floor < (ActPlan ? CastersFromFloor : EliteCasterFromFloor) || !Casters ? new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard }
             : new[] { EnemyKind.Brute, EnemyKind.Shooter, EnemyKind.Guard, EnemyKind.Caster };
@@ -581,6 +586,16 @@ namespace Roguelike.Rules
             : kind == RoomKind.Exit ? GuardsMostInExit
             : kind == RoomKind.Combat ? GuardsMostInRoom
             : 0;
+
+        // A dominant thing a floor (work order 104; Kristian ticked "Etasjene får hver sin ting" on 2026-11-24, its words "én ny ting
+        // å lære per etasje, en dominerende fiendemiks og tema per etasje"; proposals 1 and 2 of the content plan, which make floor 2
+        // easier and floor 3 harder, and he said yes to that by ticking it): on (the generator's version 21), each floor has a name, a
+        // mix drawn twice as often as each of its other two, a room theme three times as likely, no kind's elite on the kind's own
+        // floor, and no more than three new combat templates (FloorCharacterValues, FloorCharacterRules). The counts of enemies a
+        // room and what they deal are not changed. Off: every floor is version 20's, field for field, but for the version, and no
+        // floor has a name.
+        public bool FloorCharacter = true;
+        public FloorCharacterValues Character = new FloorCharacterValues();
     }
 
     /// <summary>

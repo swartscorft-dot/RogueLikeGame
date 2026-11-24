@@ -130,6 +130,7 @@ namespace Roguelike
             RunRecord record = Record;
             if (!InRun || record == null || level == null) return;
             record.EnterFloor(Floor, LevelGeometry.RoomCount(level.Layout)); // work order 059: the rooms, not the passages between them
+            record.NameFloor(FloorCharacterRules.NameOf(Floor, Values)); // work order 104: its name, none with the switch off
             if (CurrentRoom != null) record.EnterRoom(LevelGeometry.RoomNumber(level.Layout, CurrentRoom), CurrentRoom.Kind, CurrentRoom.Elite);
             // The same report the play session recorder counts a kill from (EnemyReportKind.Died), once per enemy.
             foreach (Enemy enemy in level.Enemies)

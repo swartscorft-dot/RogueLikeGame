@@ -280,7 +280,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_FiveThousandFloors_AreVersion12s_FieldForField()
         {
-            var off = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, ActPlan = false, UsableRooms = false }; // work order 054: version 12 had the casters off; 058: nor templates; 059: nor passages; 087: nor the act's plan
+            var off = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103: nor exit rooms of their own; 054: version 12 had the casters off; 058: nor templates; 059: nor passages; 087: nor the act's plan
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 5000; s++)
             {

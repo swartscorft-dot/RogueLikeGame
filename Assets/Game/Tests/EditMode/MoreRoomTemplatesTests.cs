@@ -22,10 +22,10 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static readonly int[] Walls = { LevelGenerator.North, LevelGenerator.East, LevelGenerator.South, LevelGenerator.West };
-        static readonly LevelValues SecondSetOff = new LevelValues { MoreTemplates = false };
-        static readonly LevelValues Version16 = new LevelValues { MoreTemplates = false, ActPlan = false, UsableRooms = false }; // work order 087: nor the act's plan
+        static readonly LevelValues SecondSetOff = new LevelValues { MoreTemplates = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103: the throne rooms on floors 1 to 4, as this class measures
+        static readonly LevelValues Version16 = new LevelValues { MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 087: nor the act's plan; 103: nor the exit rooms of their own
         // The second set turned on (off by default since 2026-11-22, until Kristian has played its rooms in the room lab).
-        static LevelValues On => new LevelValues { MoreTemplates = true };
+        static LevelValues On => new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103: as SecondSetOff
 
         static List<RoomTemplate> More => RoomTemplateLibrary.All.Where(t => t.Since == RoomTemplateLibrary.MoreSince).ToList();
         static List<RoomTemplate> First => RoomTemplateLibrary.All.Where(t => t.Since < RoomTemplateLibrary.MoreSince).ToList();
@@ -291,14 +291,14 @@ namespace Roguelike.Rules.Tests
             // Work order 089 (changed deliberately): the whole library but its third set, which has a switch of its own.
             Assert.That(RoomTemplateLibrary.Usable(On), Is.EqualTo(RoomTemplateLibrary.All.Where(t => t.Since != RoomTemplateLibrary.ExitSince)), "on: the whole library, in its order");
             Assert.That(new LevelValues().MoreTemplates, Is.False, "off by default (2026-11-22: until Kristian has played the second set in the room lab)");
-            Assert.That(RoomTemplateLibrary.Usable(new LevelValues()), Is.EqualTo(First), "the defaults: the eleven");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(19)); // work order 087; 088: 19
+            Assert.That(RoomTemplateLibrary.Usable(new LevelValues()).Where(t => !ExitRooms.IsWayDown(t)), Is.EqualTo(First), "the defaults: the eleven (work order 103: and the third set, on since)");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(21)); // work order 087; 088: 19; 103: 20; 104: 21
             int seen = 0;
             for (ulong s = 0; s < 40; s++)
             {
                 LevelLayout off = LevelGenerator.Generate(s, 1 + (int)(s % 5), SecondSetOff);
                 Assert.That(off.Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "seed " + s);
-                Assert.That(LevelGenerator.Generate(s, 1 + (int)(s % 5)).Describe(), Is.EqualTo(off.Describe()), "the defaults are the switch off, seed " + s);
+                Assert.That(LevelGenerator.Generate(s, 1 + (int)(s % 5), new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }).Describe(), Is.EqualTo(off.Describe()), "the defaults are the switch off, seed " + s); // work order 103: the exit rooms of their own named off on both sides
                 seen += LevelGenerator.Generate(s, 1 + (int)(s % 5), On).Rooms.Count(r => r.Template != null && r.Template.Template.Since == RoomTemplateLibrary.MoreSince);
             }
             Assert.That(seen, Is.GreaterThan(40), "on, the second set is drawn");

@@ -169,10 +169,12 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Assert.That(_hud.PromptText, Is.EqualTo(""));
             Assert.That(_hud.RunBoxLines[0], Is.EqualTo("Floor 1 of 5"));
-            Assert.That(_hud.RunBoxLines[1], Is.EqualTo("Entrance"));
-            Assert.That(_hud.RunBoxLines[2], Is.EqualTo(RunWords.EnemiesLeft(_levels.EnemiesLeftInRoom)));
-            StringAssert.StartsWith("Time 0:0", _hud.RunBoxLines[3]);
-            Assert.That(_hud.RunBoxLines[4], Is.EqualTo("Upgrades: none"));
+            // Changed deliberately (work order 104): the floor's name under its number, the lines after it one down.
+            Assert.That(_hud.RunBoxLines[1], Is.EqualTo("The Upper Tombs"));
+            Assert.That(_hud.RunBoxLines[2], Is.EqualTo("Entrance"));
+            Assert.That(_hud.RunBoxLines[3], Is.EqualTo(RunWords.EnemiesLeft(_levels.EnemiesLeftInRoom)));
+            StringAssert.StartsWith("Time 0:0", _hud.RunBoxLines[4]);
+            Assert.That(_hud.RunBoxLines[5], Is.EqualTo("Upgrades: none"));
             Assert.That(_hud.RunBoxLines.Last(), Is.EqualTo("run " + LevelSeed.ToText(RunSeed)), "the seed underneath");
 
             GeneratedLevel.PlacedProp chest = _levels.Chests().First();
@@ -181,8 +183,8 @@ namespace Roguelike.PlayModeTests
             string taken = _levels.OfferedUpgrades[0].Short;
             _levels.PickUpgrade(0);
             yield return null;
-            Assert.That(_hud.RunBoxLines[1], Is.EqualTo("Treasure room"));
-            Assert.That(_hud.RunBoxLines[4], Is.EqualTo("Upgrades: " + taken));
+            Assert.That(_hud.RunBoxLines[2], Is.EqualTo("Treasure room")); // work order 104: one down
+            Assert.That(_hud.RunBoxLines[5], Is.EqualTo("Upgrades: " + taken));
             Assert.That(_levels.Record.Upgrades, Is.EqualTo(new[] { taken }));
         }
 
@@ -397,7 +399,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.EndScreenShown, Is.True);
             Assert.That(Time.timeScale, Is.EqualTo(0f), "stopped");
             Assert.That(_hud.EndScreenLines[0], Is.EqualTo("You died"));
-            Assert.That(_hud.EndScreenLines[1], Is.EqualTo("Floor 1 of 5,  Treasure room"));
+            Assert.That(_hud.EndScreenLines[1], Is.EqualTo("Floor 1 of 5,  The Upper Tombs,  Treasure room")); // changed deliberately (work order 104): the floor's name after its number
             Assert.That(_levels.Record.Floor, Is.EqualTo(1));
             Assert.That(_levels.Record.Room, Is.EqualTo(LevelGeometry.RoomNumber(_levels.Level.Layout, chest.Room))); // work order 059: counted without the passages
             Assert.That(_levels.Record.Outcome, Is.EqualTo(RunOutcome.Died));

@@ -222,12 +222,12 @@ namespace Roguelike.Rules.Tests
 
         static LevelRoom First(LevelLayout l, RoomKind kind) => l.Rooms.First(r => r.Kind == kind);
 
-        static void AssertFault(Action<LevelLayout> breakIt, string expected)
+        static void AssertFault(Action<LevelLayout> breakIt, string expected, LevelValues values = null)
         {
-            LevelLayout level = Make(Sample);
-            Assume.That(LevelValidator.Validate(level), Is.Empty);
+            LevelLayout level = values != null ? LevelGenerator.Generate(Sample, values) : Make(Sample); // work order 103: or with values of its own
+            Assume.That(values != null ? LevelValidator.Validate(level, values) : LevelValidator.Validate(level), Is.Empty);
             breakIt(level);
-            List<string> faults = LevelValidator.Validate(level);
+            List<string> faults = values != null ? LevelValidator.Validate(level, values) : LevelValidator.Validate(level);
             Assert.That(faults.Any(f => f.Contains(expected)), "expected a fault containing \"" + expected + "\", got:\n  "
                         + string.Join("\n  ", faults) + "\n" + LevelMap.Draw(level));
         }
@@ -257,7 +257,8 @@ namespace Roguelike.Rules.Tests
 
         [Test]
         public void Validator_ReportsAPillarTurnedOffItsSteps() =>
-            AssertFault(l => First(l, RoomKind.Exit).Props.First(p => p.Model == PropModel.Pillar).Rotation = 20, "not a multiple of 15");
+            AssertFault(l => First(l, RoomKind.Exit).Props.First(p => p.Model == PropModel.Pillar).Rotation = 20, "not a multiple of 15",
+                        new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }); // work order 103 (changed deliberately): floor 1's throne room and its corner pillars, as written
 
         [Test]
         public void Validator_ReportsAPropAtAWallThatMayNotStandAtOne() =>
@@ -323,7 +324,7 @@ namespace Roguelike.Rules.Tests
             {
                 LevelRoom r = First(l, RoomKind.Exit);
                 r.Props.First(p => p.Model == PropModel.Pillar).Position = Shift(r.Middle(l.CellSize), 5, 3);
-            }, "is nearer the exit room's middle than 8 m");
+            }, "is nearer the exit room's middle than 8 m", new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }); // work order 103 (changed deliberately): floor 1's throne room, as written
 
         [Test]
         public void Validator_ReportsPropsThatOverlap() =>

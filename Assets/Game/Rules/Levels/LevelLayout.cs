@@ -338,6 +338,12 @@ namespace Roguelike.Rules
         public bool UsableRooms;
         public readonly List<LevelRoom> Rooms = new List<LevelRoom>();
         public readonly List<LevelDoor> Doors = new List<LevelDoor>();
+        /// <summary>
+        /// The exit room of its own the floor before ended in, in the run that asked for this floor (work order 103,
+        /// <see cref="WayDowns"/>): its template's name, which the exit room's draw passes over while another can stand; null for a
+        /// floor built alone or the first of a run.
+        /// </summary>
+        public string ExitBefore;
 
         public string SeedText => LevelSeed.ToText(Seed);
 
