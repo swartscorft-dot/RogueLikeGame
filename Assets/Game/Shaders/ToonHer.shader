@@ -30,11 +30,15 @@ Shader "Roguelike/Toon Her"
         _DetailCalm("Detail calm (mip bias)", Range(0, 4)) = 1.5
 
         _RimColor("Edge light colour", Color) = (0.30, 0.95, 0.86, 1)
-        _RimStrength("Edge light strength", Range(0, 2)) = 0.4
+        _RimStrength("Fixed edge light strength (0: off; the producer's addition)", Range(0, 2)) = 0
         _RimStart("Edge light start (1 - N.V)", Range(0, 1)) = 0.75
         _RimSoftness("Edge light softness", Range(0.001, 0.5)) = 0.05
         _RimAway("Edge light away from the key light", Range(0, 1)) = 0.85
         _RimUnder("Edge light gone on faces turned down this far (-N.y)", Range(0.01, 1)) = 0.5
+        _LampEdge("Edge light from the room's lights (1 on, 0 off)", Range(0, 1)) = 1
+        _LampEdgeStrength("Its strength, a share of the light reaching her", Range(0, 2)) = 0.6
+        _LampEdgeStart("Where on her edge it starts (1 - N.V)", Range(0, 1)) = 0.6
+        _LampEdgeSoftness("Its softness", Range(0.001, 0.5)) = 0.08
 
         _TealGlow("Teal lights glow", Range(0, 3)) = 0
         _TealStart("Teal mask start", Range(0, 1)) = 0.10
@@ -73,6 +77,10 @@ Shader "Roguelike/Toon Her"
             half _RimSoftness;
             half _RimAway;
             half _RimUnder;
+            half _LampEdge;
+            half _LampEdgeStrength;
+            half _LampEdgeStart;
+            half _LampEdgeSoftness;
             half _TealGlow;
             half _TealStart;
             half _TealSoftness;
@@ -149,7 +157,11 @@ Shader "Roguelike/Toon Her"
             }
 
             // A light cut into two tones: the lit tone where N·L (and the cast shadow) is past the threshold, the shadow tone under it.
-            half3 Band(Light light, half3 normalWS, uint meshLayers)
+            // And the edge light it gives (work order 115's follow-up: Kristian, 2026-11-24, "det lyset er en refleksjon? Det er ikke
+            // \"på\" karakteren"): on her edge as the camera sees it (grazing, 1 - N·V past _LampEdgeStart), on the side that faces
+            // this light and where its shadow lets it through, in the light's own colour and by its own strength at her (times N·L),
+            // so a lamp far off gives a faint edge and none at all where no light reaches her.
+            half3 Band(Light light, half3 normalWS, half grazing, uint meshLayers, inout half3 edgeLight)
             {
             #ifdef _LIGHT_LAYERS
                 if (!IsMatchingLightLayer(light.layerMask, meshLayers)) return 0;
@@ -158,8 +170,10 @@ Shader "Roguelike/Toon Her"
                 half lit = smoothstep(_LitThreshold - _LitSoftness, _LitThreshold + _LitSoftness, ndl);
                 half cast = smoothstep(_ShadowEdge - _LitSoftness, _ShadowEdge + _LitSoftness, light.shadowAttenuation);
                 lit = min(lit, cast);
+                half3 reach = light.color * light.distanceAttenuation;
+                edgeLight += reach * (grazing * lit * saturate(ndl));
                 half3 tone = lerp(_ShadowTint.rgb, _LitLevel.xxx, lit);
-                return light.color * light.distanceAttenuation * tone;
+                return reach * tone;
             }
 
             half4 ToonFragment(Varyings input) : SV_Target
@@ -192,9 +206,11 @@ Shader "Roguelike/Toon Her"
                 ambient *= ao.indirectAmbientOcclusion;
             #endif
                 half3 light = ambient;
+                half grazing = smoothstep(_LampEdgeStart - _LampEdgeSoftness, _LampEdgeStart + _LampEdgeSoftness, 1.0h - saturate(dot(normalWS, viewWS)));
+                half3 edgeLight = 0;
 
                 Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, shadowMask);
-                light += Band(mainLight, normalWS, meshLayers);
+                light += Band(mainLight, normalWS, grazing, meshLayers, edgeLight);
 
             #if defined(_ADDITIONAL_LIGHTS)
                 uint pixelLightCount = GetAdditionalLightsCount();
@@ -203,18 +219,22 @@ Shader "Roguelike/Toon Her"
                 {
                     CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK
                     Light dl = GetAdditionalLight(lightIndex, inputData.positionWS, shadowMask);
-                    light += Band(dl, normalWS, meshLayers);
+                    light += Band(dl, normalWS, grazing, meshLayers, edgeLight);
                 }
             #endif
                 LIGHT_LOOP_BEGIN(pixelLightCount)
                     Light al = GetAdditionalLight(lightIndex, inputData.positionWS, shadowMask);
-                    light += Band(al, normalWS, meshLayers);
+                    light += Band(al, normalWS, grazing, meshLayers, edgeLight);
                 LIGHT_LOOP_END
             #endif
 
                 half3 colour = albedo * light;
 
-                // The edge light: along her outer edge, on the side away from the key light.
+                // The edge light from the room's own lights (see Band): their colours, their strength at her; none in the dark.
+                colour += edgeLight * (_LampEdgeStrength * _LampEdge);
+
+                // The fixed edge light (off by default since the follow-up: strength 0): along her outer edge, on the side away
+                // from the key light, always teal, wherever she stands. The producer's addition, kept to compare.
                 half edge = 1.0h - saturate(dot(normalWS, viewWS));
                 half rim = smoothstep(_RimStart - _RimSoftness, _RimStart + _RimSoftness, edge);
                 half away = saturate(0.5h - 0.5h * dot(normalWS, mainLight.direction));
