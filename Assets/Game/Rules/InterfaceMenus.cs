@@ -128,6 +128,17 @@ namespace Roguelike.Rules
 
         /// <summary>Her sheet on Tab (work order 095): its own numbers; the rest it shares with the pause menu above.</summary>
         public SheetValues Sheet = new SheetValues();
+
+        /// <summary>
+        /// Work order 114's switch, the start and main menu (Kristian 2026-11-24: "Hvi kan godt også lage en start og main menu i den
+        /// ui stilen vi har valgt"): on, the menu comes up when the game starts and after a run's end screen. Off, nothing of it is
+        /// installed and the game starts in the practice room as before.
+        /// </summary>
+        public bool StartMenu = true;
+        /// <summary>Work order 114: in the Editor, Play goes straight into a run (no menu at the start) when he wants to iterate. Off by default; read when Play starts.</summary>
+        public bool SkipInEditor = false;
+        /// <summary>Work order 114: the start menu's numbers and words.</summary>
+        public StartMenuValues Start = new StartMenuValues();
     }
 
     /// <summary>A key of the pause menu's list as a key cap and the words after it (work order 078): "Space", "Dash  (toward the cursor)".</summary>

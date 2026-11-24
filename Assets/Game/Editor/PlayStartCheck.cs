@@ -394,6 +394,26 @@ namespace Roguelike.EditorTools
                 yield break;
             }
 
+            // Work order 114: the start menu, as he meets it at Play's start: drawn once by hand (a batch Editor sends no OnGUI),
+            // then left with Escape for the practice room, as he would. His records go to a file beside the result, never his.
+            string records = Path.Combine(Path.GetDirectoryName(SessionState.GetString(KResult, "")) ?? ".", "PlayStart-records.json");
+            if (File.Exists(records)) File.Delete(records);
+            StartMenu.RecordsPath = records;
+            yield return Frames(2);
+            StartMenu menu = StartMenu.Current;
+            if (menu == null) Note("the start menu: not installed (MenuValues.StartMenu off)");
+            else
+            {
+                bool menuUp = menu.Up;
+                string drew = menuUp ? DrawOnceByHand(menu) : "it was not up";
+                string outside = menuUp ? menu.TextOutside() : "";
+                Check(menuUp && (drew.Length == 0 || drew == NotTried), "the start menu came up at Play's start and drew once without a fault",
+                      string.Format(Inv, "up {0}, screen {1}, drawn: {2}; words outside their shapes: [{3}]", menuUp, menu.Screen, drew.Length == 0 ? "no fault" : drew, outside));
+                bool left = menu.Escape();
+                yield return Frames(2);
+                Note(string.Format(Inv, "the start menu left with Escape for the practice room: {0}, up after it {1}, time scale {2}", left, menu.Up, Time.timeScale));
+            }
+
             // What lasts between runs is saved under the game's data folder, which his own Editor shares: the check plays on a copy
             // of his save beside the result file, so that it never earns or spends anything in his.
             string copy = Path.Combine(Path.GetDirectoryName(SessionState.GetString(KResult, "")) ?? ".", "PlayStart-between-runs.json");
@@ -714,6 +734,64 @@ namespace Roguelike.EditorTools
             Check(logsWhileUp == 0, "nothing logged while her sheet was up", logsWhileUp + " logged");
         }
 
+        /// <summary>
+        /// Work order 114: the start menu's OnGUI called once by hand, a layout pass and a repaint into a texture of 1920 by 1080,
+        /// inside the engine's internal IMGUI container (as the PlayMode tests' ImguiByHand does: a batch Editor sends no OnGUI).
+        /// Empty when it drew without a fault, else the fault; "not tried" when the engine's entry points are not found.
+        /// </summary>
+        const string NotTried = "not tried (the engine's IMGUI entry points were not found)";
+
+        static string DrawOnceByHand(StartMenu menu)
+        {
+            const System.Reflection.BindingFlags Any = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+            Type gu = typeof(GUIUtility), stateType = gu.Assembly.GetType("UnityEngine.ObjectGUIState");
+            System.Reflection.MethodInfo begin = null, end = null, beginGui = null, endGui = null;
+            foreach (System.Reflection.MethodInfo m in gu.GetMethods(Any))
+            {
+                var p = m.GetParameters();
+                if (m.Name == "BeginContainer" && p.Length == 1 && p[0].ParameterType == stateType) begin = m;
+                if (m.Name == "EndContainer" && p.Length == 0) end = m;
+                if (m.Name == "BeginGUI" && p.Length == 3) beginGui = m;
+                if (m.Name == "EndGUI" && p.Length == 1) endGui = m;
+            }
+            System.Reflection.MethodInfo onGui = typeof(StartMenu).GetMethod("OnGUI", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (stateType == null || begin == null || end == null || beginGui == null || endGui == null || onGui == null) return NotTried;
+            object Arg(Type t, int value) => t == typeof(int) ? (object)value : t == typeof(bool) ? (object)(value != 0) : t.IsEnum ? Enum.ToObject(t, value) : t.IsValueType ? Activator.CreateInstance(t) : null;
+            object[] Args(System.Reflection.MethodInfo m, params int[] values) => m.GetParameters().Select((p, i) => Arg(p.ParameterType, i < values.Length ? values[i] : 0)).ToArray();
+            object state = Activator.CreateInstance(stateType, true);
+            var target = new RenderTexture(1920, 1080, 0, RenderTextureFormat.ARGB32);
+            RenderTexture was = RenderTexture.active;
+            Event saved = Event.current;
+            InterfaceStyle.ScreenForPictures = new Vector2Int(1920, 1080);
+            string fault = "";
+            try
+            {
+                for (int pass = 0; pass < 2 && fault.Length == 0; pass++)
+                {
+                    begin.Invoke(null, new[] { state });
+                    beginGui.Invoke(null, Args(beginGui, 0, 0, 1));
+                    Event.current = new Event { type = pass == 0 ? EventType.Layout : EventType.Repaint, mousePosition = new Vector2(-1000f, -1000f) };
+                    RenderTexture.active = target;
+                    try { onGui.Invoke(menu, null); }
+                    catch (Exception e) { fault = (e.InnerException ?? e).GetType().Name + ": " + (e.InnerException ?? e).Message; }
+                    finally
+                    {
+                        try { endGui.Invoke(null, Args(endGui, 1)); } catch (Exception e) { if (fault.Length == 0) fault = "EndGUI: " + (e.InnerException ?? e).Message; }
+                        end.Invoke(null, null);
+                    }
+                }
+            }
+            finally
+            {
+                InterfaceStyle.ScreenForPictures = Vector2Int.zero;
+                Event.current = saved;
+                RenderTexture.active = was;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
+            return fault;
+        }
+
         static IEnumerator UntilReal(Func<bool> done, double realSeconds)
         {
             double until = RealNow() + realSeconds;
@@ -878,6 +956,7 @@ namespace Roguelike.EditorTools
             Phase = 0;
             SessionRecordingRule.BatchModeAsAnEditor = false;
             GeneratedLevels.BetweenRunsSavePath = null;
+            StartMenu.RecordsPath = null; // work order 114
             Application.logMessageReceivedThreaded -= OnLog;
             s_counting = false;
             EditorApplication.update -= Tick;

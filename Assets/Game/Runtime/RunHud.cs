@@ -350,6 +350,7 @@ namespace Roguelike
             Keyboard keys = PlayerInputDriver.ReadRealDevices ? Keyboard.current : TestKeyboard; // work order 066: or a test's
             if (_levels == null || !(keys is Keyboard keyboard)) return;
             if (DeveloperKeys.On && keyboard[DevTextKey].wasPressedThisFrame) ToggleDevText(); // work order 066: a developer key
+            if (StartMenu.Holds || StartMenu.KeysTakenThisFrame) return; // work order 114: the start menu reads its own keys while it is up (StartMenu.cs)
             if (keyboard[PauseKey].wasPressedThisFrame)
             {
                 Escape();
@@ -443,7 +444,7 @@ namespace Roguelike
             }
 
             // Made once (the fourth review of 2026-11-21, work order 055): the kinetic prompt's cache keys on the string.
-            PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None ? s_StartPrompt : "";
+            PromptText = _levels != null && !_levels.IsInLevel && _levels.Ending == GeneratedLevels.EndKind.None ? StartPromptNow : ""; // work order 114: "Enter  main menu" with the start menu
             PauseLines(); // work order 055
 
             // The end screen. Work order 078: made when it opens and again only when what it says changes (EndLinesStale).
@@ -736,6 +737,7 @@ namespace Roguelike
             if (PromptText.Length > 0) { if (kinetic) DrawPromptKinetic(viewWidth); else DrawPrompt(viewWidth); }
             // Work order 095: her sheet over the paused game (RunHudSheet.cs), in the concept's style whatever the switches.
             if (SheetUp && _levels != null && _levels.Paused) DrawSheet();
+            else if (StartMenu.Holds) { } // work order 114: the start menu draws its screens, the screen between runs' cards among them (RunHudStartMenu.cs)
             // Work order 078: the menus in the concept's style (RunHudMenus.cs), with the skin and MenuValues.Concept on.
             else if (kinetic && MenuConcept)
             {
@@ -824,7 +826,7 @@ namespace Roguelike
             }
             y += 12f;
             float bw = (w - 60f - 20f) / 3f;
-            if (GUI.Button(new Rect(r.x + 30f, y, bw, 34f), "Enter  new run", _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.NewRun);
+            if (GUI.Button(new Rect(r.x + 30f, y, bw, 34f), EndNewRunButton, _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.NewRun); // work order 114: "Enter  main menu" with the start menu
             else if (GUI.Button(new Rect(r.x + 40f + bw, y, bw, 34f), EndSameRunButton, _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.SameRun); // work order 066
             else if (GUI.Button(new Rect(r.x + 50f + 2f * bw, y, bw, 34f), EndPracticeButton, _button)) _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.PracticeRoom);
         }
