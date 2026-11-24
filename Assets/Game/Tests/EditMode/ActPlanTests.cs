@@ -34,7 +34,7 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             Assert.That(v.ActPlan, Is.True, "on by default (work order 087)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(19)); // work order 088
+            Assert.That(LevelGenerator.Version, Is.EqualTo(20)); // work order 088; 103: 20
             var shooter = new ShooterValues();
             var lines = new List<string> { "ACTPLANTABLE floor  guards  casters (exit)  caster elite  warders  bombers (exit)  shooter's fan  act boss" };
             int[] guards = { 0, 1, 1, 1, 1 }, casters = { 0, 0, 1, 1, 2 }, castersExit = { 0, 0, 2, 2, 3 };
@@ -404,7 +404,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ThePlanOff_TwoThousandFloors_AreVersion17s_FieldForField()
         {
-            var off = new LevelValues { ActPlan = false, UsableRooms = false };
+            var off = new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false }; // work order 103: nor the exit rooms of their own
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {

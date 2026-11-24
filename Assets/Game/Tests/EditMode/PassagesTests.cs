@@ -22,7 +22,7 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static readonly LevelValues Off = new LevelValues { Passages = false };
-        static readonly LevelValues Version15 = new LevelValues { Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false }; // work order 072; 087: nor the act's plan
+        static readonly LevelValues Version15 = new LevelValues { Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false }; // work order 072; 087: nor the act's plan; 103: nor the exit rooms of their own
 
         static string Groups(LevelRoom r) => string.Join(",", r.EnemyGroups.Select(g => g.ToString()));
 
@@ -246,7 +246,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(on.Passages, Is.True);
             Assert.That(on.Describe().Split('\n')[0], Does.EndWith(" in a line with passages"));
             Assert.That(LevelGenerator.Generate(42UL, 1, Off).Describe().Split('\n')[0], Does.Not.Contain("passages"));
-            Assert.That(on.Version, Is.EqualTo(19)); // work order 072; 087: 18; 088: 19
+            Assert.That(on.Version, Is.EqualTo(20)); // work order 072; 087: 18; 088: 19; 103: 20
         }
 
         // ---------------- The streams ----------------

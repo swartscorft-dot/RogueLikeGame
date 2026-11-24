@@ -32,11 +32,11 @@ namespace Roguelike.Rules.Tests
             IReadOnlyList<RoomTemplate> usable = RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = true });
             Assert.That(entries.Where(e => e.Template != null).Select(e => e.Template), Is.EqualTo(usable), "every template of the library the generator could draw, in its order, both sets");
             Assert.That(usable.Count(t => t.Since >= RoomTemplateLibrary.MoreSince), Is.GreaterThan(0), "work order 072's second set among them");
-            Assert.That(RoomTemplateLibrary.Usable(v).All(t => t.Since < RoomTemplateLibrary.MoreSince), Is.True, "the floors' own list: the first eleven only");
+            Assert.That(RoomTemplateLibrary.Usable(v).All(t => t.Since < RoomTemplateLibrary.MoreSince || ExitRooms.IsWayDown(t)), Is.True, "the floors' own list: the first eleven only (work order 103: and the third set, on since)");
             foreach (LabEntry e in entries.Where(x => x.Template != null))
             {
                 Assert.That(e.Kind, Is.EqualTo(RoomLab.KindFor(e.Template.For)), e.Name + ": the room it is for");
-                bool second = e.Template.Since >= RoomTemplateLibrary.MoreSince;
+                bool second = e.Template.Since == RoomTemplateLibrary.MoreSince; // work order 103: the third set is in the floors since
                 Assert.That(e.InFloors, Is.EqualTo(!second), e.Name + ": in the floors only if of the first set");
                 Assert.That(e.Label, Is.EqualTo(second ? e.Name + " (not in the floors yet)" : e.Name), "the picker's words");
             }
@@ -60,7 +60,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(RoomLab.Faults(lab, RoomLab.Mixes[2], v), Is.Empty);
             Assert.That(v.MoreTemplates, Is.False, "the floors' values as they were");
             for (ulong seed = 1; seed <= 6; seed++)
-                Assert.That(LevelGenerator.Generate(seed, 1 + (int)(seed % 5), v).Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since < RoomTemplateLibrary.MoreSince),
+                Assert.That(LevelGenerator.Generate(seed, 1 + (int)(seed % 5), v).Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since != RoomTemplateLibrary.MoreSince), // work order 103: the third set is no second set
                             Is.True, "a floor of the default values holds none of the second set, lab room or not");
             var room = new LevelRoom { Kind = RoomKind.Combat, Template = second.Template.Oriented(LevelGenerator.South, false), Shape = RoomShape.Template };
             Assert.That(GreyboxRules.NotInTheFloors(room, v), Is.True, "the greybox box says it too");

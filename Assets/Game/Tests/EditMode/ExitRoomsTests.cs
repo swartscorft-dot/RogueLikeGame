@@ -20,7 +20,7 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static LevelValues On => new LevelValues { ExitRoomsOfTheirOwn = true };
-        static LevelValues Off => new LevelValues();
+        static LevelValues Off => new LevelValues { ExitRoomsOfTheirOwn = false }; // work order 103 (changed deliberately): on by default since; off named
         static readonly string[] Names = { "gate-hall", "stair-head", "sealed-door" };
 
         static List<RoomTemplate> Third => RoomTemplateLibrary.All.Where(t => t.Since == RoomTemplateLibrary.ExitSince).ToList();
@@ -159,15 +159,16 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSwitch_IsOffByDefault_TheFloorsUsableListLeavesTheThirdSetOut_WhateverTheSecondSetSays()
         {
-            Assert.That(new LevelValues().ExitRoomsOfTheirOwn, Is.False, "off by default: in the room lab only, until he has played them");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(19), "no new generator version");
+            // Work order 103 (changed deliberately): on by default since, with the generator's version 20.
+            Assert.That(new LevelValues().ExitRoomsOfTheirOwn, Is.True, "on by default since work order 103");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(20), "work order 103's version");
             foreach (bool more in new[] { false, true })
             {
-                Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more }).Any(ExitRooms.IsWayDown), Is.False, "off: never drawn");
+                Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false }).Any(ExitRooms.IsWayDown), Is.False, "off: never drawn");
                 Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = true }).Count(ExitRooms.IsWayDown), Is.EqualTo(3));
                 // On, the other sets' lists are as they were, in their order: the third set after them.
                 Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = true }).Where(t => !ExitRooms.IsWayDown(t)),
-                            Is.EqualTo(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more })));
+                            Is.EqualTo(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false })));
             }
             foreach (int floor in new[] { 1, 4, 5 })
             {
@@ -190,7 +191,7 @@ namespace Roguelike.Rules.Tests
             foreach (bool more in new[] { false, true })
                 for (ulong s = 0; s < (more ? 1000UL : 2000UL); s++)
                 {
-                    LevelLayout level = LevelGenerator.Generate(s * 7919UL + 89UL, (int)(s % 5) + 1, new LevelValues { MoreTemplates = more });
+                    LevelLayout level = LevelGenerator.Generate(s * 7919UL + 89UL, (int)(s % 5) + 1, new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false }); // work order 103: the switch off named
                     h = FloorPrint.Of(level, h);
                     foreach (LevelRoom r in level.Rooms)
                     {

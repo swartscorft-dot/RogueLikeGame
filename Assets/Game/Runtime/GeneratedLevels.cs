@@ -256,7 +256,7 @@ namespace Roguelike
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
             bool clocked = FloorBuildClock.Begin(); // work order 081: the build's steps, for the build-time table
-            LevelLayout layout = _labLayout ?? LevelGenerator.Generate(seed, floor, Values); // work order 084: or the room lab's one room (GeneratedLevelsLab.cs)
+            LevelLayout layout = _labLayout ?? LevelGenerator.Generate(seed, floor, Values, exitBefore: _wayDownBefore); // work order 084: or the room lab's one room (GeneratedLevelsLab.cs); 103: in a run, the floor before's exit room
             FloorBuildClock.Step("plan: the generator");
 
             if (_level != null) Remove();
@@ -406,7 +406,9 @@ namespace Roguelike
             Floor = floor;
             bool clocked = FloorBuildClock.Begin(); // work order 081: a floor of a run, from the choice before it
             ulong seed = RunSeeds.FloorSeed(RunSeed ?? 0UL, floor);
+            WayDownBefore(floor); // work order 103 (GeneratedLevelsWayDown.cs)
             GeneratedLevel level = Build(seed, floor);
+            WayDownShown(level);
             RecordFloor(level);
             _floorStartedAt = Time.time;
             PlaySessionRecorder.Current?.NoteFloorEntered(floor, LevelSeed.ToText(seed));

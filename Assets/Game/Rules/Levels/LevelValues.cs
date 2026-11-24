@@ -394,7 +394,11 @@ namespace Roguelike.Rules
         // on) and the themes. Off: every floor is version 19's, field for field, with no new version (the library grew after its
         // other sets, and off they are never drawn). OFF by default: a room's form is judged by Kristian playing it in the room lab
         // (work order 084, where they are listed whatever this says) before a later order turns it on with a new version.
-        public bool ExitRoomsOfTheirOwn = false;
+        // Work order 103 (Kristian ticked "Etasjene får hver sin ting" on 2026-11-24, its words "tronrommet bare i etasje 5 og egne
+        // utgangsrom i etasje 1–4"; he has not tried them in the room lab and judges them in real floors): ON, the generator's
+        // version 20; in a run a floor of 1 to 4 does not end in the room the floor before ended in while another can stand
+        // (WayDowns). Off: every floor is version 19's, field for field, but for the version.
+        public bool ExitRoomsOfTheirOwn = true;
         // A room is a fight (work order 070; Kristian after his evening session of 2026-11-21: "nå rman kommer i et rom, så er
         // man i en combat ... man trenger et punkt in i rommet der alle flyr på"): on, every room of a floor in a line that holds
         // enemies has a point a little way in from the door she came by (Fights, RoomFightRules); crossing it, or any waking of

@@ -21,9 +21,9 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
 
-        static LevelLayout Make(ulong seed, int floor = 1, int propsWarmUp = 0) => LevelGenerator.Generate(seed, floor, new LevelValues(), 0, propsWarmUp);
+        static LevelLayout Make(ulong seed, int floor = 1, int propsWarmUp = 0) => LevelGenerator.Generate(seed, floor, new LevelValues { ExitRoomsOfTheirOwn = false }, 0, propsWarmUp);
 
-        static LevelValues Off() => new LevelValues { Themes = false };
+        static LevelValues Off() => new LevelValues { ExitRoomsOfTheirOwn = false, Themes = false };
 
         /// <summary>The cover a prop gives, as the order counts it: a tall prop's width (a circle's across), else 0.</summary>
         static double CoverWidth(LevelProp p, PropValues v) => !p.IsCover(v) ? 0 : p.Shape == PropShape.Circle ? 2 * p.Radius : p.Width;
@@ -86,10 +86,10 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandSeeds_WithThemes_KeepEveryRule_AndTheirLayoutsAndEnemies(int floor)
         {
-            var values = new LevelValues();
-            var noProps = new LevelValues { Props = false };
+            var values = new LevelValues { ExitRoomsOfTheirOwn = false };
+            var noProps = new LevelValues { ExitRoomsOfTheirOwn = false, Props = false };
             PropValues pv = values.PropRules;
-            LevelGenerator.Generate(424242UL, floor); // the first call pays for compiling the code
+            LevelGenerator.Generate(424242UL, floor, new LevelValues { ExitRoomsOfTheirOwn = false }); // the first call pays for compiling the code
             var byTheme = new Dictionary<string, Tally>();
             var counts = new Dictionary<string, int>();
             int repeats = 0, throneNorth = 0, throneFar = 0, throneElsewhere = 0, throneNone = 0, wallPieces = 0;
@@ -106,7 +106,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 1000; s++)
             {
                 timer.Restart();
-                LevelLayout level = LevelGenerator.Generate(s, floor);
+                LevelLayout level = LevelGenerator.Generate(s, floor, new LevelValues { ExitRoomsOfTheirOwn = false });
                 timer.Stop();
                 double ms = timer.Elapsed.TotalMilliseconds;
                 total += ms;
@@ -221,7 +221,7 @@ namespace Roguelike.Rules.Tests
             for (int i = 0; i < 3; i++)
             {
                 timer.Restart();
-                LevelGenerator.Generate(slowestSeed, floor);
+                LevelGenerator.Generate(slowestSeed, floor, new LevelValues { ExitRoomsOfTheirOwn = false });
                 timer.Stop();
                 again = Math.Min(again, timer.Elapsed.TotalMilliseconds);
             }
@@ -248,7 +248,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSums_PerTheme_AgainstTheRoomsOfBefore()
         {
-            var values = new LevelValues();
+            var values = new LevelValues { ExitRoomsOfTheirOwn = false };
             PropValues pv = values.PropRules;
             var byTheme = new Dictionary<string, Tally>();
             var before = new Tally();
@@ -374,8 +374,8 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheThrone_GoesToASideWall_WhenTheNorthWallCannotHoldIt()
         {
-            var values = new LevelValues();
-            var noProps = new LevelValues { Props = false };
+            var values = new LevelValues { ExitRoomsOfTheirOwn = false };
+            var noProps = new LevelValues { ExitRoomsOfTheirOwn = false, Props = false };
             int sideWall = 0, leftOut = 0;
             for (ulong s = 0; s < 20; s++)
             {

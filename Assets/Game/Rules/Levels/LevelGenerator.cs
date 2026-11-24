@@ -152,6 +152,15 @@ namespace Roguelike.Rules
     /// low props on the shooters' lines to duck behind. The layout, the shapes, the enemies and the themes are version 18's; the
     /// props differ in the rooms where a rule moved, dropped or added one, and the mood follows them. With it off every floor is
     /// version 18's, field for field, but for the version.
+    /// Version 20 (work order 103; Kristian ticked "Etasjene får hver sin ting" on 2026-11-24: "tronrommet bare i etasje 5 og egne
+    /// utgangsrom i etasje 1–4"): with <see cref="LevelValues.ExitRoomsOfTheirOwn"/> on (the default) the exit room of floors 1 to 4
+    /// draws its template from work order 089's exit rooms of their own only (the gate hall, the stair head, the sealed door) and is
+    /// an exit hall, and floor 5's from the throne rooms only, a throne room with the act boss as before. The draw is the templates
+    /// stream's as before; in a run, a floor is also told the room the floor before ended in (<see cref="LevelLayout.ExitBefore"/>,
+    /// <see cref="WayDowns"/>) and passes over it while another can stand, so a run does not show the same one twice running; a floor
+    /// built alone is told none. The enemies are version 19's (<see cref="FightsOf"/> is untouched); the exit rooms of floors 1 to 4
+    /// stand elsewhere, with other sizes, doors, themes and props. With it off every floor is version 19's, field for field, but for
+    /// the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -186,7 +195,10 @@ namespace Roguelike.Rules
         // 19: work order 088, rooms you can use (LevelValues.UsableRooms, on: no prop shuts floor off and a way of whole cells runs
         // through every room, a chain of tall cover and low cover for the duck in every fight with shooters or casters; off, every
         // floor is version 18's).
-        public const int Version = 19;
+        // 20: work order 103, exit rooms of their own (LevelValues.ExitRoomsOfTheirOwn, on: floors 1 to 4 end in the gate hall, the
+        // stair head or the sealed door, not the one the floor before in a run ended in; floor 5 in the throne room; off, every floor
+        // is version 19's).
+        public const int Version = 20;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -208,9 +220,11 @@ namespace Roguelike.Rules
         /// <summary>
         /// The floor of this seed and number (1 to <see cref="LevelValues.FloorsPerAct"/>). <paramref name="contentsWarmUp"/>
         /// throws away that many draws at the start of the contents stage, and <paramref name="propsWarmUp"/> of the props
-        /// stage; they are there for the tests that show a change to one stage leaves the others alone.
+        /// stage; they are there for the tests that show a change to one stage leaves the others alone. Work order 103:
+        /// <paramref name="exitBefore"/>, in a run, the exit room of its own the floor before ended in (<see cref="WayDowns.Shown"/>),
+        /// which this floor's exit room passes over while another can stand; null (a floor alone, or a run's first) for none.
         /// </summary>
-        public static LevelLayout Generate(ulong seed, int floor, LevelValues values = null, int contentsWarmUp = 0, int propsWarmUp = 0)
+        public static LevelLayout Generate(ulong seed, int floor, LevelValues values = null, int contentsWarmUp = 0, int propsWarmUp = 0, string exitBefore = null)
         {
             values = values ?? new LevelValues();
             floor = Math.Max(1, Math.Min(values.FloorsPerAct, floor));
@@ -224,7 +238,7 @@ namespace Roguelike.Rules
                 var level = new LevelLayout
                 {
                     Seed = seed, Version = Version, GridCells = values.GridCells, CellSize = values.CellSize, Attempt = attempt + 1,
-                    Floor = floor, InALine = values.InALine,
+                    Floor = floor, InALine = values.InALine, ExitBefore = exitBefore, // work order 103
                 };
                 LevelRandom layout = LevelRandom.Stream(seed, LayoutStage, attempt);
                 if (!(values.InALine ? values.Passages && values.DoorWidth == 1 ? TryLineApart(level, layout, values) : TryLine(level, layout, values) // work order 059
@@ -347,7 +361,7 @@ namespace Roguelike.Rules
             List<TemplatePlacement> placed = null;
             if (v.Templates && v.Shapes)
             {
-                RoomTemplates.Draw(kinds, elite, level.Floor, LevelRandom.Stream(level.Seed, TemplatesStage, level.Attempt - 1), v, out templates, out mirrors);
+                RoomTemplates.Draw(kinds, elite, level.Floor, LevelRandom.Stream(level.Seed, TemplatesStage, level.Attempt - 1), v, out templates, out mirrors, level.ExitBefore); // 103
                 placed = new List<TemplatePlacement>();
                 level.Templates = true;
             }
