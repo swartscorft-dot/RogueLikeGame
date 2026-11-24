@@ -232,7 +232,7 @@ namespace Roguelike.Rules
             // Defence and moves: health now and most, a cleared room's heal, her speeds, her dashes.
             int max = m.MaxHealthFor(c.OwnMaxHealth);
             Add(SheetGroup.DefenceAndMoves, "Health", Math.Max(0, c.Health).ToString(s_Inv) + " / " + max.ToString(s_Inv), max, "0");
-            int heal = FloorHeals.Amount(max, run.RoomHeal) + s.Mending;
+            int heal = FloorHeals.Amount(max, s.RoomHealShare(run, false)) + s.Mending; // work order 099: with the ranks' points
             Add(SheetGroup.DefenceAndMoves, "Room heal", heal.ToString(s_Inv), heal, "0", "", s.On && s.Mending >= v.MostMending);
             double speed = f.RunSpeed * s.MoveSpeed;
             Add(SheetGroup.DefenceAndMoves, "Run speed", OfferTexts.One(speed) + " m/s", speed, "0.0");

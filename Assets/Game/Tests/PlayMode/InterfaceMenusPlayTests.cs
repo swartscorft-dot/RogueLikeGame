@@ -243,7 +243,8 @@ namespace Roguelike.PlayModeTests
             yield return null;
             yield return null;
             int pieces = _levels.MetaValues.Pieces.Length, parts = WeaponRack.InSlotOrder(_levels.MetaValues).Count;
-            Assert.That(_hud.BetweenCardNames.Count, Is.EqualTo(pieces + parts), "a card for every piece of the rack and every part");
+            int ranks = _levels.MetaValues.Ranks.Length; // work order 099: and a card for every stat of the ranks
+            Assert.That(_hud.BetweenCardNames.Count, Is.EqualTo(pieces + parts + ranks), "a card for every piece of the rack, every part and every rank");
             int laser = new List<string>(_hud.BetweenCardNames).IndexOf("Laser Sight"), bull = new List<string>(_hud.BetweenCardNames).IndexOf("Bull Barrel");
             Assert.That(_hud.BetweenCardStates[laser], Is.EqualTo("FITTED"));
             Assert.That(_hud.BetweenCardStates[bull], Is.EqualTo("owned"));

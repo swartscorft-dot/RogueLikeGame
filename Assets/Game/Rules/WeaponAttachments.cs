@@ -444,7 +444,7 @@ namespace Roguelike.Rules
     /// view is); narrower, the rack's panel narrows to what is left, never under <see cref="LeastRack"/>, and then the
     /// weapon's narrows, so neither overlaps the other or leaves the view. First guesses.
     /// </summary>
-    public static class BetweenRunsLayout
+    public static partial class BetweenRunsLayout // work order 099: partial, its three panels' rule in BetweenRunsRanks.cs
     {
         /// <summary>The rack's panel, as work order 029 drew it.</summary>
         public const float RackWidth = 680f;

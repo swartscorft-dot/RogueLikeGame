@@ -102,6 +102,7 @@ namespace Roguelike.Rules
         public const string MetaLoadout = "meta_loadout";     // a run started: name the pieces equipped joined by " | ", currency, budget, used
         public const string MetaEarn = "meta_earn";           // the run earned: name what from (floor, elite room, act boss), amount, floor
         public const string MetaFeat = "meta_feat";           // a feat done for the first time, when the run ended: name its id
+        public const string MetaRank = "meta_rank";           // work order 099: a rank bought between runs: name the stat's name, rank (the new one), price, left (Echoes after)
         // Taking cover (Kristian 2026-11-19, an experiment). A shot it stopped is an enemy_strike with result "stopped by cover".
         public const string CoverEnter = "cover_enter";       // she took cover: name is "tall" or "low", what she is behind
         public const string CoverLeave = "cover_leave";       // she left cover: result says how (released, dash, moving skill, other)

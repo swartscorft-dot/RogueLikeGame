@@ -360,12 +360,15 @@ namespace Roguelike.Rules
     {
         readonly HashSet<int> _healed = new HashSet<int>();
 
-        /// <summary>What clearing this room heals now: the room's share of her maximum the first time, 0 after (and for a share of 0).</summary>
-        public int Heal(int room, bool elite, int maxHealth, RunValues values)
+        /// <summary>
+        /// What clearing this room heals now: the room's share of her maximum the first time, 0 after (and for a share of 0).
+        /// <paramref name="more"/>: points of the share more (work order 099: the ranks' room heal; 0, as before).
+        /// </summary>
+        public int Heal(int room, bool elite, int maxHealth, RunValues values, float more = 0f)
         {
             if (values == null || _healed.Contains(room)) return 0;
             _healed.Add(room);
-            return FloorHeals.Amount(maxHealth, elite ? values.EliteRoomHeal : values.RoomHeal);
+            return FloorHeals.Amount(maxHealth, (elite ? values.EliteRoomHeal : values.RoomHeal) + more);
         }
 
         public bool Healed(int room) => _healed.Contains(room);

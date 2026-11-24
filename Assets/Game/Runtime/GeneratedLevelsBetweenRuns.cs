@@ -291,12 +291,14 @@ namespace Roguelike
             if (!BetweenRunsReadable()) return; // work order 033: the save is there but cannot be read now: this run is no meta run
             MetaState s = BetweenRunsState;
             MetaRack.Apply(s, MetaValues, Modifiers.Meta, StruckOutSkill);
+            MetaRanks.Apply(s, MetaValues, Modifiers.Meta); // work order 099: the ranks bought, beside the pieces, through the same effects
             ApplyWeapon(s); // work order 060: her pistols' parts, only with the attachments on (GeneratedLevelsWeapon.cs)
             _metaRun = true;
             Earnings = new RunEarnings();
             _eliteEntrySeen = false;
             _eliteDipped = false;
             Debug.Log("Between runs: the run starts with " + (Modifiers.Meta.Any ? string.Join(", ", Modifiers.Meta.Pieces) : "nothing equipped")
+                      + (Modifiers.Meta.AnyRanks ? "; ranks " + string.Join(", ", Modifiers.Meta.Ranks) : "") // work order 099
                       + " (" + Modifiers.Meta + ")");
         }
 
@@ -309,7 +311,8 @@ namespace Roguelike
             {
                 MetaState s = BetweenRunsState;
                 PlaySessionRecorder.Current?.NoteBetweenRunsLoadout(Modifiers.Meta.Pieces, s.Currency, MetaRack.Budget(s, MetaValues), MetaRack.PointsUsed(s, MetaValues),
-                                                                    WeaponLoadoutWords()); // work order 060: null with the attachments off
+                                                                    WeaponLoadoutWords(), // work order 060: null with the attachments off
+                                                                    MetaRanks.Held(s, MetaValues)); // work order 099: null with no rank
             }
             if (floor >= 3) Earnings.Do(MetaFeat.ReachFloor3);
             if (floor >= 5) Earnings.Do(MetaFeat.ReachFloor5);

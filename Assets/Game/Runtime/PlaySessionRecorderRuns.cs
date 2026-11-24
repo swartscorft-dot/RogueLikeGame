@@ -208,11 +208,22 @@ namespace Roguelike
         /// Work order 060: <paramref name="weapon"/>, her pistols' parts fitted joined by " | " (or "stock"), only when the
         /// attachments are on; null, the event is as before.
         /// </summary>
-        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used, string weapon = null)
+        public void NoteBetweenRunsLoadout(IList<string> pieces, int currency, int budget, int used, string weapon = null, string ranks = null)
         {
+            // Work order 099: the ranks she starts with ("Health 3, Damage 1"), only when she has any; none, the event is as before.
+            if (ranks != null)
+            {
+                if (weapon == null) Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used), "ranks", ranks);
+                else Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used), "weapon", weapon, "ranks", ranks);
+                return;
+            }
             if (weapon == null) Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used));
             else Note(SessionEventTypes.MetaLoadout, string.Join(" | ", pieces), "currency", Int(currency), "budget", Int(budget), "used", Int(used), "weapon", weapon);
         }
+
+        /// <summary>Work order 099: a rank bought on the screen between runs: the stat's name, the rank it is now, its price, the Echoes left.</summary>
+        public void NoteBetweenRunsRank(string stat, int rank, int price, int left) =>
+            Note(SessionEventTypes.MetaRank, stat, "rank", Int(rank), "price", Int(price), "left", Int(left));
 
         /// <summary>The run earned currency: how much, from what (floor, elite room, act boss), on which floor.</summary>
         public void NoteBetweenRunsEarned(int amount, string from, int floor) =>

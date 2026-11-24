@@ -832,12 +832,14 @@ namespace Roguelike
 
         bool BetweenStale()
         {
-            int n = _betweenLines.Count + _weaponLines.Count;
+            int n = _betweenLines.Count + _weaponLines.Count + _rankLines.Count; // work order 099: and the ranks' lines
             if (_cardSource.Count != n) return true;
             for (int i = 0; i < _betweenLines.Count; i++)
                 if (!string.Equals(_betweenLines[i], _cardSource[i], System.StringComparison.Ordinal)) return true;
             for (int i = 0; i < _weaponLines.Count; i++)
                 if (!string.Equals(_weaponLines[i], _cardSource[_betweenLines.Count + i], System.StringComparison.Ordinal)) return true;
+            for (int i = 0; i < _rankLines.Count; i++)
+                if (!string.Equals(_rankLines[i], _cardSource[_betweenLines.Count + _weaponLines.Count + i], System.StringComparison.Ordinal)) return true;
             return false;
         }
 
@@ -852,6 +854,7 @@ namespace Roguelike
             _cardSource.Clear();
             _cardSource.AddRange(_betweenLines);
             _cardSource.AddRange(_weaponLines);
+            _cardSource.AddRange(_rankLines); // work order 099
             _cardName.Clear();
             _cardSub.Clear();
             _cardState.Clear();
@@ -865,6 +868,7 @@ namespace Roguelike
             _slotHeads.Clear();
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
+            _rackCards = _weaponEnd = 0; // work order 099
             if (_betweenLines.Count < 4 || _levels == null) return;
             MetaState s = _levels.BetweenRunsState;
             MetaValues mv = _levels.MetaValues;
@@ -909,6 +913,23 @@ namespace Roguelike
                 AddCard(Part(head, 0), "", Part(head, 1), text, kind, slot);
                 slot = -1;
             }
+            _weaponEnd = _cardName.Count;
+            // Work order 099: the ranks, a card a stat: its name, "rank 3 of 10", its price on the chip (gold when she can pay it,
+            // grey when not, teal at its last rank), and what the next rank gives with whether she can pay for it.
+            MetaRank[] rankTable = RankTable;
+            for (int i = 0; i < _rankLines.Count && i < rankTable.Length; i++)
+            {
+                MetaRank rk = rankTable[i];
+                if (rk == null)
+                {
+                    AddCard("", "", "", "", 3, -1);
+                    continue;
+                }
+                bool rkLast = MetaRanks.AtMost(s, rk);
+                int rkPrice = MetaRanks.NextPrice(s, mv, rk);
+                string rkChip = rkLast ? "last rank" : rkPrice.ToString(s_Inv078) + " " + mv.CurrencyName;
+                AddCard(rk.Name, MetaRanks.RankWords(s, rk), rkChip, RankCardText(s, mv, rk), rkLast ? 0 : s.Currency >= rkPrice ? 2 : 3, -1);
+            }
 
             // The cards' height: the tallest one's words at the card's width.
             GUIStyle words = InterfaceStyle.Text(false, m.CardTextSize, TextAnchor.UpperLeft, true);
@@ -926,6 +947,7 @@ namespace Roguelike
             float height = BetweenGridTop(m) + RackRows() * (_cardH + m.CardGap) + 3f * m.EndLine + m.Margin;
             float weaponH = BetweenGridTop(m) - m.ButtonHeight - 24f + WeaponPanelHeight(m);
             height = Mathf.Max(height, weaponH + m.Margin);
+            if (RankCards) height = Mathf.Max(height, BetweenGridTop(m) - m.ButtonHeight - 24f + RankPanelHeight(m) + m.Margin); // work order 099
             float viewWidth = LayoutViewWidth;
             _bFit = MenuLayout.Fit(BetweenWidth(m), height, viewWidth, v.LayoutHeight, m);
             _bViewWidth = viewWidth / _bFit;
@@ -947,10 +969,17 @@ namespace Roguelike
         const int RackColumns = 3;
         int RackRows() => (_rackCards + RackColumns - 1) / RackColumns;
         float RackWidth(MenuValues m) => RackColumns * m.CardWidth + (RackColumns - 1) * m.CardGap;
-        bool WeaponCards => _cardName.Count > _rackCards;
-        float BetweenWidth(MenuValues m) => RackWidth(m) + (WeaponCards ? m.ColumnGap + m.CardWidth + 2f * m.PanelPad : 0f);
+        // Work order 099: the cards are the rack's [0, _rackCards), the weapon's [_rackCards, _weaponEnd), the ranks' after.
+        int _weaponEnd;
+        bool WeaponCards => _weaponEnd > _rackCards;
+        bool RankCards => _cardName.Count > _weaponEnd;
+        float SideColumn(MenuValues m) => m.ColumnGap + m.CardWidth + 2f * m.PanelPad;
+        float BetweenWidth(MenuValues m) => RackWidth(m) + (WeaponCards ? SideColumn(m) : 0f) + (RankCards ? SideColumn(m) : 0f);
+        float RankPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + (_cardName.Count - _weaponEnd) * (_cardH + m.CardGap);
+        /// <summary>The ranks' panel's left edge (work order 099): after the rack and the weapon's panel, if any.</summary>
+        float RankPanelX(MenuValues m) => BetweenLeft(m) + RackWidth(m) + (WeaponCards ? SideColumn(m) : 0f) + m.ColumnGap;
         float BetweenGridTop(MenuValues m) => m.BetweenTop + m.HeadingHeight + m.HeadingGap + m.ButtonHeight + 24f;
-        float WeaponPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + _slotHeads.Count * 30f + (_cardName.Count - _rackCards) * (_cardH + m.CardGap);
+        float WeaponPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + _slotHeads.Count * 30f + (_weaponEnd - _rackCards) * (_cardH + m.CardGap);
         float BetweenLeft(MenuValues m) => (_bViewWidth - BetweenWidth(m)) * 0.5f;
 
         /// <summary>Card <paramref name="index"/> (the rack's pieces, then the weapon's parts) in the 1080 layout before the fit.</summary>
@@ -959,6 +988,8 @@ namespace Roguelike
             float x0 = BetweenLeft(m), top = BetweenGridTop(m);
             if (index < _rackCards)
                 return new Rect(x0 + (index % RackColumns) * (m.CardWidth + m.CardGap), top + (index / RackColumns) * (_cardH + m.CardGap), m.CardWidth, _cardH);
+            if (index >= _weaponEnd) // work order 099: the ranks' cards, one under another in their panel
+                return new Rect(RankPanelX(m) + m.PanelPad, top - m.ButtonHeight - 24f + m.PanelPad + m.PanelHeadHeight + (index - _weaponEnd) * (_cardH + m.CardGap), m.CardWidth, _cardH);
             float x = x0 + RackWidth(m) + m.ColumnGap + m.PanelPad, y = top - m.ButtonHeight - 24f + m.PanelPad + m.PanelHeadHeight;
             for (int i = _rackCards; i <= index; i++)
             {
@@ -995,7 +1026,45 @@ namespace Roguelike
             GUIStyle button = InterfaceStyle.Text(true, m.ButtonTextSize, TextAnchor.MiddleLeft);
             float budget = InterfaceStyle.Measure(_bBudget, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleRight)).x;
             if (2f * ButtonPad(v, m) + _bStartCapW + _bSpaceCapW + 30f + InterfaceStyle.Measure(_bStart, button).x + 20f + budget > RackWidth(m)) problems.Add("the start's words and the budget are wider than its button");
+            // Work order 099: the ranks' panel's heading and its words beside it (as the pause menu's panels are measured).
+            if (RankCards && InterfaceStyle.Measure(RanksHead, InterfaceStyle.Text(true, m.PanelHeadSize, TextAnchor.MiddleLeft)).x + 24f
+                + InterfaceStyle.Measure(RanksSub, InterfaceStyle.Text(false, m.PanelSubSize, TextAnchor.MiddleRight)).x + 50f > m.CardWidth)
+                problems.Add("the ranks' heading is wider than its panel");
             return string.Join("; ", problems);
+        }
+
+        /// <summary>The first of the ranks' cards among <see cref="BetweenCardNames"/> (work order 099): after the rack's and the weapon's. For tests.</summary>
+        public int BetweenRankCardFirst
+        {
+            get
+            {
+                LayOutBetween();
+                return _weaponEnd;
+            }
+        }
+
+        /// <summary>The card under this point of the 1080 layout (after the fit), or -1: the one hit test the drawing's clicks are (work order 099). For tests.</summary>
+        public int BetweenCardAt(Vector2 point)
+        {
+            LayOutBetween();
+            var p = new Vector2(point.x / _bFit, point.y / _bFit);
+            MenuValues m = InterfaceStyle.V.Menus;
+            for (int i = 0; i < _cardName.Count; i++)
+                if (CardRect(i, m).Contains(p)) return i;
+            return -1;
+        }
+
+        /// <summary>
+        /// A click on card <paramref name="index"/> of the screen between runs, as its button does it: a piece is bought,
+        /// equipped or taken off, a part bought, fitted or taken off, a rank bought (work order 099). False when nothing happened.
+        /// </summary>
+        public bool ClickBetweenCard(int index)
+        {
+            LayOutBetween();
+            if (index < 0 || index >= _cardName.Count) return false;
+            if (index < _rackCards) return PickBetweenRunsLine(index + 1);
+            if (index < _weaponEnd) return PickWeaponLine(index - _rackCards);
+            return PickRankLine(index - _weaponEnd);
         }
 
         static bool ChipFits(string state) => state.Length > 0 && state.Length <= 22;
@@ -1050,6 +1119,9 @@ namespace Roguelike
                 var panel = new Rect(x0 + RackWidth(m) + m.ColumnGap, start.y, m.CardWidth + 2f * m.PanelPad, WeaponPanelHeight(m));
                 DrawPanel(panel, LoadoutHead, LoadoutSub, InterfaceStyle.C(v.White), v, m);
             }
+            // Work order 099: the ranks' panel behind their cards, at the right end.
+            if (RankCards)
+                DrawPanel(new Rect(RankPanelX(m), start.y, m.CardWidth + 2f * m.PanelPad, RankPanelHeight(m)), RanksHead, RanksSub, InterfaceStyle.C(v.Gold), v, m);
 
             // The cards.
             MetaState s = _levels.BetweenRunsState;
@@ -1059,7 +1131,7 @@ namespace Roguelike
                 Rect r = CardRect(i, m);
                 if (i >= _rackCards && _cardSlotHead[i] >= 0)
                     TextLabel(new Rect(r.x + 10f, r.y - 30f, r.width, 26f), _slotHeads[_cardSlotHead[i]], InterfaceStyle.Text(true, 20, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
-                int row = i < _rackCards ? i + 1 : BetweenRunsRows + (i - _rackCards);
+                int row = i < _rackCards ? i + 1 : i < _weaponEnd ? BetweenRunsRows + (i - _rackCards) : RankRowFirst + (i - _weaponEnd); // work order 099: the ranks' rows after
                 bool selected = row == BetweenRunsSelected, hover = e != null && r.Contains(e.mousePosition);
                 DrawCard(i, r, selected, hover, v, m);
                 bool strike = i < _rackCards && i < pieces.Length && pieces[i].Effect == MetaEffect.StrikeOut && s.Owns(pieces[i].Id);
@@ -1072,11 +1144,7 @@ namespace Roguelike
                     if (GUI.Button(less, GUIContent.none, GUIStyle.none)) { BetweenRunsSelected = row; _levels.ChangeStruckOut(-1); continue; }
                     if (GUI.Button(more, GUIContent.none, GUIStyle.none)) { BetweenRunsSelected = row; _levels.ChangeStruckOut(1); continue; }
                 }
-                if (GUI.Button(r, GUIContent.none, GUIStyle.none))
-                {
-                    if (i < _rackCards) PickBetweenRunsLine(row);
-                    else PickWeaponLine(i - _rackCards);
-                }
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) ClickBetweenCard(i); // work order 099: one path for every card's click
             }
 
             // The last thing tried, and the keys.

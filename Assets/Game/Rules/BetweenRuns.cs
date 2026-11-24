@@ -42,6 +42,15 @@ namespace Roguelike.Rules
         /// <summary>Echoes for each ordinary combat room cleared (not the elite room, which keeps its own), only while the attachments are on (work order 060).</summary>
         public int PerRoom = 3;
         public WeaponAttachment[] Parts = WeaponAttachments.Create();
+
+        // Work order 099 (Kristian 2026-11-23: "noen som bør være på rene stats og. så er det også en sink"; 2026-11-24 he ticked
+        // "Rang som kjøpes mange ganger"): pure stats bought rank by rank on this currency, save and screen (BetweenRunsRanks.cs).
+        // Only with the trial on, as everything here. An empty table gives the screen and every run as before.
+        public MetaRank[] Ranks = MetaRanks.Create();
+        /// <summary>A stat's first rank costs this (the producer's starting value, work order 099): a run that dies on floor 3 earns 50.</summary>
+        public int FirstPrice = 40;
+        /// <summary>Each next rank costs the one before times this, rounded to the nearest 5 (the producer's starting value): 40, 55, 80, ... 825.</summary>
+        public float PriceGrowth = 1.4f;
     }
 
     /// <summary>A piece changes a rule of the run, or is a raw stat step (0009: a few, large and capped).</summary>
@@ -198,7 +207,15 @@ namespace Roguelike.Rules
     /// </summary>
     public sealed class MetaState
     {
-        public const int CurrentVersion = 1;
+        /// <summary>
+        /// The newest save this code reads and writes: 2 since work order 099 (the ranks). A save with no rank bought is still
+        /// written as version 1 (<see cref="VersionWithoutRanks"/>), character for character as before, so every earlier build
+        /// reads it; one with ranks is version 2, so an earlier build, which would pass the ranks over and write the save again
+        /// without them, keeps it aside instead (its rule for a newer save) and nothing is lost.
+        /// </summary>
+        public const int CurrentVersion = 2;
+        /// <summary>The version a save with no rank bought is written as (work order 029's, and 060's).</summary>
+        public const int VersionWithoutRanks = 1;
 
         public int Version = CurrentVersion;
         public int Currency;
@@ -213,6 +230,21 @@ namespace Roguelike.Rules
         /// <summary>Her pistols' parts bought, and those fitted, one a slot (work order 060). Kept while the attachments are off, never applied then.</summary>
         public readonly List<string> AttachmentsOwned = new List<string>();
         public readonly List<string> AttachmentsFitted = new List<string>();
+        /// <summary>The ranks bought, by the stat's id (work order 099); a save of before has none, which is rank 0 of everything.</summary>
+        public readonly Dictionary<string, int> Ranks = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        /// <summary>The rank kept for this stat (0 when none); <see cref="MetaRanks.RankOf"/> is what counts against the table.</summary>
+        public int RankOf(string id) => id != null && Ranks.TryGetValue(id, out int n) ? n : 0;
+        /// <summary>Any rank bought (work order 099): the save is then written as version 2.</summary>
+        public bool HasRanks
+        {
+            get
+            {
+                foreach (KeyValuePair<string, int> p in Ranks)
+                    if (p.Value > 0) return true;
+                return false;
+            }
+        }
 
         public bool Owns(string id) => Owned.Contains(id);
         public bool IsEquipped(string id) => Equipped.Contains(id);
@@ -226,6 +258,7 @@ namespace Roguelike.Rules
             c.Feats.AddRange(Feats);
             c.AttachmentsOwned.AddRange(AttachmentsOwned); // work order 060
             c.AttachmentsFitted.AddRange(AttachmentsFitted);
+            foreach (KeyValuePair<string, int> p in Ranks) c.Ranks[p.Key] = p.Value; // work order 099
             return c;
         }
     }
@@ -280,7 +313,22 @@ namespace Roguelike.Rules
         /// <summary>The names of the pieces applied, in rack order.</summary>
         public readonly List<string> Pieces = new List<string>();
 
+        // Work order 099: the ranks bought between runs, put here beside the pieces (MetaRanks.Apply), each read where the
+        // rack's share of the same stat is read (HerStats; the room's heal). 0 with none.
+        /// <summary>Maximum health up by this share of her own, added to <see cref="MaxHealthShare"/>.</summary>
+        public float RankHealthShare;
+        /// <summary>Damage dealt up by this share, added to <see cref="DamageShare"/>.</summary>
+        public float RankDamageShare;
+        /// <summary>Crit chance up by this many points (0.03: 3), added to her start's and the chests' steps.</summary>
+        public float RankCritChance;
+        /// <summary>A cleared room heals this many points of her maximum more (0.02: 2), added to the room's own share.</summary>
+        public float RankRoomHeal;
+        /// <summary>The ranks applied, "Health 3", in the table's order.</summary>
+        public readonly List<string> Ranks = new List<string>();
+
+        /// <summary>Any piece of the rack applied (the ranks are <see cref="AnyRanks"/>).</summary>
         public bool Any => Pieces.Count > 0;
+        public bool AnyRanks => Ranks.Count > 0;
 
         public void Clear()
         {
@@ -296,14 +344,20 @@ namespace Roguelike.Rules
             FirstChestExtra = 0;
             EliteOffersExtra = 0;
             Pieces.Clear();
+            RankHealthShare = 0f; // work order 099
+            RankDamageShare = 0f;
+            RankCritChance = 0f;
+            RankRoomHeal = 0f;
+            Ranks.Clear();
         }
 
-        /// <summary>The numbers in one line, for tests and the log.</summary>
+        /// <summary>The numbers in one line, for tests and the log; the ranks' at its end (work order 099).</summary>
         public override string ToString() =>
             string.Format(CultureInfo.InvariantCulture,
                           "hp+{0} dmg+{1} focus {2} mark+{3} redraws {4} struck '{5}' dash {6}x{7} chest+{8} elite+{9}",
                           MaxHealthShare, DamageShare, StartFocusShare, FirstMarkExtra, Redraws, StruckOut, DashCharges,
-                          DashRechargeScale, FirstChestExtra, EliteOffersExtra);
+                          DashRechargeScale, FirstChestExtra, EliteOffersExtra)
+            + string.Format(CultureInfo.InvariantCulture, " ranks hp+{0} dmg+{1} crit+{2} room heal+{3}", RankHealthShare, RankDamageShare, RankCritChance, RankRoomHeal);
     }
 
     public enum MetaBuy { Bought, AlreadyOwned, NotEnough, NeedsFirst, NotForSale, Unknown }
@@ -402,6 +456,7 @@ namespace Roguelike.Rules
             s.Runs = Math.Max(0, s.Runs);
             if (s.StruckOut == null) s.StruckOut = "";
             WeaponRack.Tidy(s, v); // work order 060: her pistols' parts, the one place a save's are tidied
+            MetaRanks.Tidy(s); // work order 099: the ranks, kept as paid for
         }
 
         static void Distinct(List<string> list, Func<string, bool> keep)

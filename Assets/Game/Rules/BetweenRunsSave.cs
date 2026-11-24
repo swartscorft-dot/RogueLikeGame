@@ -179,7 +179,8 @@ namespace Roguelike.Rules
 
     /// <summary>
     /// The save's JSON (work order 029), written and read here with no engine and no package: an object of numbers,
-    /// strings and lists of strings. Fields it does not know are passed over, so a later version can add some.
+    /// strings and lists of strings, and since work order 099 the ranks as an object of whole numbers. Fields it does not know
+    /// are passed over, so a later version can add some.
     /// </summary>
     public static class MetaJson
     {
@@ -187,7 +188,10 @@ namespace Roguelike.Rules
         {
             var sb = new StringBuilder();
             sb.Append("{\n");
-            sb.Append("  \"version\": ").Append(s.Version.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            // Work order 099: version 2 only when a rank is bought (MetaState.CurrentVersion); with none, version 1 and every
+            // character as before, so every earlier build reads it (MetaState.VersionWithoutRanks).
+            int version = s.HasRanks ? MetaState.CurrentVersion : MetaState.VersionWithoutRanks;
+            sb.Append("  \"version\": ").Append(version.ToString(CultureInfo.InvariantCulture)).Append(",\n");
             sb.Append("  \"currency\": ").Append(s.Currency.ToString(CultureInfo.InvariantCulture)).Append(",\n");
             sb.Append("  \"earnedInAll\": ").Append(s.EarnedInAll.ToString(CultureInfo.InvariantCulture)).Append(",\n");
             sb.Append("  \"runs\": ").Append(s.Runs.ToString(CultureInfo.InvariantCulture)).Append(",\n");
@@ -203,6 +207,7 @@ namespace Roguelike.Rules
                 sb.Append(",\n  \"attachments\": ").Append(List(s.AttachmentsOwned));
                 sb.Append(",\n  \"fitted\": ").Append(List(s.AttachmentsFitted));
             }
+            if (s.HasRanks) sb.Append(",\n  \"ranks\": ").Append(Ranks(s.Ranks)); // work order 099: only with a rank bought
             sb.Append('\n');
             sb.Append("}\n");
             return sb.ToString();
@@ -227,7 +232,32 @@ namespace Roguelike.Rules
             s.StruckOut = o.TryGetValue("struckOut", out object so) && so is string str ? str : "";
             Strings(o, "attachments", s.AttachmentsOwned); // work order 060: absent in a save of before, so none
             Strings(o, "fitted", s.AttachmentsFitted);
+            ReadRanks(o, s.Ranks); // work order 099: absent in a save of before (version 1), which is rank 0 of everything
             return s;
+        }
+
+        /// <summary>The ranks as an object of whole numbers, by the stat's id in ordinal order, only those above 0 (work order 099).</summary>
+        static string Ranks(Dictionary<string, int> ranks)
+        {
+            var keys = new List<string>();
+            foreach (KeyValuePair<string, int> p in ranks)
+                if (p.Value > 0 && p.Key != null) keys.Add(p.Key);
+            keys.Sort(StringComparer.Ordinal);
+            var sb = new StringBuilder("{");
+            for (int i = 0; i < keys.Count; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                sb.Append(Quote(keys[i])).Append(": ").Append(ranks[keys[i]].ToString(CultureInfo.InvariantCulture));
+            }
+            return sb.Append('}').ToString();
+        }
+
+        static void ReadRanks(Dictionary<string, object> o, Dictionary<string, int> into)
+        {
+            if (!o.TryGetValue("ranks", out object v) || v == null) return;
+            if (!(v is Dictionary<string, object> ranks)) throw new FormatException("ranks is not an object");
+            foreach (KeyValuePair<string, object> p in ranks)
+                if (p.Value is double) into[p.Key] = Int(p.Value);
         }
 
         static int Int(object d)

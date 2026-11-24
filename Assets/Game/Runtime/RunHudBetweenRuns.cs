@@ -78,15 +78,19 @@ namespace Roguelike
                 WeaponKeys(keyboard, enter); // work order 060: the arrows go on into the weapon's lines (RunHudWeapon.cs)
                 return;
             }
-            int rows = BetweenRunsRows;
+            int rackRows = BetweenRunsRows, rows = rackRows + RankRows; // work order 099: the ranks' rows after the rack's
             if (keyboard.upArrowKey.wasPressedThisFrame) BetweenRunsSelected = (BetweenRunsSelected + rows - 1) % rows;
             else if (keyboard.downArrowKey.wasPressedThisFrame) BetweenRunsSelected = (BetweenRunsSelected + 1) % rows;
             BetweenRunsSelected = Mathf.Clamp(BetweenRunsSelected, 0, rows - 1);
-            bool strike = BetweenRunsSelected > 0 && Pieces[BetweenRunsSelected - 1].Effect == MetaEffect.StrikeOut;
+            bool strike = BetweenRunsSelected > 0 && BetweenRunsSelected < rackRows && Pieces[BetweenRunsSelected - 1].Effect == MetaEffect.StrikeOut;
             if (keyboard[BetweenRunsStartKey].wasPressedThisFrame) _levels.StartFromBetweenRuns();
             else if (strike && keyboard.leftArrowKey.wasPressedThisFrame) _levels.ChangeStruckOut(-1);
             else if (strike && keyboard.rightArrowKey.wasPressedThisFrame) _levels.ChangeStruckOut(1);
-            else if (enter) PickBetweenRunsLine(BetweenRunsSelected);
+            else if (enter)
+            {
+                if (BetweenRunsSelected < rackRows) PickBetweenRunsLine(BetweenRunsSelected);
+                else PickRankLine(BetweenRunsSelected - rackRows);
+            }
         }
 
         /// <summary>How many times the screen's lines were made (work order 081): once as it opens, then once for each change of what they say; for tests.</summary>
@@ -124,6 +128,15 @@ namespace Roguelike
                     if (p == null) { Add(0); continue; }
                     Add(Id(p.Name)); Add(Id(p.Line)); Add(p.Price); Add(p.Points); Add(p.Sold ? 1 : 2);
                 }
+                // Work order 099: the ranks' table, their price rule, and the rank she has of each.
+                MetaRank[] ranks = RankTable;
+                Add(Id(ranks)); Add(ranks.Length); Add(v.FirstPrice); Add((long)System.Math.Round(v.PriceGrowth * 1e6));
+                for (int i = 0; i < ranks.Length; i++)
+                {
+                    MetaRank r = ranks[i];
+                    if (r == null) { Add(0); continue; }
+                    Add(Id(r.Name)); Add(r.Most); Add((long)System.Math.Round(r.Step * 1e6)); Add(s.RankOf(r.Id));
+                }
                 return h;
             }
         }
@@ -141,6 +154,7 @@ namespace Roguelike
             if (!up)
             {
                 if (_betweenLines.Count > 0) _betweenLines.Clear();
+                if (_rankLines.Count > 0) _rankLines.Clear(); // work order 099
                 return;
             }
             long signature = BetweenRunsSignature();
@@ -157,6 +171,7 @@ namespace Roguelike
             _betweenLines.Add(StartWords());
             foreach (MetaPiece p in Pieces) _betweenLines.Add(PieceHead(p) + "\n" + PieceLine(p));
             _betweenLines.Add(_levels.BetweenRunsNote);
+            BuildRankLines(); // work order 099: the ranks' lines, kept apart (RunHudRanks.cs)
         }
 
         string StartWords() =>
@@ -217,11 +232,26 @@ namespace Roguelike
                 _pieceOn = new GUIStyle(_pieceButton) { fontStyle = FontStyle.Bold };
                 _pieceOn.normal.textColor = s_Accent;
             }
-            Fill(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), s_Dim);
             MetaPiece[] pieces = Pieces;
             const float w = 680f, startH = 32f, rowH = 40f, gap = 4f;
             float h = 50f + 44f + startH + gap + pieces.Length * (rowH + gap) + 20f + 40f;
-            var r = new Rect((viewWidth - w) * 0.5f, Mathf.Max(6f, (SkillBar.LayoutHeight - h) * 0.5f), w, h);
+            // Work order 099: the ranks' panel to the rack's right (none with an empty table: 029's place exactly). Where the
+            // rack would have to narrow for it, the rack's rows are measured as with the weapon's panel.
+            bool ranks = RankRows > 0 && _rankLines.Count == RankRows;
+            BetweenRunsLayout.Panels(viewWidth, false, ranks, out LayoutRect rackAt, out LayoutRect _, out LayoutRect ranksAt);
+            if (ranks && rackAt.Width < w - 0.5f)
+            {
+                DrawBetweenRunsWithWeapon(viewWidth);
+                return;
+            }
+            Fill(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), s_Dim);
+            float ranksH = ranks ? RanksPanelHeight(ranksAt.Width) : 0f;
+            float top = BetweenRunsLayout.Top(SkillBar.LayoutHeight, Mathf.Max(h, ranksH));
+            var r = new Rect(rackAt.X, top, w, h);
+            BetweenFlatRack = r;
+            BetweenFlatWeapon = Rect.zero;
+            if (ranks) DrawRanksFlat(ranksAt, top, ranksH);
+            else BetweenFlatRanks = Rect.zero;
             Panel(r, s_Accent, r.y + 46f); // work order 045: in the skin, a flat panel and a rule under the title
             GUI.Label(new Rect(r.x, r.y + 8f, w, 36f), _betweenLines[0], _pauseTitle);
             float y = r.y + 50f;
