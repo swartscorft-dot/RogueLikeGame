@@ -215,6 +215,8 @@ namespace Roguelike.PlayModeTests
                     // Work order 098: a shooter holding its place never comes to her where she stands; the band of 11 m is asked of
                     // one that comes, as before (ShootersHoldTheirPlaceTests has the shooter in its reach shooting with the rule on).
                     if (e is EnemyShooter shooter) shooter.Tuning.HoldsPlace = false;
+                    // Work order 101: the caster the same (CastersHoldTheirPlaceTests has the caster in its reach casting with the rule on).
+                    if (e is EnemyCaster caster) caster.Tuning.HoldsPlace = false;
                     Enemy me = e;
                     Action<EnemyReport> heard = r =>
                     {

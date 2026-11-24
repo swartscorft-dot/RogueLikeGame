@@ -391,14 +391,16 @@ namespace Roguelike.PlayModeTests
 
         /// <summary>
         /// Work order 098: the floors' shooters hold their places (<see cref="ShooterValues.HoldsPlace"/>, a plain value read as the
-        /// game's default). With nothing awake but shooters and its target out of its basic shot (or not seen), it walks toward the
-        /// target as to a sleeping one, instead of standing for a shooter that no longer comes.
+        /// game's default). With nothing awake but shooters (and, work order 101, casters) and its target out of its basic shot (or not
+        /// seen), it walks toward the target as to a sleeping one, instead of standing for a shooter or a caster that no longer comes.
         /// </summary>
         public bool ShootersHoldTheirPlace = new ShooterValues().HoldsPlace;
+        /// <summary>Work order 101: the floors' casters hold theirs too (<see cref="CasterValues.HoldsPlace"/>), and count as the shooters do here.</summary>
+        public bool CastersHoldTheirPlace = new CasterValues().HoldsPlace;
 
         protected override void Move(PilotView view, List<EnemySeen> foes, EnemySeen target)
         {
-            if (AnyAwake(foes) && !(ShootersHoldTheirPlace && OnlyShootersAwake(foes)
+            if (AnyAwake(foes) && !(OnlyHoldersAwake(foes)
                                     && (!target.Visible || target.Distance > Me.BasicShotRange + target.BodyRadius)))
             {
                 Mode = "standing and fighting";
@@ -406,13 +408,14 @@ namespace Roguelike.PlayModeTests
                 Me.Stop();
                 return;
             }
-            WalkTo(target.Position, AnyAwake(foes) ? "to a shooter holding its place" : "to the nearest sleeping enemy");
+            WalkTo(target.Position, AnyAwake(foes) ? "to a ranged enemy holding its place" : "to the nearest sleeping enemy");
         }
 
-        static bool OnlyShootersAwake(List<EnemySeen> foes)
+        /// <summary>Is everything awake a kind that holds its place (work order 098's shooters, and work order 101's casters)?</summary>
+        bool OnlyHoldersAwake(List<EnemySeen> foes)
         {
             foreach (EnemySeen e in foes)
-                if (e.Awake && e.Kind != EnemyKind.Shooter) return false;
+                if (e.Awake && !(e.Kind == EnemyKind.Shooter && ShootersHoldTheirPlace) && !(e.Kind == EnemyKind.Caster && CastersHoldTheirPlace)) return false;
             return true;
         }
     }
