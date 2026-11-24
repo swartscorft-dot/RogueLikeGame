@@ -69,7 +69,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void TheElite_IsOfAKindTheFloorCanHave_AndEveryKindComesUpFromFloor2(int floor)
         {
-            var v = new LevelValues();
+            var v = new LevelValues { FloorCharacter = false }; // work order 104 (changed deliberately): 017's elites; with the floors' character the guard's elite comes a floor after the guard (FloorCharacterTests)
             var kinds = new HashSet<EnemyKind>();
             for (ulong s = 0; s < 300; s++)
             {

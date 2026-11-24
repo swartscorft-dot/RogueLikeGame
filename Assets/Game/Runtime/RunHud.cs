@@ -419,6 +419,7 @@ namespace Roguelike
             if (runBoxWanted && _runBox.Count == 0)
             {
                 _runBox.Add(record.FloorText);
+                if (record.FloorName.Length > 0) _runBox.Add(record.FloorName); // work order 104: the floor's name under its number
                 if (_levels.CurrentRoom != null)
                 {
                     _runBox.Add(record.RoomText);
@@ -450,7 +451,7 @@ namespace Roguelike
             {
                 bool died = _levels.Ending == GeneratedLevels.EndKind.Died;
                 _endLines.Add(died ? "You died" : "Act cleared");
-                _endLines.Add(record.FloorText + (record.RoomText.Length > 0 ? ",  " + record.RoomText : ""));
+                _endLines.Add(record.FloorText + (record.FloorName.Length > 0 ? ",  " + record.FloorName : "") + (record.RoomText.Length > 0 ? ",  " + record.RoomText : "")); // work order 104: its name
                 _endLines.Add("Time  " + RunWords.Clock(record.Seconds, tenths: true));
                 _endLines.Add("Enemies killed  " + record.Kills.ToString(s_Inv));
                 _endLines.Add("Skills taken  " + record.SkillsText);

@@ -99,7 +99,8 @@ namespace Roguelike.Rules
                 {
                     ThemeRecipe r = tv.Of(th, RoomKind.Combat);
                     double w = r.SmallWeight + t * (r.LargeWeight - r.SmallWeight);
-                    return Math.Max(0, w * (room.Elite ? r.EliteWeight : 1f) * RoomTemplates.SuitsFactor(room, th, v)); // work order 058: a theme its template suits
+                    return Math.Max(0, w * (room.Elite ? r.EliteWeight : 1f) * RoomTemplates.SuitsFactor(room, th, v) // work order 058: a theme its template suits
+                                       * FloorCharacterRules.ThemeWeight(th, level.Floor, v)); // work order 104: the floor's theme
                 }).ToList();
                 double total = weights.Sum(), pick = u * total;
                 room.Theme = options[options.Count - 1];

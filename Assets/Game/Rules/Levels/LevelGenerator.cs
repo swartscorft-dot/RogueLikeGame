@@ -161,6 +161,15 @@ namespace Roguelike.Rules
     /// built alone is told none. The enemies are version 19's (<see cref="FightsOf"/> is untouched); the exit rooms of floors 1 to 4
     /// stand elsewhere, with other sizes, doors, themes and props. With it off every floor is version 19's, field for field, but for
     /// the version.
+    /// Version 21 (work order 104; Kristian ticked "Etasjene får hver sin ting" on 2026-11-24: "én ny ting å lære per etasje, en
+    /// dominerende fiendemiks og tema per etasje"): with <see cref="LevelValues.FloorCharacter"/> on (the default) a room's mix is
+    /// drawn by weight (<see cref="FloorCharacterRules.PickMix"/>: the floor's dominant one twice as often as each other) from one
+    /// number of the contents' stream where it was drawn evenly; a combat room's theme weighs the floor's theme three times
+    /// (<see cref="FloorCharacterRules.ThemeWeight"/>); the elite is no guard on floor 2 and no caster on floor 3
+    /// (<see cref="FloorCharacterRules.EliteKinds"/>); and two templates come a floor or two later
+    /// (<see cref="FloorCharacterRules.FirstFloorOf"/>). How many enemies a room holds is drawn as before, so the counts are version
+    /// 20's; the kinds and the rooms after a changed draw differ. With it off every floor is version 20's, field for field, but for
+    /// the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -198,7 +207,10 @@ namespace Roguelike.Rules
         // 20: work order 103, exit rooms of their own (LevelValues.ExitRoomsOfTheirOwn, on: floors 1 to 4 end in the gate hall, the
         // stair head or the sealed door, not the one the floor before in a run ended in; floor 5 in the throne room; off, every floor
         // is version 19's).
-        public const int Version = 20;
+        // 21: work order 104, a dominant thing a floor (LevelValues.FloorCharacter, on: each floor's dominant mix twice as often, its
+        // theme three times as likely, no kind's elite on the kind's own floor, the corner-long from floor 2 and the nave-apse from
+        // floor 3; off, every floor is version 20's).
+        public const int Version = 21;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -659,7 +671,7 @@ namespace Roguelike.Rules
             if (most <= 0) return groups;
             int total = rng.Range(fewest, most);
             FloorEnemies f = v.EnemiesOf(floor);
-            EnemyMix mix = f.Mixes != null && f.Mixes.Length > 0 ? f.Mixes[rng.Below(f.Mixes.Length)] : new EnemyMix("brutes", 0f, 0f, 1f, 0);
+            EnemyMix mix = f.Mixes != null && f.Mixes.Length > 0 ? FloorCharacterRules.PickMix(f.Mixes, floor, rng, v) : new EnemyMix("brutes", 0f, 0f, 1f, 0); // work order 104: off, one of them evenly as before
 
             int guardRoom = v.GuardsMost(kind, floor);
             if (kind == RoomKind.Exit && floor >= v.FloorsPerAct)

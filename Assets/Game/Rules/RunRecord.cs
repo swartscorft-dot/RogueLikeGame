@@ -74,6 +74,7 @@ namespace Roguelike.Rules
         {
             if (IsOver) return;
             Floor = floor;
+            FloorName = ""; // work order 104: named after, by NameFloor
             Rooms = rooms;
             Room = -1;
             RoomKind = RoomKind.Entrance;
@@ -172,6 +173,15 @@ namespace Roguelike.Rules
 
         /// <summary>"Floor 2 of 5".</summary>
         public string FloorText => RunWords.Floor(Floor, FloorsPerAct);
+
+        /// <summary>The floor's name (work order 104, <see cref="FloorCharacterRules.NameOf"/>): "The Guard Halls"; empty when it has none, and from each <see cref="EnterFloor"/> until it is named.</summary>
+        public string FloorName { get; private set; } = "";
+
+        /// <summary>The floor she is on is named (work order 104); null or empty for none.</summary>
+        public void NameFloor(string name)
+        {
+            if (!IsOver) FloorName = name ?? "";
+        }
 
         /// <summary>The room in words (<see cref="RunWords.Room"/>); empty before she was in one.</summary>
         public string RoomText => Room < 0 ? "" : RunWords.Room(RoomKind, Room, Rooms, RoomElite);

@@ -93,7 +93,7 @@ namespace Roguelike.Rules.Tests
         /// </summary>
         static (ulong layout, ulong rock, ulong dark) Prints()
         {
-            var v = new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false }; // work order 103: nor the exit rooms of their own
+            var v = new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103: nor the exit rooms of their own
             ulong hl = 14695981039346656037UL, hr = hl, hd = hl;
             for (int i = 0; i < SeedsOfRuns; i++)
                 for (int floor = 1; floor <= 5; floor++)

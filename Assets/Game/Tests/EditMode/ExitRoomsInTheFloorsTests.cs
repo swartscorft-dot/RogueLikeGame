@@ -74,16 +74,16 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_IsOnByDefault_WithVersion20()
         {
             Assert.That(new LevelValues().ExitRoomsOfTheirOwn, Is.True, "on by default (work order 103)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(20));
+            Assert.That(LevelGenerator.Version, Is.GreaterThanOrEqualTo(20), "20, and 21 since work order 104");
             Assert.That(RoomTemplateLibrary.Usable(new LevelValues()).Count(ExitRooms.IsWayDown), Is.EqualTo(3), "the three are drawn in the floors");
             LevelLayout one = LevelGenerator.Generate(0x103UL, 1), five = LevelGenerator.Generate(0x103UL, 5);
-            Assert.That(one.Version, Is.EqualTo(20));
+            Assert.That(one.Version, Is.EqualTo(LevelGenerator.Version));
             Assert.That(ExitRooms.IsWayDown(one.ExitRoom.Template?.Template), Is.True, "floor 1 ends in a room of its own");
             Assert.That(ExitRooms.IsThrone(five.ExitRoom.Template?.Template), Is.True, "floor 5 in the throne room");
         }
 
         /// <summary>
-        /// Version 20's own pin: two thousand floors with the defaults (seeds s * 7919 + 13, floor numbers 1 to 5 in turn, each built
+        /// Version 20's own pin: two thousand floors with version 20's defaults (since work order 104 the floors' character named off) (seeds s * 7919 + 13, floor numbers 1 to 5 in turn, each built
         /// alone) and the floors 1 to 5 of a hundred runs (each told the floor before's exit room), folded as the earlier versions'.
         /// Each runtime has its own number (Unity's Math folds the doubles otherwise): .NET's from the .NET rules run of this code,
         /// Unity's from a filtered Unity EditMode run of it (pin 0, read the number, pin it).
@@ -91,7 +91,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Version20_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            var v = new LevelValues();
+            var v = new LevelValues { FloorCharacter = false }; // work order 104 (changed deliberately): version 20 is the floors' character off
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++) h = Fold(LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h);
             for (ulong r = 0; r < 100; r++)
@@ -105,7 +105,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_TheRoomBefore_ChangesNothing()
         {
-            var off = new LevelValues { ExitRoomsOfTheirOwn = false };
+            var off = new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false };
             for (ulong s = 0; s < 60; s++)
                 foreach (string before in Names)
                 {
@@ -132,14 +132,14 @@ namespace Roguelike.Rules.Tests
             var last = Three().Where(t => t.Name == "stair-head").ToList();
             WayDowns.Avoid(last, "stair-head", 2, on);
             Assert.That(last.Select(t => t.Name), Is.EqualTo(new[] { "stair-head" }), "the only one left: kept");
-            foreach ((string before, int floor, LevelValues v) in new[] { ((string)null, 2, on), ("stair-head", 5, on), ("stair-head", 2, new LevelValues { ExitRoomsOfTheirOwn = false }) })
+            foreach ((string before, int floor, LevelValues v) in new[] { ((string)null, 2, on), ("stair-head", 5, on), ("stair-head", 2, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }) })
             {
                 var all = Three();
                 WayDowns.Avoid(all, before, floor, v);
                 Assert.That(all.Count, Is.EqualTo(3));
             }
             Assert.That(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 5)), Is.Null, "a throne room is no room of its own");
-            Assert.That(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 2, new LevelValues { ExitRoomsOfTheirOwn = false })), Is.Null);
+            Assert.That(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 2, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false })), Is.Null);
             Assert.That(Names, Does.Contain(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 2))));
         }
 
@@ -356,7 +356,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheExitRoomsOff_KeepVersion19sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { ExitRoomsOfTheirOwn = false }))
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }))
                          .Replace("version " + LevelGenerator.Version + " ", "version 19 ");
             string key = seedText + "/" + floor;
             Assert.That(map, Is.EqualTo(GoldenVersion19[key].Replace("\r\n", "\n")), "map of seed " + key + " with the exit rooms of their own off\n" + map);

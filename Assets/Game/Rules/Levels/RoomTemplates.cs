@@ -296,7 +296,7 @@ namespace Roguelike.Rules
         {
             // Work order 089: with the exit rooms of their own on, floors 1 to 4 take them and the act's last floor a throne room
             // (ExitRooms.Allowed; off, it lets every usable template by, so the draws are version 19's).
-            var options = usable.Where(t => t.For == want && t.FromFloor <= floor && t.Weight > 0f && !drawn.Contains(t)
+            var options = usable.Where(t => t.For == want && FloorCharacterRules.FirstFloorOf(t, v) <= floor && t.Weight > 0f && !drawn.Contains(t) // work order 104: its first floor, maybe moved
                                             && (familyBefore == null || t.Family != familyBefore) && ExitRooms.Allowed(t, floor, v)).ToList();
             WayDowns.Avoid(options, exitBefore, floor, v); // work order 103: not the floor before's, while another can stand
             if (options.Count == 0) return null;
