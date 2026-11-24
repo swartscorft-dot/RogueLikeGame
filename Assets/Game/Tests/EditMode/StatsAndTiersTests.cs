@@ -129,6 +129,7 @@ namespace Roguelike.Rules.Tests
             {
                 { "Quick Shot", 1f }, { "Powder Keg", 2f }, { "Fan Fire", 0.5f }, { "Long Shot", 2f }, { "Scatter Blast", 2f }, { "Heavy Volley", 2f },
                 { "Backstep", 1f }, { "Triple Tap", 0.5f }, { "Tag Round", 1f }, { "Breaker Slug", 2f }, { "Slide", 0f }, { "Stopping Shot", 1f },
+                { "Ricochet", 1f }, { "Smoke Round", 0f }, { "Deadeye", 1f }, // changed deliberately (work order 109): its three
             };
             SkillDefinition[] all = SkillDefaults.Create();
             Assert.That(all.Select(s => s.Name), Is.EquivalentTo(expected.Keys), "every skill of the list has one");

@@ -219,11 +219,38 @@ namespace Roguelike.Rules
                 SkillPatch.Add(nameof(SkillDefinition.Charges), 1)),
             Row("Stopping Shot", "Wide Counter", N, "The counter works from any side of the enemy.",
                 SkillPatch.Set(nameof(SkillDefinition.CounterHalfAngle), 180f)),
+
+            // Work order 109 (2026-11-24): two of each new skill's own, a change and a numbers row, first guesses.
+            Row("Ricochet", "Fourth Bounce", C, "It jumps once more: up to four hits.",
+                SkillPatch.Add(nameof(SkillDefinition.RicochetJumps), 1)),
+            Row("Ricochet", "Long Bounce", N, "Its jumps reach 8 m instead of 5 m.",
+                SkillPatch.Set(nameof(SkillDefinition.RicochetReach), 8f)),
+            Row("Smoke Round", "Twin Smoke", C, "Holds two charges: two clouds at once.",
+                SkillPatch.Add(nameof(SkillDefinition.Charges), 1)),
+            Row("Smoke Round", "Thick Smoke", N, "The cloud stands 5 s instead of 3 s.",
+                SkillPatch.Add(nameof(SkillDefinition.SmokeSeconds), 2f)),
+            Row("Deadeye", "Fast Hands", C, "The aim before the shots is 0.2 s instead of 0.5 s.",
+                SkillPatch.Set(nameof(SkillDefinition.Startup), 0.2f)),
+            Row("Deadeye", "Hollow Points", N, "Each mark a shot spends adds 60% instead of 40%.",
+                SkillPatch.Set(nameof(SkillDefinition.MarkDamageBonus), 0.6f)),
         };
 
         /// <summary>The row of this skill and name in a table, or null.</summary>
         public static SkillUpgradeDefinition Find(IEnumerable<SkillUpgradeDefinition> table, string skill, string name) =>
             table?.FirstOrDefault(u => u != null && u.Skill == skill && u.Name == name);
+
+        /// <summary>
+        /// The table as the run's switches have it (work order 109): the table itself with <see cref="RunValues.NewSkills"/> on;
+        /// off, without the rows of the three new skills (<see cref="NewSkillRules.IsNew"/>), a new array. Asked when an offer is
+        /// made, never in a frame of play.
+        /// </summary>
+        public static SkillUpgradeDefinition[] Switched(SkillUpgradeDefinition[] table, RunValues values)
+        {
+            if (table == null || values == null) return table;
+            bool keepNew = values.NewSkills;
+            if (keepNew) return table;
+            return table.Where(u => u == null || !NewSkillRules.IsNew(u.Skill)).ToArray();
+        }
     }
 
     /// <summary>

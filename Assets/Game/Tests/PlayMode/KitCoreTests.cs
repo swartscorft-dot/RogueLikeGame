@@ -61,7 +61,9 @@ namespace Roguelike.PlayModeTests
         {
             yield return null;
             SkillSettings asset = _player.SkillSet;
-            SkillDefinition[] start = SkillDefaults.Create();
+            // Changed deliberately (work order 109): the asset holds the twelve; the three new skills come from the start values in
+            // memory after them (PlayerCharacter.SettingsSkills), so the asset is matched against the first twelve.
+            SkillDefinition[] start = SkillDefaults.Create().Where(s => !NewSkillRules.IsNew(s.Name)).ToArray();
             Assert.That(asset.Skills.Select(s => s.Name), Is.EqualTo(start.Select(s => s.Name)), "the same skills in the same order");
             for (int i = 0; i < start.Length; i++)
             {

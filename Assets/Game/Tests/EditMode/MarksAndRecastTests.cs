@@ -113,8 +113,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(skills.Where(s => s.StartEquipped && s.Lock == SkillLock.Light).Select(s => s.Name), Is.EquivalentTo(new[] { "Quick Shot", "Triple Tap" }));
             // Work order 015: Powder Keg became light, and three of the pool's new four are.
             Assert.That(skills.Where(s => !s.StartEquipped && s.Lock == SkillLock.Light).Select(s => s.Name),
-                        Is.EquivalentTo(new[] { "Powder Keg", "Tag Round", "Slide", "Stopping Shot" }));
-            Assert.That(skills.Where(MarkRules.IsSpender).Select(s => s.Name), Is.EquivalentTo(new[] { "Scatter Blast", "Heavy Volley" }));
+                        Is.EquivalentTo(new[] { "Powder Keg", "Tag Round", "Slide", "Stopping Shot", "Ricochet", "Smoke Round" })); // changed deliberately (work order 109): two of its three are light
+            Assert.That(skills.Where(MarkRules.IsSpender).Select(s => s.Name), Is.EquivalentTo(new[] { "Scatter Blast", "Heavy Volley", "Deadeye" })); // and Deadeye spends (work order 109)
             Assert.That(skills.Where(s => s.MarksAdded > 0 && MarkRules.IsSpender(s)), Is.Empty, "a spender adds no marks");
         }
 

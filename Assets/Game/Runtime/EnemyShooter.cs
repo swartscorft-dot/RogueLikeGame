@@ -288,7 +288,8 @@ namespace Roguelike
         /// Does it see her: no wall between at its sight height (<see cref="Sees"/>), and not covered by what she is in
         /// cover against (taking cover, 2026-11-19, an experiment)?
         /// </summary>
-        public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position);
+        public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position)
+                                 && !SmokeClouds.Hides(transform.position, Player.Position); // work order 109: not in or through her smoke
 
         /// <summary>
         /// Where it goes in the chase: <see cref="ShooterPostRules.Choose"/> says what (as before work order 098, or holding its
@@ -408,7 +409,7 @@ namespace Roguelike
         /// <summary>Would it see her from that point: no wall between at its sight height, and not covered by what she is in cover against?</summary>
         bool SeesHerFrom(Vector3 point)
         {
-            if (Player == null || Player.ShieldsFrom(point)) return false;
+            if (Player == null || Player.ShieldsFrom(point) || SmokeClouds.Hides(point, Player.Position)) return false; // work order 109: nor through her smoke
             Vector3 from = Flat(point);
             Vector3 dir = Flat(Player.Position) - from;
             float length = dir.magnitude;

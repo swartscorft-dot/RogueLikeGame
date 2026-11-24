@@ -434,6 +434,7 @@ namespace Roguelike
             EndChain();
             EndKeyMove();
             ClearKegs();
+            SmokeClouds.Clear(); // work order 109: a smoke cloud stays where it was thrown, never on the next floor
             if (_inCover) LeaveCover(CoverLeaving.Other);
             // The cover key stays as it is held (the third review of 2026-11-20, work order 047): a key held through a new
             // floor is no tap on arrival.
@@ -466,6 +467,7 @@ namespace Roguelike
             EndChain();
             EndKeyMove();
             ClearKegs();
+            SmokeClouds.Clear(); // work order 109
             _focus.Clear();
             _prime.Clear(); // and no priming (work order 025)
             _held.Clear(); // and no stun or pull (work order 035)

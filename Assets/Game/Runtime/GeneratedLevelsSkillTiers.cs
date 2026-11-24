@@ -37,7 +37,7 @@ namespace Roguelike
         {
             _offeredSkillTiers.Clear();
             if (!RunValues.SkillTiers || player == null || _offeredSkills.Count == 0) return;
-            _offeredSkillTiers.AddRange(SkillTiers.ForReward(RunValues, RunSeed ?? 0UL, Floor, draw, _offeredSkills, player.Skills, UpgradeValues.Table,
+            _offeredSkillTiers.AddRange(SkillTiers.ForReward(RunValues, RunSeed ?? 0UL, Floor, draw, _offeredSkills, player.Skills, UpgradeTableNow,
                                                              SkillUpgrades.Taken, Modifiers.Stats.Luck, Modifiers.StatValues));
         }
 

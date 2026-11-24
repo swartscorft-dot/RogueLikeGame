@@ -472,7 +472,8 @@ namespace Roguelike
             Vector3 from = Flat(transform.position), dir = Flat(Player.Position) - from;
             float length = dir.magnitude;
             bool clear = length < 1e-3f || Cover.ClearDistance(from, dir / length, length, Tuning.SightHeight) >= length - 1e-3f;
-            return clear && !Player.ShieldsFrom(transform.position, ProjectileKind.Orb);
+            return clear && !Player.ShieldsFrom(transform.position, ProjectileKind.Orb)
+                   && !SmokeClouds.Hides(transform.position, Player.Position); // work order 109: not in or through her smoke
         }
 
         /// <summary>Its bolt leaves its hand at the release (the caster's orb, aimed at where she is then).</summary>

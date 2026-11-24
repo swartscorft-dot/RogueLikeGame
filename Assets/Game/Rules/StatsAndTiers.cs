@@ -142,6 +142,9 @@ namespace Roguelike.Rules
                 case "Triple Tap": case "Fan Fire": return 0.5f;
                 case "Scatter Blast": case "Long Shot": case "Heavy Volley": case "Powder Keg": case "Breaker Slug": return 2f;
                 case "Slide": return 0f;
+                // Work order 109: Ricochet a quick shot a hit, Deadeye a single pistol shot a target, Smoke Round no damage.
+                case "Ricochet": case "Deadeye": return 1f;
+                case "Smoke Round": return 0f;
             }
             if (skill.Damage <= 0) return 0f;
             if (skill.Input == SkillInput.Holding || skill.HitCount > 1 || (skill.RecastCount > 1 && !skill.OpeningMove)) return 0.5f;

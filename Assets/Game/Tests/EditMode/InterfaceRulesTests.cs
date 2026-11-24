@@ -211,7 +211,8 @@ namespace Roguelike.Rules.Tests
             {
                 "QuickShot", "PowderKeg", "FanFire", "LongShot", "ScatterBlast", "HeavyVolley", "Backstep", "TripleTap", "TagRound",
                 "BreakerSlug", "Slide", "StoppingShot",
-            }), "the twelve skills of the pool");
+                "Ricochet", "SmokeRound", "Deadeye", // changed deliberately (work order 109): its three new skills, no icon art for them
+            }), "the fifteen skills of the pool");
             Assert.That(icons.Distinct().Count(), Is.EqualTo(icons.Length), "one icon each");
             Assert.That(InterfaceRules.IconName("Dash"), Is.EqualTo("Dash"));
             Assert.That(InterfaceRules.IconName("Focus"), Is.EqualTo("Focus"));

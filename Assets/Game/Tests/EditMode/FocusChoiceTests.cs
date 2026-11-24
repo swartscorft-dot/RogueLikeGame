@@ -104,6 +104,8 @@ namespace Roguelike.Rules.Tests
                 { "Heavy Volley", PrimeUse.SpenderExtraMark }, { "Backstep", PrimeUse.CleanPress }, { "Triple Tap", PrimeUse.CleanPress },
                 { "Tag Round", PrimeUse.ExtraMark }, { "Breaker Slug", PrimeUse.SpenderExtraMark }, { "Slide", PrimeUse.None },
                 { "Stopping Shot", PrimeUse.ExtraMark },
+                // Changed deliberately (work order 109): the three new skills; Smoke Round hits nothing and leaves the priming be.
+                { "Ricochet", PrimeUse.ExtraMark }, { "Smoke Round", PrimeUse.None }, { "Deadeye", PrimeUse.SpenderExtraMark },
             };
             SkillDefinition[] all = SkillDefaults.Create();
             Assert.That(all.Select(s => s.Name), Is.EquivalentTo(want.Keys));

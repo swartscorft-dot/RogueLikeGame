@@ -116,6 +116,7 @@ namespace Roguelike
         bool ResolveSkillHit(SkillDefinition skill, float charge)
         {
             SkillShotsFired++;
+            if (ResolveNewSkill(skill, charge, out bool newLanded)) return newLanded; // work order 109: Ricochet, Smoke Round, Deadeye (PlayerCharacterNewSkills.cs)
             GroundPoint origin = GroundPosition;
             Vector3 flatAim = Flat(_aimPoint - transform.position);
             // With nothing to aim at (the cursor on the character), a line or cone goes where the character faces.

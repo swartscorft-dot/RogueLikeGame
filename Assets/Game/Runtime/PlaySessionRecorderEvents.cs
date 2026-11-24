@@ -53,6 +53,7 @@ namespace Roguelike
             {
                 double t = Now();
                 if (RecordSprint(r, t)) return; // work order 092 (PlaySessionRecorderSprint.cs)
+                if (RecordNewSkills(r, t)) return; // work order 109 (PlaySessionRecorderNewSkills.cs)
                 switch (r.Kind)
                 {
                     case PlayerReportKind.SkillPressed:

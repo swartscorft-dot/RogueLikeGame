@@ -115,6 +115,7 @@ namespace Roguelike.Rules
         public static PrimeUse UseFor(SkillDefinition skill)
         {
             if (skill == null || skill.Input == SkillInput.KeyMove) return PrimeUse.None;
+            if (skill.SmokeSeconds > 0f) return PrimeUse.None; // work order 109: Smoke Round hits nothing; it leaves the priming for the next skill
             if (skill.RecastCount > 1 && RecastChain.HasCleanPress(skill)) return PrimeUse.CleanPress;
             if (skill.Input == SkillInput.Charge && skill.NoCharge) return PrimeUse.None; // Snap Shot: always perfect already
             if (skill.Input == SkillInput.Charge && skill.PerfectTo > skill.PerfectFrom) return PrimeUse.PerfectRelease;

@@ -168,7 +168,7 @@ namespace Roguelike
             for (int slot = 0; slot < player.Skills.Count; slot++)
                 if (player.IsEquipped(slot) && player.Skills[slot] != null) had.Add(player.Skills[slot].Name);
             _offeredSkillUpgrades.Clear();
-            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeValues.Table, had, SkillUpgrades.Taken,
+            _offeredSkillUpgrades.AddRange(SkillUpgradeOffer.Offer(RunSeed ?? 0UL, Floor, UpgradeTableNow, had, SkillUpgrades.Taken,
                                                                    UpgradeValues.Offered + Modifiers.Meta.EliteOffersExtra)); // work order 029: Knight's Trophy
             SkillUpgradeOffers++;
             BetweenRunsEliteCleared(); // work order 029

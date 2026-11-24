@@ -112,6 +112,13 @@ namespace Roguelike
             return !Turns.Holds(sort) || Turns.Ask(Id, sort, Time.time);
         }
 
+        /// <summary>
+        /// Work order 109, her smoke: in a cloud of Smoke Round, or with its line to her through one, it still comes at her (its
+        /// chase is as before) but begins no attack unless she is within <see cref="SmokeValues.MeleeReach"/>. With no cloud up, as before.
+        /// </summary>
+        protected override bool MayAttack(Vector3 toPlayer, float distance) =>
+            Player == null || NewSkillRules.MeleeMayAttack(SmokeClouds.Hides(transform.position, Player.Position), distance, SmokeValues.MeleeReach);
+
         /// <summary>Does it see her, with no wall or tall prop between at the height her shots are tested at?</summary>
         public bool SeesHer()
         {

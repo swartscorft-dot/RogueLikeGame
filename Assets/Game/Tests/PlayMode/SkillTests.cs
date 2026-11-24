@@ -45,7 +45,7 @@ namespace Roguelike.PlayModeTests
             _driver = Object.FindAnyObjectByType<PlayerInputDriver>();
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             Assert.That(_player.SkillSet, Is.Not.Null, "the player uses the skill settings asset");
-            Assert.That(_player.Skills.Count, Is.EqualTo(12)); // work order 015: eight start and pool skills grew to twelve
+            Assert.That(_player.Skills.Count, Is.EqualTo(15)); // work order 015: eight start and pool skills grew to twelve; changed deliberately (work order 109): fifteen
             _feel = _player.Feel;
             _a = Dummy("Dummy_A");
             _b = Dummy("Dummy_B");

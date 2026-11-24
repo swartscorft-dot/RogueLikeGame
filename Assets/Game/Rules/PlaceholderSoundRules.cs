@@ -50,6 +50,10 @@ namespace Roguelike.Rules
         CleanTick,     // a press of a recast chain in its clean part: a short pitched tick, a step higher for each in a row
         ChainTop,      // the last press of a chain clean all through: a clear top note
         OffTick,       // a press of a chain off its clean part: a dull tick (silent unless ChainTickValues.DullTickWhenOff)
+        // Work order 109 (2026-11-24, the three new skills), asked for by her skills as they happen:
+        RicochetJump,  // Ricochet's shot jumped on to another enemy: a short bright metal ping
+        SmokePuff,     // Smoke Round's cloud came up: a soft wide hiss
+        DeadeyeAim,    // Deadeye's aim began: a short rising tone over its half second
     }
 
     /// <summary>
@@ -67,6 +71,8 @@ namespace Roguelike.Rules
         // Work order 080: her hit landing by its weight, a clean press's hit, her kill and the one that empties its room, a
         // press of a recast chain in its clean part, the last of a chain clean all through, and a press off its clean part.
         HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
+        // Work order 109: Ricochet's shot jumped on, Smoke Round's cloud came up, Deadeye's aim began.
+        RicochetJumped, SmokeCameUp, DeadeyeAimed,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -169,6 +175,10 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.CleanTick, 0.3f, 10),
             new PlaceholderSoundSetting(PlaceholderSound.ChainTop, 0.35f, 4),
             new PlaceholderSoundSetting(PlaceholderSound.OffTick, 0.2f, 10),
+            // Work order 109, first guesses: under the guns that fire them, a jump's ping capped as a crowd's hits are.
+            new PlaceholderSoundSetting(PlaceholderSound.RicochetJump, 0.22f, 10),
+            new PlaceholderSoundSetting(PlaceholderSound.SmokePuff, 0.3f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.DeadeyeAim, 0.28f, 3),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -252,6 +262,10 @@ namespace Roguelike.Rules
                 case SoundMoment.CleanPress: return PlaceholderSound.CleanTick;
                 case SoundMoment.ChainAllClean: return PlaceholderSound.ChainTop;
                 case SoundMoment.PressOff: return PlaceholderSound.OffTick;
+                // Work order 109.
+                case SoundMoment.RicochetJumped: return PlaceholderSound.RicochetJump;
+                case SoundMoment.SmokeCameUp: return PlaceholderSound.SmokePuff;
+                case SoundMoment.DeadeyeAimed: return PlaceholderSound.DeadeyeAim;
                 default: return null;
             }
         }

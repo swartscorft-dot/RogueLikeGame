@@ -233,6 +233,24 @@ namespace Roguelike.Rules
                     return Recipe(0.04f, 1.2f,
                         Noise(0f, 0.03f, 0.7f, 0.0005f, 0.008f, low: 900f),
                         Sine(300f, 200f, 0f, 0.04f, 0.6f, 0.001f, 0.01f));
+                // ---- Work order 109 (the three new skills), first guesses, made without hearing them ----
+                case PlaceholderSound.RicochetJump:
+                    // A short bright metal ping: a high tone sliding a little down, an unevenly spaced partial, a breath of hiss.
+                    return Recipe(0.09f, 0f,
+                        Sine(2350f, 2050f, 0f, 0.09f, 1f, 0.0005f, 0.03f, release: 0.01f),
+                        Sine(5170f, 4600f, 0f, 0.06f, 0.3f, 0.0005f, 0.015f, release: 0.01f),
+                        Noise(0f, 0.02f, 0.25f, 0.0003f, 0.004f, high: 6000f));
+                case PlaceholderSound.SmokePuff:
+                    // A soft wide hiss: noise swelling in and falling through a dull band, a low breath under it. No crack, no tone.
+                    return Recipe(0.4f, 0f,
+                        Noise(0f, 0.4f, 1f, 0.05f, 0.18f, low: 2400f, lowTo: 700f, high: 250f, release: 0.08f),
+                        Noise(0f, 0.3f, 0.35f, 0.02f, 0.1f, low: 500f, release: 0.06f));
+                case PlaceholderSound.DeadeyeAim:
+                    // A short rising tone over the aim's half second, a fifth over it, and a click at its top: the shots are coming.
+                    return Recipe(0.45f, 0f,
+                        Sine(660f, 1320f, 0f, 0.42f, 0.8f, 0.03f, 0f, release: 0.04f),
+                        Sine(990f, 1980f, 0f, 0.4f, 0.2f, 0.03f, 0f, release: 0.04f),
+                        Noise(0.4f, 0.04f, 0.3f, 0.0005f, 0.006f, high: 5000f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,

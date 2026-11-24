@@ -120,6 +120,10 @@ namespace Roguelike.Rules
         public const string Screen = "screen";
         // The fourth review of 2026-11-21 (work order 055): the basic shot's cooldown use is measured against her real interval.
         public const string ShotInterval = "shot_interval";   // her basic shot's interval now (seconds, in "seconds"): when she is found, at a run's start, and when it changes
+        // The three new skills (work order 109). Deadeye refused is a skill_press, rejected, reason "no marked target".
+        public const string RicochetJump = "ricochet_jump";   // Ricochet's shot jumped on: name the skill, target what it hit, shot which hit of the use (2, 3)
+        public const string SmokeCloud = "smoke_cloud";       // Smoke Round's cloud came up: name the skill, seconds how long it stands, x and z its middle
+        public const string DeadeyeVolley = "deadeye_volley"; // Deadeye's shots went off: name the skill, shot how many marked enemies it shot at
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>
@@ -190,6 +194,8 @@ namespace Roguelike.Rules
         public const string Moved = "moved";
         // Work order 086, the held duck: "released" (the key went up, the word above) and "acted": she came up to shoot or use a skill.
         public const string Acted = "acted";
+        // Work order 109: why a skill press was rejected: Deadeye with no marked enemy in sight.
+        public const string NoMarkedTarget = "no marked target";
     }
 
     /// <summary>

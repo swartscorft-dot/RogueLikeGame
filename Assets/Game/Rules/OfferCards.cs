@@ -513,6 +513,10 @@ namespace Roguelike.Rules
                 case "Breaker Slug": return "Tap: a short, wide slug that spends marks to break an enemy's guard.";
                 case "Slide": return "Tap to slide the way you move, shooting as you go.";
                 case "Stopping Shot": return "Tap as an enemy winds up a blue attack, from its front, to daze it.";
+                // Work order 109.
+                case "Ricochet": return "Tap: a pistol shot that jumps on to two more enemies; each hit marks.";
+                case "Smoke Round": return "Tap to throw smoke; enemies in it or behind it lose sight of you.";
+                case "Deadeye": return "Tap, aim a moment: a shot at every marked enemy in sight spends its marks.";
                 default: return s != null ? SkillDefaults.Line(s.Name) : "";
             }
         }
@@ -683,6 +687,12 @@ namespace Roguelike.Rules
             if (before.CounterReadies != after.CounterReadies)
                 Diff("after a counter, " + (string.IsNullOrEmpty(after.CounterReadies) ? before.CounterReadies : after.CounterReadies),
                      string.IsNullOrEmpty(before.CounterReadies) ? "waits" : "ready", string.IsNullOrEmpty(after.CounterReadies) ? "waits" : "ready");
+            // Work order 109: the new skills' own numbers, and a spender's bonus a mark.
+            Diff("jumps", before.RicochetJumps.ToString(s_Inv), after.RicochetJumps.ToString(s_Inv));
+            Diff("a jump reaches", Metres(before.RicochetReach), Metres(after.RicochetReach));
+            Diff("the cloud stands", Sec(before.SmokeSeconds), Sec(after.SmokeSeconds));
+            Diff("enemies shot at most", before.DeadeyeMost.ToString(s_Inv), after.DeadeyeMost.ToString(s_Inv));
+            Diff("bonus per mark", Pct(before.MarkDamageBonus), Pct(after.MarkDamageBonus));
             return lines;
         }
 

@@ -36,7 +36,7 @@ namespace Roguelike.Rules.Tests
         public void Step_ForEveryOneOfTheTwelveSkills_IsADamageAndStaggerStep_SlidesACooldownStep()
         {
             var v = new SkillTierValues();
-            Assert.That(s_Skills.Length, Is.EqualTo(12));
+            Assert.That(s_Skills.Length, Is.EqualTo(15)); // changed deliberately (work order 109): fifteen, Smoke Round with no damage as Slide
             foreach (SkillDefinition s in s_Skills)
             {
                 SkillUpgradeDefinition step = SkillTiers.Step(s, v);
@@ -45,7 +45,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(step.Kind, Is.EqualTo(SkillUpgradeKind.Numbers));
                 Assert.That(step.TierStep, Is.True, s.Name);
                 Assert.That(s_Table.Any(u => u.TierStep), Is.False, "never in the table");
-                if (s.Name == "Slide")
+                if (s.Name == "Slide" || s.Name == "Smoke Round") // changed deliberately (work order 109): Smoke Round deals none either
                 {
                     Assert.That(s.Damage, Is.Zero);
                     Assert.That(step.Patches.Select(p => p.ToString()), Is.EqualTo(new[] { "Cooldown x 0.8" }));
@@ -72,7 +72,7 @@ namespace Roguelike.Rules.Tests
                 var rare = new SkillTierOffer { Slot = SlotOf(s.Name), Skill = s.Name, Tier = UpgradeTier.Rare, Step = SkillTiers.Step(s, v) };
                 SkillDefinition r = SkillTiers.Preview(s, rare);
                 Assert.That(r, Is.Not.SameAs(s), "a copy");
-                if (s.Name == "Slide")
+                if (s.Name == "Slide" || s.Name == "Smoke Round") // changed deliberately (work order 109)
                 {
                     Assert.That(r.Cooldown, Is.EqualTo(s.Cooldown * 0.8f).Within(1e-4f));
                     Assert.That(r.Damage, Is.Zero);

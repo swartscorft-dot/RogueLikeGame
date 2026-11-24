@@ -44,6 +44,10 @@ namespace Roguelike
         SprintEnded,    // Seconds (how long it ran, its jumps in it), By (why: released, stopped, dash, duck, held, other)
         SprintJumped,   // By (the prop), Metres (from the take-off to the landing): she jumped a low prop
         SprintRefused,  // Slot (-1 for the basic shot): a click or a skill key while sprinting did nothing
+        // The three new skills (work order 109). Deadeye refused is a SkillPressed, Rejected, with NoTarget.
+        RicochetJumped, // Slot, Target (the one it jumped to), Shot (which hit of the use: 2, 3)
+        SmokeLanded,    // Slot, At (the cloud's middle), Seconds (how long it stands)
+        DeadeyeFired,   // Slot, Shot (how many marked enemies it shot at)
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -105,6 +109,8 @@ namespace Roguelike
         public RecastTiming Timing;
         // Work order 092.
         public float Metres;          // SprintJumped: from the take-off to the landing
+        // Work order 109.
+        public bool NoTarget;         // SkillPressed: rejected because Deadeye had no marked enemy in sight
     }
 
     /// <summary>

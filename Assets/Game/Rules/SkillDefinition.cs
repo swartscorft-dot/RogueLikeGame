@@ -117,6 +117,13 @@ namespace Roguelike.Rules
         // the settings asset holds for every skill (it has no such field), the skill's own by name or kind (FlatDamage.WeightOf).
         public float FlatDamageWeight = -1f;
 
+        // Work order 109 (2026-11-24, Kristian's yes by name to the producer's three new skills; NewSkillRules): what Ricochet,
+        // Smoke Round and Deadeye read. Every other skill leaves them at 0.
+        public int RicochetJumps = 0;      // above 0: where its shot hits, it jumps on to the nearest other living enemy this many times (Ricochet: 2)
+        public float RicochetReach = 0f;   // m from the one it hit that a jump reaches (Ricochet: 5)
+        public float SmokeSeconds = 0f;    // above 0: a circle that lands as a cloud of smoke and stands this long, hitting nothing (Smoke Round: 3)
+        public int DeadeyeMost = 0;        // above 0: one shot at every marked enemy in sight within its range, at most this many, nearest first (Deadeye: 6)
+
         /// <summary>A copy, field for field: a run's own view of the skill, patched by its upgrades (work order 017).</summary>
         public SkillDefinition Copy() => (SkillDefinition)MemberwiseClone();
 
@@ -176,6 +183,10 @@ namespace Roguelike.Rules
                 case "Breaker Slug": return "A short, wide slug that breaks guard: it spends marks for more stagger, not damage.";
                 case "Slide": return "Slide 6 m the way you move, shooting as you go. Two charges.";
                 case "Stopping Shot": return "A shot that stops a blue attack from the front: the enemy is dazed, focus fills.";
+                // Work order 109.
+                case "Ricochet": return "A pistol shot that jumps on from the enemy it hits to two more nearby; every hit marks.";
+                case "Smoke Round": return "Throw a smoke round: enemies in its cloud, or looking through it, lose sight of you for 3 s.";
+                case "Deadeye": return "A short aim, then one shot at every marked enemy in sight; each shot spends its marks.";
                 default: return "";
             }
         }
@@ -299,6 +310,37 @@ namespace Roguelike.Rules
                 Lock = SkillLock.Light, MarksAdded = 1,
                 CounterDaze = 2f, CounterHalfAngle = 60f, CounterFocus = 1f / 3f,
                 Stagger = 3f,
+            },
+            // The three of work order 109 (2026-11-24: the producer's designs, his yes to them by name), in the pool only with
+            // RunValues.NewSkills on (NewSkillRules). None is on a key at the start. All first guesses.
+            new SkillDefinition
+            {
+                // A builder for crowds: one shot along her aim; where it hits it jumps to the nearest other living enemy within
+                // 5 m of the one it hit, and once more from there, never the same twice (three hits at most). 70 a hit, under
+                // Quick Shot's 100; a mark a hit; 5 s.
+                Name = "Ricochet", Input = SkillInput.Normal, Shape = SkillShape.Line,
+                Cooldown = 5f, Damage = 70, Startup = 0.15f, Recovery = 0.1f, Range = 12f, HalfWidth = 0.3f,
+                Lock = SkillLock.Light, MarksAdded = 1,
+                RicochetJumps = 2, RicochetReach = 5f,
+                Stagger = 2f, // per hit
+            },
+            new SkillDefinition
+            {
+                // A way in: a round thrown to the point under the cursor, up to 10 m; a cloud 3.5 m round stands there 3 s. An
+                // enemy in it, or one whose line to her crosses it, does not see her. No damage, no marks; 14 s.
+                Name = "Smoke Round", Input = SkillInput.Point, Shape = SkillShape.Circle,
+                Cooldown = 14f, Damage = 0, Startup = 0.2f, Recovery = 0.1f, Range = 10f, Radius = 3.5f,
+                Lock = SkillLock.Light, SmokeSeconds = 3f,
+            },
+            new SkillDefinition
+            {
+                // A spender: a cast of 0.5 s (the skill model's cast, with its bar), then one shot at every marked enemy she has a
+                // clear line to within 12 m, at most six, nearest first; each takes that enemy's marks for 40 % more a mark (Heavy
+                // Volley's share). Refused with no marked enemy in sight. 80 a shot; 12 s.
+                Name = "Deadeye", Input = SkillInput.Casting, Shape = SkillShape.Line,
+                Cooldown = 12f, Damage = 80, Startup = 0.5f, Recovery = 0.2f, Range = 12f, HalfWidth = 0.3f,
+                MarkDamageBonus = 0.4f, DeadeyeMost = 6,
+                Stagger = 4f, // per shot
             },
         };
     }

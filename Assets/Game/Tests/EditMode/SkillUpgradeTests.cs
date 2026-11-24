@@ -150,7 +150,7 @@ namespace Roguelike.Rules.Tests
         {
             SkillUpgradeDefinition[] table = SkillUpgradeTable.Create();
             var names = new HashSet<string>(SkillDefaults.Create().Select(s => s.Name));
-            Assert.That(table.Length, Is.EqualTo(27));
+            Assert.That(table.Length, Is.EqualTo(33)); // changed deliberately (work order 109): its six rows after the 27
             Assert.That(table.Select(u => u.FullName).Distinct().Count(), Is.EqualTo(table.Length));
             foreach (SkillUpgradeDefinition u in table)
             {

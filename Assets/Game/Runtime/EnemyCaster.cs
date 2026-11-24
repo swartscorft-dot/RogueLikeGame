@@ -172,7 +172,8 @@ namespace Roguelike
         /// Does it see her: no wall or tall prop between at its sight height, and not covered by what she is in cover against?
         /// Its orbs pass over a low prop she is down beside in a quick duck (work order 043), so a duck does not hide her from it.
         /// </summary>
-        public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position, ProjectileKind.Orb);
+        public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position, ProjectileKind.Orb)
+                                 && !SmokeClouds.Hides(transform.position, Player.Position); // work order 109: not in or through her smoke
 
         /// <summary>Does it see that point, with no wall or tall prop between at its sight height (as the shooter and the boss)?</summary>
         public bool Sees(Vector3 point)
@@ -378,7 +379,7 @@ namespace Roguelike
         /// <summary>Would it see her from that point: no wall or tall prop between at its sight height, and not covered by what she is in cover against (its orbs')?</summary>
         bool SeesHerFrom(Vector3 point)
         {
-            if (Player == null || Player.ShieldsFrom(point, ProjectileKind.Orb)) return false;
+            if (Player == null || Player.ShieldsFrom(point, ProjectileKind.Orb) || SmokeClouds.Hides(point, Player.Position)) return false; // work order 109: nor through her smoke
             Vector3 from = Flat(point), dir = Flat(Player.Position) - from;
             float length = dir.magnitude;
             return length < 1e-3f || Cover.ClearDistance(from, dir / length, length, Tuning.SightHeight) >= length - 1e-3f;

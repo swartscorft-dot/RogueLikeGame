@@ -350,6 +350,15 @@ namespace Roguelike.Rules
             new UpgradeDefinition(UpgradeKind.KeenFocus, 0.1f),
             new UpgradeDefinition(UpgradeKind.HeavyHits, 0.1f),
         };
+
+        /// <summary>
+        /// Three new skills in the pool (work order 109; Kristian, 2026-11-24, ticked "Hennes kit": "Flere skills i utvalget ... så
+        /// løpene blir mer forskjellige", and said yes by name to "De tre nye skillsene": Ricochet, Smoke Round, Deadeye), on by
+        /// default: her list of skills holds them after the twelve (<see cref="NewSkillRules"/>), so the floor reward draws from
+        /// eleven, and the elite room's table holds their six rows. Off, the three are in no list, no offer and no table: the pool
+        /// is the eight of work order 015 and every offer is as before.
+        /// </summary>
+        public bool NewSkills = true;
     }
 
     /// <summary>

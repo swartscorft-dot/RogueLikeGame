@@ -249,6 +249,8 @@ namespace Roguelike.Rules
         public ShooterPostStats ShooterPosts = new ShooterPostStats();
         /// <summary>Work order 101: the casters that held their posts, counted as the shooters (SessionSummaryShooterPosts.cs); none for a log from before.</summary>
         public ShooterPostStats CasterPosts = new ShooterPostStats();
+        /// <summary>Work order 109: the three new skills' own counts (SessionSummaryNewSkills.cs); none for a log without them.</summary>
+        public NewSkillStats NewSkills = new NewSkillStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -478,6 +480,7 @@ namespace Roguelike.Rules
             stats.RoomUse = ComputeRoomUse(events); // work order 097
             stats.ShooterPosts = ComputeShooterPosts(events); // work order 098
             stats.CasterPosts = ComputeCasterPosts(events); // work order 101
+            stats.NewSkills = ComputeNewSkills(events); // work order 109
             return stats;
         }
 
@@ -700,6 +703,7 @@ namespace Roguelike.Rules
             LabRoomsSummary.Write(sb, stats.LabRooms); // work order 084: nothing without the lab
             FrameTimesSummary.Write(sb, stats.Frames); // work order 074: its own block, under every line before it
             WriteRoomUse(sb, stats.RoomUse); // work order 097: its own block, at the end
+            WriteNewSkills(sb, stats.NewSkills); // work order 109: only in a log with one of the three in it
             return sb.ToString();
         }
 
