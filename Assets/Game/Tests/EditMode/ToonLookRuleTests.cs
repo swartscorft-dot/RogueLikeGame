@@ -5,7 +5,8 @@ namespace Roguelike.Rules.Tests
     /// <summary>
     /// Work order 115's values (the toon look on her model, a trial): the switch on by default, the ink line's width in pixels
     /// in proportion to the screen's height from the producer's start (2 to 2.5 px at 1080 rows), and the glows under the bloom's
-    /// threshold (1.2) as the game's other small glows are.
+    /// threshold (1.2) as the game's other small glows are; since the follow-up, the fixed teal edge off and the edge light from the
+    /// room's own lights on and modest.
     /// </summary>
     public class ToonLookRuleTests
     {
@@ -33,7 +34,11 @@ namespace Roguelike.Rules.Tests
         public void TheGlows_StayUnderTheBloom_AndTheShadowToneIsCoolAndDark()
         {
             var v = new ToonLookValues();
-            Assert.That(v.RimStrength * Max(v.RimColour), Is.LessThan(BloomThreshold), "the edge light never blooms");
+            Assert.That(v.RimStrength, Is.EqualTo(0f), "the fixed teal edge is off (Kristian, 2026-11-24: the light is a reflection of the place, not on her)");
+            Assert.That(v.LampEdgeOn, Is.True, "the edge light from the room's own lights is on");
+            Assert.That(v.LampEdgeStrength, Is.GreaterThan(0f).And.LessThanOrEqualTo(0.8f), "a share of the light reaching her: modest, no glow");
+            Assert.That(v.LampEdgeStart, Is.GreaterThanOrEqualTo(0.5f).And.LessThan(1f), "only her outer edge");
+            Assert.That(v.LampEdgeSoftness, Is.GreaterThan(0f).And.LessThan(0.2f), "a thin line");
             Assert.That(v.KitTealGlow, Is.LessThan(BloomThreshold).And.GreaterThan(0f), "her pistols' teal lights glow, at most at the bloom's threshold");
             Assert.That(v.BodyTealGlow, Is.LessThan(BloomThreshold));
             Assert.That(Max(v.ShadowTint), Is.LessThan(v.LitLevel * 0.5f), "the shadow tone well under the lit one: two tones, not a gradient");

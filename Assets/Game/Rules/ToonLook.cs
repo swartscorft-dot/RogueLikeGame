@@ -40,13 +40,26 @@ namespace Roguelike.Rules
         // with fine scratches, stitching and baked shading in them); her normal map carries the bumpy detail, and it is not used.
         public float DetailCalm = 1.5f;      // mip levels her texture is read blurrier by (each halves its detail): 1.5 takes out what is under about 3 texels of her 2048 texture, keeps the fields
 
-        // The edge light (the order's point 3).
+        // The fixed edge light (the order's point 3), OFF since the follow-up: it was the producer's addition, a teal edge always
+        // on her wherever she stands. Kristian, 2026-11-24, seeing it: "Hvorfor har hun turkis lyskant? Hvor har du det fra?" and
+        // "Ja, men det lyset er en refleksjon? Det er ikke \"på\" karakteren. Slik man ser det på bildene fra codex også". The
+        // values and the shader's ability are kept, to compare; the edge light from the room's own lights is below.
         public Rgb RimColour = new Rgb(0.30f, 0.95f, 0.86f); // the drawings' cyan-teal
-        public float RimStrength = 0.4f;     // its light at its brightest (in linear light, under the bloom's threshold of 1.2: it never blooms)
+        public float RimStrength = 0f;       // its light at its brightest: 0, off (0.4 in commit 8a49e44; under the bloom's threshold of 1.2 at any value up to 1.2)
         public float RimStart = 0.75f;       // where it begins, in 1 - N·V (0 facing the camera, 1 side-on to it): only the outer edge of her (0.62 at first lit whole hat brims and shields seen edge-on in the first pictures)
         public float RimSoftness = 0.05f;    // its edge's half width in the same measure
         public float RimAway = 0.85f;        // how much it keeps to the side of her away from the key light: 0 all round, 1 only there
         public float RimUnder = 0.5f;        // it is gone on faces turned down by this much (-N·y) and fades in to side-on: the first pictures lit the whole underside of her hat's brim teal
+
+        // The edge light from the room's real lights (work order 115's follow-up): the drawings' teal edge is the teal fire of the
+        // place falling on her. Each light the two tones are cut from (the key light, the room's lamps, her own light) lights the
+        // edge of her that the camera sees and that faces it, in its own colour, by its own strength at her and cut by its shadow:
+        // teal beside a teal brazier, warm beside a sconce, one of each between the two, nothing in the dark. Drawn in the shader
+        // for every pixel of her; nothing in C# each frame.
+        public bool LampEdgeOn = true;       // its switch, inside the toon look's own (ToonLookValues.On)
+        public float LampEdgeStrength = 0.6f; // its light as a share of the light reaching her there (times the cosine to the light): about what the floor beside her shows of the same lamp (its stones take about half of it), a thin lit line and no glow (0.3 at first could not be seen in the first pictures)
+        public float LampEdgeStart = 0.6f;   // where on her edge it begins, in 1 - N·V (0 facing the camera, 1 side-on to it): only the outer edge (0.7 at first: too few of her edges are that side-on from the game's steep camera)
+        public float LampEdgeSoftness = 0.08f; // its edge's half width in the same measure
 
         // Her pistols' teal lights (the order's point 3): read out of their texture by colour, glowing as the game's other glows.
         public float KitTealGlow = 1.05f;    // the teal parts' light on her weapons, at the full mask (just under the bloom's threshold of 1.2, as the other small glows are)

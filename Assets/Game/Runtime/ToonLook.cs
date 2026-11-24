@@ -10,7 +10,8 @@ namespace Roguelike
     /// its Awake); it touches only the renderers of her model, the object her animator is on and what hangs under it (her body,
     /// her pistols, the shotgun on her back): each of their materials gets a copy on the project's own shader
     /// (<see cref="ShaderName"/>, <c>Assets/Game/Shaders/ToonHer.shader</c>) with that material's own texture and colour and the
-    /// toon values (<see cref="ToonLookValues.Live"/>): two tones, the edge light, the teal lights (on her weapons), the ink line.
+    /// toon values (<see cref="ToonLookValues.Live"/>): two tones, the edge light the room's own lights give her (the fixed teal
+    /// edge is off since the follow-up), the teal lights (on her weapons), the ink line.
     ///
     /// <see cref="ToonLookValues.On"/> is read every frame (the pause menu's "Toon look (trial)" flips it): on, the copies are put
     /// on her renderers; off, her renderers get back the very material objects they had, which were never changed. Nothing is
@@ -43,6 +44,10 @@ namespace Roguelike
         static readonly int s_RimSoftness = Shader.PropertyToID("_RimSoftness");
         static readonly int s_RimAway = Shader.PropertyToID("_RimAway");
         static readonly int s_RimUnder = Shader.PropertyToID("_RimUnder");
+        static readonly int s_LampEdge = Shader.PropertyToID("_LampEdge");
+        static readonly int s_LampEdgeStrength = Shader.PropertyToID("_LampEdgeStrength");
+        static readonly int s_LampEdgeStart = Shader.PropertyToID("_LampEdgeStart");
+        static readonly int s_LampEdgeSoftness = Shader.PropertyToID("_LampEdgeSoftness");
         static readonly int s_TealGlow = Shader.PropertyToID("_TealGlow");
         static readonly int s_TealStart = Shader.PropertyToID("_TealStart");
         static readonly int s_TealSoftness = Shader.PropertyToID("_TealSoftness");
@@ -194,6 +199,10 @@ namespace Roguelike
             m.SetFloat(s_RimSoftness, Mathf.Max(0.001f, v.RimSoftness));
             m.SetFloat(s_RimAway, v.RimAway);
             m.SetFloat(s_RimUnder, Mathf.Max(0.01f, v.RimUnder));
+            m.SetFloat(s_LampEdge, v.LampEdgeOn ? 1f : 0f); // the follow-up: the edge light from the room's own lights
+            m.SetFloat(s_LampEdgeStrength, Mathf.Max(0f, v.LampEdgeStrength));
+            m.SetFloat(s_LampEdgeStart, v.LampEdgeStart);
+            m.SetFloat(s_LampEdgeSoftness, Mathf.Max(0.001f, v.LampEdgeSoftness));
             m.SetFloat(s_TealGlow, kit ? v.KitTealGlow : v.BodyTealGlow);
             m.SetFloat(s_TealStart, v.TealStart);
             m.SetFloat(s_TealSoftness, Mathf.Max(0.01f, v.TealSoftness));
