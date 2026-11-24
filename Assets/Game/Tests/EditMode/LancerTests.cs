@@ -332,8 +332,10 @@ namespace Roguelike.Rules.Tests
                 int floor = (int)(s % 5) + 1;
                 LevelLayout a = LevelGenerator.Generate(s * 7919UL + 108UL, floor, off), b = LevelGenerator.Generate(s * 7919UL + 108UL, floor, on);
                 Assert.That(a.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Lancer), Is.False, "off: no lancer, seed " + s);
-                Assert.That(b.Describe(), Is.EqualTo(a.Describe()), "on and off the same floor, field for field (the generator does not place them in this order), seed " + s);
-                Assert.That(a.Version, Is.EqualTo(19), "the generator's version as before");
+                // Work order 118 (changed deliberately): the generator places them since its version 22, from floor 4; before it, on and
+                // off are the same floor, field for field (version 21's with them off: LancersInTheFloorsTests' pin).
+                if (floor < 4) Assert.That(b.Describe(), Is.EqualTo(a.Describe()), "before floor 4 on and off the same floor, field for field, seed " + s);
+                Assert.That(a.Version, Is.EqualTo(LevelGenerator.Version), "the generator's version");
             }
         }
 
@@ -444,9 +446,14 @@ namespace Roguelike.Rules.Tests
             Assert.That(PlaceholderSoundRules.SoundFor(SoundMoment.LancerCrashed), Is.EqualTo(PlaceholderSound.LancerCrash));
             PlaceholderSound[] all = PlaceholderSoundRules.All;
             Assert.That(all.Skip(49).Take(3), Is.EqualTo(new[] { PlaceholderSound.LancerWindup, PlaceholderSound.LancerCharge, PlaceholderSound.LancerCrash }), "after the forty-nine before them in the merged list (changed at the merge, 2026-11-24)");
-            Assert.That((int)PlaceholderSound.OffTick, Is.EqualTo(all.Length - 4), "every sound before them where it was");
+            // Changed at the merge (work order 118, the producer's word of 2026-11-24): in the merged list other orders' sounds stand
+            // between the thirty-eight old ones and the lancer's three. The old keep their places 0 to 37 (OffTick the last of them),
+            // the lancer's are at 49 to 51; nothing is reordered.
+            Assert.That((int)PlaceholderSound.OffTick, Is.EqualTo(37), "the thirty-eight old sounds where they were, 0 to 37");
+            for (int i = 0; i <= 37; i++) Assert.That((int)all[i], Is.EqualTo(i), "sound " + i + " where it was");
+            Assert.That((int)PlaceholderSound.LancerWindup, Is.EqualTo(49), "the lancer's three at 49 to 51");
             var values = new PlaceholderSoundValues();
-            foreach (PlaceholderSound s in all.Skip(all.Length - 3))
+            foreach (PlaceholderSound s in all.Skip(49).Take(3))
             {
                 Assert.That(values.Volume(s), Is.InRange(0.2f, 0.5f), s.ToString());
                 Assert.That(values.Sounds.Count(x => x.Sound == s), Is.EqualTo(1), s + ": its line, once");

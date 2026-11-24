@@ -287,6 +287,7 @@ namespace Roguelike.Rules
             }
             LevelBombers.Faults(level, values, faults); // work order 073: the bombers' rules
             LevelWarders.Faults(level, values, faults); // work order 079: the warders' rules
+            LevelLancers.Faults(level, values, faults); // work order 118: the lancers' rules (work order 108's)
 
             // Work order 051: every room's carved outline keeps the rules of RoomShapes.Faults (its gate among them).
             foreach (LevelRoom r in rooms)

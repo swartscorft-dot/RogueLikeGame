@@ -604,9 +604,9 @@ namespace Roguelike.Rules
         // en vegg eller rekvisitt. Lages av skjelettmodellene som finnes." ON: the lancer is in the game (the practice room's K,
         // the room lab's preset "floor 4 with a lancer"), and the floors' rule for it (LevelLancers, from LancerFloors.FromFloor,
         // read only with ActPlan on). Off: no lab room holds one, and every floor and every lab room is as before work order 108,
-        // field for field. The practice room's lancer does not depend on it (as the bomber's and the warder's do not). The floors
-        // do not hold one yet whatever this says: the generator does not call LevelLancers in this order (the sprint's rule 3,
-        // its version and pins are work orders 103's and 104's; see LevelLancers).
+        // field for field. The practice room's lancer does not depend on it (as the bomber's and the warder's do not). Work order
+        // 118: the floors hold it since the generator's version 22 (LevelLancers called by the generator and the validator); off,
+        // every floor is version 21's, field for field, but for the version.
         public bool Lancers = true;
         public int LancerHealth = 800;         // work order 108: a floor's lancer, between a floor shooter's 400 and a floor brute's 1200
         public LancerFloorValues LancerFloors = new LancerFloorValues();

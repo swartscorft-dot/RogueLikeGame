@@ -19,7 +19,7 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static LevelValues On => new LevelValues();
-        static LevelValues Off => new LevelValues { FloorCharacter = false };
+        static LevelValues Off => new LevelValues { FloorCharacter = false, Lancers = false };
 
         /// <summary>How far a measured share may lie from the one its weights give (a thousand seeds a floor, five to eight rooms each: about 1.5 points of noise).</summary>
         const double MixShareTolerance = 0.05;
@@ -84,16 +84,16 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_IsOnByDefault_WithVersion21()
         {
             Assert.That(new LevelValues().FloorCharacter, Is.True, "on by default (work order 104)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(21));
+            Assert.That(LevelGenerator.Version, Is.GreaterThanOrEqualTo(21), "21, and 22 since work order 118");
             Assert.That(FloorCharacterRules.NameOf(2, On), Is.EqualTo("The Guard Halls"));
             Assert.That(FloorCharacterRules.NameOf(2, Off), Is.EqualTo(""), "off: no name");
         }
 
-        /// <summary>Version 21's own pin: the same floors and runs with the defaults. Each runtime has its own number: .NET's from the .NET rules run of this code, Unity's from a filtered Unity EditMode run.</summary>
+        /// <summary>Version 21's own pin: the same floors and runs with version 21's defaults (since work order 118 the lancers named off). Each runtime has its own number: .NET's from the .NET rules run of this code, Unity's from a filtered Unity EditMode run.</summary>
         [Test]
         public void Version21_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            ulong h = Print(On);
+            ulong h = Print(new LevelValues { Lancers = false }); // work order 118 (changed deliberately): version 21 is the lancers off
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x524BEFDC904EAF79UL; // Unity's EditMode run of this code (work order 104's filtered run, 2026-11-24)
 #else
