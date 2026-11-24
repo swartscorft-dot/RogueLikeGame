@@ -97,6 +97,8 @@ namespace Roguelike.Rules
         public bool Flame;
         /// <summary>Of a prop of the description (a brazier, a basin, a candelabra, the chest), not of a composition.</summary>
         public bool OfProp;
+        /// <summary>Work order 112: a set of the ossuary's candles added by the look list; the lamps' rule for sconces leaves it out, so the sconces are as before.</summary>
+        public bool ByLookList;
     }
 
     /// <summary>The kinds of wear: rubble, bones and skulls along the walls and in the corners; stains, wax, cracks, patches and missing tiles flat on the floor.</summary>
@@ -303,6 +305,7 @@ namespace Roguelike.Rules
                 }
                 // Work order 052: the large props, last, drawing nothing from the stream.
                 if (mv.Compose && values.LargeProps && values.Props) PlaceLarge(layout, room, mr, values, ref kit);
+                if (mv.Compose && LookListValues.Candles) OssuaryCandles(layout, room, mr, mv); // work order 112: last, drawing nothing from the stream
                 plan.Rooms.Add(mr);
             }
             return plan;

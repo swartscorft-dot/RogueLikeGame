@@ -136,7 +136,7 @@ namespace Roguelike.EditModeTests
                     string at = "seed " + seed + " floor " + floor;
                     foreach (Lamp lamp in plan.Lamps)
                     {
-                        if (lamp.Kind != LampKind.Sconce) continue;
+                        if (lamp.Kind != LampKind.Sconce || lamp.ByLookList) continue; // work order 112: a passage's warm sconce keeps its own rule (LookListTests)
                         sconces++;
                         CryptKitSection s = kit.Sections[lamp.Section];
                         Assert.That(s.Low, Is.False, at + ": never on a low near wall");
