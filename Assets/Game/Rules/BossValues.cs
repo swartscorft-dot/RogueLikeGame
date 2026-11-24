@@ -102,6 +102,20 @@ namespace Roguelike.Rules
                 RespawnDelay = Enemy.RespawnDelay, UseModels = Enemy.UseModels, Attacks = attacks,
             };
         }
+
+        // ---------------- The finale (work order 106, 2026-11-24; BossFinale.cs) ----------------
+
+        /// <summary>
+        /// The finale's switch (work order 106), on. Kristian, 2026-11-24, ticked "Fiender og boss" and, asked by name, said yes
+        /// to the producer's "Bossens fase to og belønning": "Et tydelig brudd ved 50 % helse, ett nytt angrep i fase to, og
+        /// første drap åpner en navngitt del på stativet mellom løp." On: at half its health the fight breaks once (a roar, the
+        /// room's lamps, the bar's two halves), phase two adds the Ground Slam, and the rack between runs has Knight's Resolve,
+        /// opened by the first kill. Off: the fight, the bar, the room and the rack are as before, field for field. One switch
+        /// for the whole game (the rack reads it too), so it is static; tests set it and put it back.
+        /// </summary>
+        public static bool Finale = true;
+        /// <summary>The finale's numbers (work order 106): the roar, the lamps' colour, the Ground Slam.</summary>
+        public BossFinaleValues Phases = new BossFinaleValues();
     }
 
     /// <summary>

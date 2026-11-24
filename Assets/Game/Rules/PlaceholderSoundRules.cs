@@ -50,6 +50,8 @@ namespace Roguelike.Rules
         CleanTick,     // a press of a recast chain in its clean part: a short pitched tick, a step higher for each in a row
         ChainTop,      // the last press of a chain clean all through: a clear top note
         OffTick,       // a press of a chain off its clean part: a dull tick (silent unless ChainTickValues.DullTickWhenOff)
+        // Work order 106 (the boss as a finale, BossValues.Finale):
+        BossRoar,      // the boss roars at the break, at half its health: a long low roar, swelling and falling
     }
 
     /// <summary>
@@ -67,6 +69,8 @@ namespace Roguelike.Rules
         // Work order 080: her hit landing by its weight, a clean press's hit, her kill and the one that empties its room, a
         // press of a recast chain in its clean part, the last of a chain clean all through, and a press off its clean part.
         HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
+        // Work order 106: the boss's break, at half its health.
+        BossRoared,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -169,6 +173,8 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.CleanTick, 0.3f, 10),
             new PlaceholderSoundSetting(PlaceholderSound.ChainTop, 0.35f, 4),
             new PlaceholderSoundSetting(PlaceholderSound.OffTick, 0.2f, 10),
+            // Work order 106: the boss's roar, as loud as its other sounds (the loudest beside her pain), once a fight.
+            new PlaceholderSoundSetting(PlaceholderSound.BossRoar, 0.5f, 2),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -252,6 +258,7 @@ namespace Roguelike.Rules
                 case SoundMoment.CleanPress: return PlaceholderSound.CleanTick;
                 case SoundMoment.ChainAllClean: return PlaceholderSound.ChainTop;
                 case SoundMoment.PressOff: return PlaceholderSound.OffTick;
+                case SoundMoment.BossRoared: return PlaceholderSound.BossRoar; // work order 106
                 default: return null;
             }
         }

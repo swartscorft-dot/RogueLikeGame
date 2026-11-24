@@ -249,6 +249,8 @@ namespace Roguelike.Rules
         public ShooterPostStats ShooterPosts = new ShooterPostStats();
         /// <summary>Work order 101: the casters that held their posts, counted as the shooters (SessionSummaryShooterPosts.cs); none for a log from before.</summary>
         public ShooterPostStats CasterPosts = new ShooterPostStats();
+        /// <summary>Work order 106: the boss fights told by the boss with the finale on (SessionSummaryBoss.cs); empty for a log from before, or with it off.</summary>
+        public List<BossFightRow> BossFights = new List<BossFightRow>();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -478,6 +480,7 @@ namespace Roguelike.Rules
             stats.RoomUse = ComputeRoomUse(events); // work order 097
             stats.ShooterPosts = ComputeShooterPosts(events); // work order 098
             stats.CasterPosts = ComputeCasterPosts(events); // work order 101
+            stats.BossFights = ComputeBossFights(events); // work order 106
             return stats;
         }
 
@@ -510,6 +513,8 @@ namespace Roguelike.Rules
             if (posts != null) sb.Append("Shooters ").AppendLine(posts);
             string casterPosts = CasterPostLine(stats.CasterPosts); // work order 101: the casters' the same, a line of their own beside it
             if (casterPosts != null) sb.Append("Casters ").AppendLine(casterPosts);
+            string bossFights = BossFightLine(stats.BossFights); // work order 106: the boss's two phases and its slams, one line
+            if (bossFights != null) sb.Append("Boss ").AppendLine(bossFights);
             // The runs (work order 012): a short block each.
             foreach (RunRow run in stats.Runs)
             {

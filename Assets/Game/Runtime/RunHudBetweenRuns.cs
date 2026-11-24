@@ -216,6 +216,8 @@ namespace Roguelike
                 foreach (MetaPiece p in Pieces)
                     if (p != null && !p.Sold && p.FromFeat == f) _endLines.Add("New piece  " + p.Name + ",  " + p.Line);
             }
+            string resolve = KnightsResolve.EndLine(e, _levels.MetaValues); // work order 106: a later kill of the boss, the piece already hers
+            if (resolve != null) _endLines.Add(resolve);
         }
 
         void DrawBetweenRuns(float viewWidth)

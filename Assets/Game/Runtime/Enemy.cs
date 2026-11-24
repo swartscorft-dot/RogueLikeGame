@@ -510,6 +510,12 @@ namespace Roguelike
         /// <summary>Does it keep chasing her through this attack's windup and recovery (work order 035: the swarmer's bite)? Never, unless a kind says so.</summary>
         protected virtual bool ChasesThrough(EnemyAttackDefinition attack) => false;
 
+        /// <summary>
+        /// Where the telegraph of the attack being wound up is drawn from, on the ground: where it stands, unless a kind says otherwise
+        /// (work order 106: the boss's Ground Slam draws its ring round where it will land).
+        /// </summary>
+        protected virtual Vector3 TelegraphOrigin => Flat(transform.position);
+
         // ---------------- Death and the strike ----------------
 
         void StayDead(float now, EnemyValues values)
@@ -652,7 +658,7 @@ namespace Roguelike
                 _telegraphBlock.SetColor("_Color", s_CounterBlue);
             }
             Telegraph.SetPropertyBlock(_telegraphBlock);
-            Vector3 origin = Flat(transform.position);
+            Vector3 origin = TelegraphOrigin; // work order 106: where it stands, unless a kind says otherwise
             switch (attack.Shape)
             {
                 case EnemyAttackShape.Circle:

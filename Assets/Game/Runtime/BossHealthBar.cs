@@ -62,6 +62,7 @@ namespace Roguelike
             GUI.Label(new Rect(x, Top - 24f, width, 22f), _boss.Tuning.Title, _title);
 
             Bar(new Rect(x, Top, width, HealthHeight), HealthShown, _boss.IsAngry ? s_AngryHealth : s_Health);
+            if (ShowsHalves) Halves(new Rect(x, Top, width, HealthHeight)); // work order 106
             bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
             Bar(new Rect(x, Top + HealthHeight + Gap, width, StaggerHeight), StaggerShown, flash ? s_Flash : s_Stagger, flash);
 
@@ -91,12 +92,35 @@ namespace Roguelike
             InterfaceStyle.HeavyPlate(bar, bar.center.y, v.Slant, v.HeavyOutline * 0.75f, v.Depth);
             InterfaceStyle.SlantedBar(bar, HealthShown, InterfaceStyle.C(v.Back), _boss.IsAngry ? s_AngryHealth : InterfaceStyle.C(v.Red));
             InterfaceStyle.DotsAlong(bar, bar.center.y, v.Slant, 1f - v.PlateDots, InterfaceStyle.C(v.Black, 0.45f));
+            if (ShowsHalves) Halves(bar); // work order 106
             bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
             var stagger = new Rect(bar.x - (v.BossHeight * 0.5f + 3f + v.BossStaggerHeight * 0.5f) * v.Slant, bar.yMax + 3f, bar.width, v.BossStaggerHeight);
             InterfaceStyle.SlantedBar(stagger, StaggerShown, flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Back),
                                       flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Stagger));
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
+        }
+
+        // ---------------- The two halves (work order 106, BossValues.Finale) ----------------
+
+        /// <summary>Pixels, in the layout of a view 720 high: the width of the mark that parts its bar into its two halves.</summary>
+        const float HalfMarkWidth = 3f;
+        static readonly Color s_HalfMark = new Color(0f, 0f, 0f, 0.85f);
+
+        /// <summary>True when its bar shows the two halves (work order 106): with the finale on. Off, the bar as before.</summary>
+        public bool ShowsHalves => Rules.BossValues.Finale && _boss != null;
+        /// <summary>The share of the bar where the halves part: where the break comes (its anger's share, a half).</summary>
+        public float HalfAt => _boss != null ? _boss.Tuning.AngerBelow : 0.5f;
+        /// <summary>The mark's rectangle on a health bar drawn in <paramref name="bar"/>, in the bar's own layout; for tests too.</summary>
+        public Rect HalfMark(Rect bar) => new Rect(bar.x + bar.width * Mathf.Clamp01(HalfAt) - HalfMarkWidth * 0.5f, bar.y - 2f, HalfMarkWidth, bar.height + 4f);
+
+        /// <summary>A dark upright mark across the health bar where the break comes: the fight's two halves, read before it breaks.</summary>
+        void Halves(Rect bar)
+        {
+            Color before = GUI.color;
+            GUI.color = s_HalfMark;
+            GUI.DrawTexture(HalfMark(bar), Texture2D.whiteTexture);
+            GUI.color = before;
         }
 
         static void Bar(Rect rect, float fill, Color color, bool flashBack = false)

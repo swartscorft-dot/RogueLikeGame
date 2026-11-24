@@ -35,6 +35,8 @@ namespace Roguelike.Rules.Tests
             { PlaceholderSound.HitBasic, 0.07f }, { PlaceholderSound.HitHeavy, 0.12f }, { PlaceholderSound.HitCrit, 0.1f },
             { PlaceholderSound.HitCleanEdge, 0.08f }, { PlaceholderSound.Kill, 0.2f }, { PlaceholderSound.RoomWon, 0.45f },
             { PlaceholderSound.CleanTick, 0.05f }, { PlaceholderSound.ChainTop, 0.3f }, { PlaceholderSound.OffTick, 0.04f },
+            // Changed deliberately (work order 106): the boss's roar at its break.
+            { PlaceholderSound.BossRoar, 1.4f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;

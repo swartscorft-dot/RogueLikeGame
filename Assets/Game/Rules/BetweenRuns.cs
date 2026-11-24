@@ -77,6 +77,8 @@ namespace Roguelike.Rules
         Damage,
         /// <summary>Elite rooms offer this many skill upgrades more.</summary>
         EliteOffers,
+        /// <summary>Work order 106, Knight's Resolve: Amount times a run, a blow that would kill her leaves her at 1 health and dazes the enemies within Amount2 m.</summary>
+        LastStand,
     }
 
     /// <summary>
@@ -326,6 +328,14 @@ namespace Roguelike.Rules
         /// <summary>The ranks applied, "Health 3", in the table's order.</summary>
         public readonly List<string> Ranks = new List<string>();
 
+        // Work order 106: Knight's Resolve (KnightsResolve, BossFinale.cs), read where a blow lands on her (PlayerHealth). 0 without it.
+        /// <summary>Times this run a blow that would kill her leaves her at 1 health.</summary>
+        public int Resolves;
+        /// <summary>Of those, not yet spent this run.</summary>
+        public int ResolvesLeft;
+        /// <summary>m from her within which the enemies are dazed when one is spent.</summary>
+        public float ResolveReach;
+
         /// <summary>Any piece of the rack applied (the ranks are <see cref="AnyRanks"/>).</summary>
         public bool Any => Pieces.Count > 0;
         public bool AnyRanks => Ranks.Count > 0;
@@ -349,6 +359,9 @@ namespace Roguelike.Rules
             RankCritChance = 0f;
             RankRoomHeal = 0f;
             Ranks.Clear();
+            Resolves = 0; // work order 106
+            ResolvesLeft = 0;
+            ResolveReach = 0f;
         }
 
         /// <summary>The numbers in one line, for tests and the log; the ranks' at its end (work order 099).</summary>
@@ -515,9 +528,14 @@ namespace Roguelike.Rules
                     case MetaEffect.MaxHealth: into.MaxHealthShare += p.Amount; break;
                     case MetaEffect.Damage: into.DamageShare += p.Amount; break;
                     case MetaEffect.EliteOffers: into.EliteOffersExtra += (int)Math.Round(p.Amount); break;
+                    case MetaEffect.LastStand: // work order 106: Knight's Resolve
+                        into.Resolves += (int)Math.Round(p.Amount);
+                        into.ResolveReach = Math.Max(into.ResolveReach, p.Amount2);
+                        break;
                 }
             }
             into.RedrawsLeft = into.Redraws;
+            into.ResolvesLeft = into.Resolves; // work order 106
         }
 
         /// <summary>
