@@ -695,7 +695,8 @@ namespace Roguelike
                 for (int i = 0; i < list.Count && !alive; i++) alive = list[i] != null && !list[i].IsDead;
                 if (alive) continue;
                 // Work order 065: her Mending's health more from every cleared room (0 off).
-                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues) + Modifiers.Stats.Mending);
+                // Work order 099: the ranks' room heal points (0 with none, or with the trial off).
+                int healed = _health.Heal(_roomHeals.Heal(room.Order, room.Elite, _health.Max, RunValues, Modifiers.Meta.RankRoomHeal) + Modifiers.Stats.Mending);
                 BetweenRunsRoomCleared(room); // work order 060: an ordinary room's Echoes, only with the attachments on
                 PlaySessionRecorder.Current?.NoteRoomHeal(Floor, room.Order, room.Elite, healed, _health.Current);
                 PlaceholderSounds.Current?.AskFor(SoundMoment.CombatRoomCleared); // work order 048: the way on opens

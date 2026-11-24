@@ -27,6 +27,11 @@ namespace Roguelike.Rules
                     stats.Runs.Add(run);
                     continue;
                 }
+                if (e.Type == SessionEventTypes.MetaRank) // work order 099: bought between runs, so outside any run
+                {
+                    stats.RanksBought.Add((e.Name ?? "?") + " rank " + Number(e, "rank") + " for " + Number(e, "price") + " (" + Number(e, "left") + " left)");
+                    continue;
+                }
                 if (run == null) continue;
                 switch (e.Type)
                 {
@@ -93,6 +98,7 @@ namespace Roguelike.Rules
                         run.HasMeta = true;
                         run.MetaEquipped = string.IsNullOrEmpty(e.Name) ? "" : e.Name.Replace(" | ", ", ");
                         run.MetaWeapon = e.ExtraValue("weapon")?.Replace(" | ", ", "); // work order 060: only when the attachments were on
+                        run.MetaRanks = e.ExtraValue("ranks"); // work order 099: only when she had any
                         break;
                     case SessionEventTypes.MetaEarn:
                     {

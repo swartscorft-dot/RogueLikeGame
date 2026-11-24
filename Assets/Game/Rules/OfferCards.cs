@@ -370,8 +370,8 @@ namespace Roguelike.Rules
                 {
                     int max = m.MaxHealthFor(c.OwnMaxHealth);
                     RunValues run = c.Run ?? new RunValues();
-                    Add("a cleared room heals", Int(FloorHeals.Amount(max, run.RoomHeal) + s.Mending));
-                    Add("the elite room heals", Int(FloorHeals.Amount(max, run.EliteRoomHeal) + s.Mending));
+                    Add("a cleared room heals", Int(FloorHeals.Amount(max, s.RoomHealShare(run, false)) + s.Mending)); // work order 099: with the ranks' points
+                    Add("the elite room heals", Int(FloorHeals.Amount(max, s.RoomHealShare(run, true)) + s.Mending));
                     break;
                 }
                 case UpgradeKind.LongFocus:

@@ -87,7 +87,7 @@ namespace Roguelike
         /// <summary>The screen's keys with the weapon's rows after the rack's: the arrows go round all of them; Enter picks the line it is on.</summary>
         void WeaponKeys(Keyboard keyboard, bool enter)
         {
-            int rackRows = BetweenRunsRows, rows = rackRows + _weaponParts.Count;
+            int rackRows = BetweenRunsRows, rows = rackRows + _weaponParts.Count + RankRows; // work order 099: then the ranks' rows
             if (keyboard.upArrowKey.wasPressedThisFrame) BetweenRunsSelected = (BetweenRunsSelected + rows - 1) % rows;
             else if (keyboard.downArrowKey.wasPressedThisFrame) BetweenRunsSelected = (BetweenRunsSelected + 1) % rows;
             BetweenRunsSelected = Mathf.Clamp(BetweenRunsSelected, 0, rows - 1);
@@ -98,7 +98,8 @@ namespace Roguelike
             else if (enter)
             {
                 if (BetweenRunsSelected < rackRows) PickBetweenRunsLine(BetweenRunsSelected);
-                else PickWeaponLine(BetweenRunsSelected - rackRows);
+                else if (BetweenRunsSelected < rackRows + _weaponParts.Count) PickWeaponLine(BetweenRunsSelected - rackRows);
+                else PickRankLine(BetweenRunsSelected - rackRows - _weaponParts.Count);
             }
         }
 
@@ -218,7 +219,10 @@ namespace Roguelike
                 _pieceOn.normal.textColor = s_Accent;
             }
             Fill(new Rect(0f, 0f, viewWidth, SkillBar.LayoutHeight), s_Dim);
-            BetweenRunsLayout.Panels(viewWidth, true, out LayoutRect rackAt, out LayoutRect weaponAt);
+            // Work order 099: the ranks' panel at the right end (none with an empty table: 060's places exactly); also drawn
+            // here without the weapon when the rack must narrow for the ranks alone.
+            bool weapon = WeaponOn, ranks = RankRows > 0 && _rankLines.Count == RankRows;
+            BetweenRunsLayout.Panels(viewWidth, weapon, ranks, out LayoutRect rackAt, out LayoutRect weaponAt, out LayoutRect ranksAt);
             MetaPiece[] pieces = Pieces;
             MetaState s = _levels.BetweenRunsState;
             const float startH = 32f, rowH = 40f, gap = 4f, arrow = 30f, headH = 22f, keysH = 32f;
@@ -241,11 +245,16 @@ namespace Roguelike
             float weaponH = 72f + 22f + keysH;
             for (int i = 2; i < _weaponLines.Count; i++)
                 weaponH += (_weaponRows[i] == null ? headH : RowHeight(_weaponLines[i], ww - 40f, rowH)) + gap;
+            float ranksH = ranks ? RanksPanelHeight(ranksAt.Width) : 0f; // work order 099
 
-            float top = BetweenRunsLayout.Top(SkillBar.LayoutHeight, Mathf.Max(rackH, weaponH));
+            float top = BetweenRunsLayout.Top(SkillBar.LayoutHeight, Mathf.Max(Mathf.Max(rackH, weapon ? weaponH : 0f), ranksH));
 
             // The rack, as 029 draws it.
             var r = new Rect(rackAt.X, top, w, rackH);
+            BetweenFlatRack = r; // work order 099: for tests
+            BetweenFlatWeapon = weapon && ww > 0f ? new Rect(weaponAt.X, top, ww, weaponH) : Rect.zero;
+            if (ranks) DrawRanksFlat(ranksAt, top, ranksH);
+            else BetweenFlatRanks = Rect.zero;
             Panel(r, s_Accent, r.y + 46f);
             GUI.Label(new Rect(r.x, r.y + 8f, w, 36f), _betweenLines[0], _pauseTitle);
             float y = r.y + 50f;
@@ -282,11 +291,12 @@ namespace Roguelike
             GUI.Label(new Rect(r.x + 30f, y, w - 60f, 20f), _betweenLines[_betweenLines.Count - 1], _label);
             y += 22f;
             GUI.Label(new Rect(r.x + 30f, y, w - 60f, 32f),
-                      "Arrows and Enter (or a click): buy, equip, take off; on down into the weapon.   Left and right on Not That One: the skill struck out.\n"
+                      (weapon ? "Arrows and Enter (or a click): buy, equip, take off; on down into the weapon.   Left and right on Not That One: the skill struck out.\n"
+                              : "Arrows and Enter (or a click): buy, equip, take off; on down into the ranks.   Left and right on Not That One: the skill struck out.\n")
                       + BetweenRunsStartKey + " or Enter on the first line: start.   Esc: the practice room.   The game is paused.", _small);
 
             // The weapon, to its right.
-            if (ww <= 0f || _weaponLines.Count < 2) return;
+            if (!weapon || ww <= 0f || _weaponLines.Count < 2) return;
             var wr = new Rect(weaponAt.X, top, ww, weaponH);
             Panel(wr, s_Accent, wr.y + 46f);
             GUI.Label(new Rect(wr.x, wr.y + 8f, ww, 36f), _weaponLines[0], _pauseTitle);

@@ -128,6 +128,39 @@ namespace Roguelike.Rules.Tests
             }
         }
 
+        /// <summary>
+        /// Work order 099: the ranks bought between runs show their raised values as part of her start, as the rack's stat pieces
+        /// do (no change since the run's start); with the rack's Thick Hide too, the shares add.
+        /// </summary>
+        [Test]
+        public void TheRanksBoughtBetweenRuns_ShowTheirRaisedValues_AsPartOfHerStart()
+        {
+            var v = new MetaValues();
+            var s = new MetaState { Currency = 10000 };
+            for (int k = 0; k < 3; k++) MetaRanks.Buy(s, v, MetaRanks.Health);
+            for (int k = 0; k < 2; k++) MetaRanks.Buy(s, v, MetaRanks.Damage);
+            for (int k = 0; k < 2; k++) MetaRanks.Buy(s, v, MetaRanks.CritChance);
+            for (int k = 0; k < 2; k++) MetaRanks.Buy(s, v, MetaRanks.RoomHeal);
+            RunModifiers m = StatsDpsModel.Start(new RunValues());
+            MetaRanks.Apply(s, v, m.Meta);
+            List<SheetStat> lines = HerSheet.Stats(Start(m));
+            foreach (SheetStat l in lines) Say(l.ToString());
+            Assert.That(Line(lines, "Health").Value, Is.EqualTo("72 / 130"), "+30 % of her own 100");
+            Assert.That(Line(lines, "Room heal").Value, Is.EqualTo("16"), "12 % of 130 = 15.6");
+            Assert.That(Line(lines, "Crit chance").Value, Is.EqualTo("11 %"), "5 % and 6 points");
+            Assert.That(Line(lines, "Damage dealt").Value, Is.EqualTo("+12 %"));
+            Assert.That(Line(lines, "Basic shot").Value, Is.EqualTo(m.ScaleDamage(Placeholders.BasicShotDamage).ToString()));
+            Assert.That(m.ScaleDamage(Placeholders.BasicShotDamage), Is.GreaterThan(Placeholders.BasicShotDamage), "raised");
+            Assert.That(lines.Any(l => l.Changed), Is.False, "part of her start, as the rack's pieces are");
+
+            s.Owned.Add(MetaPieces.ThickHide);
+            s.Equipped.Add(MetaPieces.ThickHide);
+            RunModifiers both = StatsDpsModel.Start(new RunValues());
+            MetaRack.Apply(s, v, both.Meta);
+            MetaRanks.Apply(s, v, both.Meta);
+            Assert.That(Line(HerSheet.Stats(Start(both)), "Health").Value, Is.EqualTo("72 / 150"), "Thick Hide's 20 % and the ranks' 30 %");
+        }
+
         // ---------------- A skill's panel ----------------
 
         static OfferContext WithFlat(float flat, params Upgrade[] more)

@@ -435,7 +435,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(MetaSaveFile.Save(SavePath, s, out string error), Is.True, error);
             MetaState back = MetaSaveFile.Load(SavePath, new MetaValues(), out MetaLoad how, out _);
             Assert.That(how, Is.EqualTo(MetaLoad.Read));
-            Assert.That(back.Version, Is.EqualTo(1));
+            Assert.That(back.Version, Is.EqualTo(MetaState.CurrentVersion), "read into this code's version (work order 099: 2); on disk it stays 1, below");
             Assert.That(back.AttachmentsOwned, Is.EqualTo(s.AttachmentsOwned));
             Assert.That(back.AttachmentsFitted, Is.EqualTo(s.AttachmentsFitted));
             Assert.That(back.Owned, Is.EqualTo(s.Owned));

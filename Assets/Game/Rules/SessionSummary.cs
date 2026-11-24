@@ -206,6 +206,8 @@ namespace Roguelike.Rules
 
         /// <summary>The runs of the session (work order 012), in the order they started.</summary>
         public readonly List<RunRow> Runs = new List<RunRow>();
+        /// <summary>Work order 099: each rank bought between runs, in the order bought, "Health rank 3 for 80 (45 left)"; empty with none.</summary>
+        public readonly List<string> RanksBought = new List<string>();
 
         /// <summary>Each stretch in cover as (start, end), in seconds since the session started (an experiment, 2026-11-19).</summary>
         public readonly List<KeyValuePair<double, double>> CoverSpans = new List<KeyValuePair<double, double>>();
@@ -277,6 +279,8 @@ namespace Roguelike.Rules
         public string MetaEquipped = "";
         /// <summary>Work order 060: her pistols' parts fitted ("Laser Sight, Bull Barrel", or "stock"); null when the run had no attachments on.</summary>
         public string MetaWeapon;
+        /// <summary>Work order 099: the ranks she started the run with ("Health 3, Damage 1"); null when none.</summary>
+        public string MetaRanks;
         public int MetaEarned;
         public readonly List<KeyValuePair<string, int>> MetaFrom = new List<KeyValuePair<string, int>>();
         public readonly List<string> MetaFeats = new List<string>();
@@ -540,10 +544,13 @@ namespace Roguelike.Rules
                 if (run.HasMeta)
                     sb.Append("  between runs     equipped ").Append(run.MetaEquipped.Length == 0 ? "nothing" : run.MetaEquipped)
                       .Append(run.MetaWeapon != null ? ";  weapon " + run.MetaWeapon : "") // work order 060
+                      .Append(run.MetaRanks != null ? ";  ranks " + run.MetaRanks : "") // work order 099
                       .Append(";  earned ").Append(run.MetaEarned)
                       .Append(run.MetaFrom.Count == 0 ? "" : " (" + string.Join(", ", run.MetaFrom.Select(p => p.Key + " " + p.Value)) + ")")
                       .Append(";  new feats ").AppendLine(run.MetaFeats.Count == 0 ? "-" : string.Join(", ", run.MetaFeats));
             }
+            // Work order 099: the ranks bought between runs, one line, only when any were.
+            if (stats.RanksBought.Count > 0) sb.Append("Ranks bought between runs   ").AppendLine(string.Join(";  ", stats.RanksBought));
             sb.AppendLine();
 
             var t = new Table("", "Session", "In fights");

@@ -465,7 +465,8 @@ namespace Roguelike.Rules.Tests
         public void ASaveOfANewerVersion_IsKeptAside_AndAnEmptyOneGiven()
         {
             Directory.CreateDirectory(_folder);
-            string text = "{ \"version\": 2, \"currency\": 500, \"owned\": [\"thick-hide\"], \"somethingNew\": { \"a\": [1, true, null] } }";
+            // Work order 099: version 2 is this code's own now (the ranks); 3 is newer.
+            string text = "{ \"version\": 3, \"currency\": 500, \"owned\": [\"thick-hide\"], \"somethingNew\": { \"a\": [1, true, null] } }";
             File.WriteAllText(SavePath, text);
             MetaState s = MetaSaveFile.Load(SavePath, new MetaValues(), out MetaLoad how, out string kept);
             Assert.That(how, Is.EqualTo(MetaLoad.Newer));

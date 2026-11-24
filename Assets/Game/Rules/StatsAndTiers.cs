@@ -236,7 +236,7 @@ namespace Roguelike.Rules
         public float BasicShotInterval(float startup, float active, float recovery) => startup + active + BasicShotRecovery(startup, active, recovery);
 
         /// <summary>The chance a hit crits, 0 to 1; 0 off.</summary>
-        public float CritChance => On ? Clamp01(V.StartCritChance + _m.Total(UpgradeKind.CritChance)) : 0f;
+        public float CritChance => On ? Clamp01(V.StartCritChance + _m.Total(UpgradeKind.CritChance) + _m.Meta.RankCritChance) : 0f; // work order 099: and the ranks' points
         /// <summary>How much more a crit deals (0.5: +50 %); 0 off, where nothing crits.</summary>
         public float CritDamage => On ? Math.Max(0f, V.StartCritDamage + _m.Total(UpgradeKind.CritDamage)) : 0f;
         /// <summary>Luck: leans every tiered offer upward (<see cref="UpgradeTiers.Shares"/>). 0 off.</summary>
@@ -272,12 +272,23 @@ namespace Roguelike.Rules
 
         /// <summary>The share of the feel's run speed she runs at: 1 plus each step's share.</summary>
         public float MoveSpeed => 1f + _m.Total(UpgradeKind.RunSpeed);
-        /// <summary>Her maximum in the run from her own (work order 029): raised by the rack's share, then the chests' health added.</summary>
+        /// <summary>
+        /// Her maximum in the run from her own (work order 029): raised by the rack's share and the ranks' (work order 099,
+        /// added to it, as two of the rack's pieces add), then the chests' health added.
+        /// </summary>
         public int MaxHealthFor(int own) =>
-            (_m.Meta.MaxHealthShare != 0f ? (int)Math.Round(own * (1.0 + _m.Meta.MaxHealthShare), MidpointRounding.AwayFromZero) : own) + BonusMaxHealth;
+            (StartHealthShare != 0f ? (int)Math.Round(own * (1.0 + StartHealthShare), MidpointRounding.AwayFromZero) : own) + BonusMaxHealth;
+        /// <summary>The share of her own health she starts a run with more: the rack's and the ranks' (work order 099), added.</summary>
+        float StartHealthShare => _m.Meta.MaxHealthShare + _m.Meta.RankHealthShare;
         public int BonusMaxHealth => (int)Math.Round(_m.Total(UpgradeKind.MaxHealth));
-        /// <summary>The share of damage dealt: 1 plus each damage share's step (an epic one with the switch on), times the rack's step.</summary>
-        public float DamageShare => (1f + _m.Total(UpgradeKind.Damage)) * (1f + _m.Meta.DamageShare);
+        /// <summary>The share of damage dealt: 1 plus each damage share's step (an epic one with the switch on), times the rack's step and the ranks' (work order 099, added to the rack's).</summary>
+        public float DamageShare => (1f + _m.Total(UpgradeKind.Damage)) * (1f + _m.Meta.DamageShare + _m.Meta.RankDamageShare);
+        /// <summary>
+        /// The share of her maximum a cleared room heals (work order 030's <see cref="RunValues.RoomHeal"/>, the elite room's
+        /// <see cref="RunValues.EliteRoomHeal"/>), and since work order 099 the ranks' points added to it; Mending's health is after.
+        /// </summary>
+        public float RoomHealShare(RunValues run, bool elite) =>
+            (run == null ? 0f : elite ? run.EliteRoomHeal : run.RoomHeal) + _m.Meta.RankRoomHeal;
         /// <summary>
         /// The share of a skill's own cooldown it runs: 1 less each cut to it, and since work order 065 less every skill's
         /// cut (<see cref="AllCooldowns"/>, 0 off), never under the floor.
@@ -306,12 +317,12 @@ namespace Roguelike.Rules
         {
             float startRate = baseInterval > 0f ? (On ? AttackSpeedWith(0f) : 1f) / baseInterval : 0f;
             float rate = baseInterval > 0f ? AttackSpeed / baseInterval : 0f;
-            int startHealth = _m.Meta.MaxHealthShare != 0f ? (int)Math.Round(ownMaxHealth * (1.0 + _m.Meta.MaxHealthShare), MidpointRounding.AwayFromZero) : ownMaxHealth;
+            int startHealth = StartHealthShare != 0f ? (int)Math.Round(ownMaxHealth * (1.0 + StartHealthShare), MidpointRounding.AwayFromZero) : ownMaxHealth;
             var lines = new List<string>
             {
                 "Damage  +" + Num(Damage) + " a shot, skills by weight  (+0)",
                 "Attack speed  " + Num(rate, "0.0") + " shots/s  (" + Num(startRate, "0.0") + ")",
-                "Crit chance  " + Pct(CritChance) + "  (" + Pct(On ? Clamp01(V.StartCritChance) : 0f) + ")",
+                "Crit chance  " + Pct(CritChance) + "  (" + Pct(On ? Clamp01(V.StartCritChance + _m.Meta.RankCritChance) : 0f) + ")",
                 "Crit damage  +" + Pct(CritDamage) + "  (+" + Pct(On ? V.StartCritDamage : 0f) + ")",
                 "Luck  " + Num(Luck) + "  (0)",
                 "Move speed  " + Pct(MoveSpeed) + "  (100 %)",
@@ -319,7 +330,7 @@ namespace Roguelike.Rules
                 "Cooldowns  " + CooldownWords() + "  (none)",
                 "Reach  " + Num(baseReach + Reach) + " m  (" + Num(baseReach) + " m)",
                 "Stagger  " + Pct(Stagger) + "  (100 %)",
-                "Damage dealt  +" + Pct(DamageShare - 1f) + "  (+" + Pct(_m.Meta.DamageShare) + ")",
+                "Damage dealt  +" + Pct(DamageShare - 1f) + "  (+" + Pct(_m.Meta.DamageShare + _m.Meta.RankDamageShare) + ")",
             };
             AddNewLines(lines);
             return lines;
@@ -499,7 +510,7 @@ namespace Roguelike.Rules
                 case UpgradeKind.Mend: return !atFullHealth;
                 case UpgradeKind.AttackSpeed:
                     return Math.Max(0.05f, v.StartAttackSpeed) * (1f + Total(UpgradeKind.AttackSpeed)) < v.MostAttackSpeed - 1e-5f;
-                case UpgradeKind.CritChance: return v.StartCritChance + Total(UpgradeKind.CritChance) < 1f - 1e-5f;
+                case UpgradeKind.CritChance: return v.StartCritChance + Total(UpgradeKind.CritChance) + (taken != null ? taken.Meta.RankCritChance : 0f) < 1f - 1e-5f; // work order 099: the ranks' points too
                 case UpgradeKind.LongerBarrel: return Total(UpgradeKind.LongerBarrel) < v.MostReach - 1e-5f;
                 case UpgradeKind.Luck: return UpgradeTiers.Shares(v.ChestOdds, Total(UpgradeKind.Luck), v)[0] > 1e-6;
                 case UpgradeKind.DashCooldown: return 1f - Total(UpgradeKind.DashCooldown) > values.CooldownFloor + 1e-5f;
