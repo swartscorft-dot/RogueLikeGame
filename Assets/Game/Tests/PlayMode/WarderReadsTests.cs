@@ -189,20 +189,20 @@ namespace Roguelike.PlayModeTests
         /// <summary>A shot of hers at an enemy, through her intent, waiting until it lands (again, up to three times, if it misses one that moves).</summary>
         IEnumerator ShootAt(Enemy e)
         {
-            int lost = 0;
+            int lost = 0, shotsBefore = _player.BasicShotsFired;
             void Lost(int n) => lost += n;
             e.Body.Damaged += Lost;
             try
             {
                 for (int tries = 0; tries < 3 && lost == 0; tries++)
                 {
-                    // One that came to cling to her is shot from a step back: a shot from inside its body can pass it.
+                    // One that came to cling to her is shot from 6 m back, at once (a point-blank shot passes a swarmer on her,
+                    // and given a frame it leaps back onto her): seen in this test's own runs.
                     Vector3 away = Flat(_player.Position - e.transform.position);
                     if (away.magnitude < 2.5f)
                     {
-                        Vector3 back = e.transform.position + (away.sqrMagnitude > 1e-4f ? away.normalized : -_open) * 4f;
+                        Vector3 back = e.transform.position + (away.sqrMagnitude > 1e-4f ? away.normalized : -_open) * 6f;
                         if (NavMesh.SamplePosition(Flat(back), out NavMeshHit hit, 2f, NavMesh.AllAreas)) _player.Teleport(hit.position);
-                        yield return null;
                     }
                     _player.Shoot(e.transform.position);
                     yield return Until(() => lost > 0, 1.5f);
@@ -212,7 +212,9 @@ namespace Roguelike.PlayModeTests
             {
                 e.Body.Damaged -= Lost;
             }
-            Assert.That(lost, Is.GreaterThan(0), "her shot landed on " + e.name);
+            Assert.That(lost, Is.GreaterThan(0), string.Format(s_Inv, "her shot landed on {0} (shots fired {1}, she stunned {2}, her action {3} {4}, {5:0.0} m from it, it dead {6}, dazed {7}, state {8})",
+                e.name, _player.BasicShotsFired - shotsBefore, _player.IsStunned, _player.Action, _player.ActionPhase,
+                Flat(_player.Position, e.transform.position), e.IsDead, e.IsDazed, e.State));
         }
 
         static LineRenderer Child(EnemyWarder w, string name) =>
@@ -368,7 +370,10 @@ namespace Roguelike.PlayModeTests
             Assert.That(EnemyWarder.ReaderWarding(a.Body), Is.SameAs(w));
             Assert.That(feedback.WardHintsShown, Is.EqualTo(0));
 
+            // Each one she shoots is held where it stands (the counter's daze, long): woken, a swarmer leaps onto her, and her shots
+            // pass one that clings to her (seen in this test's own runs). The daze changes nothing of its ward.
             yield return ShootAt(a);
+            a.Body.DazeFor(60f);
             yield return null;
             FeedbackShown na = feedback.Numbers.Single(n => n.Target == a.Body);
             Assert.That(na.Warded, Is.True, "the warded hit's number carries the mark");
@@ -380,12 +385,14 @@ namespace Roguelike.PlayModeTests
 
             yield return For(0.7f);
             yield return ShootAt(guard);
+            guard.Body.DazeFor(60f);
             yield return null;
             FeedbackShown ng = feedback.Numbers.Single(n => n.Target == guard.Body);
             Assert.That(ng.Warded, Is.False, "an unwarded hit's number as before");
 
             yield return For(0.5f);
             yield return ShootAt(b);
+            b.Body.DazeFor(60f);
             yield return null;
             Assert.That(feedback.Numbers.Single(n => n.Target == b.Body).Warded, Is.True, "the other warded one's number marked too");
             Assert.That(feedback.WardHintsShown, Is.EqualTo(1), "the line not again this run");
@@ -393,7 +400,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(feedback.WardHintShowing, Is.False, "gone after its time");
             guard.Body.TakeHit(guard.Body.CurrentHealth * 10); // the guard, awake and big, came between her and them
             yield return Frames(2);
-            yield return ShootAt(a);
+            Enemy still = EnemyWarder.ReaderWarding(b.Body) != null ? (Enemy)b : a; // one still warded (a chasing her can go too far)
+            Assert.That(EnemyWarder.ReaderWarding(still.Body), Is.Not.Null, "one of the two still warded");
+            yield return ShootAt(still);
             Assert.That(feedback.WardHintsShown, Is.EqualTo(1), "never again that run");
         }
 
