@@ -40,6 +40,8 @@ namespace Roguelike.Rules.Tests
             { PlaceholderSound.RoomLetsGo, 1.4f }, { PlaceholderSound.WayDown, 1.1f },
             // Changed deliberately (work order 106): the boss's roar at its break.
             { PlaceholderSound.BossRoar, 1.4f },
+            // Changed deliberately (work order 107): the ward's hum (a loop) and its break.
+            { PlaceholderSound.WardHum, 1.2f }, { PlaceholderSound.WardBreaks, 0.35f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;

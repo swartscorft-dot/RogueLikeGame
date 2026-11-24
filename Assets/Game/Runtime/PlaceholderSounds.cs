@@ -182,6 +182,7 @@ namespace Roguelike
             _flush = Flush;
             _onTone = OnTone;
             _weigh = WeighFrame; // work order 080
+            _humFrame = HumFrame; // work order 107
             MakeClips();
             // Its own voices, of the kind the shots use: plain 2D sounds, the listener's volume over them.
             var voices = new GameObject("PlaceholderVoices");
@@ -371,6 +372,7 @@ namespace Roguelike
             // Work order 048: but one stopped by a wall, a pillar or a prop knocks, one knock for a fan; one her quick duck
             // stopped has the duck's own impact (PlayerCharacter), and no knock over it.
             if (r.Kind == EnemyReportKind.Died && TookDeath(enemy)) return; // work order 080: her kill was heard as hers
+            HearWard(enemy, r); // work order 107: a ward that fell
             SoundMoment? moment = r.Flown ? MomentOfFlown(r.Outcome) : MomentOf(r.Kind);
             if (!moment.HasValue) return;
             if (moment.Value == SoundMoment.ProjectileStopped
@@ -453,6 +455,7 @@ namespace Roguelike
             AskForCrits();
             Safely(_weigh); // work order 080: the frame's impacts and kills
             Safely(_flush);
+            Safely(_humFrame); // work order 107: the hum while a ward stands
             RingSecondBell();
             _bells = 0;
             _heldBefore = Held;

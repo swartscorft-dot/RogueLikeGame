@@ -77,6 +77,7 @@ namespace Roguelike
         bool _backingOff;
         bool _glowShown;
         bool _broken; // its wards were broken by its death
+        WarderBody _body; // work order 107: its own body, made as it wakes when its switch is on (or the first frame it is)
 
         public override EnemyKind Kind => EnemyKind.Warder;
         public override EnemyValues Values => Tuning.Enemy;
@@ -175,6 +176,8 @@ namespace Roguelike
                 BodyColor = EnemyFactory.WarderTint;
                 EnemyFactory.Paint(BodyRenderer.sharedMaterial, BodyColor);
             }
+            // Work order 107: its own body, made as it wakes (with its model and its threads) when its switch is on.
+            if (WarderReadRules.On(Tuning)) _body = WarderBody.Make(this, _slots.Length > 0 ? _slots[0].Thread : null);
         }
 
         LineRenderer Line(LineRenderer look, string name, bool loop)
@@ -197,6 +200,8 @@ namespace Roguelike
             if (_keeper.Wards.Count > 0) EndAll(WardEnd.WentHome, Time.time);
             foreach (Slot s in _slots) Unbind(s);
             s_Warders.Remove(this);
+            _body?.Dispose(); // work order 107
+            _body = null;
             base.OnDestroy();
         }
 
@@ -206,6 +211,7 @@ namespace Roguelike
             float now = Time.time;
             StepWards(now);
             DrawWards(now);
+            ShowBody(now); // work order 107
         }
 
         // ---------------- Its wards ----------------
@@ -382,6 +388,7 @@ namespace Roguelike
         {
             bool raising = false;
             Vector3 from = Flat(transform.position) + Vector3.up * Tuning.ThreadHeight;
+            if (WarderReadRules.FromLight(Tuning) && _body != null && _body.Shown) from = _body.LightPoint; // work order 107
             foreach (Slot s in _slots)
             {
                 if (s.InUse && s.Ally != null)
@@ -391,6 +398,7 @@ namespace Roguelike
                     if (s.Thread != null)
                     {
                         if (!s.Thread.enabled) s.Thread.enabled = true;
+                        s.Thread.widthMultiplier = WarderReadRules.ThreadWidth(Tuning, now); // work order 107; off: ThreadWidth, as made
                         float p = s.On ? 1f : Mathf.Clamp01((now - s.StartedAt) / Mathf.Max(1e-4f, Tuning.RaiseSeconds));
                         s.Thread.SetPosition(0, from);
                         s.Thread.SetPosition(1, Vector3.Lerp(from, to, p));
@@ -403,7 +411,7 @@ namespace Roguelike
                             s.Bursting = false;
                             if (!s.Shell.enabled) s.Shell.enabled = true;
                             GroundOutline.Circle(s.Shell, at, ShellRadius(s), Tuning.ShellHeight);
-                            s.Shell.widthMultiplier = now < s.FlashUntil ? Tuning.ShellHitWidth : Tuning.ShellWidth;
+                            s.Shell.widthMultiplier = WarderReadRules.ShellWidth(Tuning, now, now < s.FlashUntil); // work order 107; off as before
                         }
                         else if (!s.Bursting && s.Shell.enabled) s.Shell.enabled = false;
                     }
@@ -420,7 +428,7 @@ namespace Roguelike
                     {
                         if (!s.Shell.enabled) s.Shell.enabled = true;
                         GroundOutline.Circle(s.Shell, s.BurstCentre, s.BurstRadius * (1f + (Tuning.BurstGrow - 1f) * k), Tuning.ShellHeight);
-                        s.Shell.widthMultiplier = Mathf.Lerp(Tuning.ShellHitWidth, 0f, k);
+                        s.Shell.widthMultiplier = Mathf.Lerp(WarderReadRules.ShellHitWidth(Tuning), 0f, k); // work order 107; off as before
                     }
                 }
             }
@@ -435,6 +443,54 @@ namespace Roguelike
 
         /// <summary>Draws its wards as they are now, as every frame does: for the test of what a frame allocates.</summary>
         public void DrawWardsNow() => DrawWards(Time.time);
+
+        // ---------------- The warder that reads (work order 107) ----------------
+
+        /// <summary>Its own body (<see cref="WarderBody"/>), made as it woke with its switch on; null while its switch has never been on.</summary>
+        public WarderBody ReadBody => _body;
+
+        /// <summary>Shows its body as every frame does: for the test of what a frame allocates.</summary>
+        public void ShowBodyNow() => ShowBody(Time.time);
+
+        /// <summary>Its body shown while its switch is on (made the first time), hidden while it is off.</summary>
+        void ShowBody(float now)
+        {
+            if (WarderReadRules.On(Tuning))
+            {
+                if (_body == null) _body = WarderBody.Make(this, _slots.Length > 0 ? _slots[0].Thread : null);
+                _body?.Tick(now, _keeper.OnCount > 0, !IsDead);
+            }
+            else if (_body != null && _body.Shown) _body.Show(false);
+        }
+
+        /// <summary>The wards on now of the warders that read and hum, all of them together: the hum stands while it is over 0.</summary>
+        public static int HummingWardsOn
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < s_Warders.Count; i++)
+                {
+                    EnemyWarder w = s_Warders[i];
+                    if (w != null && WarderReadRules.Hums(w.Tuning)) n += w._keeper.OnCount;
+                }
+                return n;
+            }
+        }
+
+        /// <summary>The warder that reads whose ward is on this body now (on, not being raised), or null.</summary>
+        public static EnemyWarder ReaderWarding(Damageable body)
+        {
+            if (body == null) return null;
+            for (int i = 0; i < s_Warders.Count; i++)
+            {
+                EnemyWarder w = s_Warders[i];
+                if (w == null || !WarderReadRules.On(w.Tuning)) continue;
+                foreach (Slot s in w._slots)
+                    if (s.On && ReferenceEquals(s.Body, body)) return w;
+            }
+            return null;
+        }
 
         // ---------------- Where it stands, and its bolt alone ----------------
 

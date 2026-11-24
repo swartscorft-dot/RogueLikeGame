@@ -87,6 +87,18 @@ namespace Roguelike.Rules
         public float BurstSeconds = 0.3f;   // s the shell takes to burst outward and fade when its ward breaks
         public float BurstGrow = 2.2f;      // times its size the shell bursts out to
         public float GlowPulse = 0.25f;     // s from one glow of its body to the next while it raises a ward
+
+        // ---------------- The warder that reads (work order 107) ----------------
+        /// <summary>
+        /// Work order 107's switch, on (Kristian ticked "Fiender og boss" on 2026-11-24, whose text named "vokteren som ikke
+        /// leses": he had killed warders without noticing what they were). On: its own body (a staff with the ward's green light
+        /// over the crowd, a halo, its glows green), the thread from that light and the ring on the warded wider and pulsing, a
+        /// warded hit's number marked with a shield, the first warded hit of a run told once, a hum while a ward stands and a
+        /// break when it falls (<see cref="WarderReadValues"/>). Off: the warder as before, field for field.
+        /// </summary>
+        public bool Reads = true;
+        /// <summary>The numbers of work order 107 (<see cref="WarderReadRules"/>): first guesses from its pictures.</summary>
+        public WarderReadValues Reading = new WarderReadValues();
     }
 
     /// <summary>Why a ward ended (work order 079), as the log writes it.</summary>

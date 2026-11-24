@@ -407,7 +407,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheRoar_IsASoundAtTheEnd_TheBreaksMomentGivesIt_AsLoudAsTheBossesOthers()
         {
-            Assert.That(PlaceholderSoundRules.All.Last(), Is.EqualTo(PlaceholderSound.BossRoar), "added at the end");
+            Assert.That((int)PlaceholderSound.BossRoar, Is.EqualTo(43), "added after the thirty-eight and the five of work order 113; other orders of the day sprint follow it (changed at the merge, 2026-11-24)");
             Assert.That((int)PlaceholderSound.OffTick, Is.EqualTo(37), "the others where they were");
             Assert.That(PlaceholderSoundRules.SoundFor(SoundMoment.BossRoared), Is.EqualTo(PlaceholderSound.BossRoar));
             var values = new PlaceholderSoundValues();

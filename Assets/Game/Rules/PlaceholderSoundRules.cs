@@ -59,6 +59,10 @@ namespace Roguelike.Rules
         WayDown,       // she took the stairs to the next floor
         // Work order 106 (the boss as a finale, BossValues.Finale):
         BossRoar,      // the boss roars at the break, at half its health: a long low roar, swelling and falling
+        // Work order 107 (the warder that reads; Kristian's tick of 2026-11-24, "vokteren som ikke leses"), with
+        // WarderValues.Reads on:
+        WardHum,       // a soft breathing hum, looped while any ward of a warder stands
+        WardBreaks,    // a ward fell (its warder killed or staggered, or the warded too far): a glassy break
     }
 
     /// <summary>
@@ -80,6 +84,8 @@ namespace Roguelike.Rules
         RoomDoorShut, RoomDoorOpened, RoomFightWoke, RoomLetGo, WentDown,
         // Work order 106: the boss's break, at half its health.
         BossRoared,
+        // Work order 107: a ward of a warder that reads stands (the hum), and one fell.
+        WardStanding, WardFell,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -194,6 +200,10 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.WayDown, 0.3f, 1),
             // Work order 106: the boss's roar, as loud as its other sounds (the loudest beside her pain), once a fight.
             new PlaceholderSoundSetting(PlaceholderSound.BossRoar, 0.5f, 2),
+            // Work order 107, first guesses: the hum as quiet as the quietest (it goes on under the fight), the break a little
+            // under the daze's crack it comes with.
+            new PlaceholderSoundSetting(PlaceholderSound.WardHum, 0.2f, 2),
+            new PlaceholderSoundSetting(PlaceholderSound.WardBreaks, 0.32f, 4),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -284,6 +294,9 @@ namespace Roguelike.Rules
                 case SoundMoment.RoomLetGo: return PlaceholderSound.RoomLetsGo;
                 case SoundMoment.WentDown: return PlaceholderSound.WayDown;
                 case SoundMoment.BossRoared: return PlaceholderSound.BossRoar; // work order 106
+                // Work order 107.
+                case SoundMoment.WardStanding: return PlaceholderSound.WardHum;
+                case SoundMoment.WardFell: return PlaceholderSound.WardBreaks;
                 default: return null;
             }
         }
