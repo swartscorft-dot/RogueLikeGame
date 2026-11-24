@@ -397,6 +397,7 @@ namespace Roguelike
             _agent.autoBraking = false; // she is steered a little way ahead every frame: no braking toward that point
             _agent.stoppingDistance = 0f;
             ApplyMovementFeel(Feel);
+            if (!TryGetComponent(out ToonLook _)) gameObject.AddComponent<ToonLook>(); // work order 115: her model's toon look (ToonLookValues.On)
         }
 
         // The quick duck's rim goes with her, its object and its mesh (the third review of 2026-11-20, work order 047); the

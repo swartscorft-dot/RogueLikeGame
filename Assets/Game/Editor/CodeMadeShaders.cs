@@ -41,6 +41,9 @@ namespace Roguelike.EditorTools
             new Kept { File = "SimpleLit", Shader = PropFactory.ShaderName, Keywords = new string[0] },
             new Kept { File = "SimpleLit_Emission", Shader = PropFactory.ShaderName, Keywords = new[] { "_EMISSION" }, Emission = true },
             new Kept { File = "Lit", Shader = "Universal Render Pipeline/Lit", Keywords = new string[0] },
+            // Work order 115: her model's toon look, the project's own shader (Assets/Game/Shaders/ToonHer.shader), found by name by
+            // ToonLook; it has no keyword of its own (its variants are URP's lights and shadows, which every build keeps).
+            new Kept { File = "ToonHer", Shader = ToonLook.ShaderName, Keywords = new string[0] },
         };
 
         [MenuItem("Roguelike/Build/Keep the code's shaders in the build")]

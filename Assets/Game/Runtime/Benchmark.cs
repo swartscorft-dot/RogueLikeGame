@@ -243,7 +243,7 @@ namespace Roguelike
 
         void LookUpShaders()
         {
-            foreach (string name in new[] { PropFactory.ShaderName, "Universal Render Pipeline/Lit" })
+            foreach (string name in new[] { PropFactory.ShaderName, "Universal Render Pipeline/Lit", ToonLook.ShaderName /* work order 115 */ })
             {
                 Shader s = Shader.Find(name);
                 string line = name + ": " + (s == null ? "NOT FOUND (Shader.Find gives null)" : "found, supported " + s.isSupported);
