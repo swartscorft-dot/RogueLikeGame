@@ -389,16 +389,31 @@ namespace Roguelike.PlayModeTests
         public Turret(PilotBody me) : base(me) { }
         public override PilotKind Kind => PilotKind.Turret;
 
+        /// <summary>
+        /// Work order 098: the floors' shooters hold their places (<see cref="ShooterValues.HoldsPlace"/>, a plain value read as the
+        /// game's default). With nothing awake but shooters and its target out of its basic shot (or not seen), it walks toward the
+        /// target as to a sleeping one, instead of standing for a shooter that no longer comes.
+        /// </summary>
+        public bool ShootersHoldTheirPlace = new ShooterValues().HoldsPlace;
+
         protected override void Move(PilotView view, List<EnemySeen> foes, EnemySeen target)
         {
-            if (AnyAwake(foes))
+            if (AnyAwake(foes) && !(ShootersHoldTheirPlace && OnlyShootersAwake(foes)
+                                    && (!target.Visible || target.Distance > Me.BasicShotRange + target.BodyRadius)))
             {
                 Mode = "standing and fighting";
                 HasGoal = false;
                 Me.Stop();
                 return;
             }
-            WalkTo(target.Position, "to the nearest sleeping enemy");
+            WalkTo(target.Position, AnyAwake(foes) ? "to a shooter holding its place" : "to the nearest sleeping enemy");
+        }
+
+        static bool OnlyShootersAwake(List<EnemySeen> foes)
+        {
+            foreach (EnemySeen e in foes)
+                if (e.Awake && e.Kind != EnemyKind.Shooter) return false;
+            return true;
         }
     }
 

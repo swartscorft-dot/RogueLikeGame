@@ -146,6 +146,24 @@ namespace Roguelike.Rules
         public float KeepFar = 10f;         // m: it walks closer when she is farther than this (12 before)
         public float BackOffUnder = 6f;     // m: it starts to back off when she is nearer than this
         public float SightHeight = 0.5f;    // m over the ground of the line it sees her along, under the low walls' top
+
+        // ---------------- Shooters that hold their place (work order 098, 2026-11-24; ShooterPostRules) ----------------
+
+        /// <summary>
+        /// The switch: a shooter of a room's fight holds its post, the place the generator stood it in the room. Awake, it does not
+        /// walk toward her because she is far: out of its reach (<see cref="ShootsFrom"/>) it stands at its post facing her and
+        /// waits, in its reach it shoots by the rules and numbers above, and it steps only inside <see cref="HoldRadius"/> of its
+        /// post, to get its line to her back round a prop and to back off when she comes nearer than <see cref="BackOffUnder"/>.
+        /// Kristian's choice of 2026-11-24, asked what should pull him further into a room (the evening of 11-23: a median of 17 %
+        /// of a combat room's floor used, 90 % of a fight inside 8.0 m, "nå blir det bare at man kiter det rundt seg"): "Skyttere som
+        /// holder plassen" (the shooters stay behind cover further in and do not walk toward her; she has to go to them). Off: it
+        /// keeps 7 to 10 m from her and walks to her as before, field for field. A shooter with no room's fight (the practice room)
+        /// moves as before either way.
+        /// </summary>
+        public bool HoldsPlace = true;
+        /// <summary>m round its post a shooter that holds its place may step in, never out (work order 098; the producer's starting value).</summary>
+        public float HoldRadius = 3f;
+
         public float BodyRadius = 0.3f;     // m, the capsule: thin
         public float BodyHeight = 2.4f;     // m: tall
 

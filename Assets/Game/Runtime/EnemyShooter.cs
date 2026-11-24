@@ -39,6 +39,16 @@ namespace Roguelike
     /// floor <see cref="ShooterValues.FanFromFloor"/> and later, and for an elite on any floor, every third shot is a fan
     /// of three, drawn a little longer with a larger wind-up effect; an elite's other shots are volleys of two, each aimed
     /// as it leaves (<see cref="ShooterTactics"/>). Its distance, its sight and its turns are as before.
+    ///
+    /// Shooters that hold their place (work order 098, Kristian's choice of 2026-11-24, <see cref="ShooterValues.HoldsPlace"/>, on by
+    /// default; the rule is <see cref="ShooterPostRules"/>): a shooter of a room's fight has a post, the place the generator stood it
+    /// (its home, found on the NavMesh). Awake, it does not walk toward her because she is far: out of its reach it stands at its
+    /// post facing her and waits; in its reach it shoots as above. It steps only inside <see cref="ShooterValues.HoldRadius"/> of its
+    /// post: to back off, cut short at the circle's edge (with its back to the edge it stands and shoots, as with its back to a wall),
+    /// and, when it does not see her, to the nearest spot of its circle that does and that it can walk to without leaving the circle;
+    /// with none, it stands and waits. Put out of its circle (pushed, pulled in by the doors) it walks back to its post. One of no
+    /// room's fight (the practice room), one whose home is not on the NavMesh, and every one with the switch off move as before. As
+    /// each one's part in a fight ends it tells the recorder once (<see cref="ShooterPostEvents"/>).
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
     public sealed class EnemyShooter : Enemy
@@ -61,6 +71,19 @@ namespace Roguelike
         float _volleyAt;
         int _levelFloor = -1;
 
+        // Shooters that hold their place (work order 098).
+        bool _postAsked, _postKnown;
+        Vector3 _post;
+        NavMeshPath _path;                                  // made at the first look for a spot, kept
+        static readonly Vector3[] s_Corners = new Vector3[16];
+        static readonly float[] s_SpotDistances = new float[ShooterPostRules.SpotCount];
+        bool _seeking;
+        Vector3 _spot;
+        float _seekUntil, _nextSeek;
+        RoomFight _postFight;                               // the fight its part in is followed for the recorder, or null
+        bool _postHeld;
+        float _postWoke, _postReach;
+
         /// <summary>
         /// The floor it fights on, for its fans (work order 036): set it, or under 0 it is read from the floor it stands
         /// in, and 0 in the practice room.
@@ -76,6 +99,37 @@ namespace Roguelike
         /// against (an experiment, 2026-11-19), asked now.
         /// </summary>
         public float LineReach => Attack != null ? Reach(Attack) : _reach;
+
+        // ---------------- Shooters that hold their place (work order 098) ----------------
+
+        /// <summary>
+        /// Does it hold its place now: the switch on, it belongs to a room's fight, and its post is known (its home on the NavMesh,
+        /// found the first time it is asked in a fight). False in the practice room and with the switch off: it moves as before.
+        /// </summary>
+        public bool HoldsItsPlace => Fight != null && ShooterPostRules.Holds(Tuning, KnowsPost());
+        /// <summary>Its post: its home on the NavMesh (the place the generator stood it); its home while none is known.</summary>
+        public Vector3 Post => KnowsPost() ? _post : Home;
+        /// <summary>True while it walks to a spot of its circle it chose to see her from.</summary>
+        public bool IsSeekingLine => _seeking;
+
+        /// <summary>For tests: its choice of where to stand and its part for the recorder, as a frame of its chase runs them (work order 098).</summary>
+        public void ChaseForTests()
+        {
+            if (Player == null) return;
+            Vector3 toPlayer = Flat(Player.Position - transform.position);
+            Chase(toPlayer, toPlayer.magnitude);
+            FollowPost();
+        }
+
+        bool KnowsPost()
+        {
+            if (_postAsked) return _postKnown;
+            if (_agent == null || !_agent.isOnNavMesh) return false; // asked again later: the floor's NavMesh may not be built yet
+            _postAsked = true;
+            _postKnown = NavMesh.SamplePosition(Home, out NavMeshHit hit, 1f, NavMesh.AllAreas);
+            if (_postKnown) _post = hit.position;
+            return _postKnown;
+        }
 
         // ---------------- Things that fly (work order 036) ----------------
 
@@ -108,6 +162,46 @@ namespace Roguelike
             PutAwayTheLine();
             if (IsDead) _volleyLeft = 0;
             base.Update();
+            FollowPost();
+        }
+
+        protected override void OnDestroy()
+        {
+            if (_postFight != null) TellPost(-1f); // taken out of the game in its fight (the floor gone)
+            base.OnDestroy();
+        }
+
+        /// <summary>
+        /// Its part in a room's fight, for the recorder (work order 098): from the frame it is seen awake in the fight on, when she
+        /// first comes within its reach; told once, as it dies or the fight ends. A frame that tells nothing allocates nothing.
+        /// </summary>
+        void FollowPost()
+        {
+            RoomFight f = Fight;
+            if (_postFight == null)
+            {
+                if (f == null || !f.On || IsDead || !IsAwake) return;
+                _postFight = f;
+                _postWoke = f.StartedAt;
+                _postReach = -1f;
+                _postHeld = HoldsItsPlace;
+            }
+            if (IsDead)
+            {
+                TellPost(Time.time);
+                return;
+            }
+            if (_postReach < 0f && Player != null && Flat(Player.Position - transform.position).sqrMagnitude <= ShooterValues.ShootsFrom * ShooterValues.ShootsFrom)
+                _postReach = Time.time;
+            if (f != _postFight || !f.On) TellPost(-1f);
+        }
+
+        void TellPost(float died)
+        {
+            RoomFight f = _postFight;
+            _postFight = null;
+            PlaySessionRecorder.Current?.NoteShooterPost(FloorNow, f.Room, _postWoke, _postHeld,
+                                                         _postReach >= 0f ? _postReach - _postWoke : -1f, died >= 0f ? died - _postWoke : -1f);
         }
 
         /// <summary>With things that fly on (or an arrow being drawn), no line on the floor: its telegraph is put away.</summary>
@@ -196,29 +290,129 @@ namespace Roguelike
         /// </summary>
         public bool SeesHer() => Player != null && Sees(Player.Position) && !Player.ShieldsFrom(transform.position);
 
+        /// <summary>
+        /// Where it goes in the chase: <see cref="ShooterPostRules.Choose"/> says what (as before work order 098, or holding its
+        /// place); the NavMesh, its sight and its circle's spots are asked here.
+        /// </summary>
         protected override void Chase(Vector3 toPlayer, float distance)
         {
-            if (_backingOff)
+            bool holds = HoldsItsPlace;
+            Vector3 from = transform.position;
+            Vector3 f = transform.forward;
+            // Its sight is asked only where the choice reads it: as before, not while it backs off.
+            bool sees = !_backingOff && SeesHer();
+            ShooterMove m = ShooterPostRules.Choose(Tuning, Ground(from), Ground(f), Player.GroundPosition, sees, _backingOff, _approaching,
+                                                    holds, Ground(_post));
+            _approaching = m.Approaching;
+            if (m.Go != ShooterGo.SeekLine) _seeking = false;
+            switch (m.Go)
             {
-                // Straight away from her, as far as the NavMesh allows; with no room for that it stops and shoots.
-                Vector3 away = distance > 1e-3f ? -toPlayer / distance : -transform.forward;
-                Vector3 from = transform.position;
-                Vector3 to = from + away * (Tuning.KeepNear - distance + 1f);
-                if (NavMesh.Raycast(from, to, out NavMeshHit hit, NavMesh.AllAreas)) to = hit.position;
-                if (Flat(to - from).magnitude < 0.5f)
+                case ShooterGo.BackOff:
                 {
-                    _backingOff = false;
-                    _corneredUntil = Time.time + CorneredFor;
-                    Halt();
+                    // Straight away from her, as far as the NavMesh allows (and, holding its place, its circle); with no room for that
+                    // it stops and shoots.
+                    Vector3 to = new Vector3(m.To.X, from.y, m.To.Z);
+                    if (NavMesh.Raycast(from, to, out NavMeshHit hit, NavMesh.AllAreas)) to = hit.position;
+                    if (Flat(to - from).magnitude < ShooterPostRules.CorneredUnder)
+                    {
+                        _backingOff = false;
+                        _corneredUntil = Time.time + CorneredFor;
+                        Halt();
+                        return;
+                    }
+                    Walk(to);
                     return;
                 }
-                Walk(to);
+                case ShooterGo.WalkToHer:
+                    Walk(Player.Position);
+                    return;
+                case ShooterGo.ToPost:
+                    Walk(_post);
+                    return;
+                case ShooterGo.SeekLine:
+                    SeekLine(toPlayer);
+                    return;
+                default:
+                    Halt();
+                    if (holds) Face(toPlayer); // holding its place it waits facing her
+                    return;
+            }
+        }
+
+        /// <summary>
+        /// Holding its place, she in its reach and not seen (work order 098): on to the spot it chose while it is not there; else, every
+        /// <see cref="ShooterPostRules.SeekEvery"/>, the nearest spot of its circle that sees her and that it can walk to without leaving
+        /// the circle; with none it stands, facing her, and waits.
+        /// </summary>
+        void SeekLine(Vector3 toPlayer)
+        {
+            float now = Time.time;
+            if (_seeking && now < _seekUntil && Flat(_spot - transform.position).magnitude > ShooterPostRules.AtPost)
+            {
+                Walk(_spot);
                 return;
             }
-            if (distance > Tuning.KeepFar) _approaching = true;
-            if (distance <= (Tuning.KeepNear + Tuning.KeepFar) * 0.5f) _approaching = false;
-            if (_approaching || !SeesHer()) Walk(Player.Position);
-            else Halt();
+            _seeking = false;
+            if (now >= _nextSeek)
+            {
+                _nextSeek = now + ShooterPostRules.SeekEvery;
+                if (FindSpot(out Vector3 spot))
+                {
+                    _spot = spot;
+                    _seeking = true;
+                    _seekUntil = now + ShooterPostRules.SeekMost;
+                    Walk(spot);
+                    return;
+                }
+            }
+            Halt();
+            Face(toPlayer);
+        }
+
+        /// <summary>The nearest spot of its circle (<see cref="ShooterPostRules.Spot"/>) that sees her and that it walks to inside the circle. Allocates nothing once its path is made.</summary>
+        bool FindSpot(out Vector3 spot)
+        {
+            spot = default;
+            if (Player == null) return false;
+            Vector3 me = transform.position;
+            GroundPoint post = Ground(_post);
+            float radius = Mathf.Max(0f, Tuning.HoldRadius);
+            int n = ShooterPostRules.SpotCount;
+            for (int i = 0; i < n; i++) s_SpotDistances[i] = ShooterPostRules.Spot(i, post, radius).DistanceTo(Ground(me));
+            if (_path == null) _path = new NavMeshPath();
+            for (int tried = 0; tried < n; tried++)
+            {
+                // The nearest not tried yet.
+                int best = -1;
+                for (int i = 0; i < n; i++)
+                    if (s_SpotDistances[i] >= 0f && (best < 0 || s_SpotDistances[i] < s_SpotDistances[best])) best = i;
+                if (best < 0) return false;
+                s_SpotDistances[best] = -1f;
+                GroundPoint g = ShooterPostRules.Spot(best, post, radius);
+                if (!NavMesh.SamplePosition(new Vector3(g.X, _post.y, g.Z), out NavMeshHit hit, 0.5f, NavMesh.AllAreas)) continue;
+                Vector3 p = hit.position;
+                if (!ShooterPostRules.Inside(Ground(p), post, radius)) continue;
+                if (!SeesHerFrom(p)) continue;
+                if (!NavMesh.CalculatePath(me, p, NavMesh.AllAreas, _path) || _path.status != NavMeshPathStatus.PathComplete) continue;
+                int corners = _path.GetCornersNonAlloc(s_Corners);
+                if (corners >= s_Corners.Length) continue; // a way that long is not a step inside the circle
+                bool inside = true;
+                for (int c = 0; c < corners && inside; c++) inside = ShooterPostRules.Inside(Ground(s_Corners[c]), post, radius, ShooterPostRules.EdgeSlack);
+                if (!inside) continue;
+                spot = p;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Would it see her from that point: no wall between at its sight height, and not covered by what she is in cover against?</summary>
+        bool SeesHerFrom(Vector3 point)
+        {
+            if (Player == null || Player.ShieldsFrom(point)) return false;
+            Vector3 from = Flat(point);
+            Vector3 dir = Flat(Player.Position) - from;
+            float length = dir.magnitude;
+            return length < 1e-3f || ClearDistanceFrom(from, dir / length, length) >= length - 1e-3f;
         }
 
         protected override void OnWindupStarted(EnemyAttackDefinition attack)
@@ -259,11 +453,14 @@ namespace Roguelike
         /// 2026-11-19), so it sees and shoots over a low prop as she does; off, it is any collider that is not her, an
         /// enemy or a target, as before.
         /// </summary>
-        float ClearDistance(Vector3 flatDir, float max)
+        float ClearDistance(Vector3 flatDir, float max) => ClearDistanceFrom(Flat(transform.position), flatDir, max);
+
+        /// <summary>The same from another point on the ground (work order 098: a spot of its circle it might step to).</summary>
+        float ClearDistanceFrom(Vector3 ground, Vector3 flatDir, float max)
         {
             if (Player == null || Player.Feel.CoverStopsShots)
-                return Cover.ClearDistance(Flat(transform.position), flatDir, max, Tuning.SightHeight);
-            Vector3 from = Flat(transform.position) + Vector3.up * Tuning.SightHeight;
+                return Cover.ClearDistance(ground, flatDir, max, Tuning.SightHeight);
+            Vector3 from = ground + Vector3.up * Tuning.SightHeight;
             int n = Physics.RaycastNonAlloc(from, flatDir, s_Hits, max, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
             float nearest = max;
             for (int i = 0; i < n; i++)

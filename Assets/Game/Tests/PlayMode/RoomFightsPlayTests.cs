@@ -210,12 +210,15 @@ namespace Roguelike.PlayModeTests
                 e.Reported += heard;
                 listeners.Add((e, heard));
             }
+            // Work order 098: a shooter that holds its place, she out of its reach, does its fight by standing at its post.
+            var offPost = own.OfType<EnemyShooter>().ToDictionary(s => s, s => 0f);
             Time.timeScale = 4f;
             float until = Time.time + 8f;
             while (Time.time < until)
             {
                 yield return null;
                 foreach (Enemy e in own) nearest[e] = Mathf.Min(nearest[e], Flat(e.transform.position, _player.Position));
+                foreach (EnemyShooter s in offPost.Keys.ToList()) offPost[s] = Mathf.Max(offPost[s], Flat(s.transform.position, s.Post));
                 Assert.That(own.All(e => e.IsAwake), "none gives up: " + Names(own.Where(e => !e.IsAwake)));
             }
             Time.timeScale = 1f;
@@ -223,8 +226,10 @@ namespace Roguelike.PlayModeTests
             foreach (Enemy e in own)
             {
                 bool came = nearest[e] <= start[e] - 1f || nearest[e] <= 3f;
-                Assert.That(came || attacked.Contains(e), e.LogWord + " " + e.name + " did its fight: it came at her (from " + start[e].ToString("0.0", Inv)
-                                                            + " m to " + nearest[e].ToString("0.0", Inv) + " m) or attacked");
+                bool held = e is EnemyShooter s && s.HoldsItsPlace && start[e] > ShooterValues.ShootsFrom
+                            && offPost[s] <= s.Tuning.HoldRadius + ShooterPostRules.EdgeSlack;
+                Assert.That(came || attacked.Contains(e) || held, e.LogWord + " " + e.name + " did its fight: it came at her (from " + start[e].ToString("0.0", Inv)
+                                                            + " m to " + nearest[e].ToString("0.0", Inv) + " m) or attacked, or (a shooter) held its post");
             }
             Assert.That(level.Enemies.Where(e => !own.Contains(e) && e.IsAwake), Is.Empty, "the next rooms sleep on");
         }

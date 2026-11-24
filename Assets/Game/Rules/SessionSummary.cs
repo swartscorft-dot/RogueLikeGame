@@ -243,6 +243,8 @@ namespace Roguelike.Rules
         public List<LabRoomRow> LabRooms = new List<LabRoomRow>();
         /// <summary>Work order 097: each room's fight with her places, and its measures (SessionSummaryRoomUse.cs); empty for a log from before.</summary>
         public List<RoomUseRow> RoomUse = new List<RoomUseRow>();
+        /// <summary>Work order 098: the shooters that held their posts in the rooms' fights (SessionSummaryShooterPosts.cs); none for a log from before.</summary>
+        public ShooterPostStats ShooterPosts = new ShooterPostStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -468,6 +470,7 @@ namespace Roguelike.Rules
             stats.Frames = FrameTimesSummary.Compute(events); // work order 074
             stats.LabRooms = LabRoomsSummary.Compute(events); // work order 084
             stats.RoomUse = ComputeRoomUse(events); // work order 097
+            stats.ShooterPosts = ComputeShooterPosts(events); // work order 098
             return stats;
         }
 
@@ -496,6 +499,8 @@ namespace Roguelike.Rules
                   .Append(" of ").Append(stats.LevelRooms).Append("   levels built ").Append(stats.LevelsBuilt).AppendLine();
             string roomUse = OneLine(stats.RoomUse); // work order 097: the three numbers form orders are judged against
             if (roomUse != null) sb.Append("Room use ").AppendLine(roomUse);
+            string posts = ShooterPostLine(stats.ShooterPosts); // work order 098: the shooters that held their place, beside it
+            if (posts != null) sb.Append("Shooters ").AppendLine(posts);
             // The runs (work order 012): a short block each.
             foreach (RunRow run in stats.Runs)
             {
