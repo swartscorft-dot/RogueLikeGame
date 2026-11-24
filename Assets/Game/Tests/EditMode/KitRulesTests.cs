@@ -9,9 +9,10 @@ namespace Roguelike.Rules.Tests
         public void TwelveSkills_CoveringFiveInputTypes()
         {
             SkillDefinition[] skills = SkillDefaults.Create();
-            Assert.That(skills.Length, Is.EqualTo(12), "the loadout of docs/vision/first-class.md and the pool of work order 015");
+            // Changed deliberately (work order 109): fifteen, its three new skills after the twelve.
+            Assert.That(skills.Length, Is.EqualTo(15), "the loadout of docs/vision/first-class.md, the pool of work order 015 and work order 109's three");
             Assert.That(skills.Select(s => s.Input).Distinct().Count(), Is.GreaterThanOrEqualTo(5));
-            Assert.That(skills.Select(s => s.Name).Distinct().Count(), Is.EqualTo(12), "names are unique");
+            Assert.That(skills.Select(s => s.Name).Distinct().Count(), Is.EqualTo(15), "names are unique");
         }
     }
 

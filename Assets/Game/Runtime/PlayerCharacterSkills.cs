@@ -44,9 +44,10 @@ namespace Roguelike
             get
             {
                 SkillDefinition[] own = SkillSet != null ? SkillSet.Skills : null;
-                if (own == null || own.Length == 0) return _fallbackSkills;
-                if (!ReferenceEquals(own, _completedFrom))
+                if (own == null || own.Length == 0) return FallbackSkillsNow; // work order 109: the three new ones only with their switch on
+                if (!ReferenceEquals(own, _completedFrom) || _completedWithNew != NewSkillsOn)
                 {
+                    _completedWithNew = NewSkillsOn; // work order 109
                     _completedFrom = own;
                     _completed = own;
                     var missing = new List<SkillDefinition>();
@@ -62,6 +63,7 @@ namespace Roguelike
                         all.AddRange(missing);
                         _completed = all.ToArray();
                     }
+                    _completed = NewSkillRules.Switched(_completed, NewSkillsOn); // work order 109: off, without the three
                 }
                 return _completed;
             }
@@ -270,6 +272,7 @@ namespace Roguelike
                 }
                 return SkillPressed(slot, IntentResult.Rejected, left);
             }
+            if (RefusesWithNoTarget(slot, report: true)) return IntentResult.Rejected; // work order 109: Deadeye with no marked enemy in sight
             _shotCursor = point; // a press comes with the cursor: the arms held up after the skill follow it from here
             // In a lock, or in a free recovery: the next skill waits out the recovery, through the buffer. Slide (work
             // order 015) is its own move: it waits only for a dash, a committed skill or a Slide still moving her.
@@ -340,7 +343,7 @@ namespace Roguelike
                 Recast(press.Slot, press.Point, recast == RecastPress.Clean, buffered: true);
                 return true;
             }
-            if (recast == RecastPress.None && CooldownFor(press.Slot).IsReady(now))
+            if (recast == RecastPress.None && CooldownFor(press.Slot).IsReady(now) && !RefusesWithNoTarget(press.Slot, report: false)) // work order 109: Deadeye's targets gone while it waited
             {
                 // Work order 066: a press that waited for its cooldown is aimed where the cursor is now, when it goes; a press
                 // that waited out a lock, at its own point, as before.
@@ -632,6 +635,7 @@ namespace Roguelike
                 _useKillCut = _useDazeCut = false; // a new use: its kill and daze cuts may come once (work order 033)
             }
             _castOpening = !recast && _chain.IsOpeningMove;
+            NewSkillStarted(skill); // work order 109: Deadeye's aim tone
             Report(new PlayerReport { Kind = PlayerReportKind.SkillStarted, Slot = slot });
         }
 

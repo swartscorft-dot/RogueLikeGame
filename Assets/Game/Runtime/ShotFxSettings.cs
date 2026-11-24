@@ -186,6 +186,10 @@ namespace Roguelike
                 case "Breaker Slug": return "Scatter Blast";  // the shotgun
                 case "Stopping Shot": return "Backstep";      // a pistol line with a heavier kick
                 case "Slide": return "Backstep";              // it fires nothing; the nearest move
+                // Work order 109: the three new skills take the sound of their nearest, as the pool's did.
+                case "Ricochet": return "Quick Shot";         // a light pistol line
+                case "Smoke Round": return "Powder Keg";      // thrown to a point
+                case "Deadeye": return "Long Shot";           // the heavy pistol shot
                 default: return "";
             }
         }
@@ -230,6 +234,11 @@ namespace Roguelike
                 case "Breaker Slug":  return Look(name, new Color(1f, 0.42f, 0.08f), 1.9f, 0.12f, 0.75f, 0.12f, 1.3f, 0.17f, recoil: 2.4f);
                 case "Stopping Shot": return Burst(Look(name, new Color(0.96f, 0.92f, 0.82f), 0.95f, 0.09f, 0.3f, 0.15f, 1f, 0.15f, recoil: 1.5f), Color.white);
                 case "Slide":         return Look(name, new Color(1f, 0.6f, 0.2f), 0f, 0f, 0f, 0f, 0f, 0f, recoil: 0f);
+                // Work order 109, first guesses: Ricochet a thin pale steel streak (its jumps are drawn at half its width); Smoke
+                // Round fires nothing that flashes (its cloud is SmokeCloudView's); Deadeye a crimson streak to each mark, a sharp flash.
+                case "Ricochet":      return Burst(Look(name, new Color(0.7f, 0.92f, 1f), 0.8f, 0.08f, 0.22f, 0.14f, 0.8f, 0.13f, recoil: 1.2f), Color.white);
+                case "Smoke Round":   return Look(name, new Color(0.7f, 0.7f, 0.68f), 0f, 0f, 0f, 0f, 0f, 0f, recoil: 0f);
+                case "Deadeye":       return Burst(Look(name, new Color(1f, 0.18f, 0.28f), 1f, 0.09f, 0.3f, 0.18f, 1f, 0.16f, recoil: 1.4f), new Color(1f, 0.85f, 0.85f));
                 default:              return Look(name, new Color(1f, 0.6f, 0.15f), 0.6f, 0.1f, 0.2f, 0.14f, 0.8f, 0.14f);
             }
         }

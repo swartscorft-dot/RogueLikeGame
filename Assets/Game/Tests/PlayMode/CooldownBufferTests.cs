@@ -46,8 +46,9 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             _copy = Object.Instantiate(_player.SkillSet); // the settings asset is shared: a copy, for the value 0
             _player.SkillSet = _copy;
-            Assert.That(_player.Skills.Count, Is.EqualTo(12), "the twelve skills");
-            Assert.That(_player.Skills.Select(k => k.Name), Is.EqualTo(new[] { "Quick Shot", "Powder Keg", "Fan Fire", "Long Shot", "Scatter Blast", "Heavy Volley", "Backstep", "Triple Tap", "Tag Round", "Breaker Slug", "Slide", "Stopping Shot" }), "in this order");
+            // Changed deliberately (work order 109): fifteen, the three new skills after the twelve; the tests below are of the twelve.
+            Assert.That(_player.Skills.Count, Is.EqualTo(15), "the twelve skills and the three of work order 109");
+            Assert.That(_player.Skills.Take(12).Select(k => k.Name), Is.EqualTo(new[] { "Quick Shot", "Powder Keg", "Fan Fire", "Long Shot", "Scatter Blast", "Heavy Volley", "Backstep", "Triple Tap", "Tag Round", "Breaker Slug", "Slide", "Stopping Shot" }), "in this order");
             for (int s = 0; s < _player.Skills.Count; s++) _player.EquipSkill(s);
             _player.Teleport(Spot);
             yield return null;

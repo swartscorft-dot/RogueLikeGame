@@ -42,6 +42,8 @@ namespace Roguelike.Rules.Tests
             { PlaceholderSound.BossRoar, 1.4f },
             // Changed deliberately (work order 107): the ward's hum (a loop) and its break.
             { PlaceholderSound.WardHum, 1.2f }, { PlaceholderSound.WardBreaks, 0.35f },
+            // Changed deliberately (work order 109): the three new skills' sounds.
+            { PlaceholderSound.RicochetJump, 0.09f }, { PlaceholderSound.SmokePuff, 0.4f }, { PlaceholderSound.DeadeyeAim, 0.45f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;

@@ -377,6 +377,7 @@ namespace Roguelike
             SkillUpgradeOffers = 0;
             FocusChoice.Clear(); // today's gauge until the choice after floor 1 (work order 025)
             player.RunFocus = FocusChoice;
+            player.NewSkillsOn = RunValues.NewSkills; // work order 109: the switch as it stands at the run's start
             player.EquipStartSkills();
             player.StartFresh(); // work order 026: no focus or cooldown carries into a run
             _diedWithTheAct.Clear();
@@ -522,6 +523,7 @@ namespace Roguelike
                 {
                     _health = _player.GetComponent<PlayerHealth>();
                     if (_health != null) _health.Died += OnDied;
+                    _player.NewSkillsOn = RunValues.NewSkills; // work order 109: the three new skills in her list, by the switch
                 }
             }
             return _player;

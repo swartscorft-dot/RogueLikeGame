@@ -133,6 +133,7 @@ namespace Roguelike
             // 065: her Marked prey, for a target that carries marks.
             int damage = Placeholders.BasicShotDamage + FlatFor(null);
             if (Modifiers != null) damage = Modifiers.Weapon.ShotDamage(damage, _movingShot);
+            damage = SlideShotDamageNow(damage); // work order 111: Gun Slide, during the slide
             int applied = Deal(hit, damage, out float focus, peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f), marked: hit.MarkCount > 0, basicShot: true); // work order 110: a sight's crit
             if (applied <= 0) return ShotFired(false);
             ReportHit(-1, hit, applied, empowered, focus);

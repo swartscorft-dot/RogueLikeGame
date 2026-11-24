@@ -94,6 +94,11 @@ namespace Roguelike
                 if (s.RecastCount > 1 && s.OpeningMove) e.AddExtra("opening_move", "true");
                 if (s.RecastCount > 1 && s.CleanTapMarks > 0) e.AddExtra("clean_tap_marks", s.CleanTapMarks.ToString(CultureInfo.InvariantCulture));
                 if (s.RecastCount > 1 && s.CleanMarkDamageBonus > 0f) e.AddExtra("clean_mark_bonus", Text(s.CleanMarkDamageBonus));
+                // Work order 109: the new skills' own numbers.
+                if (s.RicochetJumps > 0) e.AddExtra("ricochet_jumps", s.RicochetJumps.ToString(CultureInfo.InvariantCulture));
+                if (s.RicochetJumps > 0) e.AddExtra("ricochet_reach", Text(s.RicochetReach));
+                if (s.SmokeSeconds > 0f) e.AddExtra("smoke_seconds", Text(s.SmokeSeconds));
+                if (s.DeadeyeMost > 0) e.AddExtra("deadeye_most", s.DeadeyeMost.ToString(CultureInfo.InvariantCulture));
                 Add(e);
             }
         }

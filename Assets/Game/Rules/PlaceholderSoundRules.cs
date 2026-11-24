@@ -63,6 +63,10 @@ namespace Roguelike.Rules
         // WarderValues.Reads on:
         WardHum,       // a soft breathing hum, looped while any ward of a warder stands
         WardBreaks,    // a ward fell (its warder killed or staggered, or the warded too far): a glassy break
+        // Work order 109 (2026-11-24, the three new skills), asked for by her skills as they happen:
+        RicochetJump,  // Ricochet's shot jumped on to another enemy: a short bright metal ping
+        SmokePuff,     // Smoke Round's cloud came up: a soft wide hiss
+        DeadeyeAim,    // Deadeye's aim began: a short rising tone over its half second
     }
 
     /// <summary>
@@ -86,6 +90,8 @@ namespace Roguelike.Rules
         BossRoared,
         // Work order 107: a ward of a warder that reads stands (the hum), and one fell.
         WardStanding, WardFell,
+        // Work order 109: Ricochet's shot jumped on, Smoke Round's cloud came up, Deadeye's aim began.
+        RicochetJumped, SmokeCameUp, DeadeyeAimed,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -204,6 +210,10 @@ namespace Roguelike.Rules
             // under the daze's crack it comes with.
             new PlaceholderSoundSetting(PlaceholderSound.WardHum, 0.2f, 2),
             new PlaceholderSoundSetting(PlaceholderSound.WardBreaks, 0.32f, 4),
+            // Work order 109, first guesses: under the guns that fire them, a jump's ping capped as a crowd's hits are.
+            new PlaceholderSoundSetting(PlaceholderSound.RicochetJump, 0.22f, 10),
+            new PlaceholderSoundSetting(PlaceholderSound.SmokePuff, 0.3f, 4),
+            new PlaceholderSoundSetting(PlaceholderSound.DeadeyeAim, 0.28f, 3),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -297,6 +307,10 @@ namespace Roguelike.Rules
                 // Work order 107.
                 case SoundMoment.WardStanding: return PlaceholderSound.WardHum;
                 case SoundMoment.WardFell: return PlaceholderSound.WardBreaks;
+                // Work order 109.
+                case SoundMoment.RicochetJumped: return PlaceholderSound.RicochetJump;
+                case SoundMoment.SmokeCameUp: return PlaceholderSound.SmokePuff;
+                case SoundMoment.DeadeyeAimed: return PlaceholderSound.DeadeyeAim;
                 default: return null;
             }
         }

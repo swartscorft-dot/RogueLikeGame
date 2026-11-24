@@ -19,12 +19,13 @@ namespace Roguelike.Rules.Tests
         public void TheKit_HasTwelveSkills_FourToStart_EightInThePool()
         {
             SkillDefinition[] kit = Kit;
-            Assert.That(kit.Length, Is.EqualTo(12));
+            Assert.That(kit.Length, Is.EqualTo(15)); // changed deliberately (work order 109): its three after the twelve
             Assert.That(kit.Where(s => s.StartEquipped).Select(s => s.Name),
                         Is.EqualTo(new[] { "Quick Shot", "Scatter Blast", "Backstep", "Triple Tap" }));
             Assert.That(kit.Where(s => !s.StartEquipped).Select(s => s.Name), Is.EquivalentTo(new[]
             {
                 "Powder Keg", "Fan Fire", "Long Shot", "Heavy Volley", "Tag Round", "Breaker Slug", "Slide", "Stopping Shot",
+                "Ricochet", "Smoke Round", "Deadeye", // changed deliberately (work order 109): eleven in the pool
             }));
             foreach (SkillDefinition s in kit)
             {

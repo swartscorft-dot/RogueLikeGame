@@ -491,6 +491,18 @@ namespace Roguelike.Rules
                                                      + ": dazed " + OfferTexts.Sec(k.CounterDaze) + ", focus " + OfferTexts.Plus(k.CounterFocus)));
             if (k.Fuse > 0f)
                 p.Lines.Add(new SheetLine("fuse", "bursts after " + OfferTexts.Sec(k.Fuse) + "; shot through, at once and ×" + k.ShotBurstScale.ToString("0.##", s_Inv)));
+            // Work order 109: the new skills' own.
+            if (k.RicochetJumps > 0)
+                p.Lines.Add(new SheetLine("jumps", k.RicochetJumps.ToString(s_Inv) + ", each to the nearest other enemy within " + OfferTexts.Metres(k.RicochetReach)));
+            if (k.SmokeSeconds > 0f)
+                p.Lines.Add(new SheetLine("smoke", "stands " + OfferTexts.Sec(k.SmokeSeconds) + "; enemies in it or behind it do not see you"));
+            if (k.DeadeyeMost > 0)
+                p.Lines.Add(new SheetLine("targets", "every marked enemy in sight within " + OfferTexts.Metres(k.Range) + ", " + k.DeadeyeMost.ToString(s_Inv) + " at most"));
+            // Work order 111: the two new kinds of change.
+            if (k.SlideShotDamage > 0f)
+                p.Lines.Add(new SheetLine("shots", "a basic shot that hits while sliding deals " + OfferTexts.Plus(k.SlideShotDamage)));
+            if (k.CounterMarks > 0)
+                p.Lines.Add(new SheetLine("counter marks", "a counter puts " + k.CounterMarks.ToString(s_Inv) + " marks on the enemy"));
         }
 
         /// <summary>
