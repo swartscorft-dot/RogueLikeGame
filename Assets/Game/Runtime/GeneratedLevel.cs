@@ -189,6 +189,8 @@ namespace Roguelike
             // Work order 083: its look Before is the floor as it was before 076 (no CaveView).
             if (values.Cave && (values.CaveRules == null || values.CaveRules.Look != CaveLook.Before)) level.Cave = CaveView.Add(level);
             FloorBuildClock.Step("level: the cave (CaveView.Add)");
+            // Work order 105: the floor's palette, last (FloorPaletteView); with FloorPaletteValues.On off or on floor 1, nothing.
+            FloorPaletteView.Add(level);
             return level;
         }
 

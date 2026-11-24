@@ -203,6 +203,7 @@ namespace Roguelike
             _root = new GameObject(RootName + "_" + _level.Layout.SeedText) { layer = CryptKit.Layer };
             SceneManager.MoveGameObjectToScene(_root, _level.gameObject.scene);
             _root.SetActive(_level.gameObject.activeInHierarchy);
+            FloorPaletteView palette = _level.GetComponent<FloorPaletteView>(); // work order 105: the floor's palette, or none
 
             for (int i = 0; i < _plan.Lamps.Count; i++)
             {
@@ -217,6 +218,7 @@ namespace Roguelike
                 v.Of(lamp.Kind, out _, out float range);
                 light.range = range;
                 Rgb c = v.ColourOf(lamp); // work order 100: an entrance brazier warm
+                if (palette != null) c = palette.LampColour(lamp, c); // work order 105: a warm lamp takes the floor's lamp tint
                 light.color = new Color(c.R, c.G, c.B, 1f);
                 light.intensity = 0f;
                 light.enabled = false;

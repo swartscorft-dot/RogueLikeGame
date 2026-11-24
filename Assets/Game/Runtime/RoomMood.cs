@@ -46,7 +46,7 @@ namespace Roguelike
     /// 5. A room tone (<see cref="MoodValues.Tone"/>): one quiet loop (<see cref="RoomMoodPlan.RoomTone"/>), following the
     /// placeholder sounds' switch and master volume (<see cref="PlaceholderSounds"/>) and the game's volume.
     /// </summary>
-    public sealed class RoomMood : MonoBehaviour
+    public sealed partial class RoomMood : MonoBehaviour
     {
         public const string RootName = "RoomMood";
         public const string LargePropPlaceName = "LargePropPlace";
@@ -269,15 +269,16 @@ namespace Roguelike
         {
             MoodValues v = V;
             if (!s_saved) return;
-            float ambientLevel = Lamplit != null ? Lamplit.AmbientLevel : v.AmbientLevel; // work order 085: the lamplit level's base
-            float keyLevel = Lamplit != null ? Lamplit.KeyLevel : v.KeyLevel;
+            float ambientLevel = PaletteLevel(Lamplit != null ? Lamplit.AmbientLevel : v.AmbientLevel); // work order 085: the lamplit level's base; work order 105: times the floor's palette's
+            float keyLevel = PaletteLevel(Lamplit != null ? Lamplit.KeyLevel : v.KeyLevel);
+            Rgb dark = PaletteDark(v.DarkTint); // work order 105: the floor's palette's base colour (the mood's without one)
             if (Mathf.Approximately(s_appliedAmbient, ambientLevel) && Mathf.Approximately(s_appliedKey, keyLevel)
-                && s_appliedTint.R == v.DarkTint.R && s_appliedTint.G == v.DarkTint.G && s_appliedTint.B == v.DarkTint.B) return;
+                && s_appliedTint.R == dark.R && s_appliedTint.G == dark.G && s_appliedTint.B == dark.B) return;
             s_appliedAmbient = ambientLevel;
             s_appliedKey = keyLevel;
-            s_appliedTint = v.DarkTint;
+            s_appliedTint = dark;
             float a = Mathf.Max(0f, ambientLevel), k = Mathf.Max(0f, keyLevel);
-            var tint = new Color(v.DarkTint.R, v.DarkTint.G, v.DarkTint.B, 1f);
+            var tint = new Color(dark.R, dark.G, dark.B, 1f);
             SphericalHarmonicsL2 probe = s_probe;
             for (int c = 0; c < 9; c++)
             {
@@ -932,7 +933,7 @@ namespace Roguelike
             if (!Mathf.Approximately(_fogLevel, v.FogLevel))
             {
                 _fogLevel = v.FogLevel;
-                Color fog = new Color(v.FogColour.R * v.FogLevel, v.FogColour.G * v.FogLevel, v.FogColour.B * v.FogLevel, 1f);
+                Color fog = PaletteFog(v, v.FogLevel); // work order 105: times the floor's palette's (as before without one)
                 for (int i = 0; i < _rooms.Count; i++)
                     if (_rooms[i].Fog != null)
                     {
@@ -1041,7 +1042,8 @@ namespace Roguelike
             if (_fogBuffer == null) return;
             float share = Mathf.Max(0f, l.FogLevel);
             float near = Mathf.Max(0f, l.FogClearNear), far = Mathf.Max(near + 0.01f, l.FogClearFar);
-            Color fog = new Color(v.FogColour.R * v.FogLevel * share, v.FogColour.G * v.FogLevel * share, v.FogColour.B * v.FogLevel * share, 1f);
+            Color fog = PaletteFog(v, v.FogLevel); // work order 105: times the floor's palette's (as before without one)
+            fog = new Color(fog.r * share, fog.g * share, fog.b * share, 1f);
             IReadOnlyList<Enemy> enemies = _level.Enemies;
             for (int i = 0; i < _rooms.Count; i++)
             {
@@ -1083,7 +1085,7 @@ namespace Roguelike
         void FogAsBefore(MoodValues v)
         {
             if (_fogBuffer == null) return;
-            Color fog = new Color(v.FogColour.R * v.FogLevel, v.FogColour.G * v.FogLevel, v.FogColour.B * v.FogLevel, 1f);
+            Color fog = PaletteFog(v, v.FogLevel); // work order 105: times the floor's palette's (as before without one)
             for (int i = 0; i < _rooms.Count; i++)
             {
                 ParticleSystem ps = _rooms[i].Fog;
