@@ -76,6 +76,7 @@ namespace Roguelike
                 InterfaceStyle.Label(r, s.Text, style, new Color(word.r, word.g, word.b, s.Alpha), true);
                 return;
             }
+            if (s.Warded) DrawWardMark(r, size, s.Alpha, v.ShadowOffset); // work order 107: the shield on a warded number
             if (InterfaceRules.NumberSlash(s.Kind))
             {
                 // A small red slash behind it, leaning hard: a cut, not a plate.
@@ -88,7 +89,7 @@ namespace Roguelike
                 GUI.DrawTexture(slash, Texture2D.whiteTexture);
                 GUI.matrix = b;
             }
-            Color c = InterfaceStyle.Ink(InterfaceRules.NumberInk(s.Kind));
+            Color c = NumberInkOf(s, InterfaceStyle.Ink(InterfaceRules.NumberInk(s.Kind))); // work order 107: a warded ordinary hit green
             InterfaceStyle.Label(r, s.Text, style, new Color(c.r, c.g, c.b, s.Alpha), true);
         }
 
@@ -113,6 +114,7 @@ namespace Roguelike
             Vector2 m = InterfaceStyle.Measure(s.Text, style);
             var r = new Rect(x - m.x * 0.5f, y - m.y * 0.5f, m.x, m.y);
             Color teal = InterfaceStyle.C(v.Teal, s.Alpha);
+            if (s.Warded) DrawWardMark(r, size, s.Alpha, v.ShadowOffset); // work order 107: the shield on a warded number
             if (kind == HitNumberLook.Top)
             {
                 // A short slanted plate, only as tall as the numerals, a dark copy under it; the number black on it.
@@ -132,7 +134,7 @@ namespace Roguelike
                 InterfaceStyle.Label(r, s.Text, style, teal, true);
                 return;
             }
-            InterfaceStyle.Label(r, s.Text, style, InterfaceStyle.C(v.White, s.Alpha), true);
+            InterfaceStyle.Label(r, s.Text, style, NumberInkOf(s, InterfaceStyle.C(v.White, s.Alpha)), true); // work order 107: a warded one green
         }
 
         static Rect Offset(Rect r, float by) => new Rect(r.x + by, r.y + by, r.width, r.height);

@@ -37,6 +37,9 @@ namespace Roguelike
         /// <summary>A number's lane in a crowd (<see cref="TallyNumber.Lane"/>), and its life after its latest hit.</summary>
         public int Lane;
         public float Life;
+        // Work order 107: the warder that reads.
+        /// <summary>A number that counts a hit on an enemy a warder that reads was warding: drawn with the shield (<see cref="TimingFeedback.WardLook"/>).</summary>
+        public bool Warded;
     }
 
     /// <summary>
@@ -139,6 +142,7 @@ namespace Roguelike
             public int MarksSpent;
             public bool OnDazed;
             public bool Crit; // work order 050: shown as the strong kind, the perfect release's
+            public bool Warded; // work order 107: on an enemy a warder that reads was warding, its number marked
         }
 
         readonly WordBoard _board = new WordBoard();
@@ -321,7 +325,9 @@ namespace Roguelike
                     // A hit on a dazed target hits harder (StaggerBar.Scale); the hit that emptied the bar did not.
                     bool onDazed = r.Target.Stagger != null && r.Target.Stagger.IsDazed(Time.time)
                                    && !(_emptiedAt.TryGetValue(r.Target, out int frame) && frame == Time.frameCount);
-                    _pending.Add(new PendingHit { Slot = r.Slot, Target = r.Target, Damage = r.Damage, MarksSpent = spent, OnDazed = onDazed, Crit = r.Crit });
+                    EnemyWarder warder = r.Damage > 0 ? WardedHit(r.Target) : null; // work order 107: the first of a run tells it
+                    _pending.Add(new PendingHit { Slot = r.Slot, Target = r.Target, Damage = r.Damage, MarksSpent = spent, OnDazed = onDazed, Crit = r.Crit,
+                                                  Warded = warder != null && WarderReadRules.MarksNumbers(warder.Tuning) });
                     if (r.Countered)
                     {
                         ShowWord(r.Target, FeedbackRules.Word(FeedbackMoment.Counter));
@@ -419,6 +425,7 @@ namespace Roguelike
                                                 : FeedbackRules.HitKind(perfect || hit.Crit, hit.MarksSpent, cap, hit.OnDazed);
                 int key = KeyOf(hit.Target);
                 _tally.Add(key, hit.Damage, kind, Time.time, MergeWindow, Values.MaxNumbers, NumberLook.On ? NumberLook.Together : 0f);
+                if (hit.Warded) _tally.MarkWarded(key); // work order 107
             }
             if (!slot.HasValue) _pending.Clear();
             else for (int i = _pending.Count - 1; i >= 0; i--) if (_pending[i].Slot == slot.Value) _pending.RemoveAt(i);
@@ -597,7 +604,7 @@ namespace Roguelike
                 FontSize = n.Kind == NumberKind.Hurt ? Values.HurtNumberSize : FeedbackRules.IsBig(n.Kind) ? Values.BigNumberSize : Values.NumberSize,
                 World = WorldOf(n.Target), Target = a.Target, OverHer = a.Her, Age = now - n.First,
                 Alpha = FeedbackRules.Alpha(now - n.Last, life, fadeFrom),
-                Sum = n.Sum, Hits = n.Hits, Kind = n.Kind, Lane = n.Lane, Life = life,
+                Sum = n.Sum, Hits = n.Hits, Kind = n.Kind, Lane = n.Lane, Life = life, Warded = n.Warded, // Warded: work order 107
             };
         }
 
@@ -625,12 +632,13 @@ namespace Roguelike
         void OnGUI()
         {
             if (Event.current.type != EventType.Repaint) return;
-            if (_shownWords.Count == 0 && _shownNumbers.Count == 0) return;
+            if (_shownWords.Count == 0 && _shownNumbers.Count == 0 && !WardHintShowing) return; // the hint: work order 107
             Camera cam = Camera.main;
             if (cam == null) return;
             if (InterfaceStyle.Kinetic)
             {
                 DrawKinetic(cam); // work order 045 (TimingFeedbackKinetic.cs)
+                DrawWardHint(cam); // work order 107 (TimingFeedbackWard.cs)
                 return;
             }
             if (_style == null)
@@ -655,6 +663,7 @@ namespace Roguelike
 
             GUI.color = before;
             GUI.matrix = matrixBefore;
+            DrawWardHint(cam); // work order 107 (TimingFeedbackWard.cs)
         }
 
         readonly GUIContent _content = new GUIContent();
@@ -675,7 +684,9 @@ namespace Roguelike
             for (int dx = -1; dx <= 1; dx++)
             for (int dy = -1; dy <= 1; dy++)
                 if (dx != 0 || dy != 0) GUI.Label(new Rect(r.x + dx * Outline, r.y + dy * Outline, r.width, r.height), content, _style);
-            GUI.color = new Color(s.Color.r, s.Color.g, s.Color.b, s.Alpha);
+            if (!s.IsWord && s.Warded) DrawWardMark(r, _style.fontSize, s.Alpha, Outline); // work order 107
+            Color ink = s.IsWord ? s.Color : NumberInkOf(s, s.Color);
+            GUI.color = new Color(ink.r, ink.g, ink.b, s.Alpha);
             GUI.Label(r, content, _style);
         }
     }

@@ -50,6 +50,10 @@ namespace Roguelike.Rules
         CleanTick,     // a press of a recast chain in its clean part: a short pitched tick, a step higher for each in a row
         ChainTop,      // the last press of a chain clean all through: a clear top note
         OffTick,       // a press of a chain off its clean part: a dull tick (silent unless ChainTickValues.DullTickWhenOff)
+        // Work order 107 (the warder that reads; Kristian's tick of 2026-11-24, "vokteren som ikke leses"), with
+        // WarderValues.Reads on:
+        WardHum,       // a soft breathing hum, looped while any ward of a warder stands
+        WardBreaks,    // a ward fell (its warder killed or staggered, or the warded too far): a glassy break
     }
 
     /// <summary>
@@ -67,6 +71,8 @@ namespace Roguelike.Rules
         // Work order 080: her hit landing by its weight, a clean press's hit, her kill and the one that empties its room, a
         // press of a recast chain in its clean part, the last of a chain clean all through, and a press off its clean part.
         HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
+        // Work order 107: a ward of a warder that reads stands (the hum), and one fell.
+        WardStanding, WardFell,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -169,6 +175,10 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.CleanTick, 0.3f, 10),
             new PlaceholderSoundSetting(PlaceholderSound.ChainTop, 0.35f, 4),
             new PlaceholderSoundSetting(PlaceholderSound.OffTick, 0.2f, 10),
+            // Work order 107, first guesses: the hum as quiet as the quietest (it goes on under the fight), the break a little
+            // under the daze's crack it comes with.
+            new PlaceholderSoundSetting(PlaceholderSound.WardHum, 0.2f, 2),
+            new PlaceholderSoundSetting(PlaceholderSound.WardBreaks, 0.32f, 4),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -252,6 +262,9 @@ namespace Roguelike.Rules
                 case SoundMoment.CleanPress: return PlaceholderSound.CleanTick;
                 case SoundMoment.ChainAllClean: return PlaceholderSound.ChainTop;
                 case SoundMoment.PressOff: return PlaceholderSound.OffTick;
+                // Work order 107.
+                case SoundMoment.WardStanding: return PlaceholderSound.WardHum;
+                case SoundMoment.WardFell: return PlaceholderSound.WardBreaks;
                 default: return null;
             }
         }

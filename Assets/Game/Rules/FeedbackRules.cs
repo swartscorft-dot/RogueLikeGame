@@ -309,6 +309,8 @@ namespace Roguelike.Rules
         /// they are spread along the slant (<see cref="HitNumberRules.LaneOffset"/>) and do not pile on one point.
         /// </summary>
         public int Lane;
+        /// <summary>Work order 107: a hit it counts was on an enemy a warder that reads was warding (its number carries the shield).</summary>
+        public bool Warded;
     }
 
     /// <summary>
@@ -376,6 +378,23 @@ namespace Roguelike.Rules
         }
 
         public void Clear() => _numbers.Clear();
+
+        /// <summary>
+        /// Work order 107: the target's latest number counts a warded hit (the hit just added): it is marked for the rest of its
+        /// life. False when the target has no number.
+        /// </summary>
+        public bool MarkWarded(int target)
+        {
+            for (int i = _numbers.Count - 1; i >= 0; i--)
+            {
+                if (_numbers[i].Target != target) continue;
+                TallyNumber n = _numbers[i];
+                n.Warded = true;
+                _numbers[i] = n;
+                return true;
+            }
+            return false;
+        }
     }
 
     /// <summary>The three tones (work order 019): a clean tap, a perfect release, a counter. A missed timing has none.</summary>

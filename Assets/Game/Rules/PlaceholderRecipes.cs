@@ -233,6 +233,21 @@ namespace Roguelike.Rules
                     return Recipe(0.04f, 1.2f,
                         Noise(0f, 0.03f, 0.7f, 0.0005f, 0.008f, low: 900f),
                         Sine(300f, 200f, 0f, 0.04f, 0.6f, 0.001f, 0.01f));
+                // ---- Work order 107 (the warder that reads), first guesses, made without hearing them ----
+                case PlaceholderSound.WardHum:
+                    // A soft breath of a hum, looped while a ward stands: A3 with its fifth and octave, slowly swelling in and out
+                    // (so it starts and ends in silence and, looped, breathes once every 1.2 s), a slow shimmer on it.
+                    return Recipe(1.2f, 0f,
+                        Wobble(Sine(220f, 0f, 0f, 1.2f, 1f, 0.5f, 0f, release: 0.5f), 5f, 0.25f),
+                        Sine(330f, 0f, 0f, 1.2f, 0.35f, 0.5f, 0f, release: 0.5f),
+                        Sine(440f, 0f, 0f, 1.2f, 0.15f, 0.5f, 0f, release: 0.5f));
+                case PlaceholderSound.WardBreaks:
+                    // A glassy break: a bright crack of noise, two high partials falling apart (a bell, cracked), a soft low drop.
+                    return Recipe(0.35f, 1.2f,
+                        Noise(0f, 0.12f, 0.8f, 0.002f, 0.03f, low: 10000f, high: 2500f),
+                        Sine(1480f, 900f, 0f, 0.32f, 0.6f, 0.002f, 0.11f, release: 0.04f),
+                        Sine(2210f, 1250f, 0f, 0.26f, 0.3f, 0.002f, 0.07f, release: 0.04f),
+                        Sine(330f, 165f, 0f, 0.3f, 0.5f, 0.002f, 0.1f, release: 0.04f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,
