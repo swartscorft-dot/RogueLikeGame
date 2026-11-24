@@ -233,6 +233,53 @@ namespace Roguelike.Rules
                     return Recipe(0.04f, 1.2f,
                         Noise(0f, 0.03f, 0.7f, 0.0005f, 0.008f, low: 900f),
                         Sine(300f, 200f, 0f, 0.04f, 0.6f, 0.001f, 0.01f));
+                // ---- Work order 113 (the sounds of the rooms), first guesses, made without hearing them ----
+                case PlaceholderSound.DoorShuts:
+                    // A block rising shut, stone on stone, and a thud as it seats: a grinding band of noise and a low rumble
+                    // for its rise (RoomFightValues.DoorRiseSeconds, 0.35 s), then at 0.34 s a heavy low knock falling from
+                    // 90 Hz to 42 Hz, and a little grit settling after it.
+                    return Recipe(0.7f, 1.4f,
+                        Wobble(Noise(0f, 0.36f, 0.55f, 0.04f, 0f, low: 700f, lowTo: 420f, high: 110f, release: 0.03f), 26f, 0.5f),
+                        Rough(Sine(62f, 50f, 0f, 0.36f, 0.3f, 0.04f, 0f, release: 0.03f), 1.5f),
+                        Rough(Sine(90f, 42f, 0.34f, 0.32f, 1f, 0.002f, 0.075f, release: 0.05f), 2.2f),
+                        Noise(0.34f, 0.1f, 0.75f, 0.0008f, 0.016f, low: 1100f, lowTo: 400f),
+                        Wobble(Noise(0.37f, 0.3f, 0.12f, 0.01f, 0.07f, low: 3000f, high: 700f, release: 0.04f), 38f, 0.6f));
+                case PlaceholderSound.DoorOpens:
+                    // A block sinking open, lighter than its shutting: a small knock as it lets go, then a brighter, thinner
+                    // grind for its sink (RoomFightValues.DoorSinkSeconds, 0.8 s) with a soft hum under it, fading out; no thud.
+                    return Recipe(0.9f, 1.1f,
+                        Noise(0f, 0.05f, 0.35f, 0.0008f, 0.012f, low: 800f),
+                        Wobble(Noise(0.02f, 0.83f, 1f, 0.08f, 0f, low: 1100f, lowTo: 520f, high: 220f, release: 0.25f), 21f, 0.45f),
+                        Sine(95f, 70f, 0.02f, 0.83f, 0.22f, 0.08f, 0f, release: 0.25f));
+                case PlaceholderSound.RoomWakes:
+                    // A short low swell: A1 (55 Hz) with its fifth and a faint octave, rising a little, in over 0.28 s and out
+                    // over 0.38 s, a dull breath of noise with it. Lower and slower than the red windup, no rumble like the boss's charge.
+                    return Recipe(0.7f, 1.2f,
+                        Rough(Sine(55f, 58f, 0f, 0.7f, 1f, 0.28f, 0f, release: 0.38f), 1.4f),
+                        Sine(82.4f, 87f, 0f, 0.7f, 0.5f, 0.28f, 0f, release: 0.38f),
+                        Sine(110f, 116f, 0f, 0.7f, 0.18f, 0.28f, 0f, release: 0.38f),
+                        Wobble(Noise(0f, 0.7f, 0.35f, 0.3f, 0f, low: 260f, lowTo: 380f, release: 0.36f), 5f, 0.3f));
+                case PlaceholderSound.RoomLetsGo:
+                    // The room lets go: a long low breath out, noise whose low-pass falls from 900 Hz to 160 Hz, and one low
+                    // tone falling with it (G2, 98 Hz to 82 Hz) with its fifth faint over it. One falling sound, no notes in a row: not a jingle.
+                    return Recipe(1.4f, 0f,
+                        Noise(0f, 1.4f, 1f, 0.06f, 0.45f, low: 900f, lowTo: 160f, release: 0.4f),
+                        Sine(98f, 82f, 0f, 1.4f, 0.45f, 0.08f, 0.5f, release: 0.4f),
+                        Sine(147f, 123f, 0f, 1.2f, 0.15f, 0.08f, 0.4f, release: 0.35f),
+                        Noise(0f, 0.6f, 0.12f, 0.05f, 0.2f, high: 2500f, release: 0.15f));
+                case PlaceholderSound.WayDown:
+                    // The stairs down: four soft steps on stone a quarter of a second apart, each a little lower (150, 132, 116,
+                    // 102 Hz) and softer, a grit of noise on each; under them the air deepening (its low-pass from 600 Hz to 220 Hz).
+                    return Recipe(1.1f, 1.3f,
+                        Sine(150f, 90f, 0f, 0.14f, 1f, 0.002f, 0.03f, release: 0.02f),
+                        Noise(0f, 0.06f, 0.45f, 0.0008f, 0.012f, low: 2200f, high: 300f),
+                        Sine(132f, 79f, 0.24f, 0.14f, 0.9f, 0.002f, 0.03f, release: 0.02f),
+                        Noise(0.24f, 0.06f, 0.4f, 0.0008f, 0.012f, low: 2200f, high: 300f),
+                        Sine(116f, 70f, 0.48f, 0.14f, 0.8f, 0.002f, 0.03f, release: 0.02f),
+                        Noise(0.48f, 0.06f, 0.36f, 0.0008f, 0.012f, low: 2200f, high: 300f),
+                        Sine(102f, 61f, 0.72f, 0.14f, 0.7f, 0.002f, 0.03f, release: 0.02f),
+                        Noise(0.72f, 0.06f, 0.32f, 0.0008f, 0.012f, low: 2200f, high: 300f),
+                        Noise(0f, 1.1f, 0.35f, 0.35f, 0f, low: 600f, lowTo: 220f, release: 0.4f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,

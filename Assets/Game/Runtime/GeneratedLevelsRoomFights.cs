@@ -116,7 +116,7 @@ namespace Roguelike
             LevelRoom room = f.Room >= 0 && f.Room < _level.Layout.Rooms.Count ? _level.Layout.Rooms[f.Room] : null;
             int woke = AliveOf(f.Room);
             RoomFightValues values = Values.Fights;
-            if (values != null && values.Cue && values.CueGain > 0f) PlaceholderSounds.Current?.AskFor(values.CueSound, values.CueGain);
+            if (values != null && values.Cue && values.CueGain > 0f && !PlaceholderSounds.RoomsOn) PlaceholderSounds.Current?.AskFor(values.CueSound, values.CueGain); // work order 113: on, the room's own swell, once a room
             if (room == null) return;
             string kind = room.Elite ? "elite" : room.Kind.ToString().ToLowerInvariant();
             bool inside = CurrentRoom != null && CurrentRoom.Order == f.Room;

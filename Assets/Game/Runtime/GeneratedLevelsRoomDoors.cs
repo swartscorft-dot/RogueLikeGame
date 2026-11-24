@@ -295,7 +295,7 @@ namespace Roguelike
             d.WaitingSince = -1f;
             d.Closings++;
             Physics.SyncTransforms(); // the shots of this frame meet it
-            if (v.DoorCloseGain > 0f) PlaceholderSounds.Current?.AskFor(v.DoorCloseSound, v.DoorCloseGain);
+            if (v.DoorCloseGain > 0f && !PlaceholderSounds.RoomsOn) PlaceholderSounds.Current?.AskFor(v.DoorCloseSound, v.DoorCloseGain); // work order 113: on, each block is heard at its door
             PlaySessionRecorder.Current?.NoteRoomDoorsClosed(DoorFloor, LevelGeometry.RoomNumber(_level.Layout, d.Room) + 1, d.Room.Order);
         }
 
