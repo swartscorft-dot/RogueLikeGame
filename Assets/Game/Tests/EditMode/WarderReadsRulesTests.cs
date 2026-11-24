@@ -128,7 +128,7 @@ namespace Roguelike.Rules.Tests
         {
             var v = new PlaceholderSoundValues();
             Assert.That((int)PlaceholderSound.WardHum, Is.EqualTo(44), "after the thirty-eight, which keep their places, and after the six of work orders 113 and 106 that the day sprint's merge put before it (changed at the merge, 2026-11-24)");
-            Assert.That((int)PlaceholderSound.WardBreaks, Is.EqualTo(39));
+            Assert.That((int)PlaceholderSound.WardBreaks, Is.EqualTo(45)); // changed at the merge, as the line above
             foreach (PlaceholderSound s in new[] { PlaceholderSound.WardHum, PlaceholderSound.WardBreaks })
             {
                 Assert.That(v.Sounds.Count(x => x.Sound == s), Is.EqualTo(1), s + ": its own line");
