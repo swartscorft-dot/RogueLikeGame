@@ -537,8 +537,8 @@ namespace Roguelike
             _menu.Add(MenuLine.Greybox); // work order 084: the greybox view, under the camera's two lines
             _menu.Add(MenuLine.Light); // work order 085: as before or lamplit, under the greybox view (which wins over it)
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
-            _menu.Add(MenuLine.ToonLook); // work order 115: her model's toon look, a trial; above the attachments' line, which three tests keep last
-            AddMusicLines(); // work order 116: the music's switch and volume (RunHudMusic.cs), before the attachments' line
+            AddMusicLines(); // work order 116: the music's switch and volume (RunHudMusic.cs), under the between-runs line (its test asks for that)
+            _menu.Add(MenuLine.ToonLook); // work order 115: her model's toon look, a trial; just above the attachments' line (its test asks for that), which three tests keep last
             _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
         }
