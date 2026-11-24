@@ -68,6 +68,15 @@ namespace Roguelike.Rules
         public float MovingDamageScale = 1f;
         /// <summary>A thin red beam shows on her pistols, along each barrel (the Laser Sight; work order 102: until then a line showed where the basic shot would end).</summary>
         public bool ShowsLine;
+        /// <summary>Work order 110: added to her crit chance for a basic shot only (the Reflex Sight); her stats' crits, so nothing with them off.</summary>
+        public float CritChanceAdd;
+        /// <summary>
+        /// Work order 110: the startup of the first basic shot after a dash or a skill started, times this (the Quick-Draw Grip);
+        /// every other shot's startup is the feel's. The shot's rhythm after it is the feel's: the recovery is not lengthened.
+        /// </summary>
+        public float FirstShotStartupScale = 1f;
+        /// <summary>Work order 110: one of its five parts, in the store only with <see cref="MetaValues.MoreParts"/> on.</summary>
+        public bool MorePart;
 
         public WeaponAttachment() { }
 
@@ -106,6 +115,12 @@ namespace Roguelike.Rules
         public const string GhostRing = "ghost-ring";
         public const string BullBarrel = "bull-barrel";
         public const string RunnersGrip = "runners-grip";
+        // Work order 110's five (behind MetaValues.MoreParts): each slot three parts.
+        public const string ReflexSight = "reflex-sight";
+        public const string LongBarrel = "long-barrel";
+        public const string Compensator = "compensator";
+        public const string WeightedGrip = "weighted-grip";
+        public const string QuickDrawGrip = "quick-draw-grip";
 
         /// <summary>The weapons of the loadout, in the order the screen shows them: her pistols only, in this order.</summary>
         public static readonly WeaponKind[] Weapons = { WeaponKind.Pistols };
@@ -134,6 +149,33 @@ namespace Roguelike.Rules
             new WeaponAttachment(RunnersGrip, "Runner's Grip", WeaponKind.Pistols, WeaponSlot.Grip, 50,
                                  "Shooting on the move slows you to 75 %, not 50 %.", "Shots on the move deal 20 % less.")
                 { MovingSpeedShare = 0.75f, MovingDamageScale = 0.8f },
+
+            // Work order 110 (Kristian, 2026-11-24, yes to the sprint plan's row: "Tre valg per plass, hver med en buff og en
+            // kostnad. Det som synes av dem er lite og stille"): five more, so each slot holds three; the producer's parts, the
+            // numbers first guesses in the size of the four. In the store only with MetaValues.MoreParts (MorePart). None draws
+            // anything in play.
+            // - Reflex Sight (sight, 35): +10 % crit chance on the basic shot (5 to 15 % at her start); its cost reach 10 to 8.5 m.
+            // - Long Barrel (barrel, 40): reach 10 to 13 m; its cost 20 % slower between shots (0.225 to 0.27 s).
+            // - Compensator (barrel, 45): 20 % less time between shots (0.225 to 0.18 s); its cost each shot 20 % less (40 to 32).
+            // - Weighted Grip (grip, 45): each shot staggers 3, as Bull Barrel's; its cost shooting on the move, and the backpedal
+            //   cap, at 35 % of run speed, not 50 % (3 to 2.1 m/s).
+            // - Quick-Draw Grip (grip, 55): the first basic shot after a dash or a skill goes off in a quarter of the startup
+            //   (0.08 to 0.02 s); its cost each shot 10 % less (40 to 36).
+            new WeaponAttachment(ReflexSight, "Reflex Sight", WeaponKind.Pistols, WeaponSlot.Sight, 35,
+                                 "+10 % crit chance on basic shots.", "Reach 8.5 m.")
+                { CritChanceAdd = 0.10f, ReachAdd = -1.5f, MorePart = true },
+            new WeaponAttachment(LongBarrel, "Long Barrel", WeaponKind.Pistols, WeaponSlot.Barrel, 40,
+                                 "Reach 13 m.", "20 % slower between shots.")
+                { ReachAdd = 3f, IntervalScale = 1.2f, MorePart = true },
+            new WeaponAttachment(Compensator, "Compensator", WeaponKind.Pistols, WeaponSlot.Barrel, 45,
+                                 "20 % less time between shots.", "Each shot deals 20 % less.")
+                { IntervalScale = 0.8f, DamageScale = 0.8f, MorePart = true },
+            new WeaponAttachment(WeightedGrip, "Weighted Grip", WeaponKind.Pistols, WeaponSlot.Grip, 45,
+                                 "Each shot staggers 3.", "Shooting on the move slows you to 35 %, not 50 %.")
+                { Stagger = 3f, MovingSpeedShare = 0.35f, MorePart = true },
+            new WeaponAttachment(QuickDrawGrip, "Quick-Draw Grip", WeaponKind.Pistols, WeaponSlot.Grip, 55,
+                                 "The first shot after a dash or a skill goes off at once.", "Each shot deals 10 % less.")
+                { FirstShotStartupScale = 0.25f, DamageScale = 0.9f, MorePart = true },
         };
 
         /// <summary>The slot's head on the screen: SIGHT, BARREL, GRIP.</summary>
@@ -161,6 +203,10 @@ namespace Roguelike.Rules
         public float MovingSpeedShare;
         public float MovingDamageScale = 1f;
         public bool ShowsLine;
+        /// <summary>Work order 110: the parts' crit chance on a basic shot, added.</summary>
+        public float CritChanceAdd;
+        /// <summary>Work order 110: the first basic shot's startup after a dash or a skill, times this (scales multiply).</summary>
+        public float FirstShotStartupScale = 1f;
         /// <summary>The names of the parts fitted, in the table's order.</summary>
         public readonly List<string> Parts = new List<string>();
 
@@ -176,6 +222,8 @@ namespace Roguelike.Rules
             MovingSpeedShare = 0f;
             MovingDamageScale = 1f;
             ShowsLine = false;
+            CritChanceAdd = 0f; // work order 110
+            FirstShotStartupScale = 1f;
             Parts.Clear();
         }
 
@@ -192,6 +240,8 @@ namespace Roguelike.Rules
             MovingSpeedShare = Math.Max(MovingSpeedShare, p.MovingSpeedShare);
             MovingDamageScale *= p.MovingDamageScale;
             ShowsLine |= p.ShowsLine;
+            CritChanceAdd += p.CritChanceAdd; // work order 110
+            FirstShotStartupScale *= p.FirstShotStartupScale;
         }
 
         /// <summary>The basic shot's reach from the feel's: the parts' metres added, never under <see cref="LeastReach"/>.</summary>
@@ -231,11 +281,27 @@ namespace Roguelike.Rules
         /// <summary>The backpedal cap's share of run speed: the grip's, or the feel's.</summary>
         public float BackpedalShare(float feelShare) => MovingSpeedShare > 0f ? MovingSpeedShare : feelShare;
 
-        /// <summary>The numbers in one line, for tests and the log.</summary>
+        /// <summary>
+        /// Work order 110: a basic shot's crit chance from hers (<paramref name="herChance"/>, 0 with her stats off): the parts'
+        /// added, 0 to 1; with her stats off nothing crits, whatever is fitted.
+        /// </summary>
+        public float ShotCritChance(float herChance) =>
+            CritChanceAdd == 0f || herChance <= 0f ? herChance : Math.Max(0f, Math.Min(1f, herChance + CritChanceAdd));
+
+        /// <summary>
+        /// Work order 110: a basic shot's startup from the feel's: times the parts' scale when it is the first after a dash or a
+        /// skill (<paramref name="firstAfterDashOrSkill"/>), else the feel's; never under 0.
+        /// </summary>
+        public float ShotStartup(float feelStartup, bool firstAfterDashOrSkill) =>
+            !firstAfterDashOrSkill || FirstShotStartupScale == 1f ? feelStartup : Math.Max(0f, feelStartup * FirstShotStartupScale);
+
+        /// <summary>The numbers in one line, for tests and the log (work order 110's two knobs only when a part turns them).</summary>
         public override string ToString() =>
             string.Format(CultureInfo.InvariantCulture,
                           "reach {0:+0.##;-0.##;+0} m, width x{1:0.##}, damage x{2:0.##}, interval x{3:0.##}, stagger +{4:0.##}, moving {5:0.##}, moving damage x{6:0.##}, line {7}",
-                          ReachAdd, HalfWidthScale, DamageScale, IntervalScale, Stagger, MovingSpeedShare, MovingDamageScale, ShowsLine ? "on" : "off");
+                          ReachAdd, HalfWidthScale, DamageScale, IntervalScale, Stagger, MovingSpeedShare, MovingDamageScale, ShowsLine ? "on" : "off")
+            + (CritChanceAdd != 0f ? string.Format(CultureInfo.InvariantCulture, ", crit +{0:0.##}", CritChanceAdd) : "")
+            + (FirstShotStartupScale != 1f ? string.Format(CultureInfo.InvariantCulture, ", first shot startup x{0:0.##}", FirstShotStartupScale) : "");
     }
 
     public enum AttachmentFit { Fitted, AlreadyFitted, NotOwned, Unknown }
@@ -276,7 +342,22 @@ namespace Roguelike.Rules
     /// </summary>
     public static class WeaponRack
     {
+        /// <summary>A part of the store by its id, or null (work order 110: one of its five with <see cref="MetaValues.MoreParts"/> off is not in it).</summary>
         public static WeaponAttachment Find(MetaValues v, string id) =>
+            id == null ? null : v?.Parts?.FirstOrDefault(p => InStore(v, p) && p.Id == id);
+
+        /// <summary>
+        /// Work order 110: is the part in the store: every part of the table, but its five only with
+        /// <see cref="MetaValues.MoreParts"/> on. Off, the store, the screen, the end screen and a run have 060's four, as before.
+        /// </summary>
+        public static bool InStore(MetaValues v, WeaponAttachment p) => p != null && v != null && (v.MoreParts || !p.MorePart);
+
+        /// <summary>
+        /// Work order 110: a part of the whole table by its id, in the store or not: what a save holds is kept by it
+        /// (<see cref="Tidy"/>), so a part bought stays owned while the five are switched off, and one part a slot holds across
+        /// them all (<see cref="Fit"/>).
+        /// </summary>
+        static WeaponAttachment FindInTable(MetaValues v, string id) =>
             id == null ? null : v?.Parts?.FirstOrDefault(p => p != null && p.Id == id);
 
         public static bool Owns(MetaState s, string id) => s.AttachmentsOwned.Contains(id);
@@ -304,12 +385,12 @@ namespace Roguelike.Rules
             foreach (WeaponKind weapon in WeaponAttachments.Weapons)
                 foreach (WeaponSlot slot in WeaponAttachments.SlotsOf(weapon))
                     foreach (WeaponAttachment p in v.Parts)
-                        if (p != null && p.Weapon == weapon && p.Slot == slot) list.Add(p);
+                        if (InStore(v, p) && p.Weapon == weapon && p.Slot == slot) list.Add(p); // work order 110: the store's
             return list;
         }
 
-        /// <summary>The whole set's price.</summary>
-        public static int WholePrice(MetaValues v) => v?.Parts?.Where(p => p != null).Sum(p => p.Price) ?? 0;
+        /// <summary>The whole set's price (the store's: work order 110).</summary>
+        public static int WholePrice(MetaValues v) => v?.Parts?.Where(p => InStore(v, p)).Sum(p => p.Price) ?? 0;
 
         public static MetaBuy CanBuy(MetaState s, MetaValues v, string id)
         {
@@ -345,7 +426,7 @@ namespace Roguelike.Rules
             AttachmentFit r = CanFit(s, v, id);
             if (r != AttachmentFit.Fitted) return r;
             WeaponAttachment part = Find(v, id);
-            s.AttachmentsFitted.RemoveAll(other => SameSlot(Find(v, other), part));
+            s.AttachmentsFitted.RemoveAll(other => SameSlot(FindInTable(v, other), part)); // work order 110: one a slot across the whole table
             s.AttachmentsFitted.Add(id);
             return r;
         }
@@ -366,18 +447,19 @@ namespace Roguelike.Rules
         /// <summary>
         /// A save read back (called by <see cref="MetaRack.Tidy"/>): parts it does not know, or owns twice, are dropped; a part
         /// fitted but not owned comes off; at most one is fitted a slot, the first kept. Owned and fitted parts stay in the save
-        /// whether the switch is on or off; off, they are never applied.
+        /// whether the switch is on or off; off, they are never applied. Work order 110: known by the whole table, so its five
+        /// stay in the save with <see cref="MetaValues.MoreParts"/> off too (and are not applied or shown).
         /// </summary>
         public static void Tidy(MetaState s, MetaValues v)
         {
             var seen = new HashSet<string>();
-            s.AttachmentsOwned.RemoveAll(id => id == null || Find(v, id) == null || !seen.Add(id));
+            s.AttachmentsOwned.RemoveAll(id => id == null || FindInTable(v, id) == null || !seen.Add(id));
             seen.Clear();
             var slots = new HashSet<(WeaponKind, WeaponSlot)>(); // a slot is a weapon's
             s.AttachmentsFitted.RemoveAll(id =>
             {
                 if (id == null || !Owns(s, id) || !seen.Add(id)) return true;
-                WeaponAttachment p = Find(v, id);
+                WeaponAttachment p = FindInTable(v, id);
                 return !slots.Add((p.Weapon, p.Slot));
             });
         }
@@ -391,7 +473,7 @@ namespace Roguelike.Rules
             into.Clear();
             if (s == null || v?.Parts == null) return;
             foreach (WeaponAttachment p in v.Parts)
-                if (p != null && p.Weapon == weapon && IsFitted(s, p.Id)) into.Add(p);
+                if (InStore(v, p) && p.Weapon == weapon && IsFitted(s, p.Id)) into.Add(p); // work order 110: the store's
         }
 
         /// <summary>For the end screen: the parts the currency buys now, or else the cheapest not owned and how many more it needs.</summary>
@@ -400,10 +482,10 @@ namespace Roguelike.Rules
             var r = new WeaponNextBuy();
             if (v?.Parts == null) return r;
             foreach (WeaponAttachment p in v.Parts)
-                if (p != null && !Owns(s, p.Id) && p.Price <= s.Currency) r.Affordable.Add(p);
+                if (InStore(v, p) && !Owns(s, p.Id) && p.Price <= s.Currency) r.Affordable.Add(p); // work order 110: the store's
             if (r.Affordable.Count > 0) return r;
             foreach (WeaponAttachment p in v.Parts)
-                if (p != null && !Owns(s, p.Id) && (r.Cheapest == null || p.Price < r.Cheapest.Price)) r.Cheapest = p;
+                if (InStore(v, p) && !Owns(s, p.Id) && (r.Cheapest == null || p.Price < r.Cheapest.Price)) r.Cheapest = p;
             if (r.Cheapest != null) r.More = r.Cheapest.Price - s.Currency;
             return r;
         }
@@ -414,7 +496,7 @@ namespace Roguelike.Rules
             var names = new List<string>();
             if (v?.Parts != null)
                 foreach (WeaponAttachment p in v.Parts)
-                    if (p != null && IsFitted(s, p.Id)) names.Add(p.Name);
+                    if (InStore(v, p) && IsFitted(s, p.Id)) names.Add(p.Name); // work order 110: the store's
             return names.Count == 0 ? "stock" : string.Join(joint, names);
         }
     }

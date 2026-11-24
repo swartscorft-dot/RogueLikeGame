@@ -82,13 +82,13 @@ namespace Roguelike
         /// Work order 050: in a run with the stats on, the hit may crit (her crit chance, on the crits' stream), and one
         /// that is <paramref name="sureCrit"/> (a clean press, a perfect release) always does without a roll.
         /// </summary>
-        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false, bool foldedCrit = false, bool marked = false)
+        int Deal(Damageable target, int damage, out float focus, float stagger = 0f, bool sureCrit = false, bool foldedCrit = false, bool marked = false, bool basicShot = false)
         {
             IdentityValues identity = Identity;
             _dealtCrit = false;
             // Work order 065: her Marked prey on a target that carried marks when the hit came (1 off).
             if (marked && damage > 0 && StatsOn) damage = Mathf.RoundToInt(damage * MarkedPreyNow);
-            if (StatsOn && damage > 0 && (sureCrit || CritRules.Rolls(_crits, Modifiers.Stats.CritChance)))
+            if (StatsOn && damage > 0 && (sureCrit || CritRules.Rolls(_crits, CritChanceOf(basicShot)))) // work order 110: a sight's crit on a basic shot
             {
                 _dealtCrit = true;
                 Crits++;

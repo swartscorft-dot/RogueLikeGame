@@ -974,12 +974,12 @@ namespace Roguelike
         bool WeaponCards => _weaponEnd > _rackCards;
         bool RankCards => _cardName.Count > _weaponEnd;
         float SideColumn(MenuValues m) => m.ColumnGap + m.CardWidth + 2f * m.PanelPad;
-        float BetweenWidth(MenuValues m) => RackWidth(m) + (WeaponCards ? SideColumn(m) : 0f) + (RankCards ? SideColumn(m) : 0f);
+        float BetweenWidth(MenuValues m) => RackWidth(m) + (WeaponCards ? WeaponColumn(m) : 0f) + (RankCards ? SideColumn(m) : 0f); // work order 110: the weapon's column as wide as its cards
         float RankPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + (_cardName.Count - _weaponEnd) * (_cardH + m.CardGap);
         /// <summary>The ranks' panel's left edge (work order 099): after the rack and the weapon's panel, if any.</summary>
-        float RankPanelX(MenuValues m) => BetweenLeft(m) + RackWidth(m) + (WeaponCards ? SideColumn(m) : 0f) + m.ColumnGap;
+        float RankPanelX(MenuValues m) => BetweenLeft(m) + RackWidth(m) + (WeaponCards ? WeaponColumn(m) : 0f) + m.ColumnGap; // work order 110
         float BetweenGridTop(MenuValues m) => m.BetweenTop + m.HeadingHeight + m.HeadingGap + m.ButtonHeight + 24f;
-        float WeaponPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + _slotHeads.Count * 30f + (_weaponEnd - _rackCards) * (_cardH + m.CardGap);
+        float WeaponPanelHeight(MenuValues m) => 2f * m.PanelPad + m.PanelHeadHeight + _slotHeads.Count * SlotHeadHeight + WeaponCardRows() * (_cardH + m.CardGap); // work order 110: its rows
         float BetweenLeft(MenuValues m) => (_bViewWidth - BetweenWidth(m)) * 0.5f;
 
         /// <summary>Card <paramref name="index"/> (the rack's pieces, then the weapon's parts) in the 1080 layout before the fit.</summary>
@@ -991,12 +991,7 @@ namespace Roguelike
             if (index >= _weaponEnd) // work order 099: the ranks' cards, one under another in their panel
                 return new Rect(RankPanelX(m) + m.PanelPad, top - m.ButtonHeight - 24f + m.PanelPad + m.PanelHeadHeight + (index - _weaponEnd) * (_cardH + m.CardGap), m.CardWidth, _cardH);
             float x = x0 + RackWidth(m) + m.ColumnGap + m.PanelPad, y = top - m.ButtonHeight - 24f + m.PanelPad + m.PanelHeadHeight;
-            for (int i = _rackCards; i <= index; i++)
-            {
-                if (_cardSlotHead[i] >= 0) y += 30f;
-                if (i < index) y += _cardH + m.CardGap;
-            }
-            return new Rect(x, y, m.CardWidth, _cardH);
+            return WeaponCardRect(index, x, y, m); // work order 110: in the weapon's columns, a slot's cards from a new row
         }
 
         /// <summary>A card of the screen between runs in the 1080 layout after the fit. For tests.</summary>
@@ -1116,7 +1111,7 @@ namespace Roguelike
             // The weapon's panel behind its cards.
             if (WeaponCards)
             {
-                var panel = new Rect(x0 + RackWidth(m) + m.ColumnGap, start.y, m.CardWidth + 2f * m.PanelPad, WeaponPanelHeight(m));
+                var panel = new Rect(x0 + RackWidth(m) + m.ColumnGap, start.y, WeaponPanelWidth(m), WeaponPanelHeight(m)); // work order 110: as wide as its columns
                 DrawPanel(panel, LoadoutHead, LoadoutSub, InterfaceStyle.C(v.White), v, m);
             }
             // Work order 099: the ranks' panel behind their cards, at the right end.

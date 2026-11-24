@@ -318,7 +318,14 @@ namespace Roguelike.Rules
             float interval = BasicInterval(c);
             p.Lines.Add(new SheetLine("fire rate", OfferTexts.One(interval > 0f ? 1.0 / interval : 0.0) + " shots/s, " + interval.ToString("0.###", s_Inv) + " s apart"));
             p.Lines.Add(new SheetLine("reach", OfferTexts.Metres(BasicReach(c))));
-            p.Lines.Add(new SheetLine("crit", CritWords(s, null)));
+            p.Lines.Add(new SheetLine("crit", CritWords(s, null, m.Weapon))); // work order 110: a sight's crit on the basic shot
+            // Work order 110: what her pistols' parts give the basic shot that the lines above do not say (a barrel's or a
+            // grip's stagger, a grip's quicker first shot); none without such a part.
+            if (m.Weapon.ShotStagger > 0f) p.Lines.Add(new SheetLine("stagger", m.Weapon.ShotStagger.ToString("0.#", s_Inv) + " a hit"));
+            FeelValues f = c.Feel ?? new FeelValues();
+            float first = m.Weapon.ShotStartup(f.BasicShotStartup, true);
+            if (first != f.BasicShotStartup)
+                p.Lines.Add(new SheetLine("first shot", "after a dash or a skill it goes off in " + OfferTexts.Sec(first) + ", not " + OfferTexts.Sec(f.BasicShotStartup)));
         }
 
         static void SkillLines(SheetSkill p, SkillDefinition k, OfferContext c)
@@ -461,10 +468,11 @@ namespace Roguelike.Rules
         }
 
         /// <summary>Her crit as it applies to this skill (null: the basic shot): the chance and what a crit adds; a clean press or a perfect release always crits, and her Clean press on them.</summary>
-        static string CritWords(HerStats s, SkillDefinition k)
+        static string CritWords(HerStats s, SkillDefinition k, AttachmentEffects weapon = null)
         {
             if (!s.On) return "no crits (her stats are off)";
-            string words = OfferTexts.Pct(s.CritChance) + " chance, a crit deals " + OfferTexts.Plus(s.CritDamage);
+            float chance = k == null && weapon != null ? weapon.ShotCritChance(s.CritChance) : s.CritChance; // work order 110: a sight's, on the basic shot
+            string words = OfferTexts.Pct(chance) + " chance, a crit deals " + OfferTexts.Plus(s.CritDamage);
             bool clean = k != null && WideWindow.HasCleanPart(k), band = k != null && WideWindow.HasBand(k);
             if (clean) words += "; a clean last press always crits";
             else if (band) words += "; a perfect release always crits";
