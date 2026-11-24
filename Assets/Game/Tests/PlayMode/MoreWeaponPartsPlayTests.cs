@@ -95,6 +95,8 @@ namespace Roguelike.PlayModeTests
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _a.SetMaxHealth(1000000);
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _levels.DropValues.On = false;
             _hud = RunHud.Ensure();
             yield return null;

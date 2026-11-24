@@ -81,6 +81,8 @@ namespace Roguelike.PlayModeTests
                 if (d != null) d.transform.position = new Vector3(-17f + 3f * k++, d.transform.position.y, 18f);
             }
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _fly = ThingsThatFly.Ensure();
             _fly.Values.On = true;
             _player.Teleport(EnemyAt + Vector3.back * 12f);

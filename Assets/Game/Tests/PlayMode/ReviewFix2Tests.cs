@@ -79,7 +79,12 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _b = GameObject.Find("Dummy_B").GetComponent<Damageable>();
-            if (_levels == null) _levels = GeneratedLevels.Ensure();
+            if (_levels == null)
+            {
+                _levels = GeneratedLevels.Ensure();
+                _levels.MetaValues.Enabled = false; // work order 117: the trial is on in code now; this class's tests were written with it off and turn it on themselves (TrialOn)
+                _levels.MetaValues.Attachments = false;
+            }
             _reports.Clear();
             _player.Reported += r => _reports.Add(r);
             _first = new GameObject("ActsFirstInFrame").AddComponent<ActsFirstInFrame>();

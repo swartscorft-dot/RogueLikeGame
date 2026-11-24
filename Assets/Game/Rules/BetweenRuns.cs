@@ -6,9 +6,12 @@ using System.Linq;
 namespace Roguelike.Rules
 {
     /// <summary>
-    /// What lasts between runs, a first version behind a switch (decision 0009, a proposal by the producer that Kristian
-    /// has not ruled on; work order 029, 2026-11-20: built switched off so he can try it). With the switch off, which is
-    /// the default (<see cref="MetaValues.Enabled"/>), none of this is used: nothing is earned, shown or saved.
+    /// What lasts between runs, a first version behind a switch (decision 0009, a proposal by the producer; work order 029,
+    /// 2026-11-20: built switched off so he could try it). On by default since work order 117: Kristian, 2026-11-24, asked
+    /// whether it should be on now that the start menu has a loadout and an upgrades tab, ticked "Ja, på som standard"
+    /// ("Echoes, stativet, rangene og våpendelene blir en vanlig del av spillet. Bryterne i pausemenyen blir stående, så du
+    /// kan slå dem av."). With the switch off (<see cref="MetaValues.Enabled"/>, or the pause menu's line) none of this is
+    /// used: nothing is earned, shown or saved.
     ///
     /// One currency (placeholder name "Echoes"), earned in a run and never lost: <see cref="MetaValues.PerFloor"/> for each
     /// floor cleared, <see cref="MetaValues.PerElite"/> for each elite room cleared, <see cref="MetaValues.PerBoss"/> for the
@@ -22,8 +25,12 @@ namespace Roguelike.Rules
     [Serializable]
     public sealed class MetaValues
     {
-        /// <summary>The switch (work order 029): off by default. The pause menu's "Between runs (trial)" line overrides it.</summary>
-        public bool Enabled = false;
+        /// <summary>
+        /// The switch (work order 029): ON by default since work order 117 (Kristian, 2026-11-24, ticked "Ja, på som standard":
+        /// "Echoes, stativet, rangene og våpendelene blir en vanlig del av spillet. Bryterne i pausemenyen blir stående, så du
+        /// kan slå dem av."). The pause menu's "Between runs (trial)" line overrides it, off or on.
+        /// </summary>
+        public bool Enabled = true;
         public string CurrencyName = "Echoes";
 
         public int PerFloor = 10;              // each floor of a run cleared, the last one too
@@ -37,8 +44,12 @@ namespace Roguelike.Rules
 
         // Work order 060 (decision 0014, the producer's proposal of 2026-11-21, a draft he has not ruled on; Kristian's idea of
         // 2026-11-20: "attachments til våpen"): her pistols' parts, on this currency, save and screen (WeaponAttachments.cs).
-        /// <summary>The attachments' switch: off by default. The pause menu's "Weapon attachments (trial)" line overrides it; it works only with <see cref="Enabled"/>'s trial on.</summary>
-        public bool Attachments = false;
+        /// <summary>
+        /// The attachments' switch: ON by default since work order 117 (Kristian, 2026-11-24, "Ja, på som standard", as
+        /// <see cref="Enabled"/>). The pause menu's "Weapon attachments (trial)" line overrides it, off or on; it works only with
+        /// <see cref="Enabled"/>'s trial on.
+        /// </summary>
+        public bool Attachments = true;
         /// <summary>Echoes for each ordinary combat room cleared (not the elite room, which keeps its own), only while the attachments are on (work order 060).</summary>
         public int PerRoom = 3;
         public WeaponAttachment[] Parts = WeaponAttachments.Create();

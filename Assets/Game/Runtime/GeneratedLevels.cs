@@ -68,7 +68,8 @@ namespace Roguelike
     /// a key, and so does the act-cleared screen.
     ///
     /// What lasts between runs (work order 029, decision 0009, a proposal he has not ruled on) is in
-    /// GeneratedLevelsBetweenRuns.cs, behind a switch that is off by default; off, none of it does anything.
+    /// GeneratedLevelsBetweenRuns.cs, behind a switch that is on by default since work order 117 (Kristian, 2026-11-24: "Ja, på
+    /// som standard"); off, none of it does anything.
     ///
     /// A reward on the ground and the guard on every choice (work order 042, Kristian's answers of 2026-11-20) are in
     /// GeneratedLevelsDrops.cs: the elite room's upgrade and the floor's reward land as a drop she picks up with the

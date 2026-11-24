@@ -92,6 +92,8 @@ namespace Roguelike.PlayModeTests
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _a.SetMaxHealth(1000000);
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _levels.RunValues.StatsAndTiers = false; // the feel's numbers (a test that wants her stats turns them on)
             _levels.DropValues.On = false; // a cleared room's choice comes up by itself, as the test pilot's harness has it (work order 042)
             _hud = RunHud.Ensure();
@@ -295,7 +297,7 @@ namespace Roguelike.PlayModeTests
         {
             MetaState full = WriteFullSave();
             On();
-            Assert.That(_levels.AttachmentsOn, Is.False, "off in code");
+            Assert.That(_levels.AttachmentsOn, Is.False, "off, as this class sets it (work order 117: on in code now)"); // changed deliberately: it said "off in code"
             Assert.That(_levels.OpenBetweenRuns(), Is.True);
             yield return null;
             List<string> withParts = _hud.BetweenRunsLines.ToList();
@@ -1006,8 +1008,14 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.BasicShotBaseInterval, Is.EqualTo(feel.BasicShotStartup + feel.BasicShotActive + feel.BasicShotRecovery).Within(1e-6f));
             _levels.BackToPracticeRoom();
             yield return null;
-            // Even with the trial on: the attachments are off in code, so a flight flies the stock gun.
-            On();
+            // Changed deliberately (work order 117): this said "the attachments are off in code, so a flight flies the stock gun".
+            // Both trials are on in code now; a flight's floors are made by a test with no save path, so what lasts is kept in
+            // memory from an empty save: a flight still flies the stock gun, whatever any save fits.
+            _levels.MetaValues.Enabled = new MetaValues().Enabled;
+            _levels.MetaValues.Attachments = new MetaValues().Attachments;
+            Assert.That(_levels.AttachmentsOn, Is.True, "both on, as in code");
+            GeneratedLevels.BetweenRunsSavePath = null; // as PilotFlight has it
+            Assert.That(_levels.SaveFileInUse, Is.Null, "floors a test made without a path read and write no file");
             Assert.That(_levels.StartRun(RunSeed), Is.Not.Null);
             yield return null;
             Assert.That(_levels.Modifiers.Weapon.Any, Is.False);

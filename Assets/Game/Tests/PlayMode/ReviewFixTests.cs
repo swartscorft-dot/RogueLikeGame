@@ -55,6 +55,8 @@ namespace Roguelike.PlayModeTests
             _driver.InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _reports.Clear();
             _player.Reported += r => _reports.Add((r.Kind, Time.frameCount));
         }

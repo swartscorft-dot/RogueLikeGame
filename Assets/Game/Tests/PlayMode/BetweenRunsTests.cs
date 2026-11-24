@@ -79,6 +79,8 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
             _levels.RunValues.StatsAndTiers = false; // work order 050: a chest's health step of today (+10) on top of Thick Hide
+            _levels.MetaValues.Enabled = false; // work order 117: on in code now; these tests start from off, as written, and turn it on themselves (On)
+            _levels.MetaValues.Attachments = false;
             _hud = RunHud.Ensure();
             yield return null;
             Assert.That(GeneratedLevels.BetweenRunsSavePathInUse, Is.EqualTo(SavePath), "never the game's own save");
@@ -197,7 +199,9 @@ namespace Roguelike.PlayModeTests
             Dictionary<string, int?> prefs = Prefs();
             _recordings = Path.Combine(Path.GetTempPath(), "BetweenRunsTests-rec-" + Guid.NewGuid().ToString("N"));
             _recorder = PlaySessionRecorder.StartRecording(_recordings);
-            Assert.That(_levels.MetaValues.Enabled, Is.False, "off in code");
+            // Changed deliberately (work order 117): it pinned "off in code"; the trial is on in code now and this class sets it off.
+            Assert.That(new MetaValues().Enabled, Is.True, "on in code since work order 117");
+            Assert.That(_levels.MetaValues.Enabled, Is.False, "off, as this class sets it");
             Assert.That(_levels.MetaOn, Is.False);
 
             Assert.That(_levels.StartNewRun(), Is.Not.Null, "F5 starts a run at once, as before");

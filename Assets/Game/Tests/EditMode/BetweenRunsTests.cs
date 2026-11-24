@@ -37,10 +37,11 @@ namespace Roguelike.Rules.Tests
         // ---------------- The switch ----------------
 
         [Test]
-        public void TheSwitch_IsOffInCode_AndTheCurrencyIsNamedEchoes()
+        public void TheSwitch_IsOnInCode_AndTheCurrencyIsNamedEchoes()
         {
             var v = new MetaValues();
-            Assert.That(v.Enabled, Is.False, "off by default");
+            // Changed deliberately (work order 117): it pinned "off by default"; Kristian, 2026-11-24, ticked "Ja, på som standard".
+            Assert.That(v.Enabled, Is.True, "on by default since work order 117");
             Assert.That(v.CurrencyName, Is.EqualTo("Echoes"));
             Assert.That(v.Pieces.Select(p => p.Name), Is.EqualTo(new[]
             {

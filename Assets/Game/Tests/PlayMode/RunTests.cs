@@ -47,6 +47,8 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _levels.RunValues.StatsAndTiers = false; // work order 050: these tests pin today's chest steps (+10 health, +5 % damage)
         }
 

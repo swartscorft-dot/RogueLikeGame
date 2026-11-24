@@ -56,6 +56,8 @@ namespace Roguelike.PlayModeTests
             _driver.InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _levels.RunValues.SkillTiers = false; // work order 057: the end screen's skills taken are pinned as the plain names
             _hud = RunHud.Ensure();
             yield return null;

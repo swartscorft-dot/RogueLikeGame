@@ -13,10 +13,16 @@ namespace Roguelike
     /// the producer that Kristian has not ruled on), as part of <see cref="GeneratedLevels"/>. The rules are
     /// <see cref="MetaRack"/>'s; the screen is drawn by the HUD (<see cref="RunHud"/>).
     ///
-    /// The switch (<see cref="MetaOn"/>): <see cref="MetaValues.Enabled"/>, false in code, unless the pause menu's line
-    /// "Between runs (trial)" says otherwise (<see cref="BetweenRunsSwitch"/>, kept in PlayerPrefs; read only when the game
-    /// installs itself in play, never in a test run). Off, nothing here does anything: no run is a meta run, nothing is
-    /// earned or shown, the save is neither read nor written, and F5, F6 and the end screens start runs as before.
+    /// The switch (<see cref="MetaOn"/>): <see cref="MetaValues.Enabled"/>, true in code since work order 117 (Kristian,
+    /// 2026-11-24: "Ja, på som standard"), unless the pause menu's line "Between runs (trial)" says otherwise
+    /// (<see cref="BetweenRunsSwitch"/>, kept in PlayerPrefs; read only when the game installs itself in play, never in a test
+    /// run). Off, nothing here does anything: no run is a meta run, nothing is earned or shown, the save is neither read nor
+    /// written, and F5, F6 and the end screens start runs as before.
+    ///
+    /// His save is read and written only by the floors that installed themselves in play (<see cref="StartedByItself"/>) or
+    /// where a path is given (<see cref="BetweenRunsSavePath"/>: the tests', the start check's copy). Floors a test made
+    /// without one keep what lasts in memory only, from an empty save (work order 117: with the trial on by default, a test that
+    /// never thought of it must still never touch his file).
     ///
     /// On:
     /// - A run started with it on earns (<see cref="Earnings"/>): each floor cleared, each elite room cleared, the act boss;
@@ -55,6 +61,12 @@ namespace Roguelike
         public static string BetweenRunsSavePath { get; set; }
         public static string DefaultBetweenRunsSavePath => Path.Combine(Application.persistentDataPath, BetweenRunsFileName);
         public static string BetweenRunsSavePathInUse => string.IsNullOrEmpty(BetweenRunsSavePath) ? DefaultBetweenRunsSavePath : BetweenRunsSavePath;
+
+        /// <summary>
+        /// The file these floors read and write: the path given, else the game's own only when they installed themselves in
+        /// play; null for floors a test made without a path, which keep what lasts in memory only (work order 117).
+        /// </summary>
+        public string SaveFileInUse => !string.IsNullOrEmpty(BetweenRunsSavePath) ? BetweenRunsSavePath : StartedByItself ? DefaultBetweenRunsSavePath : null;
 
         /// <summary>True when what lasts between runs is on: the switch in code, or the pause menu's line.</summary>
         public bool MetaOn => BetweenRunsSwitch.IsOn(MetaValues.Enabled);
@@ -99,7 +111,14 @@ namespace Roguelike
 
         void LoadBetweenRuns()
         {
-            string path = BetweenRunsSavePathInUse;
+            string path = SaveFileInUse;
+            if (path == null)
+            {
+                // Work order 117: floors a test made without a path: an empty save, in memory only, never his file.
+                _metaState = new MetaState();
+                BetweenRunsLoad = MetaLoad.Missing;
+                return;
+            }
             _metaState = MetaSaveFile.Load(path, MetaValues, out MetaLoad how, out string keptAs);
             BetweenRunsLoad = how;
             if (how == MetaLoad.Unreadable)
@@ -124,13 +143,15 @@ namespace Roguelike
         void SaveBetweenRuns()
         {
             if (!MetaOn || _metaState == null) return;
+            string path = SaveFileInUse;
+            if (path == null) return; // work order 117: floors a test made without a path keep it in memory only
             if (BetweenRunsLoad == MetaLoad.Unreadable)
             {
                 // Work order 033: never an empty save written over one that could not be read.
-                Debug.LogWarning("Between runs: not saved, the save at " + BetweenRunsSavePathInUse + " could not be read");
+                Debug.LogWarning("Between runs: not saved, the save at " + path + " could not be read");
                 return;
             }
-            if (!MetaSaveFile.Save(BetweenRunsSavePathInUse, _metaState, out string error))
+            if (!MetaSaveFile.Save(path, _metaState, out string error))
                 Debug.LogWarning("Between runs: the save could not be written: " + error);
         }
 

@@ -59,6 +59,8 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
+            _levels.MetaValues.Attachments = false;
             _levels.RunValues.SkillTiers = false;
             _hud = RunHud.Ensure();
             _menu = StartMenu.Ensure();
@@ -362,9 +364,21 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator HerPictureMissing_GivesTheFlatBackdrop_AndOneGiven_IsDrawnInstead()
         {
-            yield return OpenOn(MenuScreen.Character);
-            Assert.That(Resources.Load<Texture2D>(InterfaceStyle.V.Menus.Start.PictureName), Is.Null, "no picture is in the project");
-            Assert.That(_menu.UsesFlatBackdrop, Is.True, "the flat backdrop stands in");
+            // Changed deliberately (work order 117): her picture is in the project now (Kristian chose "A2: plakaten", 2026-11-24),
+            // so the missing one is a name that is not there; this pinned "no picture is in the project".
+            StartMenuValues s = InterfaceStyle.V.Menus.Start;
+            string named = s.PictureName;
+            s.PictureName = "UI/Menu/NoSuchPicture_WorkOrder117";
+            try
+            {
+                yield return OpenOn(MenuScreen.Character);
+            }
+            finally
+            {
+                s.PictureName = named;
+            }
+            Assert.That(Resources.Load<Texture2D>(named), Is.Not.Null, "her picture is in the project");
+            Assert.That(_menu.UsesFlatBackdrop, Is.True, "the flat backdrop stands in for a picture that is not there");
             var picture = new Texture2D(16, 9);
             try
             {

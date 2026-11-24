@@ -43,11 +43,12 @@ namespace Roguelike.Rules.Tests
         // ---------------- The switch and the table ----------------
 
         [Test]
-        public void TheSwitch_IsOffInCode_AndTheFourParts_AreTheOrdersTable()
+        public void TheSwitch_IsOnInCode_AndTheFourParts_AreTheOrdersTable()
         {
             var v = new MetaValues { MoreParts = false }; // work order 110: the store with its switch off holds these four, as before
-            Assert.That(v.Attachments, Is.False, "off by default");
-            Assert.That(v.Enabled, Is.False, "and the trial too");
+            // Changed deliberately (work order 117): it pinned "off by default"; Kristian, 2026-11-24, ticked "Ja, på som standard".
+            Assert.That(v.Attachments, Is.True, "on by default since work order 117");
+            Assert.That(v.Enabled, Is.True, "and the trial too");
             Assert.That(v.PerRoom, Is.EqualTo(3));
             Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Id), Is.EqualTo(new[] { "laser-sight", "ghost-ring", "bull-barrel", "runners-grip" }));
             Assert.That(WeaponRack.InSlotOrder(v).Select(p => p.Name), Is.EqualTo(new[] { "Laser Sight", "Ghost Ring", "Bull Barrel", "Runner's Grip" }));
@@ -459,7 +460,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSave_KeepsThePartsWhileTheSwitchIsOff_AndTheRunsCommitWritesThemBackUnchanged()
         {
-            var v = new MetaValues(); // the attachments off, as in code
+            var v = new MetaValues { Attachments = false }; // the attachments off, set here (work order 117: on in code now)
             Assert.That(v.Attachments, Is.False);
             MetaState s = Before();
             s.AttachmentsOwned.AddRange(new[] { WeaponAttachments.LaserSight, WeaponAttachments.BullBarrel });

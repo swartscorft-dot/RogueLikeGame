@@ -11,7 +11,8 @@ namespace Roguelike
     /// <see cref="GeneratedLevels"/>, on the currency, the save and the screen of what lasts between runs (work order 029).
     /// The rules are <see cref="WeaponRack"/>'s; the weapon's panel on the screen is drawn by the HUD (RunHudWeapon.cs).
     ///
-    /// The switch (<see cref="AttachmentsOn"/>): <see cref="MetaValues.Attachments"/>, false in code, unless the pause menu's
+    /// The switch (<see cref="AttachmentsOn"/>): <see cref="MetaValues.Attachments"/>, true in code since work order 117
+    /// (Kristian, 2026-11-24: "Ja, på som standard"), unless the pause menu's
     /// line "Weapon attachments (trial)" says otherwise (<see cref="AttachmentsSwitch"/>, kept in PlayerPrefs, read only when
     /// the game installs itself in play, never in a test run); and only with the between-runs trial on (<see cref="MetaOn"/>).
     /// Off, nothing here does anything: no part is applied, no room pays, the screen and the end screen are 029's, and the
