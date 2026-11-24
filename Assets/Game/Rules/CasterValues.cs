@@ -66,6 +66,24 @@ namespace Roguelike.Rules
         public float KeepFar = 10f;         // m: it walks closer when she is farther than this (13 before)
         public float BackOffUnder = 6f;     // m: it starts to back off when she is nearer than this
         public float SightHeight = 0.5f;    // m over the ground of the line it sees her along, as the shooter's
+
+        // ---------------- Casters that hold their place (work order 101, 2026-11-24; ShooterPostRules, PostValues) ----------------
+
+        /// <summary>
+        /// The switch: a caster of a room's fight (the elite one too) holds its post, the place the generator stood it in the room, by
+        /// the shooter's rule of work order 098. Awake, it does not walk toward her because she is far: out of its reach
+        /// (<see cref="CastsFrom"/>) it stands at its post facing her and waits; in its reach it casts by the rules and numbers above;
+        /// it steps only inside <see cref="HoldRadius"/> of its post, to get its sight of her back round a prop and to back off when she
+        /// comes nearer than <see cref="BackOffUnder"/>. Kristian, 2026-11-24 afternoon, having played the shooters that hold their place
+        /// (floor used 17 % to 23 %, all 46 shooters held a post, her median depth 29 % to 20 %), asked what to do with the rule: he
+        /// ticked "Behold, og kasterne også" (keep it, and the casters get the same rule, so that no ranged enemy comes to her at the
+        /// door). Off: it keeps 7.5 to 10 m from her and walks to her as before, field for field. A caster with no room's fight (the
+        /// practice room) moves as before either way.
+        /// </summary>
+        public bool HoldsPlace = true;
+        /// <summary>m round its post a caster that holds its place may step in, never out (work order 101; the producer's starting value, as the shooter's).</summary>
+        public float HoldRadius = 3f;
+
         public float GroundSearch = 0.3f;   // m: a circle is placed only where the walkable ground is at most this far from its middle
         public float FadeSeconds = 0.35f;   // s a circle of a countered Grave Rain takes to fade
         public float BodyRadius = 0.35f;    // m, the capsule

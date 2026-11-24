@@ -247,6 +247,8 @@ namespace Roguelike.Rules
         public List<RoomUseRow> RoomUse = new List<RoomUseRow>();
         /// <summary>Work order 098: the shooters that held their posts in the rooms' fights (SessionSummaryShooterPosts.cs); none for a log from before.</summary>
         public ShooterPostStats ShooterPosts = new ShooterPostStats();
+        /// <summary>Work order 101: the casters that held their posts, counted as the shooters (SessionSummaryShooterPosts.cs); none for a log from before.</summary>
+        public ShooterPostStats CasterPosts = new ShooterPostStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -475,6 +477,7 @@ namespace Roguelike.Rules
             stats.LabRooms = LabRoomsSummary.Compute(events); // work order 084
             stats.RoomUse = ComputeRoomUse(events); // work order 097
             stats.ShooterPosts = ComputeShooterPosts(events); // work order 098
+            stats.CasterPosts = ComputeCasterPosts(events); // work order 101
             return stats;
         }
 
@@ -505,6 +508,8 @@ namespace Roguelike.Rules
             if (roomUse != null) sb.Append("Room use ").AppendLine(roomUse);
             string posts = ShooterPostLine(stats.ShooterPosts); // work order 098: the shooters that held their place, beside it
             if (posts != null) sb.Append("Shooters ").AppendLine(posts);
+            string casterPosts = CasterPostLine(stats.CasterPosts); // work order 101: the casters' the same, a line of their own beside it
+            if (casterPosts != null) sb.Append("Casters ").AppendLine(casterPosts);
             // The runs (work order 012): a short block each.
             foreach (RunRow run in stats.Runs)
             {

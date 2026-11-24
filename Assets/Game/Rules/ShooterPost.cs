@@ -28,9 +28,41 @@ namespace Roguelike.Rules
     }
 
     /// <summary>
+    /// What the rule of holding a post reads of an enemy's own values (work order 101: the one rule serves the shooter and the
+    /// caster, each with its own numbers): the band it keeps (<see cref="KeepNear"/> to <see cref="KeepFar"/>, the back-off's
+    /// end and the approach of before), its switch and its circle, and its reach (the farthest it attacks from: the shooter's
+    /// <see cref="ShooterValues.ShootsFrom"/>, the caster's <see cref="CasterValues.CastsFrom"/>). Copied as they are, so the
+    /// shooter's choice is the very one of work order 098 for the same inputs.
+    /// </summary>
+    public struct PostValues
+    {
+        public float KeepNear, KeepFar;
+        public bool HoldsPlace;
+        public float HoldRadius;
+        /// <summary>m: she farther than this is out of its reach, and it waits at its post.</summary>
+        public float Reach;
+
+        /// <summary>The shooter's (work order 098).</summary>
+        public static PostValues Of(ShooterValues t) => new PostValues
+        {
+            KeepNear = t.KeepNear, KeepFar = t.KeepFar, HoldsPlace = t.HoldsPlace, HoldRadius = t.HoldRadius, Reach = ShooterValues.ShootsFrom,
+        };
+
+        /// <summary>The caster's (work order 101): its own band, switch and circle, and the reach of every cast of it.</summary>
+        public static PostValues Of(CasterValues t) => new PostValues
+        {
+            KeepNear = t.KeepNear, KeepFar = t.KeepFar, HoldsPlace = t.HoldsPlace, HoldRadius = t.HoldRadius, Reach = CasterValues.CastsFrom,
+        };
+    }
+
+    /// <summary>
     /// Shooters that hold their place (work order 098; Kristian's choice of 2026-11-24, <see cref="ShooterValues.HoldsPlace"/>): where a
     /// shooter in the chase stands, as a rule with no engine. The shooter asks it every frame of the chase; what it cannot know
     /// here (whether it sees her, where the NavMesh ends, which spot of its circle sees her) it asks the engine itself.
+    ///
+    /// Casters too (work order 101; his choice of 2026-11-24 afternoon, "Behold, og kasterne også", <see cref="CasterValues.HoldsPlace"/>):
+    /// the same rule, the same choices, read with the caster's own values (<see cref="PostValues"/>); "shooter" below reads "caster"
+    /// for it, its reach <see cref="CasterValues.CastsFrom"/>. The names stay the shooter's, which work order 098's tests name.
     ///
     /// As before (the switch off, or no post known: the practice room, a shooter of no room's fight): it backs off straight away from
     /// her while it backs off; it walks toward her when she is farther than <see cref="ShooterValues.KeepFar"/> until she is at the
@@ -67,6 +99,12 @@ namespace Roguelike.Rules
 
         /// <summary>Does a shooter with these values hold its place, its post known?</summary>
         public static bool Holds(ShooterValues t, bool postKnown) => t != null && t.HoldsPlace && postKnown && t.HoldRadius >= 0f;
+
+        /// <summary>Does a caster with these values hold its place, its post known (work order 101)?</summary>
+        public static bool Holds(CasterValues t, bool postKnown) => t != null && Holds(PostValues.Of(t), postKnown);
+
+        /// <summary>Does an enemy with these values hold its place, its post known? (The shooter's and the caster's, work order 101.)</summary>
+        public static bool Holds(PostValues t, bool postKnown) => t.HoldsPlace && postKnown && t.HoldRadius >= 0f;
 
         /// <summary>Is the point inside the circle of <paramref name="radius"/> round <paramref name="post"/>, with <paramref name="slack"/> more?</summary>
         public static bool Inside(GroundPoint p, GroundPoint post, float radius, float slack = 0f) => p.DistanceTo(post) <= Math.Max(0f, radius) + slack;
@@ -115,6 +153,16 @@ namespace Roguelike.Rules
         /// holds its place (<see cref="Holds"/>), round <paramref name="post"/>.
         /// </summary>
         public static ShooterMove Choose(ShooterValues t, GroundPoint me, GroundPoint forward, GroundPoint her, bool seesHer, bool backingOff,
+                                         bool approaching, bool holds, GroundPoint post) =>
+            Choose(PostValues.Of(t), me, forward, her, seesHer, backingOff, approaching, holds, post);
+
+        /// <summary>The caster's choice of the frame (work order 101): the same rule, with its own values.</summary>
+        public static ShooterMove Choose(CasterValues t, GroundPoint me, GroundPoint forward, GroundPoint her, bool seesHer, bool backingOff,
+                                         bool approaching, bool holds, GroundPoint post) =>
+            Choose(PostValues.Of(t), me, forward, her, seesHer, backingOff, approaching, holds, post);
+
+        /// <summary>The choice of the frame (see the class) for an enemy with these values: the shooter's (work order 098) and the caster's (101).</summary>
+        public static ShooterMove Choose(PostValues t, GroundPoint me, GroundPoint forward, GroundPoint her, bool seesHer, bool backingOff,
                                          bool approaching, bool holds, GroundPoint post)
         {
             GroundPoint toHer = her - me;
@@ -132,13 +180,13 @@ namespace Roguelike.Rules
             float radius = Math.Max(0f, t.HoldRadius);
             if (!Inside(me, post, radius, EdgeSlack)) return new ShooterMove { Go = ShooterGo.ToPost };
             if (backingOff) return new ShooterMove { Go = ShooterGo.BackOff, To = Clip(me, AwayFrom(t, me, forward, toHer, distance), post, radius) };
-            if (distance > ShooterValues.ShootsFrom)
+            if (distance > t.Reach)
                 return new ShooterMove { Go = me.DistanceTo(post) > AtPost ? ShooterGo.ToPost : ShooterGo.Stand };
             return new ShooterMove { Go = seesHer ? ShooterGo.Stand : ShooterGo.SeekLine };
         }
 
         /// <summary>The back-off's end as before work order 098: straight away from her, far enough to be KeepNear from her plus a metre.</summary>
-        static GroundPoint AwayFrom(ShooterValues t, GroundPoint me, GroundPoint forward, GroundPoint toHer, float distance)
+        static GroundPoint AwayFrom(PostValues t, GroundPoint me, GroundPoint forward, GroundPoint toHer, float distance)
         {
             GroundPoint away = distance > 1e-3f ? new GroundPoint(-toHer.X / distance, -toHer.Z / distance) : new GroundPoint(-forward.X, -forward.Z);
             return me + away * (t.KeepNear - distance + 1f);
@@ -154,5 +202,14 @@ namespace Roguelike.Rules
     public static class ShooterPostEvents
     {
         public const string Post = "shooter_post";
+    }
+
+    /// <summary>
+    /// The recorder's line of a caster that held its post (work order 101): the shooter's line (<see cref="ShooterPostEvents"/>) with
+    /// the same fields, one a caster a room's fight at most; reach is the casts' (<see cref="CasterValues.CastsFrom"/>).
+    /// </summary>
+    public static class CasterPostEvents
+    {
+        public const string Post = "caster_post";
     }
 }
