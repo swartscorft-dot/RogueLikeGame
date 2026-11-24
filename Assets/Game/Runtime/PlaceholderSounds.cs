@@ -204,6 +204,7 @@ namespace Roguelike
             foreach (KeyValuePair<Enemy, Action<EnemyReport>> pair in _enemies)
                 if (pair.Key != null) pair.Key.Reported -= pair.Value;
             _enemies.Clear();
+            ForgetRooms(); // work order 113: today's tone back, the tones it made destroyed
             for (int i = 0; i < _clips.Length; i++)
                 if (_clips[i] != null && !_recorded[i]) Destroy(_clips[i]);
             if (Current == this) Current = null;
@@ -429,6 +430,7 @@ namespace Roguelike
         void Ask(PlaceholderSound? sound, float gain = 1f, bool lookedFor = false)
         {
             if (!sound.HasValue || !Values.On) return;
+            sound = RoomsInPlaceOf(sound.Value); // work order 113: a combat room cleared lets go, in place of the way opening
             if (QuietedByRoomWon(sound.Value)) return; // work order 080
             bool paused = lookedFor ? _heldBefore && Held : Held;
             if (!PlaceholderSoundRules.MayStart(sound.Value, paused)) return;
@@ -447,6 +449,7 @@ namespace Roguelike
         {
             Safely(_find);
             Safely(_look);
+            HearRooms(); // work order 113: the doors, the room's fight, the way down, the floor's tone (PlaceholderSoundsRooms.cs)
             AskForCrits();
             Safely(_weigh); // work order 080: the frame's impacts and kills
             Safely(_flush);

@@ -459,6 +459,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ACombatRoomCleared_OpensTheWay_Once_TheExitRoom_IsTheFloorsNotes()
         {
+            _sounds.Rooms.On = false; // changed deliberately (work order 113): this pins the way opening, which the rooms' switch off gives back
             yield return StartRun();
             GeneratedLevel level = _levels.Level;
             LevelRoom room = level.Layout.Rooms.FirstOrDefault(r => r.Kind == RoomKind.Combat && !r.Elite

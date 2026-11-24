@@ -50,6 +50,13 @@ namespace Roguelike.Rules
         CleanTick,     // a press of a recast chain in its clean part: a short pitched tick, a step higher for each in a row
         ChainTop,      // the last press of a chain clean all through: a clear top note
         OffTick,       // a press of a chain off its clean part: a dull tick (silent unless ChainTickValues.DullTickWhenOff)
+        // Work order 113 (Kristian 2026-11-24: "Kodelagde lyder du kan bytte ut med egne opptak senere ... en romtone per etasje"),
+        // each with the rooms' switch on (RoomSoundValues.On); off, the doors' Strike, the room's growl and the way opening as before:
+        DoorShuts,     // a room's door block rose shut: stone on stone, a thud as it seats; placed at the door
+        DoorOpens,     // a room's door block sank open: a lighter grind; placed at the door
+        RoomWakes,     // a room's fight woke: a short low swell, once a room (in place of the boss's growl)
+        RoomLetsGo,    // a combat room was cleared: a release, a low breath falling away (in place of WayOpens)
+        WayDown,       // she took the stairs to the next floor
     }
 
     /// <summary>
@@ -67,6 +74,8 @@ namespace Roguelike.Rules
         // Work order 080: her hit landing by its weight, a clean press's hit, her kill and the one that empties its room, a
         // press of a recast chain in its clean part, the last of a chain clean all through, and a press off its clean part.
         HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
+        // Work order 113: a room's door shut and opened, a room's fight woke, a combat room cleared with the rooms' switch on, the stairs taken.
+        RoomDoorShut, RoomDoorOpened, RoomFightWoke, RoomLetGo, WentDown,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -169,6 +178,16 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.CleanTick, 0.3f, 10),
             new PlaceholderSoundSetting(PlaceholderSound.ChainTop, 0.35f, 4),
             new PlaceholderSoundSetting(PlaceholderSound.OffTick, 0.2f, 10),
+            // Work order 113, first guesses, made without hearing them: under the guns (her basic shot is 1), none over her pain.
+            // The door shutting the heaviest of them (the Strike it replaces played at 0.35 x 0.9 = 0.32), its opening lighter;
+            // both placed at the door, so a far door is heard a little quieter still (RoomSoundValues.DoorFullWithin). The room's
+            // waking as the growl it replaces (0.5 x 0.6 = 0.3); the release as the way opening it replaces; the stairs as soft.
+            // The room tone is not here: it is the mood's loop, at MoodValues.ToneVolume (0.05), under everything.
+            new PlaceholderSoundSetting(PlaceholderSound.DoorShuts, 0.4f, 6),
+            new PlaceholderSoundSetting(PlaceholderSound.DoorOpens, 0.25f, 6),
+            new PlaceholderSoundSetting(PlaceholderSound.RoomWakes, 0.3f, 2),
+            new PlaceholderSoundSetting(PlaceholderSound.RoomLetsGo, 0.3f, 2),
+            new PlaceholderSoundSetting(PlaceholderSound.WayDown, 0.3f, 1),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -252,6 +271,12 @@ namespace Roguelike.Rules
                 case SoundMoment.CleanPress: return PlaceholderSound.CleanTick;
                 case SoundMoment.ChainAllClean: return PlaceholderSound.ChainTop;
                 case SoundMoment.PressOff: return PlaceholderSound.OffTick;
+                // Work order 113.
+                case SoundMoment.RoomDoorShut: return PlaceholderSound.DoorShuts;
+                case SoundMoment.RoomDoorOpened: return PlaceholderSound.DoorOpens;
+                case SoundMoment.RoomFightWoke: return PlaceholderSound.RoomWakes;
+                case SoundMoment.RoomLetGo: return PlaceholderSound.RoomLetsGo;
+                case SoundMoment.WentDown: return PlaceholderSound.WayDown;
                 default: return null;
             }
         }
