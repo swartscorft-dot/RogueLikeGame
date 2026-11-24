@@ -211,7 +211,7 @@ namespace Roguelike.PlayModeTests
                 float d2 = (pos - new Vector3(point.x, 0f, point.z)).sqrMagnitude;
                 float f = d2 / Mathf.Max(1e-4f, range * range);
                 float smooth = Mathf.Clamp01(1f - f * f);
-                light += l.Intensity(v) * Mathf.Max(0f, at.LampLevel) * Luma(v.ColourOf(l.Kind)) * smooth * smooth / Mathf.Max(d2, 1e-4f);
+                light += l.Intensity(v) * Mathf.Max(0f, at.LampLevel) * Luma(v.ColourOf(l)) * smooth * smooth / Mathf.Max(d2, 1e-4f);
             }
         }
 

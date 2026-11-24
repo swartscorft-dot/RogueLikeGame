@@ -145,7 +145,12 @@ namespace Roguelike.Rules
         public Rgb Warm = new Rgb(1f, 0.66f, 0.36f);            // the candles', the sconces' and the chests' light (the mood's candle colour, a little paler)
         public Rgb Teal = new Rgb(0.25f, 0.85f, 0.85f);         // the braziers' and the lanterns' (the game's cyan)
         public Rgb Gold = new Rgb(1f, 0.78f, 0.32f);
-        public float Flicker = 0.07f;                           // a lantern's or a sconce's brightness moves by up to this share (the mood's sources move by their own)
+        // Work order 100 (Kristian, 2026-11-24, told that the entrance room reads cold teal while the other rooms are warm lamplight:
+        // "Varmt som de andre"): the entrance's main light is its two braziers by the door she leaves by, teal like every brazier;
+        // there they burn warm, as the combat rooms' candles and sconces. Every other room's braziers, and every lantern, stay teal.
+        public bool WarmEntrance = true;                         // off: the entrance's braziers teal, as before
+        public Rgb EntranceBrazier = new Rgb(1f, 0.68f, 0.40f); // their light: the sconces' warm a touch paler, so its luminance (0.728) is not under the teal's it takes over from (0.722) and no point of the room gets darker
+        public float Flicker = 0.07f;                          // a lantern's or a sconce's brightness moves by up to this share (the mood's sources move by their own)
         public float FlickerSpeed = 0.9f;                       // about this many times a second
         // Lamps that stand close together (the candles of an eye-catcher, a candelabra beside them) share one light: the nave's
         // seven candles stand within two metres of each other, and seven lights there would be one white spot and seven lights' cost
@@ -190,6 +195,9 @@ namespace Roguelike.Rules
         /// <summary>A lamp's colour, by what it stands on.</summary>
         public Rgb ColourOf(LampKind kind) =>
             kind == LampKind.Brazier || kind == LampKind.Lantern ? Teal : kind == LampKind.Gold ? Gold : Warm;
+
+        /// <summary>A lamp's colour: its kind's, but an entrance brazier's warm (work order 100, <see cref="Lamp.Warm"/>).</summary>
+        public Rgb ColourOf(Lamp lamp) => lamp != null && lamp.Warm ? EntranceBrazier : ColourOf(lamp != null ? lamp.Kind : LampKind.Sconce);
     }
 
     /// <summary>One lamp of a floor: its room, what it stands on, where its light stands (on the ground and how high), and what it belongs to.</summary>
@@ -211,6 +219,8 @@ namespace Roguelike.Rules
         public Lamp CarriedBy;
         /// <summary>How many lamps share this one's light.</summary>
         public int Carries;
+        /// <summary>Work order 100: a brazier of the entrance room, which burns warm (<see cref="LampValues.EntranceBrazier"/>) with <see cref="LampValues.WarmEntrance"/> on.</summary>
+        public bool Warm;
 
         /// <summary>Its light's intensity at level 1: its kind's, stronger for each lamp it carries; 0 for a carried one.</summary>
         public float Intensity(LampValues v)
@@ -258,7 +268,8 @@ namespace Roguelike.Rules
                     {
                         MoodSource s = mr.Sources[i];
                         LampKind kind = s.Kind == MoodSourceKind.Candle ? LampKind.Candle : s.Kind == MoodSourceKind.Gold ? LampKind.Gold : LampKind.Brazier;
-                        plan.Lamps.Add(new Lamp { Room = mr.Room.Order, Kind = kind, At = s.At, Height = s.Height + v.SourceLift, Source = i });
+                        bool warm = v.WarmEntrance && kind == LampKind.Brazier && mr.Room.Kind == RoomKind.Entrance; // work order 100
+                        plan.Lamps.Add(new Lamp { Room = mr.Room.Order, Kind = kind, At = s.At, Height = s.Height + v.SourceLift, Source = i, Warm = warm });
                     }
             if (kit != null)
                 for (int i = 0; i < kit.Lanterns.Count; i++)
@@ -284,7 +295,7 @@ namespace Roguelike.Rules
                 for (int k = 0; k < i; k++)
                 {
                     Lamp e = plan.Lamps[k];
-                    if (e.CarriedBy != null || e.Room != l.Room || !SameColour(v, e.Kind, l.Kind) || e.At.DistanceTo(l.At) > v.JoinDistance) continue;
+                    if (e.CarriedBy != null || e.Room != l.Room || !SameColour(v, e, l) || e.At.DistanceTo(l.At) > v.JoinDistance) continue;
                     l.CarriedBy = e;
                     e.Carries++;
                     break;
@@ -353,7 +364,7 @@ namespace Roguelike.Rules
             return s.Vertical ? new LevelPoint(mid.X + side * @out, mid.Y) : new LevelPoint(mid.X, mid.Y + side * @out);
         }
 
-        static bool SameColour(LampValues v, LampKind a, LampKind b)
+        static bool SameColour(LampValues v, Lamp a, Lamp b)
         {
             Rgb x = v.ColourOf(a), y = v.ColourOf(b);
             return x.R == y.R && x.G == y.G && x.B == y.B;

@@ -314,7 +314,7 @@ namespace Roguelike
                 void F(float f) => h = h * 31 + f.GetHashCode();
                 void I(int i) => h = h * 31 + i;
                 B(v.Darkness); B(v.Sources); B(v.HerLight); B(v.Fog); B(v.Dust); B(v.Embers); B(v.Wear); B(v.Compose); B(v.Tone);
-                B(v.EnemyLightFloor > 0f);
+                B(v.EnemyLightFloor > 0f); B(v.WarmEntrance);
                 F(v.CandlePool); F(v.CandleReach); F(v.BrazierPool); F(v.BrazierReach); F(v.GoldPool); F(v.GoldReach); F(v.FlameGlow);
                 F(v.MiddleFill); F(v.MiddleFillShare); F(v.WearDensity); F(v.MiddleClear); F(v.DoorClear); F(v.PlaceClear); F(v.TintVariation);
                 F(v.DaisMargin); F(v.DaisHeight); F(v.CarpetWidth); F(v.FogSize); F(v.FogHeight);
@@ -454,6 +454,10 @@ namespace Roguelike
         static Vector3 Up(float y) => new Vector3(0f, y, 0f);
 
         Vector3 W(LevelPoint p, float y = 0f) => _level.ToWorld(p) + Up(y);
+
+        /// <summary>The kind whose colour a source takes: a brazier of the entrance room a candle's (work order 100, <see cref="MoodValues.WarmEntrance"/>), else its own.</summary>
+        static MoodSourceKind WarmHere(MoodValues v, LevelRoom room, MoodSourceKind k) =>
+            v.WarmEntrance && k == MoodSourceKind.Brazier && room != null && room.Kind == RoomKind.Entrance ? MoodSourceKind.Candle : k;
 
         static Color KindColour(MoodValues v, MoodSourceKind k) =>
             k == MoodSourceKind.Candle ? MoodShapes.Linear(v.CandleColour, 1f) : k == MoodSourceKind.Gold ? MoodShapes.Linear(v.GoldColour, 1f) : MoodShapes.Linear(v.Teal, 1f);
@@ -601,7 +605,7 @@ namespace Roguelike
             for (int i = 0; i < parts.Sources.Count; i++)
             {
                 MoodSource s = parts.Sources[i];
-                Color colour = KindColour(v, s.Kind);
+                Color colour = KindColour(v, WarmHere(v, room, s.Kind));
                 MoodShapes.Pool(glowB, W(s.At, 0.03f), ReachOf(v, s.Kind), colour * PoolOf(v, s.Kind), 16, out _, out int n);
                 Tag(n, i);
                 if (!s.Flame) continue;
@@ -652,9 +656,10 @@ namespace Roguelike
                 var l = go.AddComponent<Light>();
                 l.type = LightType.Point;
                 l.shadows = LightShadows.None;
-                l.color = new Color(s.Kind == MoodSourceKind.Candle ? v.CandleColour.R : s.Kind == MoodSourceKind.Gold ? v.GoldColour.R : v.Teal.R,
-                                    s.Kind == MoodSourceKind.Candle ? v.CandleColour.G : s.Kind == MoodSourceKind.Gold ? v.GoldColour.G : v.Teal.G,
-                                    s.Kind == MoodSourceKind.Candle ? v.CandleColour.B : s.Kind == MoodSourceKind.Gold ? v.GoldColour.B : v.Teal.B, 1f);
+                MoodSourceKind k = WarmHere(v, room, s.Kind); // work order 100: an entrance brazier as a candle
+                l.color = new Color(k == MoodSourceKind.Candle ? v.CandleColour.R : k == MoodSourceKind.Gold ? v.GoldColour.R : v.Teal.R,
+                                    k == MoodSourceKind.Candle ? v.CandleColour.G : k == MoodSourceKind.Gold ? v.GoldColour.G : v.Teal.G,
+                                    k == MoodSourceKind.Candle ? v.CandleColour.B : k == MoodSourceKind.Gold ? v.GoldColour.B : v.Teal.B, 1f);
                 l.enabled = false;
                 parts.Lights.Add(l);
                 parts.LightSource.Add(i);

@@ -111,9 +111,37 @@ namespace Roguelike.Rules
         public float DoorCloseGain = 0.9f;
         /// <summary>
         /// The block glows in its own colour (the greybox view's door orange) by this share, so it reads in the dark of the cave
-        /// and of the lamplit light from across the room; 0 is the plain lit colour. Its look is a later order's.
+        /// and of the lamplit light from across the room; 0 is the plain lit colour. Since work order 100 the greybox view's block
+        /// only (and the game's with <see cref="DoorDarkFace"/> off): in the game the orange glows along its edges.
         /// </summary>
         public float DoorGlow = 0.5f;
+        /// <summary>
+        /// Work order 100 (Kristian, 2026-11-24, asked what the flat glowing orange plate should be: "Mørk stein eller jern, glød i
+        /// kantene"; of the door shutting, 2026-11-23: "føles veldig riktig at den lukker seg"): in the game's view the block is a dark
+        /// mass that belongs to the wall beside it, lit and shaded by the lamps as the walls are, with the door orange glowing only in
+        /// a band along every edge of its faces (the top's too: the camera looks down on it), so that it still reads as shut at a
+        /// glance. The greybox view keeps the whole block the flat door orange glowing by <see cref="DoorGlow"/>, as before. Off: the
+        /// whole block the door orange in the game too (work order 086's look, kept to compare).
+        /// </summary>
+        public bool DoorDarkFace = true;
+        /// <summary>
+        /// The block's body in the game's view, as picked (Simple Lit, no texture, no shine): the wall kit's dark stones. The wall's
+        /// painted texture (Crypt_Wall_A_base_color, drawn white) has its darkest tenth of stone at about (0.30, 0.24, 0.23) and its
+        /// middle at (0.38, 0.29, 0.25); the body sits at the dark end, a little greyer, between stone and iron.
+        /// </summary>
+        public Rgb DoorBody = new Rgb(0.29f, 0.24f, 0.22f);
+        /// <summary>
+        /// m: the band of door orange along each edge of each face of the block in the game's view (the block is the wall's 0.5 m
+        /// thick). The producer's start was about 0.08 m; the pictures of work order 100 (whole nave pulled back to 72 m) showed
+        /// 0.08 as lines of one pixel, 0.10 a little firmer at no cost near: 0.10.
+        /// </summary>
+        public float DoorEdgeWidth = 0.10f;
+        /// <summary>
+        /// The band glows in the door orange by this share of its colour (as <see cref="DoorGlow"/> does for the whole block in the
+        /// greybox view). The pictures: 1.0 keeps the line the door orange (on screen about (254, 211, 91)); 1.2 and above tip it
+        /// toward yellow-white (1.6: (254, 254, 113)), 0.8 is dimmer for the far view.
+        /// </summary>
+        public float DoorEdgeGlow = 1.0f;
     }
 
     /// <summary>
