@@ -86,6 +86,7 @@ namespace Roguelike
                 return 0;
             }
 
+            damage = KnightsResolveBlow.Spare(_player, damage, _health.Current); // work order 106: Knight's Resolve, once a run with the piece
             int applied = _health.TakeDamage(damage);
             if (applied > 0)
             {

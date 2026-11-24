@@ -38,6 +38,8 @@ namespace Roguelike.Rules.Tests
             // Changed deliberately (work order 113): the five sounds of the rooms.
             { PlaceholderSound.DoorShuts, 0.7f }, { PlaceholderSound.DoorOpens, 0.9f }, { PlaceholderSound.RoomWakes, 0.7f },
             { PlaceholderSound.RoomLetsGo, 1.4f }, { PlaceholderSound.WayDown, 1.1f },
+            // Changed deliberately (work order 106): the boss's roar at its break.
+            { PlaceholderSound.BossRoar, 1.4f },
         };
 
         static IEnumerable<PlaceholderSound> Sounds() => PlaceholderSoundRules.All;

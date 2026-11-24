@@ -29,7 +29,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheTen_AreSounds_AfterTheNineteen_WhichKeepTheirPlaces()
         {
-            Assert.That(PlaceholderSoundRules.All.Length, Is.EqualTo(43)); // changed deliberately (work order 080): its nine after these; (work order 113): its five after those
+            Assert.That(PlaceholderSoundRules.All.Length, Is.EqualTo(44)); // changed deliberately (work order 080): its nine after these; (the day sprint of 2026-11-24, merged): 113's five, 106's one
             Assert.That((int)PlaceholderSound.FocusFull, Is.EqualTo(18), "the nineteen where they were");
             foreach (PlaceholderSound s in New.Keys) Assert.That((int)s, Is.GreaterThan(18), s.ToString());
         }

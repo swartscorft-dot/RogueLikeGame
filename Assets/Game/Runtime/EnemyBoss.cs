@@ -29,7 +29,7 @@ namespace Roguelike
     /// Its bar on screen is <see cref="BossHealthBar"/>.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
-    public sealed class EnemyBoss : Enemy
+    public sealed partial class EnemyBoss : Enemy // work order 106: the finale in EnemyBossFinale.cs
     {
         static readonly Color s_AngryTint = new Color(1f, 0.55f, 0.32f);
 
@@ -57,7 +57,7 @@ namespace Roguelike
         public override EnemyKind Kind => EnemyKind.Boss;
         /// <summary>Its values; angry, a copy with the shorter windups.</summary>
         public override EnemyValues Values => _angry ?? Tuning.Enemy;
-        public StaggerBar Stagger => _self != null ? _self.Stagger : null;
+        public StaggerBar Stagger => StaggerNow; // work order 106: also while it roars, when the bar is held aside
         public bool IsAngry => _tactics.Angry;
         public int PacksCalled => _tactics.Calls;
         /// <summary>The swarmers it has called, dead ones too.</summary>
@@ -81,11 +81,16 @@ namespace Roguelike
 
         protected override void Update()
         {
-            if (IsDead) _rushing = false;
+            if (IsDead)
+            {
+                _rushing = false;
+                FinaleDead(); // work order 106
+            }
             else
             {
                 Wake();
                 Temper();
+                FinaleTick(); // work order 106: the roar, a slam the brain dropped, the fight's line
             }
             base.Update();
         }
@@ -107,6 +112,7 @@ namespace Roguelike
                 BodyColor = s_AngryTint;
                 if (!IsDazed && BodyRenderer != null) EnemyFactory.Paint(BodyRenderer.sharedMaterial, BodyColor);
                 Report(EnemyReportKind.Angered);
+                if (_phases.Breaks(share, Tuning)) Break(); // work order 106: with the finale on, the anger is the break
             }
             int due = _tactics.CallsDue(share, Tuning);
             for (int i = 0; i < due; i++) CallPack();
@@ -144,7 +150,7 @@ namespace Roguelike
         // ---------------- Its attacks ----------------
 
         protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) =>
-            _tactics.Choose(distance, Sees(Player.Position), values);
+            _phases.Choose(_tactics, distance, Sees(Player.Position), values, Tuning.Phases); // work order 106: the tactics' own until the break
 
         /// <summary>Does it see that point, with no wall or tall prop between at its sight height (as the shooter does)?</summary>
         public bool Sees(Vector3 point)
@@ -156,6 +162,7 @@ namespace Roguelike
 
         protected override void OnWindupStarted(EnemyAttackDefinition attack)
         {
+            if (attack == Tuning.Phases.Slam) BeginSlam(); // work order 106
             if (attack.Rush <= 0f) return;
             _chargeReach = ChargeLengthFrom(transform.position, AimDirection(), attack.Length);
             if (!_chaining) _chargesLeft = IsAngry ? Mathf.Max(1, Tuning.AngryCharges) : 1;
@@ -186,6 +193,7 @@ namespace Roguelike
 
         protected override bool StrikesItself(EnemyAttackDefinition attack)
         {
+            if (_slamming && attack == Tuning.Phases.Slam) LandSlam(); // work order 106: it lands, and the ring is struck from there
             if (attack.Rush <= 0f) return false;
             _rush = attack;
             _rushing = true;
@@ -201,6 +209,7 @@ namespace Roguelike
         protected override void AfterMove()
         {
             SendWave(); // work order 036
+            SlamStep(); // work order 106
             if (!_rushing) return;
             HoldRecovery(); // it stands its whole recovery where it stops
             float s = Mathf.Min(_chargeReach, (Time.time - _rushStart) * _rush.Rush);
@@ -240,6 +249,7 @@ namespace Roguelike
             // Dazed mid-charge, it stops where it is.
             _rushing = false;
             _chargesLeft = 0;
+            if (_slamming) EndSlam(transform.position); // work order 106: dazed in the air, it comes down where it is
         }
 
         protected override Vector3 LookVelocity => _rushing && _rush != null ? _rushDir * _rush.Rush : base.LookVelocity;

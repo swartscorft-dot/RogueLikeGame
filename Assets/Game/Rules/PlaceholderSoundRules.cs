@@ -57,6 +57,8 @@ namespace Roguelike.Rules
         RoomWakes,     // a room's fight woke: a short low swell, once a room (in place of the boss's growl)
         RoomLetsGo,    // a combat room was cleared: a release, a low breath falling away (in place of WayOpens)
         WayDown,       // she took the stairs to the next floor
+        // Work order 106 (the boss as a finale, BossValues.Finale):
+        BossRoar,      // the boss roars at the break, at half its health: a long low roar, swelling and falling
     }
 
     /// <summary>
@@ -76,6 +78,8 @@ namespace Roguelike.Rules
         HerHitLanded, HerHeavyHitLanded, HerCritLanded, HerCleanHitLanded, HerKill, HerKillWonTheRoom, CleanPress, ChainAllClean, PressOff,
         // Work order 113: a room's door shut and opened, a room's fight woke, a combat room cleared with the rooms' switch on, the stairs taken.
         RoomDoorShut, RoomDoorOpened, RoomFightWoke, RoomLetGo, WentDown,
+        // Work order 106: the boss's break, at half its health.
+        BossRoared,
     }
 
     /// <summary>One sound's volume and cap: one line of <see cref="PlaceholderSoundValues.Sounds"/>.</summary>
@@ -188,6 +192,8 @@ namespace Roguelike.Rules
             new PlaceholderSoundSetting(PlaceholderSound.RoomWakes, 0.3f, 2),
             new PlaceholderSoundSetting(PlaceholderSound.RoomLetsGo, 0.3f, 2),
             new PlaceholderSoundSetting(PlaceholderSound.WayDown, 0.3f, 1),
+            // Work order 106: the boss's roar, as loud as its other sounds (the loudest beside her pain), once a fight.
+            new PlaceholderSoundSetting(PlaceholderSound.BossRoar, 0.5f, 2),
         };
 
         /// <summary>The line for a sound: its own if listed, else its default.</summary>
@@ -277,6 +283,7 @@ namespace Roguelike.Rules
                 case SoundMoment.RoomFightWoke: return PlaceholderSound.RoomWakes;
                 case SoundMoment.RoomLetGo: return PlaceholderSound.RoomLetsGo;
                 case SoundMoment.WentDown: return PlaceholderSound.WayDown;
+                case SoundMoment.BossRoared: return PlaceholderSound.BossRoar; // work order 106
                 default: return null;
             }
         }

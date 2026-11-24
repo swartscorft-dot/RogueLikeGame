@@ -46,7 +46,7 @@ namespace Roguelike
         public const Key RedrawKey = Key.X;
 
         /// <summary>The numbers of what lasts between runs, and the switch (work order 029).</summary>
-        public MetaValues MetaValues = new MetaValues();
+        public MetaValues MetaValues = KnightsResolve.WithPiece(new MetaValues()); // work order 106: Knight's Resolve at the rack's end, with the finale on
 
         /// <summary>
         /// Where the save is written and read: null for the game's own (<see cref="DefaultBetweenRunsSavePath"/>). Tests set

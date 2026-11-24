@@ -280,6 +280,14 @@ namespace Roguelike.Rules
                         Sine(102f, 61f, 0.72f, 0.14f, 0.7f, 0.002f, 0.03f, release: 0.02f),
                         Noise(0.72f, 0.06f, 0.32f, 0.0008f, 0.012f, low: 2200f, high: 300f),
                         Noise(0f, 1.1f, 0.35f, 0.35f, 0f, low: 600f, lowTo: 220f, release: 0.4f));
+                // ---- Work order 106 (the boss as a finale), a first guess, made without hearing it ----
+                case PlaceholderSound.BossRoar:
+                    // The break's roar, over the anger's growl and longer: rough low noise swelling in and sinking, a driven low
+                    // tone falling a little under it, its octave quieter, a slow wobble through all of it.
+                    return Recipe(1.4f, 1.8f,
+                        Wobble(Noise(0f, 1.4f, 0.9f, 0.3f, 0.8f, low: 650f, lowTo: 320f, high: 60f, release: 0.35f), 11f, 0.5f),
+                        Wobble(Rough(Sine(72f, 52f, 0f, 1.4f, 1f, 0.3f, 0.8f, release: 0.35f), 3f), 11f, 0.4f),
+                        Sine(144f, 104f, 0.05f, 1.35f, 0.3f, 0.3f, 0.6f, release: 0.35f));
                 default: // FocusFull
                     // A soft single chime: E6 with two quieter partials.
                     return Recipe(0.3f, 0f,
