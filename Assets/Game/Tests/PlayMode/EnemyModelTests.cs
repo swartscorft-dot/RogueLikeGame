@@ -39,6 +39,7 @@ namespace Roguelike.PlayModeTests
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
             ThingsThatFly.Ensure().Values.On = false; // work order 036: these are the tests of the attacks as they were
+            BoneBreakValues.On = false; // work order 122: these are the tests of the death as it was (seen falling, lying, then gone)
             yield return null;
             _player = Object.FindAnyObjectByType<PlayerCharacter>();
             _player.MeleeYouRead = false; // work order 035: these tests are of the swarmer's, brute's and guard's attacks from before
@@ -57,6 +58,7 @@ namespace Roguelike.PlayModeTests
         {
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
+            BoneBreakValues.On = true; // work order 122
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = true;
         }

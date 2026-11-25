@@ -472,6 +472,7 @@ namespace Roguelike.PlayModeTests
         {
             _player.Teleport(Stand);
             yield return null;
+            BoneBreakValues.On = false; // work order 122: the corpse as it was (its Death played, then hidden); broken, its body is hidden at its death
             List<Enemy> made = _levels.SpawnPractice(EnemyKind.Shooter);
             made.AddRange(_levels.SpawnPractice(EnemyKind.Guard));
             yield return null;
@@ -486,6 +487,7 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < 5; i++) yield return null;
             Assert.That(dead.Look.Ticks, Is.EqualTo(deadTicks), "a hidden corpse's graph is not evaluated");
             Assert.That(alive.Look.Ticks, Is.GreaterThanOrEqualTo(aliveTicks + 5), "a live one's is, every frame");
+            BoneBreakValues.On = true; // work order 122
             _levels.ClearSpawned();
         }
 
