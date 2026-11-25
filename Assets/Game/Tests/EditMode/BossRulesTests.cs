@@ -184,7 +184,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5, 12, 16)]
         public void FullerRooms_AThousandSeeds_EveryRoomFits_AndTheTopIsReached(int floor, int fewest, int most)
         {
-            var v = new LevelValues();
+            var v = new LevelValues { BossAlone = false }; // work order 130 (changed deliberately): the rooms as drawn, version 23's; the boss room alone is BossAloneTests'
             v.EnemyRange(RoomKind.Combat, floor, out int f, out int m);
             Assert.That((f, m), Is.EqualTo((fewest, most)));
             var combat = new List<int>();
@@ -193,8 +193,8 @@ namespace Roguelike.Rules.Tests
             var exitHp = new List<long>();
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor);
-                List<string> faults = LevelValidator.Validate(level);
+                LevelLayout level = LevelGenerator.Generate(s, floor, v);
+                List<string> faults = LevelValidator.Validate(level, v);
                 Assert.That(faults, Is.Empty, "seed " + s + " floor " + floor);
                 foreach (LevelRoom r in level.Rooms)
                 {

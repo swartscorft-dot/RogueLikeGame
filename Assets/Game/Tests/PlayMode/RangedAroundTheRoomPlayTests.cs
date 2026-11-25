@@ -254,7 +254,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator WithTheSwitchOff_TheSameShooterDrawsOffScreen_AsBefore()
         {
             string line = null;
-            var off = new LevelValues { RangedAroundTheRoom = false };
+            var off = new LevelValues { RangedAroundTheRoom = false, BossAlone = false };
             yield return OffScreenThenOn(off, (where, shooter, began, f) =>
             {
                 Assert.That(shooter.Fight.Ranged, Is.Null, where + ": the fight has no such rule");

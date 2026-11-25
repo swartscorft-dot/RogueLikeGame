@@ -19,7 +19,7 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static LevelValues On => new LevelValues();
-        static LevelValues Off => new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false };
+        static LevelValues Off => new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false };
 
         /// <summary>How far a measured share may lie from the one its weights give (a thousand seeds a floor, five to eight rooms each: about 1.5 points of noise).</summary>
         const double MixShareTolerance = 0.05;
@@ -93,7 +93,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Version21_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            ulong h = Print(new LevelValues { Lancers = false, RangedAroundTheRoom = false }); // work order 118 (changed deliberately): version 21 is the lancers off
+            ulong h = Print(new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false }); // work order 118 (changed deliberately): version 21 is the lancers off
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x524BEFDC904EAF79UL; // Unity's EditMode run of this code (work order 104's filtered run, 2026-11-24)
 #else

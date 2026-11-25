@@ -628,6 +628,13 @@ namespace Roguelike.Rules
         // version 22's, field for field, but for the version, and the fight is as before.
         public bool RangedAroundTheRoom = true;
         public RangedAroundValues RangedAround = new RangedAroundValues();
+
+        // ---------------- The boss alone (work order 130, 2026-11-25) ----------------
+
+        // Kristian, 2026-11-25 at about 18:50, after playing a run to the boss: "bossrommet. der tenker jeg bare bossen skal være". ON
+        // (the generator's version 24): the act boss's room holds the boss and nobody else as she enters (LevelBossAlone); the swarmers
+        // the boss calls in its fight are its own and stay. Off: every floor is version 23's, field for field, but for the version.
+        public bool BossAlone = true;
     }
 
     /// <summary>

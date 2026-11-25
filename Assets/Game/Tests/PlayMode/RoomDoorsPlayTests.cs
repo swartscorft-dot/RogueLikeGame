@@ -182,6 +182,7 @@ namespace Roguelike.PlayModeTests
         {
             LevelDoor door = LevelGeometry.EntryDoor(level.Layout, room);
             yield return At(InFrom(level, room, door, 5.5), room);
+            if (_levels.EntranceHolds) _levels.SkipEntrance(); // work order 130 (changed deliberately): the boss room's entrance first; skipped, its fight wakes as at the point
             GeneratedLevels.RoomDoors d = _levels.DoorsOf(room);
             Assert.That(d, Is.Not.Null, "the room has its doors");
             yield return Until(() => d.Shut, 10);

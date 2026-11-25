@@ -229,6 +229,7 @@ namespace Roguelike
         {
             CloseChoice();
             CloseScreens();
+            EndBossEntrance(stir: false); // work order 130: the time scale, her input and the camera given back
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
             if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null;
@@ -578,7 +579,7 @@ namespace Roguelike
                 else if (keyboard[NewLevelKey].wasPressedThisFrame) StartNewRun();
                 else if (dev && keyboard[SameLevelKey].wasPressedThisFrame) RestartRun();
                 else if (dev && keyboard[PracticeRoomKey].wasPressedThisFrame) BackToPracticeRoom();
-                else if (Paused || Ending != EndKind.None || BetweenRunsUp || StartMenu.Holds) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029), or the start menu (114)
+                else if (Paused || Ending != EndKind.None || BetweenRunsUp || StartMenu.Holds || EntranceHolds || EntranceEndedThisFrame) { } // F5 to F7 only, while the pause menu or an end screen is up (work order 018), or the screen between runs (029), or the start menu (114); nor under the boss's entrance, nor with the key that ended it (130)
                 else if (dev && keyboard[BossKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Boss);
                 else if (dev && keyboard[SwarmersKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Swarmer);
                 else if (dev && keyboard[ShooterKey].wasPressedThisFrame) SpawnPractice(EnemyKind.Shooter);
@@ -600,6 +601,7 @@ namespace Roguelike
             }
             TrackRoom();
             TickRoomFights(); // work order 070: after her room is tracked
+            TickBossEntrance(); // work order 130: the boss's entrance, begun by the room fights (GeneratedLevelsBossEntrance.cs)
             TickTools(); // work order 084: the greybox view follows its setting
             if (InRun) BetweenRunsTick(); // work order 029: the elite room's feat; after the room is tracked (work order 033)
         }

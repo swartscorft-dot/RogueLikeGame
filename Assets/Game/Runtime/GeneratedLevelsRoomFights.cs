@@ -62,6 +62,8 @@ namespace Roguelike
 
         void ForgetRoomFights()
         {
+            EndBossEntrance(stir: false); // work order 130: an entrance playing ends with the floor, everything given back
+            _enterPlayedRoom = -1;
             ForgetRoomUse(); // work order 097: a fight followed ends with the floor (GeneratedLevelsRoomUse.cs)
             if (_fightsOf != null) _fightsOf.EnemyCalled -= OnCalledIntoAFight;
             _fightsOf = null;
@@ -94,7 +96,8 @@ namespace Roguelike
             }
             bool herAlive = _health == null || _health.IsAlive;
             if (herAlive && here != null && _fights.TryGetValue(here.Order, out RoomFight hereFight) && !hereFight.On
-                && AliveOf(here.Order) > 0 && RoomFightRules.PastThePoint(layout, here, _fightDoor, her, Values.Fights))
+                && AliveOf(here.Order) > 0 && RoomFightRules.PastThePoint(layout, here, _fightDoor, her, Values.Fights)
+                && !EntranceTakes(here, hereFight)) // work order 130: in the boss's room the entrance first, and the fight wakes at its end (GeneratedLevelsBossEntrance.cs)
                 hereFight.Stir(RoomFightStart.Point, now);
 
             for (int i = 0; i < _fightList.Count; i++) // every frame: no LINQ, nothing made

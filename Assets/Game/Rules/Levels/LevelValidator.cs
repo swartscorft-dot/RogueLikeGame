@@ -388,9 +388,16 @@ namespace Roguelike.Rules
             List<EnemyGroup> others = groups.Where(g => !g.Boss && !g.Elite).ToList();
             int count = others.Sum(g => g.Count);
             values.EnemyRange(r.Kind, floor, out int fewest, out int most);
-            if (count < fewest || count > most) faults.Add($"{name} holds {count} enemies, floor {floor} has {fewest} to {most} in a {r.Kind} room");
-            int kinds = others.Select(g => g.Kind).Distinct().Count();
-            if (kinds < 2) faults.Add($"{name} holds {kinds} kind of enemy, not at least two");
+            if (LevelBossAlone.Asks(level, r, values)) // work order 130: the act boss's room holds the boss alone
+            {
+                if (groups.Count(g => !g.Boss) > 0) faults.Add($"{name} holds {groups.Where(g => !g.Boss).Sum(g => g.Count)} enemies besides the act boss, and the boss stands alone");
+            }
+            else
+            {
+                if (count < fewest || count > most) faults.Add($"{name} holds {count} enemies, floor {floor} has {fewest} to {most} in a {r.Kind} room");
+                int kinds = others.Select(g => g.Kind).Distinct().Count();
+                if (kinds < 2) faults.Add($"{name} holds {kinds} kind of enemy, not at least two");
+            }
             int guards = groups.Where(g => g.Kind == EnemyKind.Guard && !g.Elite).Sum(g => g.Count);
             int guardsMost = values.GuardsMost(r.Kind, floor);
             if (guards > guardsMost) faults.Add($"{name} holds {guards} guards, floor {floor} at most {guardsMost} in a {r.Kind} room");

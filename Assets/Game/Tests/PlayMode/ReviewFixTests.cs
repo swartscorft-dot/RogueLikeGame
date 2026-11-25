@@ -361,6 +361,8 @@ namespace Roguelike.PlayModeTests
             _player.Teleport(level.ToWorld(corner));
             yield return Frames(() => _levels.CurrentRoom == exit);
             Assert.That(_levels.CurrentRoom, Is.SameAs(exit), "in the boss's room");
+            yield return null;
+            _levels.SkipEntrance(); // work order 130 (changed deliberately): where that spot is past the room's point, its entrance began; skipped at once
 
             int max = boss.Body.MaxHealth;
             boss.Body.TakeHit(max - Mathf.FloorToInt(max * 0.66f));

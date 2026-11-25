@@ -214,7 +214,7 @@ namespace Roguelike.Rules.Tests
         /// The casters switched on (work order 034: they were off by default; work order 054: on by default), the rest as the defaults
         /// but the act's plan off (work order 087: these are work order 027's rules, version 17's floors; the plan's are ActPlanTests').
         /// </summary>
-        static LevelValues On() => new LevelValues { Casters = true, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false };
+        static LevelValues On() => new LevelValues { Casters = true, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false };
 
         [Test]
         public void TheMixesPerFloor_HoldCastersFromFloor2_AsData_AndTheCapsAreAsTheOrderSays()
@@ -272,7 +272,7 @@ namespace Roguelike.Rules.Tests
         /// </summary>
         static LevelValues NoCasters()
         {
-            var v = new LevelValues { Casters = true, CastersMostInRoom = new[] { 0 }, EliteCasterFromFloor = 99, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false }; // 087: version 17's rules
+            var v = new LevelValues { Casters = true, CastersMostInRoom = new[] { 0 }, EliteCasterFromFloor = 99, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false }; // 087: version 17's rules
             foreach (FloorEnemies f in v.Floors)
                 foreach (EnemyMix m in f.Mixes) m.Casters = 0;
             return v;
@@ -366,7 +366,7 @@ namespace Roguelike.Rules.Tests
             room.EnemyGroups[i] = new EnemyGroup(EnemyKind.Caster);
             Assert.That(LevelValidator.Validate(level, on).Any(f => f.Contains("casters, floor 1 at most 0")), string.Join("\n", LevelValidator.Validate(level, on)));
 
-            on = new LevelValues { Casters = true, Passages = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false }; // work order 059: the rooms of version 15 on this seed hold two such enemies near each other
+            on = new LevelValues { Casters = true, Passages = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false }; // work order 059: the rooms of version 15 on this seed hold two such enemies near each other
             LevelLayout four = LevelGenerator.Generate(42UL, 4, on);
             Assume.That(LevelValidator.Validate(four, on), Is.Empty);
             // Two enemies standing alone in a room of floor 4 made casters, the nearest two such: nearer than 8 m, a fault.
@@ -405,7 +405,7 @@ namespace Roguelike.Rules.Tests
         public void TheSwitchOff_GivesNoCaster_AndTheFloorsOfTheRulesWithTheCasterCodeBypassed(int floor)
         {
             Assert.That(new LevelValues().Casters, Is.True, "on by default (work order 054)");
-            var off = new LevelValues { Casters = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false }; // 087: version 17's rules
+            var off = new LevelValues { Casters = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false }; // 087: version 17's rules
             LevelValues bypassed = NoCasters();
             for (int f = 1; f <= 5; f++)
             {
@@ -419,7 +419,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(level.Describe(props: false), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassed).Describe(props: false)), "seed " + s);
                 if (s % 10 == 0)
                 {
-                    var themesOff = new LevelValues { Themes = false, Casters = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false };
+                    var themesOff = new LevelValues { Themes = false, Casters = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false };
                     var bypassedThemesOff = NoCasters();
                     bypassedThemesOff.Themes = false;
                     Assert.That(LevelGenerator.Generate(s, floor, themesOff).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassedThemesOff).Describe()),

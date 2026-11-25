@@ -19,8 +19,8 @@ namespace Roguelike.Rules.Tests
     public class ExitRoomsTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        static LevelValues On => new LevelValues { ExitRoomsOfTheirOwn = true, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 104: the floors of version 20
-        static LevelValues Off => new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 103 (changed deliberately): on by default since; off named
+        static LevelValues On => new LevelValues { ExitRoomsOfTheirOwn = true, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 104: the floors of version 20
+        static LevelValues Off => new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 103 (changed deliberately): on by default since; off named
         static readonly string[] Names = { "gate-hall", "stair-head", "sealed-door" };
 
         static List<RoomTemplate> Third => RoomTemplateLibrary.All.Where(t => t.Since == RoomTemplateLibrary.ExitSince).ToList();
@@ -161,14 +161,14 @@ namespace Roguelike.Rules.Tests
         {
             // Work order 103 (changed deliberately): on by default since, with the generator's version 20.
             Assert.That(new LevelValues().ExitRoomsOfTheirOwn, Is.True, "on by default since work order 103");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(23), "work order 103's version, 20; 104's, 21; 118's, 22; 124's, 23");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "work order 103's version, 20; 104's, 21; 118's, 22; 124's, 23; 130's, 24");
             foreach (bool more in new[] { false, true })
             {
-                Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }).Any(ExitRooms.IsWayDown), Is.False, "off: never drawn");
+                Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }).Any(ExitRooms.IsWayDown), Is.False, "off: never drawn");
                 Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = true }).Count(ExitRooms.IsWayDown), Is.EqualTo(3));
                 // On, the other sets' lists are as they were, in their order: the third set after them.
                 Assert.That(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = true }).Where(t => !ExitRooms.IsWayDown(t)),
-                            Is.EqualTo(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false })));
+                            Is.EqualTo(RoomTemplateLibrary.Usable(new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false })));
             }
             foreach (int floor in new[] { 1, 4, 5 })
             {
@@ -191,7 +191,7 @@ namespace Roguelike.Rules.Tests
             foreach (bool more in new[] { false, true })
                 for (ulong s = 0; s < (more ? 1000UL : 2000UL); s++)
                 {
-                    LevelLayout level = LevelGenerator.Generate(s * 7919UL + 89UL, (int)(s % 5) + 1, new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }); // work order 103: the switch off named
+                    LevelLayout level = LevelGenerator.Generate(s * 7919UL + 89UL, (int)(s % 5) + 1, new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }); // work order 103: the switch off named
                     h = FloorPrint.Of(level, h);
                     foreach (LevelRoom r in level.Rooms)
                     {

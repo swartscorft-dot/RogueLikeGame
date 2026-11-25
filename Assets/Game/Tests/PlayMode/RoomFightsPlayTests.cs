@@ -341,6 +341,10 @@ namespace Roguelike.PlayModeTests
             if (!own.Any(e => Flat(e.transform.position, inside) <= e.Values.AggroRange))
                 Assert.That(own.Where(e => e.IsAwake), Is.Empty, "a metre inside the door, short of the point: the boss's room still sleeps");
             _player.Teleport(InFrom(level, exit, door, 5.5));
+            yield return Frames(2);
+            Assert.That(_levels.EntranceHolds, Is.True, "at its point the boss's entrance begins (work order 130)");
+            Assert.That(own.Where(e => e.IsAwake), Is.Empty, "and the room waits for it");
+            _levels.SkipEntrance(); // work order 130 (changed deliberately): skipped, the room wakes as at the point
             yield return UntilAllAwake(own, _ => { });
             Assert.That(own.All(e => e.IsAwake), "the boss and every enemy of its room: " + Names(own.Where(e => !e.IsAwake)));
             Assert.That(level.Boss.HeldByFight, Is.True);

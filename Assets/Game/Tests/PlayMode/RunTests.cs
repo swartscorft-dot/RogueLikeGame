@@ -261,7 +261,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.ExitEnemies, Does.Contain(level.Boss), "in the exit room");
             Assert.That(level.Boss.Kind, Is.EqualTo(EnemyKind.Boss)); // a guard until work order 014
             Assert.That(level.Boss.GetComponent<Damageable>().MaxHealth, Is.EqualTo(level.Values.BossHealth));
-            Assert.That(level.ExitEnemies.Count, Is.GreaterThanOrEqualTo(16), "with a full room of others");
+            Assert.That(level.ExitEnemies.Count, Is.EqualTo(1), "alone in its room"); // work order 130 (changed deliberately): the boss alone; before it, at least 16 "with a full room of others"
 
             _levels.FinishFloorForTests();
             yield return Frames(() => _levels.ActCleared);

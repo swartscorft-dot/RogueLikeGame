@@ -59,6 +59,7 @@ namespace Roguelike
         public bool Pause()
         {
             if (Paused || Choice != ChoiceKind.None || Ending != EndKind.None || BetweenRunsUp || FindPlayer() == null) return false; // nor under the screen between runs (work order 029)
+            if (EntranceHolds || EntranceEndedThisFrame) return false; // work order 130: Esc under the boss's entrance skips it, and opens nothing
             _screenScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f; // a hit stop's 0 is not kept
             Paused = true;
             Time.timeScale = 0f;
@@ -120,7 +121,7 @@ namespace Roguelike
         /// <summary>Every frame (and again late, after a hit stop that ended): the pause holds 0, the end slows to 0.</summary>
         void HoldScreens()
         {
-            if (Paused || BetweenRunsUp) Time.timeScale = 0f; // and the screen between runs (work order 029)
+            if (Paused || BetweenRunsUp || EntranceHolds) Time.timeScale = 0f; // and the screen between runs (work order 029), and the boss's entrance (130)
             else if (Ending != EndKind.None) Time.timeScale = _screenScaleBefore * HudRules.EndSlowdown(SecondsSinceEnd);
         }
 

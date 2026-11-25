@@ -614,6 +614,8 @@ namespace Roguelike.PlayModeTests
             Vector3 inside = level.ToWorld(new LevelPoint((ix + 0.5) * cs, (iy + 0.5) * cs));
             Assume.That(Flat(inside, boss.transform.position), Is.GreaterThan(boss.Tuning.Enemy.AggroRange));
             _player.Teleport(inside);
+            yield return Until(() => _levels.EntranceHolds || boss.IsAwake, 1f);
+            _levels.SkipEntrance(); // work order 130 (changed deliberately): its entrance comes first; skipped, the room wakes as at the point
             yield return Until(() => boss.IsAwake, 1f);
             Assert.That(boss.IsAwake, Is.True, "she entered its room");
             Assert.That(boss.GetComponent<BossHealthBar>().Showing, Is.True);
@@ -690,6 +692,7 @@ namespace Roguelike.PlayModeTests
             {
                 _player.Steer(into);
                 yield return null;
+                _levels.SkipEntrance(); // work order 130 (changed deliberately): its entrance, as she crosses the point, skipped at once
                 reached = Mathf.Max(reached, Vector3.Dot(_player.Position - middle, into));
                 if (firstInRoom == float.MinValue && level.RoomAt(_player.Position) == exit)
                 {
@@ -698,6 +701,8 @@ namespace Roguelike.PlayModeTests
                 }
             }
             _player.Stop();
+            yield return null;
+            _levels.SkipEntrance(); // work order 130: begun on the loop's last step
             yield return null;
             yield return null;
             Debug.Log($"[056] seed {LevelSeed.ToText(seed)} floor 5: exit room {exit.Shape}, in its room {firstInRoom:0.00} m past the door, "

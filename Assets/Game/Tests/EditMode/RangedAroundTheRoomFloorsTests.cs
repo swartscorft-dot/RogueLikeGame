@@ -22,7 +22,7 @@ namespace Roguelike.Rules.Tests
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
         static LevelValues After(bool lancers) => new LevelValues { Lancers = lancers };
-        static LevelValues Before(bool lancers) => new LevelValues { Lancers = lancers, RangedAroundTheRoom = false };
+        static LevelValues Before(bool lancers) => new LevelValues { Lancers = lancers, RangedAroundTheRoom = false, BossAlone = false };
 
         static bool IsRanged(EnemyGroup g) => g != null && !g.Boss && !g.Elite && (g.Kind == EnemyKind.Shooter || g.Kind == EnemyKind.Caster);
 
