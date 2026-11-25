@@ -22,6 +22,18 @@ namespace Roguelike.Rules
         /// </summary>
         public static bool On = true;
 
+        /// <summary>
+        /// Work order 119's switch: the enemies in the same look as her (every kind the floors, the practice room and the room lab
+        /// spawn, the elites and the boss: two tones, the ink line, the edge the room's lamps light), with her values. Kristian,
+        /// 2026-11-25, after two runs with the look on her: "Samme på fiendene." On by default, and only inside the look's own
+        /// switch (<see cref="On"/>): the pause menu's "Toon look (trial)" turns her and them off together. Off, every enemy's
+        /// materials are exactly today's: the same material objects, never touched. Not kept between starts: every Play starts on.
+        /// </summary>
+        public static bool Enemies = true;
+
+        /// <summary>True while the enemies are to wear the look: the look on, and its enemies' switch on.</summary>
+        public static bool EnemiesShown => On && Enemies;
+
         /// <summary>The values the game draws her with (one set, read when the look is put on her).</summary>
         public static readonly ToonLookValues Live = new ToonLookValues();
 
@@ -38,7 +50,10 @@ namespace Roguelike.Rules
 
         // Flatter colour (the order's point 4): her baked texture is calm already (large painted fields from the model maker,
         // with fine scratches, stitching and baked shading in them); her normal map carries the bumpy detail, and it is not used.
-        public float DetailCalm = 1.5f;      // mip levels her texture is read blurrier by (each halves its detail): 1.5 takes out what is under about 3 texels of her 2048 texture, keeps the fields
+        // Work order 119: 0.5, the producer's first guess, his to tune (1.5 in work order 115). Kristian, 2026-11-25: "Kan vi fp
+        // henne i litt høyere oppløsning?", read by the producer, NOT confirmed by him, as: she looks soft beside the rest, and
+        // 1.5 levels of blur on purpose is what makes her so. The enemies read theirs by the same amount.
+        public float DetailCalm = 0.5f;      // mip levels her texture is read blurrier by (each halves its detail): 0.5 takes out only what is under about 1.4 texels (1.5 took out what is under about 3), keeps the fields
 
         // The fixed edge light (the order's point 3), OFF since the follow-up: it was the producer's addition, a teal edge always
         // on her wherever she stands. Kristian, 2026-11-24, seeing it: "Hvorfor har hun turkis lyskant? Hvor har du det fra?" and
@@ -69,7 +84,9 @@ namespace Roguelike.Rules
 
         // The ink line (the order's point 2): an inverted hull, her mesh drawn a second time inside out and pushed out along
         // its own normals in screen space, so the line has the same width in pixels at every camera distance.
-        public float InkWidth = 2.25f;       // px at 1080 rows of screen (the producer's start: 2 to 2.5); in proportion at other sizes
+        // Work order 119: 1.25, the producer's first guess, his to tune (2.25 in work order 115, from the producer's start of 2 to
+        // 2.5). Kristian, 2026-11-25, after two runs with the look on her: "Outline er for tyk." The enemies' line is as wide.
+        public float InkWidth = 1.25f;       // px at 1080 rows of screen; in proportion at other sizes
         public Rgb InkColour = new Rgb(0.06f, 0.04f, 0.06f); // a deep warm black, the drawings' line (not pure black)
         public float InkDepthPush = 0.06f;   // m the line is pushed away from the camera: a small piece lying on her (a buckle, a pouch) is not inked against the coat under it, only edges that stand off by more (the first pictures had scratchy inner lines and specks at the game's distance)
 

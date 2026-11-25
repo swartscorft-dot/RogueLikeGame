@@ -42,7 +42,9 @@ namespace Roguelike.EditorTools
             new Kept { File = "SimpleLit_Emission", Shader = PropFactory.ShaderName, Keywords = new[] { "_EMISSION" }, Emission = true },
             new Kept { File = "Lit", Shader = "Universal Render Pipeline/Lit", Keywords = new string[0] },
             // Work order 115: her model's toon look, the project's own shader (Assets/Game/Shaders/ToonHer.shader), found by name by
-            // ToonLook; it has no keyword of its own (its variants are URP's lights and shadows, which every build keeps).
+            // ToonLook; it has no keyword of its own (its variants are URP's lights and shadows, which every build keeps). Work order
+            // 119 declares Simple Lit's _EMISSION in it, only so that an enemy's material keeps that keyword while it wears this
+            // shader: its code does not branch on it, so the variant without it, kept here, draws an enemy's glow the same.
             new Kept { File = "ToonHer", Shader = ToonLook.ShaderName, Keywords = new string[0] },
         };
 

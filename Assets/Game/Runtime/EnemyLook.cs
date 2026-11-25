@@ -144,6 +144,9 @@ namespace Roguelike
 
         bool _stale;
         readonly Enemy _enemy;
+        readonly EnemyToonLook _toon;
+        /// <summary>Its toon look (work order 119), followed in <see cref="Tick"/>.</summary>
+        public EnemyToonLook Toon => _toon;
         /// <summary>The clip it is playing or blending into.</summary>
         public string Playing => _target >= 0 ? _specs[_target].Name : null;
         /// <summary>Seconds into the clip it is playing or blending into.</summary>
@@ -295,6 +298,9 @@ namespace Roguelike
             }
             Show(Index("Idle"), true, restart: true);
             Apply(force: true); // its first pose, and the bow's rest measured on it, whether or not it is in sight
+            // Work order 119: the toon look, put on at its first Tick (after every Awake, so what its kind makes of its materials
+            // there, the lancer's lance, is made from today's).
+            _toon = new EnemyToonLook(enemy.transform);
         }
 
         /// <summary>
@@ -385,6 +391,7 @@ namespace Roguelike
         public void Tick(Enemy enemy, Vector3 velocity, float now)
         {
             if (!_graph.IsValid()) return;
+            _toon.Tick(); // work order 119: the toon look follows its switch
             Ticks++;
             float dt = _last < 0f ? 0f : Mathf.Max(0f, now - _last);
             _last = now;

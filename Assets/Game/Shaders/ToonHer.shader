@@ -12,6 +12,14 @@
 // - The ink line: a second pass, her mesh drawn inside out (front faces culled) and pushed out along its own normals in clip
 //   space by a width named in pixels at 1080 rows, so it is as wide on the screen at every camera distance. It is depth tested
 //   as she is: hidden where she is hidden, never drawn through anything.
+//
+// Work order 119 (Kristian, 2026-11-25: "Samme på fiendene. Outline er for tyk."): the enemies wear it too, by EnemyToonLook,
+// which sets it as the shader of each enemy's own URP Simple Lit materials (the same objects: everything the game paints on
+// them, the daze, the wind-ups, the elite's tint, the ward's, still lands on what is drawn) and sets Simple Lit back when the look
+// goes off. So it reads what the game writes into those materials: their colour and texture, and their glow (_EmissionMap times
+// _EmissionColor, black and so nothing on her), and it declares the Simple Lit values the enemies' code sets (_EMISSION,
+// _Smoothness, _SpecularHighlights), so that each is kept as it was across the change of shader. Her line 1.25 px, her texture
+// read 0.5 mip levels blurrier (2.25 and 1.5 in work order 115).
 Shader "Roguelike/Toon Her"
 {
     Properties
@@ -27,7 +35,7 @@ Shader "Roguelike/Toon Her"
         _ShadowEdge("Cast shadow edge", Range(0.01, 0.99)) = 0.5
         _AmbientFlat("Ambient flattening", Range(0, 1)) = 1
         _AmbientLevel("Ambient level", Range(0, 4)) = 1
-        _DetailCalm("Detail calm (mip bias)", Range(0, 4)) = 1.5
+        _DetailCalm("Detail calm (mip bias)", Range(0, 4)) = 0.5
 
         _RimColor("Edge light colour", Color) = (0.30, 0.95, 0.86, 1)
         _RimStrength("Fixed edge light strength (0: off; the producer's addition)", Range(0, 2)) = 0
@@ -45,8 +53,15 @@ Shader "Roguelike/Toon Her"
         _TealSoftness("Teal mask softness", Range(0.01, 1)) = 0.15
 
         _OutlineColor("Ink colour", Color) = (0.06, 0.04, 0.06, 1)
-        _OutlineWidth("Ink width (px at 1080 rows)", Range(0, 8)) = 2.25
+        _OutlineWidth("Ink width (px at 1080 rows)", Range(0, 8)) = 1.25
         _OutlineDepthPush("Ink pushed back (m)", Range(0, 0.5)) = 0.06
+
+        // Work order 119: an enemy's own glow, as URP Simple Lit has it (the caster's eyes and palms, the warder's green); black on her.
+        [HDR] _EmissionColor("Glow colour (an enemy's; black on her)", Color) = (0, 0, 0, 1)
+        [NoScaleOffset] _EmissionMap("Glow map", 2D) = "white" {}
+        // Not read here: declared so that an enemy's Simple Lit values are kept as they were while it wears this shader.
+        [HideInInspector] _Smoothness("Smoothness (Simple Lit's, not read)", Range(0, 1)) = 0.5
+        [HideInInspector] _SpecularHighlights("Specular highlights (Simple Lit's, not read)", Float) = 1
     }
 
     SubShader
@@ -87,10 +102,12 @@ Shader "Roguelike/Toon Her"
             half4 _OutlineColor;
             float _OutlineWidth;
             float _OutlineDepthPush;
+            half4 _EmissionColor; // work order 119
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
+        TEXTURE2D(_EmissionMap); // work order 119: read with the base map's sampler
         ENDHLSL
 
         // ---------------- Her, in two tones ----------------
@@ -106,6 +123,11 @@ Shader "Roguelike/Toon Her"
             #pragma target 3.5
             #pragma vertex ToonVertex
             #pragma fragment ToonFragment
+
+            // Work order 119: Simple Lit's own keyword for a glow, declared so that an enemy's material keeps it while it wears this
+            // shader (the game asks for it: the warder's green glows, the tests of the caster's). The code below does not branch on
+            // it: the glow is added always, and is black where there is none, so a build that strips this variant draws the same.
+            #pragma shader_feature_local_fragment _EMISSION
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _ADDITIONAL_LIGHTS
@@ -247,6 +269,9 @@ Shader "Roguelike/Toon Her"
                 half teal = saturate((over - _TealStart) / _TealSoftness);
                 half peak = max(max(texel.r, texel.g), max(texel.b, 0.001h));
                 colour += (texel.rgb / peak) * (teal * _TealGlow);
+
+                // Work order 119: an enemy's own glow, as Simple Lit adds it (its map times its colour; black on her).
+                colour += SAMPLE_TEXTURE2D(_EmissionMap, sampler_BaseMap, input.uv).rgb * _EmissionColor.rgb;
 
                 colour = MixFog(colour, InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor));
                 return half4(colour, 1.0h);

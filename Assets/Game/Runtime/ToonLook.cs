@@ -183,7 +183,8 @@ namespace Roguelike
 
         static Color C(Rgb c) => new Color(c.R, c.G, c.B, 1f);
 
-        static void Push(Material m, bool kit, ToonLookValues v)
+        /// <summary>Writes the look's values into a material on its shader (her copies; work order 119: an enemy's own materials too, not a kit).</summary>
+        internal static void Push(Material m, bool kit, ToonLookValues v)
         {
             m.SetFloat(s_LitThreshold, v.LitThreshold);
             m.SetFloat(s_LitSoftness, Mathf.Max(0.001f, v.LitSoftness));

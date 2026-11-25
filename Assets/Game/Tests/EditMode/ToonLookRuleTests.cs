@@ -23,7 +23,8 @@ namespace Roguelike.Rules.Tests
         public void TheInkLine_IsTheProducersStartAt1080Rows_AndInProportionElsewhere()
         {
             var v = new ToonLookValues();
-            Assert.That(v.InkWidth, Is.InRange(2f, 2.5f), "the producer's start: 2 to 2.5 px at 1080 rows");
+            // Work order 119 thinned it (Kristian, 2026-11-25: "Outline er for tyk."): 1.25, the producer's first guess, from 2.25.
+            Assert.That(v.InkWidth, Is.InRange(1f, 1.5f), "work order 119: about 1.25 px at 1080 rows (2 to 2.5 before)");
             Assert.That(v.InkPixels(1080f), Is.EqualTo(v.InkWidth).Within(1e-5f));
             Assert.That(v.InkPixels(720f), Is.EqualTo(v.InkWidth * 720f / 1080f).Within(1e-5f), "at 1280 by 720, two thirds of it");
             Assert.That(v.InkPixels(2160f), Is.EqualTo(v.InkWidth * 2f).Within(1e-5f));
