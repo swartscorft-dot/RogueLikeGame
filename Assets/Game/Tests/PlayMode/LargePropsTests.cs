@@ -202,14 +202,20 @@ namespace Roguelike.PlayModeTests
             Action<LevelValues> heaps = v => v.CaveRules.NoGoldHeaps = false;
             heaps(_levels.Values);
             var seen = new Dictionary<PropModel, int>();
-            // Two floors of the mood's seed, and the first floor 3 from seed 1 on that holds every one of the eight.
+            // Two floors of the mood's seed, and the first floor 5 from seed 1 on that holds every one of the eight.
+            // 2026-11-25: floor 5, not floor 3 as before. Work order 103 (generator version 20, LevelValues.ExitRoomsOfTheirOwn,
+            // asked for: "tronrommet bare i etasje 5") ends floors 1 to 4 in an exit room of their own, so the throne room, the
+            // only room that holds the great braziers (RoomMoodPlan's Throne), stands on floor 5 alone: no floor 3 of seeds 1 to
+            // 199 holds a great brazier now (it was 161 of them at version 19), and the search found none. Floor 5 still holds
+            // all eight (seed 3 the first under the .NET rules runner), so the test proves what it did.
+            const int searchFloor = 5;
             var floors = new List<(int floor, ulong seed)> { (5, Seed), (1, Seed) };
             for (ulong s = 1; s < 200; s++)
             {
-                RoomMoodPlan plan = RoomMoodPlan.Make(LevelGenerator.Generate(s, 3, _levels.Values), _levels.Values);
+                RoomMoodPlan plan = RoomMoodPlan.Make(LevelGenerator.Generate(s, searchFloor, _levels.Values), _levels.Values);
                 if (s_table.Keys.All(m => plan.Rooms.Any(r => r.LargeProps.Any(p => p.Model == m))))
                 {
-                    floors.Add((3, s));
+                    floors.Add((searchFloor, s));
                     break;
                 }
             }

@@ -271,7 +271,17 @@ namespace Roguelike.PlayModeTests
                     Vector3 mid = (_player.JumpFrom + _player.JumpTo) * 0.5f;
                     float toMid = (_player.JumpLandsAt - Time.time) * 0.5f - Frame;
                     Vector3 side = Vector3.Cross(Vector3.up, way);
-                    Vector3 bow = mid + side * (shooter.Tuning.ArrowSpeed * Mathf.Max(Frame, toMid));
+                    float off = shooter.Tuning.ArrowSpeed * Mathf.Max(Frame, toMid);
+                    // 2026-11-25: from the side whose line to the jump's middle no wall or cover stops (the arrow's own query,
+                    // Cover.Line at Cover.RayHeight), the left first as before. Generator version 21 (work order 104, asked for:
+                    // "en dominerende fiendemiks og tema per etasje") changed this seed's floor 2, and the first low prop it jumps
+                    // is now Prop_C10_0_Sarcophagus, with Wall_V11_21-23 0.19 m from the bow on the left: the arrow was stopped by
+                    // that wall at the bow and never flew (StoppedByWall). At version 19 the prop was Prop_C10_0_Coffin, both
+                    // sides clear.
+                    if (Cover.ClearDistance(Flat(mid + side * off), -side, off, Cover.RayHeight) < off - 1e-3f) side = -side;
+                    Assert.That(Cover.ClearDistance(Flat(mid + side * off), -side, off, Cover.RayHeight), Is.EqualTo(off).Within(1e-3f),
+                                "a side from which nothing stops the arrow before her: " + prop.name);
+                    Vector3 bow = mid + side * off;
                     ThingsThatFly.Ensure().Fire(shooter, Arrow(shooter), ProjectileRules.Arrow(shooter.Tuning, new GroundPoint(bow.x, bow.z), new GroundPoint(-side.x, -side.z)));
                 }
                 if (wasJumping && !_player.IsJumping && _player.IsStunned) staggeredAtLanding = true;

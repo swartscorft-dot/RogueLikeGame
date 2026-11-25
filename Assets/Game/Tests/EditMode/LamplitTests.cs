@@ -145,8 +145,14 @@ namespace Roguelike.EditModeTests
                         Assert.That(CaveWalls.IsFar(s, CaveWalls.GameYaw), Is.True, at + ": only on a far wall");
                         Assert.That(s.RoomOn(lamp.Side), Is.EqualTo(lamp.Room), at + ": on its room's side");
                         Assert.That(kit.Lanterns.Any(x => x.Section == lamp.Section && x.Side == lamp.Side), Is.False, at + ": never where a lantern hangs");
+                        // 2026-11-25: not against a lamp the look list added. Work order 112 leaves its candles out of the rule for
+                        // sconces on purpose ("so the sconces are as before", LampPlan.Make), so a sconce may stand nearer one than
+                        // the spacing; the check only skipped them as the sconce asked about, not as the other lamp. It showed when
+                        // work order 104's themes (generator version 21) made seed 42's floor 1 hold an ossuary: its room 14 has a
+                        // sconce 4.43 m from a set of the look list's candles. A passage's warm sconces keep their own spacing from
+                        // every sconce (LookListTests).
                         foreach (Lamp other in plan.Of(lamp.Room))
-                            if (other != lamp) Assert.That(other.At.DistanceTo(lamp.At), Is.GreaterThanOrEqualTo(lamps.SconceSpacing - 1e-9), at + ": spaced from every other lamp of its room");
+                            if (other != lamp && !other.ByLookList) Assert.That(other.At.DistanceTo(lamp.At), Is.GreaterThanOrEqualTo(lamps.SconceSpacing - 1e-9), at + ": spaced from every other lamp of its room");
                     }
                     foreach (LevelRoom room in l.Rooms)
                     {
