@@ -41,6 +41,7 @@ namespace Roguelike.PlayModeTests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
+            Roguelike.Rules.SkillLookValues.EffectsNotShapes = false; // work order 123: these pin the drawings from before; the switch on is SkillLookTests
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
@@ -80,6 +81,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            Roguelike.Rules.SkillLookValues.EffectsNotShapes = true; // work order 123: back to its default
             if (_feel != null) _feel.CoverStopsShots = _coverWas; // the feel values live in an asset
             foreach (Object o in _made) if (o != null) Object.Destroy(o);
             _made.Clear();

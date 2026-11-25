@@ -48,6 +48,7 @@ namespace Roguelike.PlayModeTests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
+            Roguelike.Rules.SkillLookValues.EffectsNotShapes = false; // work order 123: these pin the drawings from before; the switch on is SkillLookTests
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
@@ -68,6 +69,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void RestoreTimeAndInput()
         {
+            Roguelike.Rules.SkillLookValues.EffectsNotShapes = true; // work order 123: back to its default
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = true;
         }

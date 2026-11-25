@@ -138,6 +138,13 @@ namespace Roguelike
             var view = go.AddComponent<SmokeCloudView>();
             view.Cloud = cloud;
             view._until = cloud.Until;
+            // Work order 123: with SkillLookValues.EffectsNotShapes on, no flat discs: the cloud is drawn as puffs of smoke that fill
+            // its circle for exactly its time (SkillEffects reads it here, in SmokeClouds). This object stays its sign that it stands.
+            if (SkillLookValues.EffectsNotShapes)
+            {
+                SkillEffects.Ensure();
+                return view;
+            }
             view._mesh = BuildMesh(cloud.Radius);
             go.AddComponent<MeshFilter>().sharedMesh = view._mesh;
             var renderer = go.AddComponent<MeshRenderer>();
@@ -165,6 +172,7 @@ namespace Roguelike
                 s_Material.SetFloat("_ZWrite", 0f);
                 s_Material.SetFloat("_Cull", (float)CullMode.Off);
                 s_Material.renderQueue = (int)RenderQueue.Transparent;
+                s_Material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); // work order 126: the floats alone drew the discs solid (123's pictures); the shader blends by this keyword
                 return s_Material;
             }
         }
