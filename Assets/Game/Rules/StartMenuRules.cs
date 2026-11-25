@@ -136,9 +136,11 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// Her name plate: the documents give her no name. What they call her: "First class: shooter with skill shots"
-        /// (docs/vision/first-class.md); the glossary names none. The order: "invent nothing".
+        /// (docs/vision/first-class.md); the glossary names none. It said SHOOTER until 2026-11-25, when Kristian, asked
+        /// whether to name her now, ticked "Bytt SHOOTER til Gunslinger": what her picture and its file already call her
+        /// (Character_Gunslinger), in the menu's capitals, until he gives her a name of her own (work order 120).
         /// </summary>
-        public string Name = "SHOOTER";
+        public string Name = "GUNSLINGER";
         public string Sub = "WITH SKILL SHOTS  ·  FIRST CLASS";
         /// <summary>Three short lines about her, from first-class.md's table (the basic attack, the dash, the loadout).</summary>
         public string[] Lines =

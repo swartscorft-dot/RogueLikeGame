@@ -73,7 +73,7 @@ namespace Roguelike.Rules.Tests
         public void HerWords_AreTheDocuments_AndTheSwitchIsOn_AndTheEditorsSkipOff()
         {
             var s = new StartMenuValues();
-            Assert.That(s.Name, Is.EqualTo("SHOOTER"), "first-class.md: \"shooter with skill shots\"; the documents give her no name");
+            Assert.That(s.Name, Is.EqualTo("GUNSLINGER"), "what her picture calls her, his tick of 2026-11-25 (\"Bytt SHOOTER til Gunslinger\"; it said SHOOTER before); the documents give her no name of her own");
             Assert.That(s.Lines.Length, Is.InRange(2, 3));
             Assert.That(s.PictureName, Is.EqualTo("UI/Menu/Character_Gunslinger"));
             var m = new MenuValues();
