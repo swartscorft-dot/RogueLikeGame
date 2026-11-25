@@ -27,7 +27,7 @@ namespace Roguelike.PlayModeTests
     public class LancersInTheFloorsPlayTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        const float FightSeconds = 4f; // game seconds the room's fight runs before she clears it: time for the lancer to wind up and charge
+        const float FightSeconds = 12f; // game seconds at most the room's fight runs before she clears it: time for the lancer to walk to its distance, wind up and charge (the wait ends at its first charge's end)
 
         PlayerCharacter _player;
         PlayerHealth _health;
@@ -75,12 +75,6 @@ namespace Roguelike.PlayModeTests
         static IEnumerator Until(Func<bool> condition, int most = 600)
         {
             for (int i = 0; i < most && !condition(); i++) yield return null;
-        }
-
-        static IEnumerator For(float seconds)
-        {
-            float end = Time.time + seconds;
-            while (Time.time < end) yield return null;
         }
 
         static void Kill(IEnumerable<Enemy> enemies)
@@ -148,16 +142,24 @@ namespace Roguelike.PlayModeTests
             Assert.That(own.All(e => e.IsAwake), where + ": every enemy of the room awake");
             awake?.Invoke(level, room, own);
             Time.timeScale = 4f;
-            yield return For(FightSeconds);
+            bool wound = false;
+            float end = Time.time + FightSeconds, began = Time.time;
+            while (Time.time < end && !lancers.Any(l => l != null && l.LastEnd != LancerEnd.None))
+            {
+                wound |= lancers.Any(l => l != null && (l.IsCharging || l.State == EnemyState.Windup));
+                yield return null;
+            }
+            float waited = Time.time - began;
             Time.timeScale = 1f;
-            bool charged = lancers.Any(l => l.LastEnd != LancerEnd.None || l.IsCharging || l.State == EnemyState.Windup);
+            bool charged = lancers.Any(l => l != null && l.LastEnd != LancerEnd.None);
+            string ends = string.Join("/", lancers.Select(l => l != null ? l.LastEnd.ToString() : "gone"));
 
             Kill(own);
             yield return Until(() => !fight.On && (doors == null || !doors.Shut), 240);
             Assert.That(fight.On, Is.False, where + ": cleared, the fight ends");
             if (doors != null) Assert.That(doors.Shut, Is.False, where + ": and its doors open");
-            lines.Add(string.Format(Inv, "{0}: {1} ({2} lancer(s), wound up or charged in {3} s: {4})", where,
-                                    string.Join(", ", own.GroupBy(e => e.LogWord).Select(g => g.Count() + " " + g.Key)), lancers.Count, FightSeconds, charged));
+            lines.Add(string.Format(Inv, "{0}: {1} ({2} lancer(s); within {3:0.0} game s of {4}: wound up {5}, a charge ended {6} ({7}))", where,
+                                    string.Join(", ", own.GroupBy(e => e.LogWord).Select(g => g.Count() + " " + g.Key)), lancers.Count, waited, FightSeconds, wound || charged, charged, ends));
         }
 
         [UnityTest, Timeout(600000)]
@@ -179,7 +181,7 @@ namespace Roguelike.PlayModeTests
             var lines = new List<string>();
             int floor = 4;
             (ulong seed, int order) found = (0UL, -1);
-            foreach (int f in new[] { 4, 5 })
+            foreach (int f in new[] { 5, 4 }) // floor 5 first: two lancers may stand there, and the room is another than the floor-4 test's
             {
                 found = FindRoom(_levels.Values, f, true);
                 floor = f;
