@@ -67,6 +67,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(v.InTheFirstRun, Is.True, "his answer of 2026-11-25: the first run teaches");
             Assert.That(v.TargetModel, Is.EqualTo(PropModel.Statue), "the project's own crypt statue");
             Assert.That(v.Targets, Is.EqualTo(3));
+            Assert.That(v.NearTheLight, Is.LessThan(v.FarFromTheLight), "stood by the braziers");
         }
 
         [Test]
@@ -141,6 +142,16 @@ namespace Roguelike.Rules.Tests
             Assert.That(PracticeTaskFlag.ReadyAtStart(clean, true), Is.True);
             Assert.That(PracticeTaskFlag.ReadyAtStart(clean, false), Is.False);
             Assert.That(PracticeTaskFlag.ReadyAtStart(StartList().First(t => t.Kind == PracticeTaskKind.UseSkill), true), Is.False, "only the clean presses (the producer's decision)");
+        }
+
+        [Test]
+        public void TheRings_ShowOnlyWhileATaskWaitsForAHitOnATarget_AndTheirSwitchIsOn()
+        {
+            Assert.That(new PracticeTasksValues().TargetsWearARing, Is.True, "the producer's addition, on");
+            var needs = StartList().Where(PracticeTaskRules.NeedsATarget).Select(t => t.Kind + (t.Slot >= 0 ? ":" + t.Slot : "")).ToList();
+            Assert.That(needs, Is.EqualTo(new[] { "Shoot", "UseSkill:" + QuickShot, "UseSkill:" + ScatterBlast, "SpendMarks:" + ScatterBlast }),
+                        "the basic shots, the skills used by a hit, the marks; not a chain's presses, its clean press, the move, the dash, the duck, focus, the last plate");
+            Assert.That(PracticeTaskRules.NeedsATarget(null), Is.False);
         }
 
         [Test]

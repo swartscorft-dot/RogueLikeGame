@@ -175,22 +175,39 @@ namespace Roguelike
             Vector3 ahead = new Vector3(middle.x - her.x, 0f, middle.z - her.z);
             if (ahead.magnitude < 2f && Camera.main != null) ahead = new Vector3(Camera.main.transform.forward.x, 0f, Camera.main.transform.forward.z);
             Physics.SyncTransforms();
-            List<GroundPoint> places = PracticeTaskPlaces.Candidates(new GroundPoint(her.x, her.z), new GroundPoint(ahead.x, ahead.z), Values.TargetDistance);
             PropSize size = PropSize.Of(Values.TargetModel);
             float radius = (float)(size.Shape == PropShape.Circle ? size.Radius : 0.5 * System.Math.Max(size.Width, size.Depth));
+            _targetHeight = (float)size.Height;
             if (_targetMaterial == null) _targetMaterial = PropFactory.MakeMaterial(Values.TargetModel);
-            foreach (GroundPoint g in places)
+            // The second round: first where the room's own light falls (round its braziers, one statue a brazier in turn), in view from
+            // where she starts and clear of the plate, the run box and the strip; then anywhere in view; then anywhere at all.
+            List<GroundPoint> lit = LitPlaces(level);
+            List<GroundPoint> anywhere = PracticeTaskPlaces.Candidates(new GroundPoint(her.x, her.z), new GroundPoint(ahead.x, ahead.z), Values.TargetDistance);
+            for (int pass = 0; pass < 3 && _targets.Count < Values.Targets; pass++)
+                foreach (GroundPoint g in pass == 0 ? lit : anywhere)
+                {
+                    if (_targets.Count >= Values.Targets) break;
+                    TryTarget(g, pass < 2, her, start, radius, level);
+                }
+        }
+
+        /// <summary>The statues' height (the model's), for the view check and the ring.</summary>
+        float _targetHeight = 2.6f;
+
+        /// <summary>Puts a statue at <paramref name="g"/> if it can stand there (and, with <paramref name="inView"/>, is seen well from her start).</summary>
+        void TryTarget(GroundPoint g, bool inView, Vector3 her, NavMeshHit start, float radius, GeneratedLevel level)
+        {
             {
-                if (_targets.Count >= Values.Targets) break;
-                if (!NavMesh.SamplePosition(new Vector3(g.X, 0f, g.Z), out NavMeshHit hit, SampleReach, NavMesh.AllAreas)) continue;
+                if (!NavMesh.SamplePosition(new Vector3(g.X, 0f, g.Z), out NavMeshHit hit, SampleReach, NavMesh.AllAreas)) return;
                 Vector3 p = new Vector3(hit.position.x, 0f, hit.position.z);
-                if (new Vector2(p.x - her.x, p.z - her.z).magnitude < TargetFromHer) continue;
-                if (NavMesh.Raycast(start.position, hit.position, out _, NavMesh.AllAreas)) continue;
-                if (!InTheTeachingRoomAndClear(p, radius + Values.ClearOfProps)) continue;
+                if (new Vector2(p.x - her.x, p.z - her.z).magnitude < TargetFromHer) return;
+                if (NavMesh.Raycast(start.position, hit.position, out _, NavMesh.AllAreas)) return;
+                if (inView && !SeenWell(p, her)) return;
+                if (!InTheTeachingRoomAndClear(p, radius + Values.ClearOfProps)) return;
                 bool apart = true;
                 foreach (GameObject t in _targets)
                     if (new Vector2(t.transform.position.x - p.x, t.transform.position.z - p.z).magnitude < Values.TargetsApart) apart = false;
-                if (!apart) continue;
+                if (!apart) return;
                 float yaw = Mathf.Atan2(her.x - p.x, her.z - p.z) * Mathf.Rad2Deg; // its front (+Z) toward her
                 LevelProp prop = LevelProp.Make(Values.TargetModel, level.ToLevel(p), Mathf.RoundToInt(yaw), Rules.PropPlace.Floor);
                 GameObject go = PropFactory.Make(prop, p, level.transform, level.WallLayer, _targetMaterial, TargetName + (_targets.Count + 1));
@@ -199,10 +216,145 @@ namespace Roguelike
                 target.Radius = radius;
                 go.AddComponent<TrainingDummy>(); // hit, it counts as the practice room's dummies; fallen, it comes back full
                 if (go.TryGetComponent(out BoxCollider box)) Carve(go, box.center, box.size);
+                if (Values.TargetsWearARing) MakeRing(go, radius);
                 _targets.Add(go);
                 Physics.SyncTransforms();
             }
         }
+
+        /// <summary>The light sources of the entrance room by their models: its braziers (the entrance's own, the generator's), and lit candles.</summary>
+        static bool GivesLight(PropModel m) => m == PropModel.Brazier || m == PropModel.GreatBrazier || m == PropModel.CandleCluster || m == PropModel.Candelabra;
+
+        /// <summary>
+        /// Places round each light of the teaching room, <see cref="PracticeTasksValues.NearTheLight"/> then
+        /// <see cref="PracticeTasksValues.FarFromTheLight"/> out, every 30 degrees; taken a light at a time in turn (the first good
+        /// place by each light before a second by any), so the statues stand by different lights.
+        /// </summary>
+        List<GroundPoint> LitPlaces(GeneratedLevel level)
+        {
+            var lights = new List<Vector3>();
+            foreach (GeneratedLevel.PlacedProp p in level.Props)
+                if (p != null && p.Object != null && p.Room != null && p.Room.Order == _teachRoom.Order && GivesLight(p.Prop.Model)) lights.Add(p.Object.transform.position);
+            var rings = new List<List<GroundPoint>>();
+            foreach (Vector3 l in lights)
+            {
+                var ring = new List<GroundPoint>();
+                foreach (float r in new[] { Values.NearTheLight, Values.FarFromTheLight })
+                    for (int i = 0; i < 12; i++)
+                    {
+                        float a = i * Mathf.PI / 6f;
+                        ring.Add(new GroundPoint(l.x + Mathf.Cos(a) * r, l.z + Mathf.Sin(a) * r));
+                    }
+                rings.Add(ring);
+            }
+            var list = new List<GroundPoint>();
+            for (int k = 0; k < 24; k++)
+                foreach (List<GroundPoint> ring in rings) list.Add(ring[k]);
+            return list;
+        }
+
+        /// <summary>Layout pixels (1080 high) a statue keeps, feet and head, from the screen's sides, and its lowest and highest place up the screen (under the plate and its keys, over the strip).</summary>
+        const float ViewSide = 140f, ViewTop = PlateTop + PlateHeight + 70f, ViewBottom = 820f;
+
+        /// <summary>
+        /// Is a statue here seen well from her start: its feet and its head on the screen as the camera will stand over her, clear of the
+        /// plate and the run box at the top and of the strip at the foot.
+        /// </summary>
+        bool SeenWell(Vector3 p, Vector3 her)
+        {
+            Camera cam = Camera.main;
+            if (cam == null || cam.transform.forward.y > -1e-3f) return true;
+            Transform t = cam.transform;
+            Vector3 looksAt = t.position + t.forward * (t.position.y / -t.forward.y); // where its view meets the ground now
+            Vector3 shift = new Vector3(her.x - looksAt.x, 0f, her.z - looksAt.z);      // as it will stand once it has followed her
+            float h = InterfaceStyle.V.LayoutHeight, w = h * cam.aspect;
+            foreach (float up in new[] { 0f, _targetHeight })
+            {
+                Vector3 v = cam.WorldToViewportPoint(p + new Vector3(0f, up, 0f) - shift);
+                if (v.z <= 0f) return false;
+                float x = v.x * w, y = (1f - v.y) * h;
+                if (x < ViewSide || x > w - ViewSide || y < ViewTop || y > ViewBottom) return false;
+            }
+            return true;
+        }
+
+        // ---------------- The rings (the producer's addition) ----------------
+
+        /// <summary>Metres from the statue's footprint to the ring's inner edge, the ring's width, its height over the floor, its brightness; and its segments.</summary>
+        const float RingOutset = 0.3f, RingWidth = 0.08f, RingLift = 0.03f, RingGlow = 0.85f;
+        const int RingSegments = 48;
+        public const string RingName = "Ring";
+
+        readonly List<GameObject> _rings = new List<GameObject>();
+        Mesh _ringMesh;
+        bool _ringsShown;
+
+        /// <summary>
+        /// One thin flat band on the floor round a statue's feet, in the interface's teal (the duck's rim's way of drawing a band, with her
+        /// shot effects' unlit material in the colours of its vertices); its mesh made once for all the statues; hidden until a task needs it.
+        /// </summary>
+        void MakeRing(GameObject statue, float radius)
+        {
+            if (_ringMesh == null) _ringMesh = RingMesh(radius + RingOutset, RingWidth);
+            var go = new GameObject(RingName);
+            go.transform.SetParent(statue.transform, false);
+            go.transform.localPosition = new Vector3(0f, RingLift, 0f);
+            go.transform.localRotation = Quaternion.identity;
+            go.AddComponent<MeshFilter>().sharedMesh = _ringMesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            r.sharedMaterial = _player != null ? _player.ShotFxMaterial : null;
+            r.enabled = r.sharedMaterial != null;
+            go.SetActive(false);
+            _rings.Add(go);
+        }
+
+        static Mesh RingMesh(float inner, float width)
+        {
+            var vertices = new List<Vector3>();
+            var colors = new List<Color>();
+            var triangles = new List<int>();
+            Rgba teal = InterfaceStyle.V.Teal;
+            Color c = new Color(teal.R, teal.G, teal.B);
+            if (QualitySettings.activeColorSpace == ColorSpace.Linear) c = c.linear;
+            c = new Color(c.r * RingGlow, c.g * RingGlow, c.b * RingGlow, 1f);
+            for (int i = 0; i < RingSegments; i++)
+            {
+                float a = i * Mathf.PI * 2f / RingSegments;
+                var d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                vertices.Add(d * inner);
+                vertices.Add(d * (inner + width));
+                colors.Add(c);
+                colors.Add(c);
+            }
+            for (int i = 0; i < RingSegments; i++)
+            {
+                int a = i * 2, b = ((i + 1) % RingSegments) * 2;
+                triangles.Add(a); triangles.Add(a + 1); triangles.Add(b + 1);
+                triangles.Add(a); triangles.Add(b + 1); triangles.Add(b);
+                triangles.Add(a); triangles.Add(b + 1); triangles.Add(a + 1); // both windings: seen from above at any turn
+                triangles.Add(a); triangles.Add(b); triangles.Add(b + 1);
+            }
+            var mesh = new Mesh { name = "PracticeTasks_TargetRing" };
+            mesh.SetVertices(vertices);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>The rings on while the task on the plate waits for a hit on a target (and their switch is on), off otherwise; set only when that changes.</summary>
+        void ShowRings(bool on)
+        {
+            on &= Values.TargetsWearARing;
+            if (on == _ringsShown) return;
+            _ringsShown = on;
+            foreach (GameObject r in _rings) if (r != null) r.SetActive(on);
+        }
+
+        /// <summary>The rings show now (for tests and pictures).</summary>
+        public bool RingsShown => _ringsShown;
 
         /// <summary>The name of a target (with its number from 1).</summary>
         public const string TargetName = "PracticeTasks_Target_";

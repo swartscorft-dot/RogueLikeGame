@@ -52,6 +52,16 @@ namespace Roguelike.Rules
         /// <summary>Metres a target or the low prop keeps from the teaching room's walls, and from the room's own props (their colliders).</summary>
         public float FromWalls = 1.6f;
         public float ClearOfProps = 1.2f;
+
+        /// <summary>
+        /// The producer's addition (the follow-up's second round, 2026-11-25: "a tutorial whose first target cannot be found fails"),
+        /// to be told to the owner as such: while a task waits for a hit on a statue, each statue wears one thin teal ring on the floor
+        /// under its feet (the interface's teal, not the duck's orange); gone when no task needs a target. Off, no ring. Under
+        /// <see cref="InTheFirstRun"/>.
+        /// </summary>
+        public bool TargetsWearARing = true;
+        /// <summary>Metres from a brazier (the entrance room's own light) that the statues are stood, near and far.</summary>
+        public float NearTheLight = 2.2f, FarFromTheLight = 3f;
     }
 
     /// <summary>
@@ -386,6 +396,13 @@ namespace Roguelike.Rules
     /// <summary>Each task's done-condition (work order 133): how much an event counts toward it, 0 when it does not.</summary>
     public static class PracticeTaskRules
     {
+        /// <summary>
+        /// The task is done only by a hit on a target (the follow-up's second round: the statues' rings show then): the basic shots,
+        /// a skill used by a hit, the spender's marks. A chain's presses and its clean press count without a hit.
+        /// </summary>
+        public static bool NeedsATarget(PracticeTask t) =>
+            t != null && (t.Kind == PracticeTaskKind.Shoot || t.Kind == PracticeTaskKind.SpendMarks || (t.Kind == PracticeTaskKind.UseSkill && t.Presses <= 1));
+
         public static float Counts(PracticeTask t, PracticeEvent e)
         {
             if (t == null) return 0f;
