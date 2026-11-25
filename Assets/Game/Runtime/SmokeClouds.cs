@@ -172,6 +172,7 @@ namespace Roguelike
                 s_Material.SetFloat("_ZWrite", 0f);
                 s_Material.SetFloat("_Cull", (float)CullMode.Off);
                 s_Material.renderQueue = (int)RenderQueue.Transparent;
+                s_Material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); // work order 126: the floats alone drew the discs solid (123's pictures); the shader blends by this keyword
                 return s_Material;
             }
         }

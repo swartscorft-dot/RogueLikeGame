@@ -52,10 +52,13 @@ namespace Roguelike
             GroundPoint c = area.Centre;
             var centre = new Vector3(c.X, 0f, c.Z);
             float blast = look.Values.BlastSeconds;
-            ShotFx.Spark(centre + Vector3.up * 1f, skill.Radius * 1.1f * look.Scale, blast, look.Paint, ShotFxMaterial,
-                         towardCamera: skill.Radius + 1f);
+            SkillEffects fx = SkillEffects.Ensure().Watch(this);
+            // Work order 126: the same starburst drawn with clean edges in the drawn look; else the shot effects' own, as before.
+            if (!fx.Star(centre + Vector3.up * 1f, skill.Radius * 1.1f * look.Scale, blast, look.Paint, skill.Radius + 1f))
+                ShotFx.Spark(centre + Vector3.up * 1f, skill.Radius * 1.1f * look.Scale, blast, look.Paint, ShotFxMaterial,
+                             towardCamera: skill.Radius + 1f);
             if (blast > 0f && skill.Radius > 0f) LamplitView.ShotWentOff(ShotFxKind.Ring, new Vector3(c.X, 0.06f, c.Z), Vector3.zero, skill.Radius, look.Paint.Core);
-            SkillEffects.Ensure().Watch(this).Blast(centre, skill.Radius, blast);
+            fx.Blast(centre, skill.Radius, blast);
             return centre + Vector3.up * 1f;
         }
 
