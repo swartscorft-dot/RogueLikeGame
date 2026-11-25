@@ -46,7 +46,10 @@ namespace Roguelike.PlayModeTests
         // after (what is left is the engine's own, about 36 B for each label it draws in a repaint: eleven); the pause menu's
         // 20635 B before, 7847 B after (the same, 199 labels).
         const long FightCeiling = 700;
-        const long PauseCeiling = 9000;
+        // 2026-11-25: 9000 before. The pause menu has two more settings lines (work order 121's Camera angle, 125's Anti-aliasing);
+        // a line is 6 allocations and about 232 B of the engine's own in a repaint. Measured on the merged build: 9421 B, 237
+        // allocations (it was 8957 B, 225 allocations with neither line). The ceiling is again a little above what was measured.
+        const long PauseCeiling = 9500;
         /// <summary>Work order 095: her sheet on Tab with a skill's panel open (Quick Shot's), the same way: 5491 B measured on 2026-11-23 before the values lost their dark copy.</summary>
         const long SheetCeiling = 6500;
 
