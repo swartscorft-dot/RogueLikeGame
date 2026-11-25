@@ -255,6 +255,8 @@ namespace Roguelike.Rules
         public NewSkillStats NewSkills = new NewSkillStats();
         /// <summary>Work order 108: the lancers' charges and how they ended (SessionSummaryLancers.cs); none for a log from before.</summary>
         public LancerStats Lancers = new LancerStats();
+        /// <summary>Work order 116: the music's seconds in each state and its changes (SessionSummaryMusic.cs); none for a log from before.</summary>
+        public MusicStats Music = new MusicStats();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -487,6 +489,7 @@ namespace Roguelike.Rules
             stats.BossFights = ComputeBossFights(events); // work order 106
             stats.NewSkills = ComputeNewSkills(events); // work order 109
             stats.Lancers = ComputeLancers(events); // work order 108
+            stats.Music = ComputeMusic(events, length); // work order 116
             return stats;
         }
 
@@ -521,6 +524,8 @@ namespace Roguelike.Rules
             if (casterPosts != null) sb.Append("Casters ").AppendLine(casterPosts);
             string bossFights = BossFightLine(stats.BossFights); // work order 106: the boss's two phases and its slams, one line
             if (bossFights != null) sb.Append("Boss ").AppendLine(bossFights);
+            string music = MusicLine(stats.Music); // work order 116: seconds in each state of the music, and its changes
+            if (music != null) sb.Append("Music ").AppendLine(music);
             // The runs (work order 012): a short block each.
             foreach (RunRow run in stats.Runs)
             {
