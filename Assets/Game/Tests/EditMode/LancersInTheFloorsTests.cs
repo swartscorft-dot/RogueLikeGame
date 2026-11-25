@@ -127,9 +127,9 @@ namespace Roguelike.Rules.Tests
         {
             ulong h = Print(On);
 #if UNITY_5_3_OR_NEWER
-            const ulong pinned = 0x0UL; // Unity's EditMode run of this code (work order 118's filtered run, 2026-11-24)
+            const ulong pinned = 0xFE9160D84BC9D5EEUL; // Unity's EditMode run of this code (work order 118's filtered run, 2026-11-25)
 #else
-            const ulong pinned = 0x48C9546D2550F782UL; // .NET, this code (the .NET rules run of work order 118)
+            const ulong pinned = 0x48C9546D2550F782UL; // .NET, this code (the .NET rules run of work order 118, 2026-11-25)
 #endif
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("LANCERPRINT " + found);
@@ -195,7 +195,7 @@ namespace Roguelike.Rules.Tests
         sealed class Tally
         {
             public int CombatRooms, WithOne, Lancers, MostInOne, Fallback;
-            public int BelowHalf, InElite;
+            public int BelowHalf, InElite, Reattempted;
             public readonly List<double> Runs = new List<double>(), FloorRuns = new List<double>();
             public readonly Dictionary<string, int> Stops = new Dictionary<string, int>();
             public readonly List<double> Shares = new List<double>();
@@ -240,6 +240,7 @@ namespace Roguelike.Rules.Tests
                     List<LevelRoom> fightsA = LevelGeometry.MainPath(a).Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).ToList();
                     List<LevelRoom> fightsB = LevelGeometry.MainPath(b).Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).ToList();
                     Assert.That(fightsA.Count, Is.EqualTo(fightsB.Count), where + ": as many fights");
+                    if (a.Attempt != b.Attempt) t.Reattempted++; // a floor its lancers sent to another attempt (the validator's rules for them)
                     LevelRoom first = fightsA.FirstOrDefault(r => r.Kind == RoomKind.Combat);
                     for (int i = 0; i < fightsA.Count; i++)
                     {
@@ -299,9 +300,9 @@ namespace Roguelike.Rules.Tests
                     "LANCERFLOORS floor {0}: {1} of {2} combat rooms hold one ({3:P1}), {4} lancers ({5:0.00} a floor), at most {6} in one; depth share min {7:P0} median {8:P0}, {9} below the far band; clear run toward the door min {10:0.0} m, median {11:0.0} m",
                     floor, t.WithOne, t.CombatRooms, t.CombatRooms == 0 ? 0 : t.WithOne / (double)t.CombatRooms, t.Lancers, t.Lancers / 1000.0, t.MostInOne,
                     t.Shares.Count == 0 ? 0 : t.Shares.Min(), Median(t.Shares), t.Fallback, t.Runs.Count == 0 ? 0 : t.Runs.Min(), Median(t.Runs))
-                    + string.Format(Inv, "; below half the depth {0}; in the elite room {1}; the floor alone (no props) min {2:0.0} m median {3:0.0} m; short of {4} m by {5}",
+                    + string.Format(Inv, "; below half the depth {0}; in the elite room {1}; the floor alone (no props) min {2:0.0} m median {3:0.0} m; short of {4} m by {5}; floors made at another attempt than with them off {6}",
                                     t.BelowHalf, t.InElite, t.FloorRuns.Count == 0 ? 0 : t.FloorRuns.Min(), Median(t.FloorRuns), ChargeRoomAtLeast,
-                                    string.Join(", ", t.Stops.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " " + kv.Value))));
+                                    string.Join(", ", t.Stops.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " " + kv.Value)), t.Reattempted));
             }
             TestContext.WriteLine(string.Join("\n", lines));
             foreach (string s in bad.Take(20)) TestContext.WriteLine("LANCERFLOORS short: " + s);

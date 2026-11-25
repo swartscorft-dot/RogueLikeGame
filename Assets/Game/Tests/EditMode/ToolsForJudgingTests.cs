@@ -98,6 +98,10 @@ namespace Roguelike.Rules.Tests
                     var met = new HashSet<EnemyKind>(a.Total.Keys.Concat(b.Total.Keys));
                     foreach (EnemyKind k in met)
                     {
+                        // Work order 118 (changed deliberately): since the generator's version 22 the floors' rooms of floors 4 and 5 hold
+                        // the lancer; the lab's floor presets do not draw it ("floor 4 with a lancer" stands one, LancerTests), so it is
+                        // left out of the kinds met here. Every other kind and the count a room are held to the floors with it.
+                        if (k == EnemyKind.Lancer) continue;
                         if (Math.Max(a.Share(k), b.Share(k)) >= 0.05)
                         {
                             Assert.That(a.Share(k) > 0 && b.Share(k) > 0, Is.True, where + ": " + EnemyKinds.Word(k) + " met in both");

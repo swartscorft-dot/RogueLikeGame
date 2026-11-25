@@ -78,8 +78,11 @@ namespace Roguelike.Rules.Tests
         [TestCase(5, true)]
         public void TwoThousandSeeds_EveryRoomKeepsTheRules_AndEverythingStandsOnOpenCells(int floor, bool defaults)
         {
-            var values = defaults ? new LevelValues() : new LevelValues { Templates = false, Passages = false }; // work order 058: 051's drawn shapes, as they were; 059: touching rooms, a gate in each
-            var off = new LevelValues { Shapes = false, Templates = false, Passages = false };
+            // Work order 118 (changed deliberately): 051's drawn shapes without the lancers, as they were measured. With them on, a carved
+            // cell can leave a room no 10 m of floor for its lancer to charge across, and the floor is then made by a later attempt
+            // than with the shapes off (seed 17 of floors 4 and 5); the defaults below keep the lancers.
+            var values = defaults ? new LevelValues() : new LevelValues { Templates = false, Passages = false, Lancers = false }; // work order 058: 051's drawn shapes, as they were; 059: touching rooms, a gate in each
+            var off = new LevelValues { Shapes = false, Templates = false, Passages = false, Lancers = false };
             var shapes = new Dictionary<string, int>();
             int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0, earlier = 0;
             int templated = 0, enemyPaths = 0;

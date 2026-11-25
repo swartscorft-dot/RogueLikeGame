@@ -89,7 +89,7 @@ namespace Roguelike.PlayModeTests
                 if (e != null && !e.IsDead) e.GetComponent<Damageable>().TakeHit(100000000);
         }
 
-        /// <summary>The first seed of the floor whose combat room (not its first, not the elite room) holds a lancer and, if asked, a shooter and a caster too.</summary>
+        /// <summary>The first seed of the floor whose combat room (not its first, not the elite room) holds a lancer and, if asked, a shooter and a caster too; order -1 when none of the first 600 seeds has one.</summary>
         static (ulong seed, int order) FindRoom(LevelValues v, int floor, bool withPosts)
         {
             for (ulong s = 1; s < 600; s++)
@@ -102,7 +102,6 @@ namespace Roguelike.PlayModeTests
                     return (s, r.Order);
                 }
             }
-            Assert.Fail("no such room in the first 600 seeds of floor " + floor);
             return (0UL, -1);
         }
 
@@ -166,6 +165,7 @@ namespace Roguelike.PlayModeTests
         {
             Assert.That(_levels.Values.LancersInFloors, Is.True, "the defaults (work order 118)");
             (ulong seed, int order) = FindRoom(_levels.Values, 4, false);
+            Assert.That(order, Is.GreaterThanOrEqualTo(0), "a floor 4 with a lancer in the first 600 seeds");
             var lines = new List<string>();
             yield return WakeAndEnd(seed, 4, order, lines);
             string line = "LANCERFLOORPLAY " + string.Join("; ", lines);
@@ -185,6 +185,7 @@ namespace Roguelike.PlayModeTests
                 floor = f;
                 if (found.order >= 0) break;
             }
+            Assert.That(found.order, Is.GreaterThanOrEqualTo(0), "a room with a lancer, shooters and casters on floor 4 or 5 in the first 600 seeds");
             yield return WakeAndEnd(found.seed, floor, found.order, lines, (level, room, own) =>
             {
                 List<EnemyShooter> shooters = own.OfType<EnemyShooter>().ToList();
