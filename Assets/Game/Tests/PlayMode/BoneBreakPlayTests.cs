@@ -350,6 +350,28 @@ namespace Roguelike.PlayModeTests
             Assert.That(LiveOf(first).Count, Is.LessThan(LiveOf(last).Count), "the oldest gave theirs up first");
         }
 
+        /// <summary>
+        /// The merge of 2026-11-25: three deaths in ONE frame (one blast), the cap reached. The order of throws decides the oldest,
+        /// not the clock: before, with no time between them, the last body's pieces took one another's places and it kept one.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheCap_Holds_WhenThreeDieInOneFrame_TheLastKeepsItsPieces()
+        {
+            BoneBreakValues.Live.MostPieces = 20;
+            var got = new List<Enemy>();
+            for (int k = 0; k < 3; k++) yield return Spawn(EnemyKind.Brute, got);
+            foreach (Enemy e in got)
+            {
+                e.Body.TakeHit(e.Body.CurrentHealth);
+                Assert.That(Pieces.Live, Is.LessThanOrEqualTo(20));
+            }
+            BoneBreak last = got[2].GetComponent<BoneBreak>(), first = got[0].GetComponent<BoneBreak>();
+            Assert.That(Pieces.TakenFromTheOldest, Is.GreaterThan(0), "the oldest taken");
+            Assert.That(LiveOf(last).Count, Is.GreaterThanOrEqualTo(10), "the last to die keeps its pieces, though all three died in one frame");
+            Assert.That(LiveOf(first).Count, Is.EqualTo(0), "the first to die gave all of theirs up");
+            yield return null;
+        }
+
         // ---------------- Coming back whole ----------------
 
         [UnityTest]

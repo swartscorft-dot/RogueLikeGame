@@ -62,6 +62,7 @@ namespace Roguelike
         Slot[] _slots = new Slot[0];
         BonePieceState[] _states = new BonePieceState[0];
         double[] _born = new double[0];
+        double _order; // the count of throws so far: a piece's place in their order (whole numbers, exact as doubles far past any play session)
         int _made;
         PhysicsMaterial _stone;
         readonly List<Material> _materials = new List<Material>();
@@ -163,7 +164,12 @@ namespace Roguelike
             s.Shape = shape;
             s.Source = source;
             _states[i] = BonePieceState.Flying;
-            _born[i] = Time.timeAsDouble + i * 1e-9;
+            // Its place in the order of throws, not the clock (the merge of 2026-11-25). By the clock, pieces thrown at the same
+            // instant (two enemies killed by one blast in one frame, or a frame in which no game time passed) were told apart by
+            // their slot's number only, so with the cap reached a new body's piece in a low slot counted as the oldest and its own
+            // next piece took its place: the newest death was left with one piece (BoneBreakPlayTests.TheCap_Holds..., once in
+            // four runs on the merged build).
+            _born[i] = ++_order;
             Live++;
             if (Live > MostLive) MostLive = Live;
             Thrown++;
