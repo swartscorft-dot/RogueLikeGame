@@ -90,6 +90,20 @@ namespace Roguelike.Rules
         public Rgb InkColour = new Rgb(0.06f, 0.04f, 0.06f); // a deep warm black, the drawings' line (not pure black)
         public float InkDepthPush = 0.06f;   // m the line is pushed away from the camera: a small piece lying on her (a buckle, a pouch) is not inked against the coat under it, only edges that stand off by more (the first pictures had scratchy inner lines and specks at the game's distance)
 
+        // Work order 125: the line drawn clean. Kristian, 2026-11-25, of work order 119's pictures: "man ser mange fragmenterte
+        // pixler rundt omkring, det ser veldig dårlig ut. Kan en agent gå over det å få det se bra ut." Work order 119's hull was
+        // pushed away from the camera along the camera's axis, which also moved it on the screen toward the screen's middle (by
+        // InkDepthPush / distance of its way from there: up to 3 px close up, more than the line is wide), so the line thickened on
+        // one side of a figure and was lost on the other, in pieces; and nothing smoothed its edges. Now the hull is pushed back
+        // along the line of sight (it stays where it is on the screen), drawn only round her model and each enemy's own meshes
+        // (marked, Runtime/ToonInkFigures.cs; never round a loose piece that copies an enemy's materials), and the picture is
+        // anti-aliased (AntiAliasingValues). Off (CleanInk false), the line is work order 119's hull, exactly as it was.
+        /// <summary>
+        /// Work order 125's switch: on, the ink line is the clean one (the hull pushed back along the line of sight, only round
+        /// her model and each enemy's own meshes); off, work order 119's line exactly. On by default. Not kept between starts.
+        /// </summary>
+        public static bool CleanInk = true;
+
         /// <summary>The ink line's width in pixels on a screen <paramref name="screenRows"/> pixels tall: in proportion to 1080 rows.</summary>
         public float InkPixels(float screenRows) => InkWidth * Math.Max(0f, screenRows) / ReferenceRows;
 

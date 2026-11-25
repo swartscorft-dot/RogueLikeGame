@@ -100,7 +100,8 @@ namespace Roguelike
             || line == MenuLine.Light            // work order 085
             || line == MenuLine.ToonLook         // work order 115
             || IsMusicLine(line)                 // work order 116
-            || line == MenuLine.CameraAngle;     // work order 121
+            || line == MenuLine.CameraAngle      // work order 121
+            || line == MenuLine.AntiAliasing;    // work order 125
 
         /// <summary>The rows' words and her stats read apart (work order 078): made with the pause screen's lists, when it opens and when a setting changes.</summary>
         void MakeMenuRows()

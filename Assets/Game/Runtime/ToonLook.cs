@@ -55,6 +55,9 @@ namespace Roguelike
         static readonly int s_OutlineWidth = Shader.PropertyToID("_OutlineWidth");
         static readonly int s_OutlineDepthPush = Shader.PropertyToID("_OutlineDepthPush");
 
+        static readonly int s_OutlineAlongRay = Shader.PropertyToID("_OutlineAlongRay"); // work order 125
+        static readonly int s_InkNeedsMark = Shader.PropertyToID("_InkNeedsMark");       // work order 125
+
         sealed class Target
         {
             public Renderer Renderer;
@@ -68,6 +71,7 @@ namespace Roguelike
         bool _found;
         bool _failed; // the shader is not there: she stays as she is, and it is not looked for again
         bool _applied;
+        bool _clean; // work order 125: the line the copies were last set for (the clean one, or 119's hull)
 
         /// <summary>Every Play starts with the look on (the switch is not kept between starts; work order 115).</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -92,6 +96,7 @@ namespace Roguelike
         public void Tick()
         {
             bool want = ToonLookValues.On;
+            if (want && _applied && _clean != ToonLookValues.CleanInk) Refresh(); // work order 125: the line's way changed
             if (want == _applied || (want && _failed)) return;
             if (want) PutOn();
             else TakeOff();
@@ -104,6 +109,14 @@ namespace Roguelike
                 if (t.Toon != null)
                     foreach (Material m in t.Toon)
                         if (m != null) Push(m, t.Kit, ToonLookValues.Live);
+            if (_applied) Figures(true);
+        }
+
+        /// <summary>Work order 125: her renderers marked for the clean line while she wears the look and it is on; unmarked otherwise (as before).</summary>
+        void Figures(bool on)
+        {
+            _clean = ToonLookValues.CleanInk;
+            foreach (Target t in _targets) ToonInkFigures.Mark(t.Renderer, on && _clean);
         }
 
         void Find()
@@ -153,9 +166,13 @@ namespace Roguelike
                     t.Toon = new Material[t.Before.Length];
                     for (int i = 0; i < t.Before.Length; i++) t.Toon[i] = Make(shader, t.Before[i], t.Kit);
                 }
+                else if (_clean != ToonLookValues.CleanInk)
+                    foreach (Material m in t.Toon)
+                        if (m != null) Push(m, t.Kit, ToonLookValues.Live);
                 t.Renderer.sharedMaterials = t.Toon;
             }
             _applied = true;
+            Figures(true);
         }
 
         void TakeOff()
@@ -163,6 +180,7 @@ namespace Roguelike
             foreach (Target t in _targets)
                 if (t.Renderer != null) t.Renderer.sharedMaterials = t.Before;
             _applied = false;
+            Figures(false);
         }
 
         Material Make(Shader shader, Material today, bool kit)
@@ -210,6 +228,10 @@ namespace Roguelike
             m.SetColor(s_OutlineColor, C(v.InkColour));
             m.SetFloat(s_OutlineWidth, Mathf.Max(0f, v.InkWidth));
             m.SetFloat(s_OutlineDepthPush, Mathf.Max(0f, v.InkDepthPush));
+            // Work order 125: the clean line, the hull pushed back along the line of sight and drawn only round a marked renderer
+            // (ToonInkFigures); off, both 0: work order 119's line exactly.
+            m.SetFloat(s_OutlineAlongRay, ToonLookValues.CleanInk ? 1f : 0f);
+            m.SetFloat(s_InkNeedsMark, ToonLookValues.CleanInk ? 1f : 0f);
         }
 
         // Her renderers get back today's materials if they outlive this, and every material made here goes with her.
