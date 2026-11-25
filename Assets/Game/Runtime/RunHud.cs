@@ -58,7 +58,7 @@ namespace Roguelike
         /// CameraDistance (work order 083): the camera's distance, 28, 25 or 22 m, beside the kick. Light (work order 085): as
         /// before or one of three lamplit levels, under the greybox view (RunHudLight.cs).
         /// </summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, ToonLook, Music, MusicVolume }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, ToonLook, Music, MusicVolume, CameraAngle }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -262,6 +262,7 @@ namespace Roguelike
                 case MenuLine.ToonLook: ChangeSetting(line, 1); break; // work order 115
                 case MenuLine.Music:
                 case MenuLine.MusicVolume: PickMusic(line); break; // work order 116 (RunHudMusic.cs)
+                case MenuLine.CameraAngle: ChangeSetting(line, 1); break; // work order 121
             }
             return true;
         }
@@ -326,6 +327,11 @@ namespace Roguelike
             if (IsMusicLine(line))
             {
                 ChangeMusic(line, delta); // work order 116 (RunHudMusic.cs)
+                return true;
+            }
+            if (line == MenuLine.CameraAngle)
+            {
+                StepCameraAngle(delta); // work order 121 (RunHudCameraAngle.cs); the camera follows it this frame
                 return true;
             }
             return false;
@@ -532,6 +538,7 @@ namespace Roguelike
             _menu.Add(MenuLine.DashDirection);
             _menu.Add(MenuLine.Volume);
             _menu.Add(MenuLine.DamageNumbers);
+            if (CameraAngles.On) _menu.Add(MenuLine.CameraAngle); // work order 121: the camera angle, just above the camera's kick and distance (whose tests keep those two side by side)
             _menu.Add(MenuLine.CameraKick); // work order 064: the camera's kick when a shot goes off
             _menu.Add(MenuLine.CameraDistance); // work order 083: the camera's distance, beside the kick
             _menu.Add(MenuLine.Greybox); // work order 084: the greybox view, under the camera's two lines
@@ -565,6 +572,7 @@ namespace Roguelike
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 case MenuLine.ToonLook: return ToonLookText; // work order 115 (RunHudToonLook.cs)
+                case MenuLine.CameraAngle: return CameraAngleText; // work order 121 (RunHudCameraAngle.cs)
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }
@@ -873,7 +881,8 @@ namespace Roguelike
                                || line == MenuLine.Greybox       // work order 084
                                || line == MenuLine.CameraDistance // work order 083
                                || line == MenuLine.Light          // work order 085
-                               || line == MenuLine.Attachments;  // work order 060
+                               || line == MenuLine.Attachments    // work order 060
+                               || line == MenuLine.CameraAngle;   // work order 121
                 if (setting)
                 {
                     const float arrow = 36f;

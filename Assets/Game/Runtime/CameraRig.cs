@@ -20,11 +20,13 @@ namespace Roguelike
             if (Target == null) return;
             FeelValues feel = Settings != null ? Settings.Values : _fallbackFeel;
 
-            _camera.fieldOfView = feel.FieldOfView;
-            Quaternion rotation = Quaternion.Euler(feel.CameraPitch, 0f, 0f);
+            // Work order 121: the pause menu's camera angle (ours, the default: the feel's own pitch and field of view, number for
+            // number as before); work order 083: the distance the pause menu's step gives (the feel's own at step 0, the default).
+            CameraAngle angle = GameSettings.CameraNow(feel);
+            _camera.fieldOfView = angle.FieldOfView;
+            Quaternion rotation = Quaternion.Euler(angle.Pitch, 0f, 0f);
             Vector3 focus = new Vector3(Target.position.x, 0f, Target.position.z);
-            // Work order 083: the distance the pause menu's step gives (the feel's own at step 0, the default).
-            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * GameSettings.CameraDistance(feel.CameraDistance), rotation);
+            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * angle.Distance, rotation);
         }
     }
 }
