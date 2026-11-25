@@ -398,6 +398,7 @@ namespace Roguelike
             {
                 var e = new SessionEvent(Now(), SessionEventTypes.EnemyLoose, attack?.Name) { Enemy = enemy.LogWord, EnemyId = enemy.Id };
                 e.AddExtra("count", count.ToString(CultureInfo.InvariantCulture));
+                RangedOpening.Note(e, enemy); // work order 124: whether its shooter was on screen
                 Add(e);
             }
             catch (Exception e) { Fail(e); }

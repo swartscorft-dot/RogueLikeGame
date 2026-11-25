@@ -182,6 +182,17 @@ namespace Roguelike.Rules
     /// to charge across: a floor that breaks them is made again by the next attempt, as for any rule). How many enemies a room holds
     /// is version 21's; a room with a lancer holds one swarmer fewer, and its enemies' points and the props and cover laid round them
     /// may stand otherwise. With it off every floor is version 21's, field for field, but for the version.
+    /// Version 23 (work order 124; Kristian, 2026-11-25: "det er litt kjedelig at alle range alltid er gruppert bakerst. De kan være litt
+    /// mer strategisk plassert rundt i rommet", and from the research digest R2 he ticked "Blanding" and "Fra etasje 4"): with
+    /// <see cref="LevelValues.RangedAroundTheRoom"/> on (the default) the row's shooters stand singly (<see cref="LevelRanged.Split"/>, after
+    /// the lancers: a room's count of enemies is the same), and each room's ranged enemies stand by <see cref="LevelRanged"/>'s rules on a
+    /// stream of their own (<see cref="LevelRanged.Stage"/>, four draws a room that holds one): singles, one pair or one nest; only one
+    /// group at the back (a template's h or the far band); from floor 4 in about one combat room in three a crossfire east and west of
+    /// the room's middle; in a share of the rooms with two or more a near flank close at her side; the rest on a ladder of rungs
+    /// staggered in depth; the warder among the melee, after every other group. Every post keeps every rule a post kept, and the
+    /// validator its pattern's (<see cref="LevelRanged.Faults"/>); the fight's cover serves the near flank's line first and stands tall
+    /// cover before the crossfire's posts where it can. The contents stream draws what it drew; the rooms' points, and the props and
+    /// cover laid round them, stand otherwise. With it off every floor is version 22's, field for field, but for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -225,7 +236,10 @@ namespace Roguelike.Rules
         // 22: work order 118, the lancer into the floors (LevelValues.Lancers, on: work order 108's lancer from floor 4, in place of a
         // swarmer, at most one a combat room on floor 4 and two on floor 5, never in the floor's first combat room nor the exit room,
         // in the far band and its far half with 10 m of floor to charge across toward the door in; off, every floor is version 21's).
-        public const int Version = 22;
+        // 23: work order 124, ranged enemies around the room (LevelValues.RangedAroundTheRoom, on: the shooters singly, one ranged group at
+        // the back, a near flank, a ladder, a pair or a nest, crossfire from floor 4, the warder in the pack, on the stream "ranged"; off,
+        // every floor is version 22's).
+        public const int Version = 23;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -260,6 +274,7 @@ namespace Roguelike.Rules
             if (values.BombersInFloors) LevelBombers.Put(fights, seed, floor, values); // work order 073; on with the act's plan (087)
             if (values.WardersInFloors) LevelWarders.Put(fights, seed, floor, values); // work order 079; on with the act's plan (087)
             if (values.LancersInFloors) LevelLancers.Put(fights, seed, floor, values); // work order 118 (version 22): 108's lancer; on with the act's plan
+            LevelRanged.Split(fights, values); // work order 124 (version 23): the shooters stand singly (nothing with its switch off)
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {
@@ -658,6 +673,7 @@ namespace Roguelike.Rules
         static bool PlaceFights(LevelLayout level, List<List<EnemyGroup>> fights, LevelRandom rng, LevelValues v)
         {
             int next = 0;
+            LevelRandom ranged = LevelRanged.On(v) ? LevelRandom.Stream(level.Seed, LevelRanged.Stage, level.Attempt - 1) : null; // work order 124: the rooms' own draws
             foreach (LevelRoom room in level.Rooms)
             {
                 if (room.Kind == RoomKind.Entrance)
@@ -668,7 +684,7 @@ namespace Roguelike.Rules
                 if (room.Kind != RoomKind.Combat && room.Kind != RoomKind.Exit) continue;
                 if (next >= fights.Count) return false;
                 List<EnemyGroup> groups = fights[next++].Select(g => g.Copy()).ToList();
-                if (!PlaceGroups(level, room, groups, rng, v)) return false;
+                if (!PlaceGroups(level, room, groups, rng, v, ranged)) return false;
             }
             return true;
         }
@@ -802,7 +818,7 @@ namespace Roguelike.Rules
         /// side from the door in, then guards and brutes between, then the swarmers anywhere; a group takes the first place
         /// where every one of its enemies keeps the rules, its band first and anywhere after. False when a group has none.
         /// </summary>
-        static bool PlaceGroups(LevelLayout level, LevelRoom room, List<EnemyGroup> groups, LevelRandom rng, LevelValues v)
+        static bool PlaceGroups(LevelLayout level, LevelRoom room, List<EnemyGroup> groups, LevelRandom rng, LevelValues v, LevelRandom ranged = null)
         {
             double cs = v.CellSize, clear = v.WallClearance, step = v.PointStep;
             LevelDoor entry = LevelGeometry.EntryDoor(level, room);
@@ -876,14 +892,22 @@ namespace Roguelike.Rules
                 return false;
             }
 
+            // Work order 124 (version 23): with its switch on and a stream of its own, the ranged groups and the warder stand by its rules.
+            RangedRoom around = RangedRoom.For(level, room, entry, v, ranged, places, p => Far(p) / Math.Max(1e-9, farthest), Fits, Put);
             // The casters (work order 027) after the shooters, at the far side as they are.
-            int Rank(EnemyGroup g) => g.Boss ? 0 : g.Elite ? 1 : g.Kind == EnemyKind.Shooter ? 2 : g.Kind == EnemyKind.Caster ? 3
+            int Rank(EnemyGroup g) => around != null && around.WarderLast && around.Takes(g) && g.Kind == EnemyKind.Warder ? 7 : g.Boss ? 0 : g.Elite ? 1 : g.Kind == EnemyKind.Shooter ? 2 : g.Kind == EnemyKind.Caster ? 3
                                     : g.Kind == EnemyKind.Guard ? 4 : g.Kind == EnemyKind.Brute ? 5 : 6;
-            foreach (EnemyGroup g in groups.OrderBy(Rank).ToList())
+            List<EnemyGroup> ranked = groups.OrderBy(Rank).ToList();
+            foreach (EnemyGroup g in ranked)
             {
                 if (g.Boss && Fits(g, room.Middle(cs), out LevelPoint[] at))
                 {
                     Put(g, room.Middle(cs), at);
+                    continue;
+                }
+                if (around != null && around.Takes(g))
+                {
+                    if (!around.Place(g, ranked)) return false; // work order 124
                     continue;
                 }
                 bool done = g.Kind == EnemyKind.Shooter || g.Kind == EnemyKind.Caster || g.Kind == EnemyKind.Warder // 079: the warder at the back

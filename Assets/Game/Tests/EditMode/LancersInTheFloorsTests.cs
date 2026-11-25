@@ -21,8 +21,8 @@ namespace Roguelike.Rules.Tests
     public class LancersInTheFloorsTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        static LevelValues On => new LevelValues();
-        static LevelValues Off => new LevelValues { Lancers = false };
+        static LevelValues On => new LevelValues { Lancers = true, RangedAroundTheRoom = false }; // work order 124 (changed deliberately): version 22 is the ranged enemies around the room off; the lancers named on
+        static LevelValues Off => new LevelValues { Lancers = false, RangedAroundTheRoom = false };
 
         /// <summary>
         /// The far half: a lancer stands at least this share of the room's farthest place from the door she comes in by (the order:
@@ -98,9 +98,9 @@ namespace Roguelike.Rules.Tests
         {
             Assert.That(new LevelValues().Lancers, Is.True, "on by default (work order 108)");
             Assert.That(new LevelValues().LancersInFloors, Is.True, "and in the floors, with the act's plan");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(22), "work order 118's version");
-            Assert.That(LevelGenerator.Generate(0x118UL, 4).Version, Is.EqualTo(22));
-            Assert.That(LevelGenerator.Generate(0x118UL, 4, Off).Version, Is.EqualTo(22), "off: version 21's floor, but for the number");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(23), "work order 118's version, 22; work order 124's, 23");
+            Assert.That(LevelGenerator.Generate(0x118UL, 4).Version, Is.EqualTo(23));
+            Assert.That(LevelGenerator.Generate(0x118UL, 4, Off).Version, Is.EqualTo(23), "off: version 21's floor, but for the number");
         }
 
         /// <summary>
@@ -376,8 +376,8 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepVersion22sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(22), "the version was raised: update the golden maps and this number together");
-            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor));
+            Assert.That(LevelGenerator.Version, Is.EqualTo(23), "the version was raised: update the golden maps and this number together");
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, On)).Replace("version " + LevelGenerator.Version + " ", "version 22 "); // work order 124 (changed deliberately): version 22's maps are the ranged enemies around the room off
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN22 " + key + "\n" + map);
             Assert.That(GoldenVersion22.ContainsKey(key), "no golden map for " + key + "\n" + map);

@@ -97,11 +97,12 @@ namespace Roguelike.Rules
                     if (holds || !PutTall(f, tall, ends, runs, InMiddle, values, cv)) break;
                     _room.CoverTallAdded++;
                 }
+                RangedCrossfireTall(f, tall, runs, values, cv); // work order 124: tall cover before a crossfire's posts (nothing with its switch off)
 
                 // The low cover for the duck (see the class).
                 if (!f.HasShooters) return;
                 PropModel low = Rules.FightCover.LowModel(_room.Theme);
-                int lowAdded = 0;
+                int lowAdded = RangedNearFlankLow(f, low, runs, values, cv); // work order 124: the near flank's line first (0 with its switch off)
                 while (lowAdded < cv.LowAddMost && Rules.FightCover.LowCount(_level, f, values) < cv.LowFewest)
                 {
                     if (!PutLow(f, low, runs, values, cv)) break;

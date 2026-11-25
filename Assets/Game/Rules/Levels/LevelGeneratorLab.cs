@@ -72,7 +72,8 @@ namespace Roguelike.Rules
                 if (v.Shapes || template != null) RoomShapes.Carve(level, LevelRandom.Stream(seed, ShapesStage, attempt), v);
                 LevelRandom contents = LevelRandom.Stream(seed, ContentsStage, attempt);
                 List<EnemyGroup> groups = RoomLab.Groups(kind, mix, contents, v);
-                if (groups.Count > 0 && !PlaceGroups(level, room, groups, contents, v))
+                LevelRanged.SplitGroups(groups, v); // work order 124: the shooters singly, and their posts on the room's own stream below
+                if (groups.Count > 0 && !PlaceGroups(level, room, groups, contents, v, LevelRanged.On(v) ? LevelRandom.Stream(seed, LevelRanged.Stage, attempt) : null))
                 {
                     faults = new List<string> { "no place in it for its enemies" };
                     continue;

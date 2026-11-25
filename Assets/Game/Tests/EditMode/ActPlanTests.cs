@@ -32,9 +32,9 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ThePlan_OneNewThingAFloor_AsATable()
         {
-            var v = new LevelValues { FloorCharacter = false, Lancers = false }; // work order 104 (changed deliberately): 087's plan; the floors' character moves the elites a floor on (FloorCharacterTests)
+            var v = new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 104 (changed deliberately): 087's plan; the floors' character moves the elites a floor on (FloorCharacterTests)
             Assert.That(v.ActPlan, Is.True, "on by default (work order 087)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(22)); // work order 088; 103: 20; 104: 21; 118: 22
+            Assert.That(LevelGenerator.Version, Is.EqualTo(23)); // work order 088; 103: 20; 104: 21; 118: 22; 124: 23
             var shooter = new ShooterValues();
             var lines = new List<string> { "ACTPLANTABLE floor  guards  casters (exit)  caster elite  warders  bombers (exit)  shooter's fan  act boss" };
             int[] guards = { 0, 1, 1, 1, 1 }, casters = { 0, 0, 1, 1, 2 }, castersExit = { 0, 0, 2, 2, 3 };
@@ -70,10 +70,10 @@ namespace Roguelike.Rules.Tests
         public void EachKindsFirstFloor_IsOneNumber_ThatMovesIt()
         {
             // The caster: CastersFromFloor, the rooms' and the elite's.
-            var v = new LevelValues { CastersFromFloor = 2, FloorCharacter = false, Lancers = false }; // work order 104: 087's elite rule
+            var v = new LevelValues { CastersFromFloor = 2, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 104: 087's elite rule
             Assert.That(v.CastersMost(RoomKind.Combat, 2), Is.EqualTo(1), "moved down to floor 2: one a room there");
             Assert.That(v.EliteKinds(2), Has.Member(EnemyKind.Caster), "and the elite may be one");
-            v = new LevelValues { CastersFromFloor = 4, FloorCharacter = false, Lancers = false };
+            v = new LevelValues { CastersFromFloor = 4, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false };
             Assert.That(v.CastersMost(RoomKind.Combat, 3) + v.CastersMost(RoomKind.Exit, 3), Is.EqualTo(0), "moved up to floor 4: none on floor 3");
             Assert.That(v.EliteKinds(3), Has.No.Member(EnemyKind.Caster));
             Assert.That(v.CastersMost(RoomKind.Combat, 4), Is.EqualTo(1));
@@ -101,7 +101,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ThePlanOff_IsVersion17sRules()
         {
-            var off = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, UsableRooms = false };
+            var off = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false };
             int[] casters = { 0, 1, 1, 2, 2 }, castersExit = { 0, 2, 2, 3, 3 };
             for (int f = 1; f <= 5; f++)
             {
@@ -319,7 +319,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandFloors_BeforeAndAfter_ThePlanHolds_AndARoomsCountStays(int floor)
         {
-            LevelValues before = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, UsableRooms = false }, after = new LevelValues();
+            LevelValues before = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false }, after = new LevelValues();
             Tally tb = new Tally(), ta = new Tally();
             int same = 0, rooms = 0;
             for (int i = 0; i < Seeds; i++)
@@ -404,7 +404,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void ThePlanOff_TwoThousandFloors_AreVersion17s_FieldForField()
         {
-            var off = new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false }; // work order 103: nor the exit rooms of their own
+            var off = new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 103: nor the exit rooms of their own
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {

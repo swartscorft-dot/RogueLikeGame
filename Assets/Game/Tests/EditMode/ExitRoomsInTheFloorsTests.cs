@@ -91,7 +91,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Version20_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            var v = new LevelValues { FloorCharacter = false, Lancers = false }; // work order 104 (changed deliberately): version 20 is the floors' character off
+            var v = new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 104 (changed deliberately): version 20 is the floors' character off
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++) h = Fold(LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h);
             for (ulong r = 0; r < 100; r++)
@@ -105,7 +105,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_TheRoomBefore_ChangesNothing()
         {
-            var off = new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false };
+            var off = new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false };
             for (ulong s = 0; s < 60; s++)
                 foreach (string before in Names)
                 {
@@ -132,14 +132,14 @@ namespace Roguelike.Rules.Tests
             var last = Three().Where(t => t.Name == "stair-head").ToList();
             WayDowns.Avoid(last, "stair-head", 2, on);
             Assert.That(last.Select(t => t.Name), Is.EqualTo(new[] { "stair-head" }), "the only one left: kept");
-            foreach ((string before, int floor, LevelValues v) in new[] { ((string)null, 2, on), ("stair-head", 5, on), ("stair-head", 2, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false }) })
+            foreach ((string before, int floor, LevelValues v) in new[] { ((string)null, 2, on), ("stair-head", 5, on), ("stair-head", 2, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }) })
             {
                 var all = Three();
                 WayDowns.Avoid(all, before, floor, v);
                 Assert.That(all.Count, Is.EqualTo(3));
             }
             Assert.That(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 5)), Is.Null, "a throne room is no room of its own");
-            Assert.That(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 2, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false })), Is.Null);
+            Assert.That(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 2, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false })), Is.Null);
             Assert.That(Names, Does.Contain(WayDowns.Shown(LevelGenerator.Generate(0x103UL, 2))));
         }
 
@@ -356,7 +356,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheExitRoomsOff_KeepVersion19sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false }))
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }))
                          .Replace("version " + LevelGenerator.Version + " ", "version 19 ");
             string key = seedText + "/" + floor;
             Assert.That(map, Is.EqualTo(GoldenVersion19[key].Replace("\r\n", "\n")), "map of seed " + key + " with the exit rooms of their own off\n" + map);

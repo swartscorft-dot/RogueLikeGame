@@ -86,6 +86,8 @@ namespace Roguelike
         }
 
         public CasterValues Tuning = new CasterValues();
+        /// <summary>Work order 124: when it may begin a cast in a room's fight (<see cref="RangedOpening"/>).</summary>
+        public readonly RangedOpening Opening = new RangedOpening();
 
         readonly CasterTactics _tactics = new CasterTactics();
         readonly List<Circle> _circles = new List<Circle>();
@@ -165,7 +167,7 @@ namespace Roguelike
         {
             if (distance < Tuning.BackOffUnder && Time.time >= _corneredUntil) _backingOff = true;
             if (distance >= Tuning.KeepNear) _backingOff = false;
-            return !_backingOff && SeesHer();
+            return !_backingOff && SeesHer() && Opening.Allows(this, distance, CasterValues.CastsFrom); // work order 124: on his screen, and a second's grace at the waking
         }
 
         /// <summary>

@@ -307,5 +307,11 @@ namespace Roguelike.Rules
 
         /// <summary>The fight is over (cleared, she died, or she got away): its enemies are no longer held.</summary>
         public void End() => On = false;
+
+        /// <summary>
+        /// Work order 124 (parts 1 and 2, <see cref="RangedOpeningRules"/>): set by the floor, the values its shooters and casters ask
+        /// before they begin a draw or a cast; null with <see cref="LevelValues.RangedAroundTheRoom"/> off (as before).
+        /// </summary>
+        public RangedAroundValues Ranged { get; set; }
     }
 }
