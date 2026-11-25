@@ -31,6 +31,8 @@ namespace Roguelike.PlayModeTests
         const string FolderVariable = "ROGUELIKE_CAPTURE";
         const ulong RunSeed = 0x0128128UL;
         const int W = 1920, H = 1080;
+        /// <summary>The renders' own noise between two draws of one frame, as measured (see the pair's comment): pixels, and the largest step of 255.</summary>
+        const int NoisePixels = 100, NoiseStep = 4;
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
         PlayerCharacter _player;
@@ -216,7 +218,11 @@ namespace Roguelike.PlayModeTests
             int differ = Differ(before, after), differ2 = Differ(before2, after2), noiseOff = Differ(before, before2), noiseOn = Differ(after, after2), differLow = Differ(before, low);
             _log.Add(string.Format(Inv, "{0:HH:mm:ss} HIGH IS TODAY'S: the floor 5 fight ({1} enemies), {2} by {3}: before (the switch off) and after (on, the defaults) differ in {4} pixels of {5} (again: {6}; largest step {7}); two draws with the switch off differ in {8}, two with it on in {9} (the renders' own noise; where they differ: high-differ.png, red); Low differs from before in {10}",
                                    DateTime.Now, enemies, W, H, differ, before.Length, differ2, Largest(before, after), noiseOff, noiseOn, differLow));
-            Assert.That(differ, Is.LessThanOrEqualTo(Math.Max(noiseOff, noiseOn)), "High with the defaults is today's picture: no more different than two draws of the same frame are anyway");
+            // Two draws of the very same frame differ by themselves in a handful of pixels by a step or two (8 to 48 pixels of two
+            // million, at most 3 of 255, in the runs of 2026-11-25): "no difference" is a difference of that size and kind.
+            int noise = Math.Max(noiseOff, noiseOn);
+            Assert.That(differ, Is.LessThanOrEqualTo(Math.Max(2 * noise, NoisePixels)), "High with the defaults is today's picture: no more pixels differ than two draws of the same frame differ by");
+            Assert.That(Largest(before, after), Is.LessThanOrEqualTo(NoiseStep), "and by no more than the renders' own noise in any pixel");
             Assert.That(differLow, Is.GreaterThan(100000), "the comparison sees a change when there is one");
 
             // The cost: High, Medium, Low, each in a block of draws (after a few to settle its textures), the blocks three times
