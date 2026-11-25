@@ -101,13 +101,17 @@ namespace Roguelike
 
         // ---------------- A shot ----------------
 
+        /// <summary>Work order 138: the next shot's light is this share brighter (Hot Barrel's heat on her pistols); used once and put back to 0.</summary>
+        public float NextWarmth { get; set; }
+
         /// <summary>A shot went off at the muzzle along a flat direction: its light, and the camera's kick.</summary>
         public void Fired(Vector3 muzzle, Vector3 flatDirection, ShotWeight weight)
         {
             if (!Values.On) return;
             Shots++;
             float now = Time.unscaledTime;
-            float peak = FiringWeightRules.Light(weight, Values);
+            float peak = FiringWeightRules.Light(weight, Values) * (1f + Mathf.Max(0f, NextWarmth)); // work order 138: Hot Barrel's warmth, this shot only
+            NextWarmth = 0f;
             // Work order 085: at a lamplit level the lamplit flash is the muzzle's light (one light at a muzzle, not two).
             if (peak > 0f && Values.LightSeconds > 0f && Values.MaxLights > 0 && !LamplitView.TakesTheMuzzle) LightUp(muzzle, peak, now);
             if (GameSettings.CameraKick) _kicks.Add(now, flatDirection.x, flatDirection.z, FiringWeightRules.Kick(weight, Values));

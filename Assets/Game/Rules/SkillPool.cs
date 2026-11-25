@@ -40,7 +40,9 @@ namespace Roguelike.Rules
             {
                 if (skills[i] == null || !skills[i].StartEquipped) continue;
                 _has[i] = true;
-                if (i < KeyCount && _onKey[i] < 0) _onKey[i] = i;
+                // Work order 138: with six slots, the start table's key (SkillSlots.StartKeys), so nothing slides onto 1 and 2.
+                int own = SixSlots ? SkillSlots.StartKeyOf(skills[i].Name) : i;
+                if (InUse(own) && _onKey[own] < 0) _onKey[own] = i;
             }
             for (int i = 0; i < count; i++)
                 if (_has[i] && KeyOf(i) < 0) Place(i);
@@ -55,6 +57,19 @@ namespace Roguelike.Rules
 
         /// <summary>The skill on a key, or -1 for an empty key or no such key.</summary>
         public int SkillOn(int key) => key >= 0 && key < KeyCount ? _onKey[key] : -1;
+
+        /// <summary>
+        /// Work order 138 (Kristian, 2026-11-25: "Kanskje fjerne 2 spell slots"; his tick "To av de tomme"): six slots, keys 3
+        /// and 4 holding nothing (<see cref="SkillSlots"/>). Set from <see cref="KitValues.SixSlots"/> before <see cref="Start"/>.
+        /// False, which a bare loadout is, eight keys as before.
+        /// </summary>
+        public bool SixSlots;
+        /// <summary>The keys that hold skills (work order 138): six with <see cref="SixSlots"/>, else all eight.</summary>
+        public int SlotsInUse => SkillSlots.Keys(SixSlots).Count;
+        /// <summary>The key of slot place <paramref name="index"/> of the bar, in key order (work order 138); -1 out of range.</summary>
+        public int KeyAt(int index) => index >= 0 && index < SlotsInUse ? SkillSlots.Keys(SixSlots)[index] : -1;
+        /// <summary>True when the key holds skills (work order 138): with six slots not 3 and 4.</summary>
+        public bool InUse(int key) => SkillSlots.InUse(key, SixSlots);
 
         /// <summary>The key a skill sits on, or -1.</summary>
         public int KeyOf(int skill)
@@ -71,7 +86,7 @@ namespace Roguelike.Rules
             get
             {
                 for (int k = 0; k < KeyCount; k++)
-                    if (_onKey[k] < 0) return k;
+                    if (_onKey[k] < 0 && InUse(k)) return k; // work order 138: never 3 or 4 with six slots
                 return -1;
             }
         }

@@ -622,6 +622,7 @@ namespace Roguelike
             int count = skills != null && b.Skills != null ? Mathf.Min(_player.KeyCount, b.Skills.Length) : 0;
             for (int key = 0; key < count; key++)
             {
+                if (!_player.KeyInUse(key)) continue; // work order 138: keys 3 and 4 hold nothing with six slots, and are not listed
                 int slot = _player.SkillOnKey(key);
                 // Work order 017: the run's upgrades of the skill beside it.
                 List<string> upgrades = slot >= 0 && slot < skills.Count && _player.SkillUpgrades != null ? _player.SkillUpgrades.NamesFor(skills[slot].Name) : null;

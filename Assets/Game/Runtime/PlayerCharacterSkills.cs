@@ -136,8 +136,10 @@ namespace Roguelike
             get
             {
                 bool all = Kit.StartWithAllSkills;
-                if (!_loadoutReady || _loadoutAll != all)
+                bool six = Kit.SixSlots; // work order 138: six slots, read as the bar is made
+                if (!_loadoutReady || _loadoutAll != all || _loadout.SixSlots != six)
                 {
+                    _loadout.SixSlots = six;
                     _loadout.Start(Skills, all);
                     _loadoutReady = true;
                     _loadoutAll = all;

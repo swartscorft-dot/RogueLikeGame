@@ -66,6 +66,12 @@ namespace Roguelike.Rules
         public float LastPressWindow = 0.80f;      // s after the shot before it that the last press's window stays open; below 0, the skill's RecastWindow
         public float LastPressCleanFrom = 0.42f;   // s after that shot that the last press's clean part begins: the beat; below 0, CleanFrom
         public float LastPressCleanTo = 0.66f;     // s after it that it ends; below 0, CleanTo
+
+        // Work order 138 (Kristian, 2026-11-25: "Jeg tror også vi har litt for mange spell slots. Kanskje fjerne 2 spell slots";
+        // his tick "To av de tomme": four skills from the start, two found on the way): six skill slots, Q, 1, 2, R, F and the
+        // right button; keys 3 and 4 hold nothing (SkillSlots). The asset holds none of it, so this default is what the game
+        // reads. Off: eight slots, as before.
+        public bool SixSlots = true;
     }
 
     /// <summary>

@@ -483,6 +483,7 @@ namespace Roguelike
             // no wait for its next shot, the first from the right hand, and no slow of a shot on the move or turn held
             // from the last one.
             _basicMarks.Reset();
+            ResetShotUpgrades(); // work order 138: Hot Barrel's heat and what it counts
             _nextShotAt = float.NegativeInfinity;
             _leftHandNext = false;
             _easing = false;

@@ -78,9 +78,9 @@ namespace Roguelike
                         break;
                     }
                     case PlayerReportKind.MarksSpent:
-                        Add(new SessionEvent(t, SessionEventTypes.MarksSpent, SkillName(r.Slot))
+                        Add(new SessionEvent(t, SessionEventTypes.MarksSpent, r.Slot >= 0 ? SkillName(r.Slot) : SessionWords.BasicShot) // work order 138: Tap Out's
                         {
-                            Slot = r.Slot, Target = TargetKind(r.Target), Marks = r.Marks, Damage = r.Damage, Focus = r.Focus,
+                            Slot = r.Slot >= 0 ? r.Slot : (int?)null, Target = TargetKind(r.Target), Marks = r.Marks, Damage = r.Damage, Focus = r.Focus,
                         });
                         break;
                     case PlayerReportKind.RecastPressed:

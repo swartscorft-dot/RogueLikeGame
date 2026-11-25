@@ -79,16 +79,19 @@ namespace Roguelike
             if (_driver == null) _driver = Player.GetComponent<PlayerInputDriver>();
             InputBindings bindings = _driver != null ? _driver.ActiveBindings : null;
             // One box per key, in key order, with the skill on it (work order 015: the key and the skill are apart).
-            int count = bindings != null && bindings.Skills != null ? Mathf.Min(Player.KeyCount, bindings.Skills.Length) : Player.KeyCount;
+            int keys = bindings != null && bindings.Skills != null ? Mathf.Min(Player.KeyCount, bindings.Skills.Length) : Player.KeyCount;
+            int count = 0; // work order 138: a box per slot of the bar (six with the switch on: keys 3 and 4 have none)
+            while (count < Player.BarCount && Player.BarKey(count) < keys) count++;
             float total = count * BoxWidth + (count - 1) * Gap;
             float left = (viewWidth - total) * 0.5f;
             float top = LayoutHeight - BoxHeight - 14f;
             int active = Player.ActiveSkillSlot;
             int recovering = Player.FreeRecoverySlot; // decision 0004: its recovery runs, but she is free to shoot and move
 
-            for (int keyIndex = 0; keyIndex < count; keyIndex++)
+            for (int place = 0; place < count; place++)
             {
-                var box = new Rect(left + keyIndex * (BoxWidth + Gap), top, BoxWidth, BoxHeight);
+                int keyIndex = Player.BarKey(place); // work order 138: the key of the box, placed by the box
+                var box = new Rect(left + place * (BoxWidth + Gap), top, BoxWidth, BoxHeight);
                 string key = bindings != null ? bindings.SkillLabel(keyIndex) : "";
                 int slot = Player.SkillOnKey(keyIndex);
                 // A key with no skill yet (decision 0005) is an empty, dim box with its key.
