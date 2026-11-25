@@ -75,6 +75,7 @@ namespace Roguelike.PlayModeTests
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
             GameSettings.Unload();
+            SoundLevelsValues.On = true; // work order 131's switch back on
             ClearSettingKeys();
             if (_dashBefore.HasValue) PlayerPrefs.SetInt(GameSettings.DashKey, _dashBefore.Value);
             if (_volumeBefore.HasValue) PlayerPrefs.SetInt(GameSettings.VolumeKey, _volumeBefore.Value);
@@ -306,6 +307,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ASetting_ChangesWhatTheGameDoes_AndSurvivesMakingTheHudAgain()
         {
+            SoundLevelsValues.On = false; GameSettings.Load(); // work order 131 off: the steps' own volumes (its trim and first start: SoundLevelsPlayTests)
             // The asset says toward the cursor (a copy, so the project's asset is never touched).
             InputBindings bindings = Object.Instantiate(_driver.ActiveBindings);
             bindings.DashDirection = DashDirection.TowardCursor;
