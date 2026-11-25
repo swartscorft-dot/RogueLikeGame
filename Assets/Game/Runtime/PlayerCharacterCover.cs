@@ -206,7 +206,7 @@ namespace Roguelike
             if (_duckRoseFrom != null)
             {
                 at = _duckRoseFrom;
-                inReach = at.TryShape(out shape) && !at.IsTall && shape.Distance(GroundPosition) <= feel.DuckReach;
+                inReach = at.TryShape(out shape) && !at.IsTall && shape.Distance(GroundPosition) <= DuckReachNow(feel); // work order 132: the reach in use
                 inReach &= HeldDuckRules.DownAgain(feel, _coverHeld, true, false, true, true, inReach);
             }
             else inReach = FindLowProp(feel, out at, out shape);
@@ -418,7 +418,7 @@ namespace Roguelike
             GroundPoint her = GroundPosition;
             best = null;
             bestShape = default;
-            float bestDistance = feel.DuckReach;
+            float bestDistance = DuckReachNow(feel); // work order 132: a little larger with the duck's key sign on
             IReadOnlyList<Shelter> all = Shelter.All;
             for (int i = 0; i < all.Count; i++)
             {

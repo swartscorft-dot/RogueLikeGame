@@ -40,8 +40,8 @@ namespace Roguelike
     /// The frame normally comes from the mouse and keyboard; tests set <see cref="InputSource"/> to feed their own.
     ///
     /// W A S D move her relative to the screen (decision 0003): up the screen is away from the camera along the
-    /// ground, and a diagonal is as fast as straight. The left button fires one basic shot toward the cursor; holding
-    /// it never repeats. Space dashes toward the cursor, or the way she moves if the bindings say so. The skill bindings (Q 1 2 3 4 R F and the right mouse button
+    /// ground, and a diagonal is as fast as straight. The left button fires one basic shot toward the cursor; held, it
+    /// fires again at the shot's own pace (work order 132, <see cref="HoldToFireInput"/>; off, it never repeats). Space dashes toward the cursor, or the way she moves if the bindings say so. The skill bindings (Q 1 2 3 4 R F and the right mouse button
     /// to start with) are in the <see cref="InputBindings"/> asset: the press, the release and the cursor all reach
     /// the character. Z spends a full focus gauge. Left Ctrl, held, takes cover (Kristian 2026-11-19, an experiment): it
     /// is given every frame, as the move keys are. A dead character takes no input.
@@ -229,7 +229,7 @@ namespace Roguelike
             }
             _skillsHeldBefore = held;
 
-            if (input.ShootPressed) _player.Shoot(aim);
+            if (input.ShootPressed || HoldToFireInput.FiresHeld(_player, ActiveBindings, input.ShootHeld, _shootWaitsForUp)) _player.Shoot(aim); // work order 132: held, at the shot's own pace
         }
 
         /// <summary>While the input is held, and on the frame it is let go: every key not held into the hold, and the shoot button, wait to be seen up.</summary>
