@@ -76,6 +76,10 @@ namespace Roguelike.Rules.Tests
         [TestCase(3, true)]
         [TestCase(4, true)]
         [TestCase(5, true)]
+        // 2026-11-25: the sweeps with the templates off took 147 to 162 s of Unity's default 180 s on a quiet machine and timed out
+        // (185 to 234 s, never reaching their end) when other runs shared it; under .NET the same sweeps pass in about a minute.
+        // The limit is for a hang, not for speed, so it is the long sweeps' own (as FloorCharacterTests').
+        [Timeout(3600000)]
         public void TwoThousandSeeds_EveryRoomKeepsTheRules_AndEverythingStandsOnOpenCells(int floor, bool defaults)
         {
             // Work order 118 (changed deliberately): 051's drawn shapes without the lancers, as they were measured. With them on, a carved
