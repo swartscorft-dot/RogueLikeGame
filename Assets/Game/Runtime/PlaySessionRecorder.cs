@@ -213,6 +213,7 @@ namespace Roguelike
                 if (!empowered && _wasEmpowered) Add(new SessionEvent(Now(), SessionEventTypes.EmpoweredEnd));
                 _wasEmpowered = empowered;
                 NoteShotInterval();
+                NoteCameraAngle(); // work order 121: the camera angle in use (PlaySessionRecorderCameraAngle.cs)
 
                 if (now >= _nextSample)
                 {

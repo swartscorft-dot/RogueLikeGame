@@ -29,6 +29,7 @@ namespace Roguelike
         public const string GreyboxKey = "Roguelike.Settings.Greybox"; // work order 084: 1 on, 0 off (the default)
         public const string CameraDistanceKey = "Roguelike.Settings.CameraDistance"; // work order 083: the step, 0 the feel's own distance (the default), 1 25 m, 2 22 m
         public const string LightKey = "Roguelike.Settings.Light"; // work order 085: the step, 0 as before, 1 to 3 lamplit A, B, C (C the default since he played it)
+        public const string CameraAngleKey = "Roguelike.Settings.CameraAngle"; // work order 121: the step, 0 ours (the default), 1 Diablo, 2 League, 3 PoE (CameraAngles)
 
         static bool s_loaded;
         static int s_dash = SettingsRules.NoOverride;
@@ -38,6 +39,7 @@ namespace Roguelike
         static bool s_greybox; // work order 084
         static int s_distanceStep;
         static int s_light = LightSteps.Default; // work order 085
+        static int s_angle = CameraAngles.Default; // work order 121
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -50,6 +52,7 @@ namespace Roguelike
             s_greybox = false; // work order 084
             s_distanceStep = 0;
             s_light = LightSteps.Default; // work order 085: lamplit C ("C er best"), as for a player with none stored
+            s_angle = CameraAngles.Default; // work order 121: ours
         }
 
         public static bool IsLoaded => s_loaded;
@@ -69,6 +72,7 @@ namespace Roguelike
             s_greybox = PlayerPrefs.GetInt(GreyboxKey, 0) != 0; // work order 084
             s_distanceStep = CameraDistanceSteps.Step(PlayerPrefs.GetInt(CameraDistanceKey, 0));
             s_light = LightSteps.Step(PlayerPrefs.GetInt(LightKey, LightSteps.Default)); // work order 085: none stored, lamplit C
+            s_angle = CameraAngles.Step(PlayerPrefs.GetInt(CameraAngleKey, CameraAngles.Default)); // work order 121: none stored, ours
             s_loaded = true;
             AudioListener.volume = SettingsRules.Volume(s_volume);
         }
@@ -176,6 +180,25 @@ namespace Roguelike
         {
             s_numbers = on ? FeedbackRules.NumbersOn : FeedbackRules.NumbersOff;
             PlayerPrefs.SetInt(DamageNumbersKey, s_numbers);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>
+        /// The camera angle (work order 121, <see cref="CameraAngles"/>): 0 ours (the default), 1 Diablo, 2 League, 3 PoE, stepped
+        /// in the pause menu above the camera's kick; the camera follows it the same frame (<see cref="CameraRig"/>).
+        /// </summary>
+        public static int CameraAngleStep => s_angle;
+
+        /// <summary>The camera in use: the angle's pitch, field of view and distance, with the distance step on it (ours: the feel's own, as before).</summary>
+        public static CameraAngle CameraNow(FeelValues feel) =>
+            CameraAngles.InUse(s_angle, s_distanceStep, feel.CameraPitch, feel.FieldOfView, feel.CameraDistance);
+
+        /// <summary>Sets the camera angle's step and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void SetCameraAngleStep(int step, bool keep = true)
+        {
+            s_angle = CameraAngles.Step(step);
+            if (!keep) return;
+            PlayerPrefs.SetInt(CameraAngleKey, s_angle);
             PlayerPrefs.Save();
         }
     }
