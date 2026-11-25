@@ -181,7 +181,7 @@ namespace Roguelike.PlayModeTests
         {
             HitChips c = HitChips.Current;
             if (c == null) return "no chips";
-            float x0 = float.MaxValue, y0 = float.MaxValue, x1 = float.MinValue, y1 = float.MinValue, size = 0f;
+            float x0 = float.MaxValue, y0 = float.MaxValue, x1 = float.MinValue, y1 = float.MinValue, size = 0f, far = 0f;
             int n = 0;
             for (int i = 0; i < c.Made; i++)
             {
@@ -189,13 +189,15 @@ namespace Roguelike.PlayModeTests
                 Vector3 p = c.RendererOf(i).transform.position;
                 // In the picture's own pixels (the camera's screen in batch mode is not 1920 by 1080).
                 Vector3 s = Vector3.Scale(cam.WorldToViewportPoint(p), new Vector3(W, H, 1f));
-                Vector3 e = Vector3.Scale(cam.WorldToViewportPoint(p + cam.transform.right * c.RendererOf(i).transform.localScale.x), new Vector3(W, H, 1f));
+                Vector3 e = Vector3.Scale(cam.WorldToViewportPoint(p + cam.transform.right * c.LongSideOf(i)), new Vector3(W, H, 1f));
                 x0 = Mathf.Min(x0, s.x); x1 = Mathf.Max(x1, s.x); y0 = Mathf.Min(y0, s.y); y1 = Mathf.Max(y1, s.y);
                 size += Mathf.Abs(e.x - s.x);
+                Vector3 off = p - c.SourceOf(i).transform.position;
+                far = Mathf.Max(far, new Vector2(off.x, off.z).magnitude); // m from its enemy's middle, along the floor
                 n++;
             }
             if (n == 0) return "0 chips living";
-            return string.Format(Inv, "{0} chips living, spanning {1:0} x {2:0} px, a chip about {3:0.0} px across", n, x1 - x0, y1 - y0, size / n);
+            return string.Format(Inv, "{0} chips living, spanning {1:0} x {2:0} px, a chip's long side about {3:0.0} px (seen side on), the farthest {4:0.00} m from its enemy's middle", n, x1 - x0, y1 - y0, size / n, far);
         }
 
         string Values()
@@ -286,7 +288,7 @@ namespace Roguelike.PlayModeTests
                 Vector3 middle = pack.Aggregate(Vector3.zero, (s, x) => s + x.transform.position) / Mathf.Max(1, pack.Count);
                 foreach (Enemy x in pack) x.Body.SetMaxHealth(1000000);
                 _player.Teleport(new Vector3(middle.x - 5f, 0f, middle.z));
-                yield return For(0.5f);
+                yield return For(2.5f); // the boss strip's chips gone
                 var of = new HashSet<Damageable>(pack.Select(x => x.Body));
                 int[] pellets = new int[pack.Count];
                 for (int k = 0; k < 8; k++) pellets[(k * 3) % pack.Count]++;

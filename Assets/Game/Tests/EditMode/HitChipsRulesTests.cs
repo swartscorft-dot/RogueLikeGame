@@ -49,8 +49,9 @@ namespace Roguelike.Rules.Tests
         public void APlainHit_ThrowsMoreChipsForMoreDamage_WithinItsBounds()
         {
             Assert.That(Count(0, false), Is.EqualTo(V.ChipsLeast), "a hit of nothing still shows");
-            Assert.That(Count(40, false), Is.EqualTo(6), "her basic shot");
-            Assert.That(Count(200, false), Is.EqualTo(10));
+            Assert.That(Count(40, false), Is.EqualTo(3), "her basic shot: about 3 or 4 (the second round)");
+            Assert.That(Count(80, false), Is.EqualTo(4));
+            Assert.That(Count(200, false), Is.EqualTo(5));
             Assert.That(Count(100000, false), Is.EqualTo(V.ChipsMost), "however hard, a plain hit stays a spray");
             int last = 0;
             foreach (int d in new[] { 0, 20, 40, 80, 120, 200, 400 })
@@ -69,10 +70,10 @@ namespace Roguelike.Rules.Tests
             {
                 Assert.That(Count(d, true), Is.GreaterThanOrEqualTo(Count(d, false) * 1.5), "a crit's spray at least half as many again: " + d);
                 Assert.That(Count(d, true), Is.GreaterThan(V.ChipsMost), "more than any plain hit, so it reads as a crit: " + d);
-                if (d <= 200) // her hits: past them both are at the most a chip is thrown
+                if (d <= 150) // her hits: past them both are at the most a chip is thrown
                     Assert.That(HitChipsRules.Speed(d, true, V), Is.GreaterThan(HitChipsRules.Speed(d, false, V)), "thrown harder: " + d);
             }
-            Assert.That(Count(80, true), Is.EqualTo(14), "her basic shot's crit (about 80): 7 x 1.6 + 3");
+            Assert.That(Count(80, true), Is.EqualTo(9), "her basic shot's crit (about 80): 4 x 1.6 + 3");
             Assert.That(HitChipsRules.SizeOf(true, 1, V), Is.GreaterThan(HitChipsRules.SizeOf(false, 1, V)), "a crit's chips larger");
         }
 
@@ -124,6 +125,20 @@ namespace Roguelike.Rules.Tests
             Assert.That(HitChipsRules.StuffOf(EnemyKind.Boss), Is.EqualTo(ChipStuff.Armour));
             Assert.That(HitChipsRules.Second(ChipStuff.Robe), Is.EqualTo(ChipColour.Bone), "a hooded one: cloth and bone");
             Assert.That(HitChipsRules.First(ChipStuff.Armour), Is.EqualTo(ChipColour.Steel));
+            foreach (ChipStuff s in new[] { ChipStuff.Bone, ChipStuff.GreyBone, ChipStuff.RedBone, ChipStuff.Robe, ChipStuff.Armour })
+            {
+                ChipColour main = HitChipsRules.MainOf(s, 0.99, V);
+                Assert.That(main, Is.EqualTo(HitChipsRules.First(s)), s + ": its own colour");
+                ChipColour end = HitChipsRules.EndOf(main);
+                Assert.That(end, Is.Not.EqualTo(main), s + ": two tones, its broken ends darker");
+                Rgb a = HitChipsRules.ColourOf(main, V), b = HitChipsRules.ColourOf(end, V);
+                Assert.That(a.R + a.G + a.B, Is.GreaterThan((b.R + b.G + b.B) * 1.2f), s + ": the ends clearly darker");
+            }
+            Assert.That(HitChipsRules.MainOf(ChipStuff.Robe, 0.0, V), Is.EqualTo(ChipColour.Bone), "a hooded one: some bone among the cloth");
+            Assert.That(HitChipsRules.MainOf(ChipStuff.Bone, 0.0, V), Is.EqualTo(ChipColour.Bone));
+            Assert.That(HitChipsRules.MainOf(ChipStuff.Armour, 0.0, V), Is.EqualTo(ChipColour.Steel), "the boss: steel only");
+            Rgb robe = V.Robe;
+            Assert.That(Math.Max(robe.R, Math.Max(robe.G, robe.B)), Is.GreaterThan(0.75f), "robe scraps light enough to be seen on a dark robe and floor");
             foreach (ChipColour c in Enum.GetValues(typeof(ChipColour)).Cast<ChipColour>())
             {
                 Rgb rgb = HitChipsRules.ColourOf(c, V);
@@ -131,6 +146,22 @@ namespace Roguelike.Rules.Tests
                 Assert.That(bright, Is.GreaterThan(0.45f), c + ": bright enough to be seen on the crypt's floor");
             }
             Assert.That(Enum.GetValues(typeof(ChipColour)).Length, Is.EqualTo(HitChipsRules.ColourCount));
+        }
+
+        [Test]
+        public void TheSpray_LandsOnItsEnemy_APlainHitsWithinAbout06m_ACritsWithinAbout1m()
+        {
+            // The fastest chip of each (its speed and its jitter, straight along the shot, its least lift), from about her chest's
+            // height on a skeleton (1.4 m), leaving from the body's skin on her side, about 0.4 m before its middle.
+            const double height = 1.4, before = 0.4;
+            double plain = HitChipsRules.Speed(Placeholders.BasicShotDamage, false, V) * (1 + V.SpeedJitter);
+            double crit = HitChipsRules.Speed(2 * Placeholders.BasicShotDamage, true, V) * (1 + V.SpeedJitter);
+            double plainReach = HitChipsRules.Reach(plain, V.UpBase + V.UpShare * plain, height, V) - before;
+            double critReach = HitChipsRules.Reach(crit, V.UpBase + V.UpShare * crit, height, V) - before;
+            Assert.That(plainReach, Is.LessThanOrEqualTo(0.65), "a plain hit's chips land within about 0.6 m beyond the body's middle: " + plainReach.ToString("0.00"));
+            Assert.That(critReach, Is.LessThanOrEqualTo(1.1), "a crit's within about 1 m: " + critReach.ToString("0.00"));
+            Assert.That(critReach, Is.GreaterThan(plainReach), "a crit's farther");
+            Assert.That(HitChipsRules.Reach(1, 0, 0, V), Is.EqualTo(0).Within(1e-9), "from the floor, none");
         }
 
         [Test]

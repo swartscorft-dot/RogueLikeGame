@@ -7,7 +7,8 @@ namespace Roguelike
     /// <summary>
     /// Chips, not flashes (work order 127, a look order; Kristian, 2026-11-25: "kan vi drope at de flasher sånn når de blir truffet,
     /// heller at litt bein eller ligende spruter av"). At every hit on an enemy (or the practice room's dummy) a small spray of chips
-    /// leaves it from where the shot struck, its side facing her at about chest height: thrown mostly along her shot (from her to it)
+    /// leaves it at about chest height from the side of its body turned to the camera and to her, so it is seen from the first frame:
+    /// thrown mostly along her shot (from her to it)
     /// with some spread and some upward, falling by gravity, bouncing once on its floor and lying there a moment before they shrink
     /// away. More and harder for a harder hit, and a crit's spray larger and harder still, since its white frame is gone
     /// (<see cref="HitChipsRules"/>). The hit flash is told not to flash while the switch is on (<see cref="HitFlash"/>,
@@ -21,8 +22,9 @@ namespace Roguelike
     /// enemy appears (<see cref="Prewarm"/>); each new chip takes the next slot in turn, so a full ring gives up its oldest chip. While
     /// no chip lives and no hit waits, a frame of it is one test: nothing is made or done.
     ///
-    /// Their look (the order's point 3): small faceted shards made here in code, flat-shaded so the light breaks on their faces, on
-    /// materials of their own (one a colour: bone, robe, steel...) wearing the shader the enemy's own body wears at that moment (the
+    /// Their look (the order's point 3, and the producer's second round): small solid splinters made here in code (a long splinter, a
+    /// short knuckle, a curved rib bit, a wedge), flat-shaded so the light breaks on their faces, in two tones (their sides and their
+    /// darker broken ends), on materials of their own (one a colour: bone, robe, steel...) wearing the shader the enemy's own body wears at that moment (the
     /// toon look when it is on, Simple Lit when it is off), with the toon values; drawn with no ink line (their materials ask for the
     /// line's mark, which no chip carries: no line is better than a broken line), and casting no shadow. The dummy's chips wear the
     /// dummy's own material. With <see cref="HitChipsValues.On"/> off it does nothing at all.
@@ -33,19 +35,27 @@ namespace Roguelike
         public const int ChipLayer = 2;
         /// <summary>Targets whose hits can wait in one frame for their spray; more in one frame throw none.</summary>
         const int MostWaiting = 64;
-        /// <summary>The shapes of chips made in code, used in turn.</summary>
-        const int Shapes = 3;
+        /// <summary>The shapes of chips made in code (a long splinter, a short knuckle, a curved rib bit, a wedge), used in turn.</summary>
+        const int Shapes = 4;
         /// <summary>Share of an enemy's height a shot strikes it at (its chest, as the effects place a hit's middle: <c>CombatEffects.Middle</c>).</summary>
         const float StrikeHeight = 0.55f;
         /// <summary>
-        /// Share of its body's radius in front of its middle, towards her, where the chips leave from: at its skin, not inside it (at
-        /// 0.7 the first pictures hid a guard's chips inside its wide body).
+        /// Share of its body's radius out from its middle where the chips leave from: at its skin, not inside it (at 0.7 the first
+        /// pictures hid a guard's chips inside its wide body).
         /// </summary>
-        const float StrikeFront = 1.05f;
+        const float StrikeFront = 1.1f;
+        /// <summary>
+        /// Which side of the body they leave from: the side turned to the camera, weighted this much, and the side turned to her this
+        /// much (the second round: from her side alone, much of the spray flew behind the body at the very frames that must show the
+        /// hit; from the camera's side it is seen from the first frame and flies past the body, not behind it).
+        /// </summary>
+        const float CameraSide = 1f, HerSide = 0.6f;
         /// <summary>m round the strike point the chips of one spray start within, so the spray is a small burst from the first frame, not one dot.</summary>
-        const float StartRound = 0.2f;
-        /// <summary>The height of a lying chip's middle over its floor, as a share of its size: lying flat.</summary>
-        const float LyingHeight = 0.3f;
+        const float StartRound = 0.12f;
+        /// <summary>The height of a lying chip's middle over its floor, as a share of its long side: lying on its side.</summary>
+        const float LyingHeight = 0.12f;
+        /// <summary>The height of a tumbling chip's middle over its floor when it meets it, as a share of its long side.</summary>
+        const float MeetsTheFloor = 0.25f;
         /// <summary>Share of its tumble a chip keeps at its bounce.</summary>
         const float SpinKeptAtBounce = 0.5f;
         /// <summary>m, an enemy's height when its model gives none.</summary>
@@ -126,6 +136,9 @@ namespace Roguelike
         float[] _spin = new float[0], _size = new float[0], _age = new float[0], _lying = new float[0], _floor = new float[0];
         bool[] _bounced = new bool[0];
         Damageable[] _source = new Damageable[0];
+        Material[] _main = new Material[0], _end = new Material[0]; // what each chip wears now: its sides and its broken ends
+        int[] _shape = new int[0];
+        readonly System.Collections.Generic.List<Material> _two = new System.Collections.Generic.List<Material>(2);
         int _made;
         long _thrown;
         readonly Material[] _materials = new Material[HitChipsRules.ColourCount];
@@ -158,6 +171,8 @@ namespace Roguelike
         public float SizeOf(int i) => i >= 0 && i < _made ? _size[i] : 0f;
         public Renderer RendererOf(int i) => i >= 0 && i < _made ? _r[i] : null;
         public Damageable SourceOf(int i) => i >= 0 && i < _made ? _source[i] : null;
+        /// <summary>m a chip measures along its long side as shown (the second round's measure).</summary>
+        public float LongSideOf(int i) => i >= 0 && i < _made ? _size[i] * s_long[_shape[i]] : 0f;
         /// <summary>The material chips of this colour wear (made with the pool).</summary>
         public Material MaterialOf(ChipColour c) => _materials[(int)c];
 
@@ -252,6 +267,13 @@ namespace Roguelike
             along = along.sqrMagnitude > 1e-6f ? along.normalized : -Flat(at.forward);
             if (along.sqrMagnitude < 1e-6f) along = Vector3.forward;
 
+            // The side they leave from: turned to the camera and to her, so the camera sees them leave.
+            Camera cam = Camera.main;
+            Vector3 toCamera = cam != null ? Flat(cam.transform.position - at.position) : Vector3.zero;
+            toCamera = toCamera.sqrMagnitude > 1e-6f ? toCamera.normalized : Vector3.zero;
+            Vector3 face = toCamera * CameraSide - along * HerSide;
+            face = face.sqrMagnitude > 1e-6f ? face.normalized : -along;
+
             Vector3 strike;
             float floor, shown;
             Material own = null;
@@ -261,7 +283,7 @@ namespace Roguelike
             {
                 float h = e.ModelHeight > 0f ? e.ModelHeight : HeightWithoutModel * Mathf.Abs(at.lossyScale.y);
                 floor = at.position.y;
-                strike = at.position + Vector3.up * (h * StrikeHeight) - along * (target.Radius * StrikeFront);
+                strike = at.position + Vector3.up * (h * StrikeHeight) + face * (target.Radius * StrikeFront);
                 shown = e.ModelHeight > 0f ? e.ModelHeight / (float)v.HeightForSize : Mathf.Abs(at.lossyScale.y);
                 stuff = HitChipsRules.StuffOf(e.Kind);
                 Renderer body = e.Look != null && e.Look.Skin != null ? e.Look.Skin : e.BodyRenderer;
@@ -274,7 +296,7 @@ namespace Roguelike
                 if (r == null) r = target.GetComponentInChildren<Renderer>();
                 Bounds box = r != null ? r.bounds : new Bounds(at.position + Vector3.up, Vector3.one);
                 floor = box.min.y;
-                strike = box.center - along * (Mathf.Min(box.extents.x, box.extents.z) * StrikeFront);
+                strike = box.center + face * (Mathf.Min(box.extents.x, box.extents.z) * StrikeFront);
                 shown = 1f;
                 own = r != null ? r.sharedMaterial : null;
             }
@@ -282,16 +304,23 @@ namespace Roguelike
             float speed = (float)HitChipsRules.Speed(w.Hardest, w.Crit, v);
             float size = (float)HitChipsRules.SizeOf(w.Crit, shown, v);
             Vector3 side = Vector3.Cross(Vector3.up, along);
-            ChipColour first = HitChipsRules.First(stuff), second = HitChipsRules.Second(stuff);
+            Vector3 carried = isEnemy && target.TryGetComponent(out UnityEngine.AI.NavMeshAgent agent) && agent.enabled
+                ? Flat(agent.velocity) * (float)v.BodySpeedKept : Vector3.zero; // a moving body's chips move with it
+            ChipColour first = HitChipsRules.First(stuff);
             if (own == null)
             {
                 Look(first, shader);
-                Look(second, shader);
+                Look(HitChipsRules.EndOf(first), shader);
+                if (stuff == ChipStuff.Robe)
+                {
+                    Look(ChipColour.Bone, shader);
+                    Look(HitChipsRules.EndOf(ChipColour.Bone), shader);
+                }
             }
             for (int k = 0; k < count; k++)
             {
                 float s = speed * (float)(1.0 + v.SpeedJitter * _random.Signed());
-                Vector3 vel = along * s + side * (float)(speed * v.Spread * _random.Signed())
+                Vector3 vel = carried + along * s + side * (float)(speed * v.Spread * _random.Signed())
                               + Vector3.up * (float)(v.UpBase + v.UpShare * speed * (0.5 + 0.5 * _random.Next()));
                 Vector3 start = strike + new Vector3((float)_random.Signed(), (float)_random.Signed(), (float)_random.Signed()) * StartRound;
                 if (start.y < floor + size) start.y = floor + size;
@@ -299,8 +328,10 @@ namespace Roguelike
                 if (axis.sqrMagnitude < 1e-4f) axis = Vector3.right;
                 float spin = (float)(v.MostSpin * (0.3 + 0.7 * _random.Next()));
                 float chip = size * (float)(1.0 + v.SizeJitter * _random.Signed());
-                Material m = own != null ? own : _materials[(int)(_random.Next() < v.SecondShare ? second : first)];
-                Throw(target, m, start, vel, axis.normalized, spin, chip, floor);
+                ChipColour main = HitChipsRules.MainOf(stuff, _random.Next(), v);
+                Material sides = own != null ? own : _materials[(int)main];
+                Material ends = own != null ? own : _materials[(int)HitChipsRules.EndOf(main)];
+                Throw(target, sides, ends, start, vel, axis.normalized, spin, chip, floor);
             }
             Sprays++;
             LastCount = count;
@@ -311,7 +342,7 @@ namespace Roguelike
             LastSpeed = speed;
         }
 
-        void Throw(Damageable source, Material m, Vector3 at, Vector3 velocity, Vector3 axis, float spin, float size, float floor)
+        void Throw(Damageable source, Material sides, Material ends, Vector3 at, Vector3 velocity, Vector3 axis, float spin, float size, float floor)
         {
             HitChipsValues v = HitChipsValues.Live;
             int cap = Mathf.Max(1, v.MostChips);
@@ -335,8 +366,18 @@ namespace Roguelike
             _bounced[i] = false;
             _source[i] = source;
             _turn[i] = Quaternion.AngleAxis((float)(_random.Next() * 360.0), axis);
-            _f[i].sharedMesh = s_shapes[i % Shapes];
-            if (_r[i].sharedMaterial != m) _r[i].sharedMaterial = m;
+            int shape = (int)(_thrown % Shapes);
+            _shape[i] = shape;
+            _f[i].sharedMesh = s_shapes[shape];
+            if (_main[i] != sides || _end[i] != ends)
+            {
+                _main[i] = sides;
+                _end[i] = ends;
+                _two.Clear();
+                _two.Add(sides);
+                _two.Add(ends);
+                _r[i].SetSharedMaterials(_two);
+            }
             _t[i].SetPositionAndRotation(at, _turn[i]);
             _t[i].localScale = Vector3.one * size;
             if (!_go[i].activeSelf) _go[i].SetActive(true);
@@ -361,7 +402,7 @@ namespace Roguelike
                     Vector3 vel = _vel[i];
                     vel.y -= g * dt;
                     Vector3 p = _pos[i] + vel * dt;
-                    float rest = _floor[i] + _size[i] * 0.5f;
+                    float rest = _floor[i] + _size[i] * MeetsTheFloor;
                     if (p.y <= rest && vel.y < 0f)
                     {
                         float up = (float)HitChipsRules.BounceUp(-vel.y, _bounced[i], v);
@@ -433,6 +474,9 @@ namespace Roguelike
             System.Array.Resize(ref _floor, most);
             System.Array.Resize(ref _bounced, most);
             System.Array.Resize(ref _source, most);
+            System.Array.Resize(ref _main, most);
+            System.Array.Resize(ref _end, most);
+            System.Array.Resize(ref _shape, most);
             if (s_shapes == null || s_shapes[0] == null) s_shapes = MakeShapes();
             while (_made < most)
             {
@@ -449,7 +493,12 @@ namespace Roguelike
                 _r[i].receiveShadows = true;
                 _r[i].lightProbeUsage = LightProbeUsage.Off;
                 _r[i].reflectionProbeUsage = ReflectionProbeUsage.Off;
-                _r[i].sharedMaterial = _materials[0];
+                _main[i] = _materials[0];
+                _end[i] = _materials[(int)HitChipsRules.EndOf(ChipColour.Bone)];
+                _two.Clear();
+                _two.Add(_main[i]);
+                _two.Add(_end[i]);
+                _r[i].SetSharedMaterials(_two);
                 _states[i] = ChipState.Free;
             }
         }
@@ -481,49 +530,163 @@ namespace Roguelike
             if (m.HasProperty(s_InkNeedsMark)) m.SetFloat(s_InkNeedsMark, 1f); // no chip is marked: no line round a chip
         }
 
+        /// <summary>The long side of each shape as a share of its size (its scale): the splinter, the knuckle, the rib bit, the wedge.</summary>
+        static readonly float[] s_long = { 1f, 0.6f, 1f, 0.75f };
+
         /// <summary>
-        /// The chips' shapes: small shards, each an octahedron drawn out along one side and pinched along another, its corners
-        /// pushed a little apart, with a face of its own for each triangle (flat-shaded), about a metre across before it is scaled.
+        /// The chips' shapes (the second round: "no quads and no squares ... small solid splinters"), made once in code, each with its
+        /// long side along x and real thickness, flat-shaded so the light breaks on its faces as it tumbles, and in two tones: its
+        /// sides (sub-mesh 0, its colour) and its broken ends (sub-mesh 1, the darker tone, <see cref="HitChipsRules.EndOf"/>).
+        /// Before it is scaled: a long splinter 1 long and about 0.3 thick (three times as long as wide), a short knuckle 0.6 long
+        /// and about 0.45 thick, a curved rib bit 1 long and 0.15 by 0.1 in section, bowed 0.2, and a tapering wedge 0.75 long.
         /// </summary>
         static Mesh[] MakeShapes()
         {
-            var meshes = new Mesh[Shapes];
-            Vector3[] stretch = { new Vector3(0.5f, 0.36f, 0.42f), new Vector3(0.42f, 0.34f, 0.5f), new Vector3(0.5f, 0.42f, 0.32f) }; // chunks, not flakes (the first, flatter, read as paper)
             var rand = new BoneBreakRandom(1270);
-            for (int k = 0; k < Shapes; k++)
-            {
-                Vector3 s = stretch[k];
-                var corners = new Vector3[6];
-                Vector3[] dirs = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
-                for (int c = 0; c < 6; c++)
-                {
-                    Vector3 d = Vector3.Scale(dirs[c], s) * (float)(0.8 + 0.4 * rand.Next());
-                    d += new Vector3((float)rand.Signed(), (float)rand.Signed(), (float)rand.Signed()) * 0.06f;
-                    corners[c] = d;
-                }
-                // The eight faces: one of ±x, one of ±y, one of ±z each, wound outward.
-                int[] faces =
-                {
-                    0, 2, 4, 0, 5, 2, 0, 4, 3, 0, 3, 5,
-                    1, 4, 2, 1, 2, 5, 1, 3, 4, 1, 5, 3,
-                };
-                var vertices = new Vector3[faces.Length];
-                var triangles = new int[faces.Length];
-                for (int t = 0; t < faces.Length; t++)
-                {
-                    vertices[t] = corners[faces[t]];
-                    triangles[t] = t;
-                }
-                var mesh = new Mesh { name = "HitChip" + k, hideFlags = HideFlags.DontSave };
-                mesh.vertices = vertices;
-                mesh.triangles = triangles;
-                mesh.RecalculateNormals();
-                mesh.RecalculateBounds();
-                meshes[k] = mesh;
-            }
+            var meshes = new Mesh[Shapes];
+            meshes[0] = Splinter(ref rand);
+            meshes[1] = Knuckle(ref rand);
+            meshes[2] = Rib(ref rand);
+            meshes[3] = Wedge(ref rand);
+            for (int k = 0; k < Shapes; k++) meshes[k].name = "HitChip" + k;
             return meshes;
         }
 
+        /// <summary>Faces gathered into a mesh of two sub-meshes, each face with vertices of its own and wound to face away from a point inside it.</summary>
+        sealed class Faces
+        {
+            readonly System.Collections.Generic.List<Vector3> _v = new System.Collections.Generic.List<Vector3>();
+            readonly System.Collections.Generic.List<int>[] _t = { new System.Collections.Generic.List<int>(), new System.Collections.Generic.List<int>() };
+
+            public void Add(int sub, Vector3 inside, params Vector3[] poly)
+            {
+                Vector3 mid = Vector3.zero;
+                foreach (Vector3 p in poly) mid += p;
+                mid /= poly.Length;
+                Vector3 n = Vector3.Cross(poly[1] - poly[0], poly[2] - poly[0]);
+                bool turn = Vector3.Dot(n, mid - inside) < 0f;
+                int first = _v.Count;
+                for (int k = 0; k < poly.Length; k++) _v.Add(poly[turn ? poly.Length - 1 - k : k]);
+                for (int k = 1; k + 1 < poly.Length; k++)
+                {
+                    _t[sub].Add(first);
+                    _t[sub].Add(first + k);
+                    _t[sub].Add(first + k + 1);
+                }
+            }
+
+            public Mesh Mesh()
+            {
+                var m = new Mesh { hideFlags = HideFlags.DontSave, subMeshCount = 2 };
+                m.SetVertices(_v);
+                m.SetTriangles(_t[0], 0);
+                m.SetTriangles(_t[1], 1);
+                m.RecalculateNormals();
+                m.RecalculateBounds();
+                return m;
+            }
+        }
+
+        static Vector3 Jitter(ref BoneBreakRandom r, float by) => new Vector3((float)r.Signed(), (float)r.Signed(), (float)r.Signed()) * by;
+
+        /// <summary>A ring of <paramref name="n"/> corners round the x axis at <paramref name="x"/>, of these half-widths in y and z, a little uneven.</summary>
+        static Vector3[] Ring(ref BoneBreakRandom r, float x, int n, float ry, float rz, float uneven)
+        {
+            var ring = new Vector3[n];
+            for (int k = 0; k < n; k++)
+            {
+                float a = (k + 0.5f) / n * Mathf.PI * 2f;
+                float s = 1f + uneven * (float)r.Signed();
+                ring[k] = new Vector3(x, Mathf.Cos(a) * ry * s, Mathf.Sin(a) * rz * s);
+            }
+            return ring;
+        }
+
+        static void Sides(Faces f, Vector3[] a, Vector3[] b)
+        {
+            Vector3 inside = new Vector3((a[0].x + b[0].x) * 0.5f, 0f, 0f);
+            for (int k = 0; k < a.Length; k++)
+            {
+                int j = (k + 1) % a.Length;
+                f.Add(0, inside, a[k], a[j], b[j], b[k]);
+            }
+        }
+
+        static Mesh Splinter(ref BoneBreakRandom r)
+        {
+            var f = new Faces();
+            Vector3[] a = Ring(ref r, -0.28f, 5, 0.13f, 0.16f, 0.2f), b = Ring(ref r, 0.24f, 5, 0.11f, 0.14f, 0.2f);
+            Sides(f, a, b);
+            Vector3 tipA = new Vector3(-0.5f, 0f, 0f) + Jitter(ref r, 0.05f), tipB = new Vector3(0.5f, 0f, 0f) + Jitter(ref r, 0.05f);
+            for (int k = 0; k < a.Length; k++)
+            {
+                int j = (k + 1) % a.Length;
+                f.Add(1, new Vector3(-0.28f, 0f, 0f), a[k], a[j], tipA); // its broken ends, the darker tone
+                f.Add(1, new Vector3(0.24f, 0f, 0f), b[k], b[j], tipB);
+            }
+            return f.Mesh();
+        }
+
+        static Mesh Knuckle(ref BoneBreakRandom r)
+        {
+            var f = new Faces();
+            Vector3[][] rings =
+            {
+                Ring(ref r, -0.3f, 6, 0.16f, 0.18f, 0.12f), Ring(ref r, -0.1f, 6, 0.21f, 0.23f, 0.12f),
+                Ring(ref r, 0.1f, 6, 0.22f, 0.22f, 0.12f), Ring(ref r, 0.3f, 6, 0.15f, 0.17f, 0.12f),
+            };
+            for (int k = 0; k + 1 < rings.Length; k++) Sides(f, rings[k], rings[k + 1]);
+            f.Add(1, new Vector3(0f, 0f, 0f), rings[0]);
+            f.Add(1, new Vector3(0f, 0f, 0f), rings[rings.Length - 1]);
+            return f.Mesh();
+        }
+
+        static Mesh Rib(ref BoneBreakRandom r)
+        {
+            var f = new Faces();
+            const int n = 5;
+            const float bow = 0.2f, w = 0.075f, h = 0.05f;
+            var centre = new Vector3[n];
+            for (int k = 0; k < n; k++)
+            {
+                float x = -0.5f + k / (float)(n - 1);
+                centre[k] = new Vector3(x, 0f, bow * (1f - 4f * x * x));
+            }
+            var sections = new Vector3[n][];
+            for (int k = 0; k < n; k++)
+            {
+                Vector3 tangent = (centre[Mathf.Min(n - 1, k + 1)] - centre[Mathf.Max(0, k - 1)]).normalized;
+                Vector3 side = new Vector3(-tangent.z, 0f, tangent.x);
+                float s = 1f + 0.15f * (float)r.Signed();
+                sections[k] = new[]
+                {
+                    centre[k] + (side * w + Vector3.up * h) * s, centre[k] + (-side * w + Vector3.up * h) * s,
+                    centre[k] + (-side * w - Vector3.up * h) * s, centre[k] + (side * w - Vector3.up * h) * s,
+                };
+            }
+            for (int k = 0; k + 1 < n; k++)
+            {
+                Vector3 inside = (centre[k] + centre[k + 1]) * 0.5f;
+                for (int c = 0; c < 4; c++)
+                {
+                    int d = (c + 1) % 4;
+                    f.Add(0, inside, sections[k][c], sections[k][d], sections[k + 1][d], sections[k + 1][c]);
+                }
+            }
+            f.Add(1, centre[1], sections[0]);
+            f.Add(1, centre[n - 2], sections[n - 1]);
+            return f.Mesh();
+        }
+
+        static Mesh Wedge(ref BoneBreakRandom r)
+        {
+            var f = new Faces();
+            Vector3[] a = Ring(ref r, -0.375f, 3, 0.17f, 0.19f, 0.15f), b = Ring(ref r, 0.375f, 3, 0.06f, 0.07f, 0.15f);
+            Sides(f, a, b);
+            f.Add(1, Vector3.zero, a);
+            f.Add(1, Vector3.zero, b);
+            return f.Mesh();
+        }
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
     }
 }

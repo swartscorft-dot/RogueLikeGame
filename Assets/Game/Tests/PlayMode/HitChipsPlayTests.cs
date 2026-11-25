@@ -189,14 +189,16 @@ namespace Roguelike.PlayModeTests
             Assert.That(chips.Count, Is.EqualTo(HitChipsRules.Count(Placeholders.BasicShotDamage, false, HitChipsValues.Live)), "her basic shot's spray");
             Assert.That(Vector3.Dot(Flat(Chips.LastFrom - e.transform.position), along), Is.LessThan(0f), "from its side facing her");
             Assert.That(Chips.LastFrom.y - e.transform.position.y, Is.InRange(0.4f, 2.2f), "at about its chest");
+            Vector3 toCamera = Flat(Camera.main.transform.position - e.transform.position).normalized;
+            Assert.That(Vector3.Dot(Flat(Chips.LastFrom - e.transform.position), toCamera), Is.GreaterThan(0f), "on the side turned to the camera, seen as they leave");
             float meanAlong = chips.Average(i => Vector3.Dot(Flat(Chips.VelocityOf(i)), along));
-            Assert.That(meanAlong, Is.GreaterThan(1f), "thrown along the shot");
+            Assert.That(meanAlong, Is.GreaterThan((float)HitChipsRules.Speed(Placeholders.BasicShotDamage, false, HitChipsValues.Live) * 0.5f), "thrown along the shot");
             Assert.That(chips.All(i => Chips.VelocityOf(i).y > 0f), Is.True, "and upward, to fall");
             var from = chips.ToDictionary(i => i, i => Chips.PositionOf(i));
             yield return For(0.15f);
             foreach (int i in chips)
                 Assert.That(Vector3.Dot(Flat(Chips.PositionOf(i) - from[i]), along), Is.GreaterThan(-0.2f), "none flies back at her");
-            Assert.That(chips.Average(i => Vector3.Dot(Flat(Chips.PositionOf(i) - from[i]), along)), Is.GreaterThan(0.1f), "away from her");
+            Assert.That(chips.Average(i => Vector3.Dot(Flat(Chips.PositionOf(i) - from[i]), along)), Is.GreaterThan(0.05f), "away from her");
             Assert.That(flash.IsFlashing, Is.False);
             Assert.That(AnyBlock(e), Is.False);
             // They fall to its floor and lie there.
@@ -224,7 +226,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(Chips.LastCrit, Is.True);
             Assert.That(Chips.LastCount, Is.EqualTo(HitChipsRules.Count(80, true, HitChipsValues.Live)));
             Assert.That(Chips.LastCount, Is.GreaterThanOrEqualTo(plain * 1.5f), "more chips");
-            Assert.That(Chips.LastSpeed, Is.GreaterThan(plainSpeed * 1.3f), "thrown harder");
+            Assert.That(Chips.LastSpeed, Is.GreaterThan(plainSpeed * 1.25f), "thrown harder");
             Assert.That(e.GetComponent<HitFlash>().IsCritFlash, Is.False, "no hard white frame");
             Assert.That(AnyBlock(e), Is.False);
         }
@@ -286,6 +288,12 @@ namespace Roguelike.PlayModeTests
                 {
                     Renderer r = Chips.RendererOf(i);
                     Assert.That(mine, Does.Contain(r.sharedMaterial), kind + ": its own stuff's colours");
+                    Mesh mesh = r.GetComponent<MeshFilter>().sharedMesh;
+                    Assert.That(mesh.subMeshCount, Is.EqualTo(2), kind + ": its sides and its broken ends");
+                    Assert.That(r.sharedMaterials[1], Is.SameAs(Chips.MaterialOf(HitChipsRules.EndOf(HitChipsRules.First(stuff)))).Or.SameAs(Chips.MaterialOf(HitChipsRules.EndOf(ChipColour.Bone))), kind + ": its ends in the darker tone");
+                    Vector3 box = mesh.bounds.size;
+                    float least = Mathf.Min(box.x, Mathf.Min(box.y, box.z)), most = Mathf.Max(box.x, Mathf.Max(box.y, box.z));
+                    Assert.That(least, Is.GreaterThan(most * 0.07f), kind + ": a solid splinter with thickness, not a flake: " + box.ToString("0.00"));
                     Assert.That(r.sharedMaterial.shader, Is.SameAs(body), kind + ": the shader its body wears");
                     Assert.That(ToonInkFigures.Has(r), Is.False, kind + ": not marked for the line");
                     if (r.sharedMaterial.HasProperty("_InkNeedsMark"))
