@@ -65,6 +65,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
             ToonLookValues.On = true;
             ToonLookValues.Enemies = true;
             foreach (GameObject g in _made) if (g != null) Object.Destroy(g);
@@ -340,6 +341,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(Near(elite.BodyRenderer.sharedMaterial.color, EnemyFactory.EliteTint), Is.True, "the elite's tint: " + elite.BodyRenderer.sharedMaterial.color);
 
             // A hit's flash over every mesh of the model, and the daze's tint on its body, both on what is drawn.
+            Roguelike.Rules.HitChipsValues.On = false; // work order 127: this pins the flash from before its order; on, a hit throws chips (HitChipsPlayTests)
             guard.Body.TakeHit(1, 1e6f);
             Assert.That(guard.IsDazed, Is.True);
             yield return null;

@@ -41,11 +41,22 @@ namespace Roguelike
             if (_damageable != null) _damageable.Damaged -= OnDamaged;
         }
 
-        void OnDamaged(int amount) => _flashUntil = Time.time + FlashSeconds;
+        void OnDamaged(int amount)
+        {
+            // Work order 127 ("kan vi drope at de flasher sånn når de blir truffet, heller at litt bein eller ligende spruter av"):
+            // with its switch on no flash; the hit is handed to the chips instead.
+            if (!Rules.HitChipsRules.Flashes(Rules.HitChipsValues.On))
+            {
+                HitChips.Hit(_damageable, amount);
+                return;
+            }
+            _flashUntil = Time.time + FlashSeconds;
+        }
 
         /// <summary>The hit just taken was a crit of hers (work order 064): its flash is a hard white frame.</summary>
         public void Crit()
         {
+            if (!Rules.HitChipsRules.Flashes(Rules.HitChipsValues.On)) return; // work order 127: no white frame; the crit's spray (HitChips.Crit, from her stats)
             _flashUntil = Time.time + FlashSeconds;
             _crit = true;
         }

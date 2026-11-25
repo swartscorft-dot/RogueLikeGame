@@ -94,6 +94,7 @@ namespace Roguelike.PlayModeTests
         public void CleanUp()
         {
             Roguelike.Rules.SkillLookValues.EffectsNotShapes = true; // work order 123: back to its default
+            Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
             CombatEffects.Spawned -= Record;
             if (_fx != null) Object.Destroy(_fx.gameObject);
             _fx = null;
@@ -377,6 +378,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ADeath_BurstsBoneShards_ThenAPaleRingWhereItLay_AHitThatLeavesItAlive_None()
         {
+            Roguelike.Rules.HitChipsValues.On = false; // work order 127: this pins the ring from before its order; on, no ring (HitChipsPlayTests)
             var shooter = SpawnOne<EnemyShooter>(EnemyKind.Shooter);
             shooter.Tuning.Enemy.MoveSpeed = 0f;
             yield return Frames(2);
