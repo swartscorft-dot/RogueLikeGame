@@ -39,7 +39,7 @@ namespace Roguelike
         /// A room's fight began (work order 097): the room as she meets it, in <paramref name="frame"/> (its origin in the scene's ground),
         /// and her first place. A fight still followed ends first ("another fight").
         /// </summary>
-        public void NoteFightRoom(int floor, int room, int order, string kind, string template, RoomSpace space, RoomFrame frame)
+        public void NoteFightRoom(int floor, int room, int order, string kind, string template, RoomSpace space, RoomFrame frame, string ranged = null)
         {
             if (!_recording || _writer == null || space == null) return;
             try
@@ -52,6 +52,7 @@ namespace Roguelike
                 e.AddExtra("order", Int(order));
                 e.AddExtra("kind", kind ?? "");
                 e.AddExtra("template", template ?? "");
+                if (!string.IsNullOrEmpty(ranged)) e.AddExtra("ranged", ranged); // work order 124: the patterns its ranged enemies stand in
                 space.WriteTo(e);
                 Add(e);
                 _useOn = true;

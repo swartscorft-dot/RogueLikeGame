@@ -258,7 +258,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Validator_ReportsAPillarTurnedOffItsSteps() =>
             AssertFault(l => First(l, RoomKind.Exit).Props.First(p => p.Model == PropModel.Pillar).Rotation = 20, "not a multiple of 15",
-                        new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }); // work order 103 (changed deliberately): floor 1's throne room and its corner pillars, as written
+                        new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }); // work order 103 (changed deliberately): floor 1's throne room and its corner pillars, as written
 
         [Test]
         public void Validator_ReportsAPropAtAWallThatMayNotStandAtOne() =>
@@ -324,7 +324,7 @@ namespace Roguelike.Rules.Tests
             {
                 LevelRoom r = First(l, RoomKind.Exit);
                 r.Props.First(p => p.Model == PropModel.Pillar).Position = Shift(r.Middle(l.CellSize), 5, 3);
-            }, "is nearer the exit room's middle than 8 m", new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }); // work order 103 (changed deliberately): floor 1's throne room, as written
+            }, "is nearer the exit room's middle than 8 m", new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }); // work order 103 (changed deliberately): floor 1's throne room, as written
 
         [Test]
         public void Validator_ReportsPropsThatOverlap() =>

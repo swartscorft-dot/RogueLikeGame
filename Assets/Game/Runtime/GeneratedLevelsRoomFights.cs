@@ -49,6 +49,7 @@ namespace Roguelike
                 if (!_level.EnemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) continue;
                 if (!RoomFightRules.HoldsAFight(layout, room, list.Count)) continue;
                 var fight = new RoomFight(room.Order);
+                fight.Ranged = LevelRanged.On(Values) ? Values.RangedAround : null; // work order 124: its shooters and casters begin on screen, after a second's grace
                 _fights[room.Order] = fight;
                 _fightList.Add(fight);
                 foreach (Enemy e in list) if (e != null) e.Fight = fight;

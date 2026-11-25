@@ -17,15 +17,11 @@ namespace Roguelike.Rules
     /// pack, the first of them when two are as large), alone at its own point; the room's count of enemies is the same; a room
     /// with no swarmer left gets none. Never an elite. On a text map it is l (<see cref="EnemyKinds.Letter"/>).
     ///
-    /// NOT CALLED BY THE GENERATOR IN THIS ORDER. The sprint's rule 3 (2026-11-24): the generator's version and every pinned floor
-    /// fingerprint belong to work orders 103 and 104; with the lancer on by default, a call of <see cref="Put"/> from
-    /// <c>LevelGenerator.Generate</c> beside the warders' would change the default floors 4 and 5 (a swarmer each in some rooms
-    /// becomes a lancer, and the rooms placed after it move), and with them the pin of
-    /// <c>ExitRoomsTests.SwitchOff_ThreeThousandFloors_AreVersion19s_FieldForField</c>, which folds the default floors; and the
-    /// generator's own placing puts a group of a kind it does not know in the middle band, not the far half, without a line of
-    /// its own. So the floors hold no lancer until the producer puts the two lines into the generator with a version of its own
-    /// (the report of work order 108 says which). What is here is whole and tested on the floors' groups as the generator draws
-    /// them; the room lab stands one in a room through its own preset (<see cref="RoomLab.Mixes"/>).
+    /// Work order 108 built it outside the generator (the sprint's rule 3: the generator's version and its pins were work orders
+    /// 103's and 104's). Work order 118 put it into the floors as the generator's version 22: <c>LevelGenerator.Generate</c> calls
+    /// <see cref="Put"/> after the warders, the generator's placing stands a lancer in the far band with the shooters, the casters
+    /// and the warders, and <c>LevelValidator</c> calls <see cref="Faults"/>. The room lab stands one in a room through its own
+    /// preset (<see cref="RoomLab.Mixes"/>).
     /// </summary>
     public static class LevelLancers
     {
@@ -64,6 +60,54 @@ namespace Roguelike.Rules
             }
         }
 
+        /// <summary>
+        /// Work order 118 ("it stands in the room's far half with floor to charge across"): metres of the room's own floor in a straight
+        /// line from <paramref name="from"/> toward the middle of the door she comes in by, before a carved cell or a wall of the room
+        /// comes within <see cref="LancerFloorValues.ChargeHalfWidth"/> of the line, walked in <see cref="LancerFloorValues.ChargeStep"/>,
+        /// looked along no farther than <paramref name="upTo"/>; the whole way when the door is reached first. Props are not counted:
+        /// a prop in its line is the cover she uses on purpose.
+        /// </summary>
+        public static double FloorToCharge(LevelLayout level, LevelRoom room, LevelPoint from, LevelDoor entry, LancerFloorValues l, double upTo = double.PositiveInfinity)
+        {
+            if (level == null || room == null || entry == null || l == null) return 0d;
+            double cs = level.CellSize, half = l.ChargeHalfWidth, step = Math.Max(1e-3, l.ChargeStep);
+            entry.Opening(cs, out LevelPoint a, out LevelPoint b);
+            var to = new LevelPoint((a.X + b.X) * 0.5, (a.Y + b.Y) * 0.5);
+            double length = from.DistanceTo(to);
+            if (length < 1e-9) return 0d;
+            double dx = (to.X - from.X) / length, dy = (to.Y - from.Y) / length;
+            for (double d = step; d < length; d += step)
+            {
+                if (d > upTo) return d;
+                var p = new LevelPoint(from.X + dx * d, from.Y + dy * d);
+                if (LevelGeometry.DistanceToDoor(p, entry, cs) < half) return length;
+                if (RoomShapes.DistanceToSolid(room, p, cs) < half || LevelGeometry.DistanceToWalls(p, room.Rect, cs) < half) return d - step;
+            }
+            return length;
+        }
+
+        /// <summary>Whether a lancer at <paramref name="p"/> has <see cref="LancerFloorValues.ChargeFloorAtLeast"/> of floor to charge across (<see cref="FloorToCharge"/>).</summary>
+        public static bool RoomToCharge(LevelLayout level, LevelRoom room, LevelPoint p, LevelDoor entry, LevelValues v)
+        {
+            LancerFloorValues l = v?.LancerFloors;
+            return l != null && FloorToCharge(level, room, p, entry, l, l.ChargeFloorAtLeast) >= l.ChargeFloorAtLeast - 1e-9;
+        }
+
+        /// <summary>
+        /// The room's depth from the door she comes in by (work order 118): its farthest place from it, as the generator measures its
+        /// bands (its grid of places <see cref="LevelValues.PointStep"/> apart, <see cref="LevelValues.WallClearance"/> in from its walls).
+        /// </summary>
+        public static double Depth(LevelLayout level, LevelRoom room, LevelDoor entry, LevelValues v)
+        {
+            double cs = level.CellSize, clear = v.WallClearance, step = v.PointStep, far = 0d;
+            int nx = (int)Math.Floor((room.Rect.Width * cs - 2 * clear) / step + 1e-9) + 1;
+            int ny = (int)Math.Floor((room.Rect.Height * cs - 2 * clear) / step + 1e-9) + 1;
+            for (int i = 0; i < nx; i++)
+                for (int j = 0; j < ny; j++)
+                    far = Math.Max(far, LevelGeometry.DistanceToDoor(new LevelPoint(room.Rect.X * cs + clear + i * step, room.Rect.Y * cs + clear + j * step), entry, cs));
+            return far;
+        }
+
         /// <summary>The lancers of these groups, counted one by one.</summary>
         public static int Count(IEnumerable<EnemyGroup> groups) =>
             groups == null ? 0 : groups.Where(g => g != null && g.Kind == EnemyKind.Lancer).Sum(g => g.Count);
@@ -92,7 +136,7 @@ namespace Roguelike.Rules
         /// <summary>
         /// The validator's rules for them: none while the switch is off, none before their floor, none in the floor's first combat
         /// room, none outside a combat room, none beside the act boss, no more in a room than <see cref="Most"/>, none an elite,
-        /// each alone. (Not called by the validator in this order: see the class.)
+        /// each alone. (Called by the validator since work order 118.)
         /// </summary>
         public static void Faults(LevelLayout level, LevelValues v, List<string> faults)
         {
@@ -115,6 +159,20 @@ namespace Roguelike.Rules
                     if (g.Elite || g.Boss) faults.Add($"{Name(r)} has a lancer as its elite or boss");
                     if (g.Count != 1) faults.Add($"{Name(r)} has {g.Count} lancers at one point, and each stands alone");
                 }
+                // Work order 118: where each stands in a floor in a line, the far half with floor to charge across.
+                LevelDoor entry = level.InALine && v.LancerFloors != null ? LevelGeometry.EntryDoor(level, r) : null;
+                if (entry == null) continue;
+                double depth = Depth(level, r, entry, v);
+                for (int i = 0; i < r.EnemyGroups.Count && i < r.EnemyPoints.Count; i++)
+                {
+                    if (r.EnemyGroups[i] == null || r.EnemyGroups[i].Kind != EnemyKind.Lancer) continue;
+                    LevelPoint p = r.EnemyPoints[i];
+                    double share = LevelGeometry.DistanceToDoor(p, entry, level.CellSize) / Math.Max(1e-9, depth);
+                    if (share < v.LancerFloors.FarHalf - 1e-9)
+                        faults.Add($"{Name(r)}'s lancer at {p} stands at {share.ToString("P0", CultureInfo.InvariantCulture)} of the room's depth, short of its far half");
+                    if (!RoomToCharge(level, r, p, entry, v))
+                        faults.Add($"{Name(r)}'s lancer at {p} has less than {v.LancerFloors.ChargeFloorAtLeast.ToString(CultureInfo.InvariantCulture)} m of floor to charge across toward the door in");
+                }
             }
         }
     }
@@ -128,6 +186,16 @@ namespace Roguelike.Rules
         // The most lancers in a combat room, counted from FromFloor (as the bombers' table, BomberFloorValues.MostInRoom): one on the
         // floor that brings it, two from the floor after (the order: at most 1 in a combat room on floor 4 and 2 on floor 5).
         public int[] MostInRoom = { 1, 2 };
+
+        // Work order 118 (the generator's version 22): where it stands in a room. The generator stands it in LevelValues.FarBand of
+        // the room's depth from the door she comes in by (with the shooters, the casters and the warders), and there first at a place
+        // with ChargeFloorAtLeast of the room's floor in a straight line toward that door (LevelLancers.FloorToCharge: no carved cell
+        // and no wall within ChargeHalfWidth of the line); then at such a place in the room's far half (FarHalf); only then where it
+        // fits in its band, or anywhere, as every kind. All first guesses of the producer's.
+        public double ChargeFloorAtLeast = 10.0; // m: the nearest its charge is chosen from (LancerValues' MinDistance, 10 m)
+        public double ChargeHalfWidth = 0.35;    // m to a side of the line kept clear: its body's radius (LancerValues.BodyRadius)
+        public double ChargeStep = 0.1;          // m the line is walked in
+        public double FarHalf = 0.5;             // the far half: this share of the room's farthest place from the door in, or more
 
         /// <summary>The most lancers in a combat room of this floor: 0 before <see cref="FromFloor"/>, else <see cref="MostInRoom"/> counted from it.</summary>
         public int MostOnFloor(int floor)

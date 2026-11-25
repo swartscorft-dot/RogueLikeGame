@@ -45,7 +45,8 @@ namespace Roguelike
             _useProps.Clear();
             Vector3 origin = _level.ToWorld(new LevelPoint(frame.OriginX, frame.OriginY));
             string template = room.Template != null && room.Template.Template != null ? room.Template.Template.Name : "";
-            recorder.NoteFightRoom(floor, LevelGeometry.RoomNumber(layout, room) + 1, room.Order, kind, template, space, frame.MovedTo(origin.x, origin.z));
+            recorder.NoteFightRoom(floor, LevelGeometry.RoomNumber(layout, room) + 1, room.Order, kind, template, space, frame.MovedTo(origin.x, origin.z),
+                                   LevelRanged.On(Values) && Values.RangedAround.TellsTheLog ? LevelRanged.PatternsOf(room) : null); // work order 124: the room's ranged patterns
             _usedFight = f;
         }
 

@@ -284,6 +284,7 @@ namespace Roguelike.Rules
             int lancersMost = mix != null && v.Lancers && room.Kind == RoomKind.Combat ? mix.Lancers : 0;
             if (lancers > lancersMost) faults.Add($"{Name(room)} holds {lancers} lancers, and its mix at most {lancersMost}");
             if (room.EnemyGroups.Any(g => g != null && g.Kind == EnemyKind.Lancer && (g.Count != 1 || g.Elite || g.Boss))) faults.Add($"{Name(room)} has a lancer not alone");
+            LevelRanged.RoomFaults(level, room, v, faults, LevelRanged.On(v)); // work order 124: its ranged posts, as a floor's
 
             // The theme and the props, as the validator holds a floor's room to them.
             if (room.Theme != RoomTheme.None && (Array.IndexOf(RoomThemes.ThemesFor(room.Kind), room.Theme) < 0 || v.ThemeRules?.Of(room.Theme, room.Kind) == null))

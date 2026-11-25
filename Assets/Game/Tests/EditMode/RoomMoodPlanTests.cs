@@ -199,7 +199,7 @@ namespace Roguelike.Rules.Tests
         {
             // Changed deliberately (work order 052): work order 044's code-made pieces, as they are with the large props off;
             // LargePropsPlanTests has the large props in their place.
-            var values = new LevelValues { LargeProps = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103 (changed deliberately): the exit hall has no eye-catcher yet (its look is a later order); the throne room as before
+            var values = new LevelValues { LargeProps = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 103 (changed deliberately): the exit hall has no eye-catcher yet (its look is a later order); the throne room as before
             PropValues pv = values.PropRules;
             var rooms = new Dictionary<RoomTheme, int>();
             var places = new Dictionary<RoomTheme, int>();
@@ -373,7 +373,7 @@ namespace Roguelike.Rules.Tests
         {
             // Changed deliberately (work order 052): the sources of work order 044's props and candles, with the large props off;
             // LargePropsPlanTests has the large props' sources.
-            var values = new LevelValues { LargeProps = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103 (changed deliberately): the exit hall has no eye-catcher yet (its look is a later order); the throne room as before
+            var values = new LevelValues { LargeProps = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 103 (changed deliberately): the exit hall has no eye-catcher yet (its look is a later order); the throne room as before
             for (ulong s = 0; s < 50; s++)
             {
                 LevelLayout l = LevelGenerator.Generate(s, 1, values);

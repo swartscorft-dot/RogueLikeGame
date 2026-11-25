@@ -604,15 +604,30 @@ namespace Roguelike.Rules
         // en vegg eller rekvisitt. Lages av skjelettmodellene som finnes." ON: the lancer is in the game (the practice room's K,
         // the room lab's preset "floor 4 with a lancer"), and the floors' rule for it (LevelLancers, from LancerFloors.FromFloor,
         // read only with ActPlan on). Off: no lab room holds one, and every floor and every lab room is as before work order 108,
-        // field for field. The practice room's lancer does not depend on it (as the bomber's and the warder's do not). The floors
-        // do not hold one yet whatever this says: the generator does not call LevelLancers in this order (the sprint's rule 3,
-        // its version and pins are work orders 103's and 104's; see LevelLancers).
+        // field for field. The practice room's lancer does not depend on it (as the bomber's and the warder's do not). Work order
+        // 118: the floors hold it since the generator's version 22 (LevelLancers called by the generator and the validator); off,
+        // every floor is version 21's, field for field, but for the version.
         public bool Lancers = true;
         public int LancerHealth = 800;         // work order 108: a floor's lancer, between a floor shooter's 400 and a floor brute's 1200
         public LancerFloorValues LancerFloors = new LancerFloorValues();
 
         /// <summary>The lancers are put into the floors (work order 108): their switch, and the act's plan on, as the bombers'.</summary>
         public bool LancersInFloors => ActPlan && Lancers;
+
+        // ---------------- Ranged enemies around the room (work order 124, 2026-11-25) ----------------
+
+        // Kristian, 2026-11-25, after two runs: "det er litt kjedelig at alle range alltid er gruppert bakerst. De kan være litt mer
+        // strategisk plassert rundt i rommet", and "Gjør gjerne noe deep research på strategiske range creeps plasseringer"; from the
+        // research digest R2 he ticked "Ja, bare når den synes" (a shooter or caster begins a draw only while on his screen), "Ja, med
+        // ett sekunds pause" (one near at his side, waiting about a second before its first shot), "Blanding" (singles, a pair or a
+        // nest, so rooms differ) and "Fra etasje 4" (crossfire in about one combat room in three on floors 4 and 5). ON (the
+        // generator's version 23): the shooters stand singly, and a room's ranged enemies stand around it by LevelRanged's rules (one
+        // group at the back, a near flank, a ladder, a pair or a nest, crossfire from floor 4, the warder in the pack: the producer's
+        // choice from the research, not his words), and in a room's fight a shooter or caster begins a draw only on screen and not in
+        // the first second after the waking (RangedOpeningRules). Each part has a bool of its own in RangedAround. Off: every floor is
+        // version 22's, field for field, but for the version, and the fight is as before.
+        public bool RangedAroundTheRoom = true;
+        public RangedAroundValues RangedAround = new RangedAroundValues();
     }
 
     /// <summary>

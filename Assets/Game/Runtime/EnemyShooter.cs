@@ -57,6 +57,8 @@ namespace Roguelike
         static readonly RaycastHit[] s_Hits = new RaycastHit[32];
 
         public ShooterValues Tuning = new ShooterValues();
+        /// <summary>Work order 124: when it may begin a draw in a room's fight (<see cref="RangedOpening"/>).</summary>
+        public readonly RangedOpening Opening = new RangedOpening();
 
         bool _backingOff;
         bool _approaching;
@@ -281,7 +283,7 @@ namespace Roguelike
             float now = Time.time;
             if (distance < Tuning.BackOffUnder && now >= _corneredUntil) _backingOff = true;
             if (distance >= Tuning.KeepNear) _backingOff = false;
-            return !_backingOff && SeesHer();
+            return !_backingOff && SeesHer() && Opening.Allows(this, distance, ShooterValues.ShootsFrom); // work order 124: on his screen, and a second's grace at the waking
         }
 
         /// <summary>

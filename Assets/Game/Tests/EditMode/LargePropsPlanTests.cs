@@ -99,7 +99,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandSeeds_EachThemesLargeProp_IsPlacedByItsRule_OrLeftOutForAStatedReason_AndKeepsEveryRule(int floor)
         {
-            var values = new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103 (changed deliberately): the throne room on floors 1 to 4 too, as this was measured
+            var values = new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 103 (changed deliberately): the throne room on floors 1 to 4 too, as this was measured
             PropValues pv = values.PropRules;
             Assert.That(values.LargeProps && values.RoomMood && values.Mood.Compose, "on by default");
             var rooms = new Dictionary<string, int>();

@@ -276,7 +276,7 @@ namespace Roguelike.Rules.Tests
         public void Off_OrTheActsPlanOff_NoRoomMayHoldOne()
         {
             Assert.That(new LevelValues().Warders, Is.True, "built off (work order 079), on in the floors since work order 087");
-            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false, FloorCharacter = false, UsableRooms = false } }) // work order 087: the plan off is version 17's floors, with none
+            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, UsableRooms = false } }) // work order 087: the plan off is version 17's floors, with none
             {
                 for (int f = 1; f <= 5; f++)
                     foreach (RoomKind k in Enum.GetValues(typeof(RoomKind)))

@@ -20,8 +20,8 @@ namespace Roguelike.Rules.Tests
     public class UsableRoomsTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        static LevelValues On => new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // work order 103: version 19's floors
-        static LevelValues Off => new LevelValues { UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false }; // 103: version 18's
+        static LevelValues On => new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 103: version 19's floors
+        static LevelValues Off => new LevelValues { UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // 103: version 18's
         static LevelValues SecondSet => new LevelValues { MoreTemplates = true };
 
         static ulong Mix(ulong h, ulong v)
@@ -364,7 +364,7 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_IsOnByDefault_AndTheGeneratorIsVersion19()
         {
             Assert.That(new LevelValues().UsableRooms, Is.True, "on by default (work order 088)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(21)); // work order 103: 20; 104: 21
+            Assert.That(LevelGenerator.Version, Is.EqualTo(23)); // work order 103: 20; 104: 21; 118: 22; 124: 23
             LevelLayout off = LevelGenerator.Generate(42UL, 3, Off);
             Assert.That(off.UsableRooms, Is.False);
             Assert.That(off.Rooms.SelectMany(r => r.Props).Any(p => p.Fight), Is.False, "off: no cover added");

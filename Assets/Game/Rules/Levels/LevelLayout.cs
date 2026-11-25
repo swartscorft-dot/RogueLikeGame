@@ -95,6 +95,8 @@ namespace Roguelike.Rules
         public char Letter => Boss ? 'G' : Elite ? 'e' : IsLine ? char.ToUpperInvariant(EnemyKinds.Letter(Kind, 1)) : EnemyKinds.Letter(Kind, Count);
         public override string ToString() =>
             (Boss ? "act boss " : "") + (Elite ? "elite " : "") + EnemyKinds.Word(Kind) + (Count > 1 ? " x" + Count.ToString(CultureInfo.InvariantCulture) : "");
+        /// <summary>Work order 124: where its rules stood this ranged group (<see cref="LevelRanged"/>), the generator's note; null for a group they did not stand (and on a copy).</summary>
+        [NonSerialized] public RangedPlace Ranged;
     }
 
     /// <summary>One room: its kind, its cells and its place in the order of the run, and what stands in it.</summary>

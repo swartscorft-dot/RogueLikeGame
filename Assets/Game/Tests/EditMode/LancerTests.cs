@@ -332,10 +332,10 @@ namespace Roguelike.Rules.Tests
                 int floor = (int)(s % 5) + 1;
                 LevelLayout a = LevelGenerator.Generate(s * 7919UL + 108UL, floor, off), b = LevelGenerator.Generate(s * 7919UL + 108UL, floor, on);
                 Assert.That(a.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Lancer), Is.False, "off: no lancer, seed " + s);
-                Assert.That(b.Describe(), Is.EqualTo(a.Describe()), "on and off the same floor, field for field (the generator does not place them in this order), seed " + s);
-                // Changed at the merge (2026-11-25): the sprint's other orders took the generator to version 21; the lancer's order moves
-                // no version, so the test asks for the generator's own.
-                Assert.That(a.Version, Is.EqualTo(LevelGenerator.Version), "the generator's version, not moved by the lancer");
+                // Work order 118 (changed deliberately): the generator places them since its version 22, from floor 4; before it, on and
+                // off are the same floor, field for field (version 21's with them off: LancersInTheFloorsTests' pin).
+                if (floor < 4) Assert.That(b.Describe(), Is.EqualTo(a.Describe()), "before floor 4 on and off the same floor, field for field, seed " + s);
+                Assert.That(a.Version, Is.EqualTo(LevelGenerator.Version), "the generator's version");
             }
         }
 
@@ -446,7 +446,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(PlaceholderSoundRules.SoundFor(SoundMoment.LancerCrashed), Is.EqualTo(PlaceholderSound.LancerCrash));
             PlaceholderSound[] all = PlaceholderSoundRules.All;
             Assert.That(all.Skip(49).Take(3), Is.EqualTo(new[] { PlaceholderSound.LancerWindup, PlaceholderSound.LancerCharge, PlaceholderSound.LancerCrash }), "after the forty-nine before them in the merged list (changed at the merge, 2026-11-24)");
-            // Changed at the merge (2026-11-24, the same lines as work order 118's branch): in the merged list other orders' sounds stand
+            // Changed at the merge (work order 118, the producer's word of 2026-11-24): in the merged list other orders' sounds stand
             // between the thirty-eight old ones and the lancer's three. The old keep their places 0 to 37 (OffTick the last of them),
             // the lancer's are at 49 to 51; nothing is reordered.
             Assert.That((int)PlaceholderSound.OffTick, Is.EqualTo(37), "the thirty-eight old sounds where they were, 0 to 37");
