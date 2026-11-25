@@ -59,7 +59,7 @@ namespace Roguelike.Rules
         // ---- Part 6: at most one ranged group at the back (digest P1) ----
         public bool OneAtTheBack = true;           // only the first ranged group (a pair, else a caster, else a shooter) takes a template's h perch or the far band
 
-        // ---- Part 7: the warder in the pack (digest P7; the producer's choice from the research, not his words) ----
+        // ---- Part 7: the warder in the pack (digest P7; the producer's choice from the research; Kristian was asked on 2026-11-25 and said yes: "Ja, prøv det") ----
         public bool WarderInThePack = true;
         public double PackBandFrom = 0.35;         // share of the room's farthest place from the door in, at least
         public double PackBandTo = 0.6;            // and at most: the middle band
@@ -79,8 +79,10 @@ namespace Roguelike.Rules
         public double CrossCoverFrom = 3.0;        // m in front of each, toward the other's side, where a tall cover is wanted: from
         public double CrossCoverTo = 6.0;          // to
         // Only in a room she enters heading north or south (the digest's P2: only then do east and west on screen lie across the room, not
-        // one post by the door and one at the far wall, which would make two groups at the back).
-        public bool CrossfireNorthOrSouthOnly = true;
+        // one post by the door and one at the far wall). OFF since Kristian's tick of 2026-11-25, "Også i rom du går inn i fra siden": in a
+        // room entered from the side one post may stand by the door and one at the far wall, and a post in the far band is then the room's
+        // one group at the back. True: work order 124's first rule, north or south only.
+        public bool CrossfireNorthOrSouthOnly = false;
 
         // ---- Part 10: the recorder says what he met ----
         public bool TellsTheLog = true;            // the fight_room line names the room's patterns; each arrow or orb let loose says whether its shooter was on screen
@@ -392,6 +394,7 @@ namespace Roguelike.Rules
                         break;
                     case RangedPost.Crossfire:
                         cross++;
+                        if (Share(p) >= v.FarBand - 1e-9) far++; // in a room entered from the side, a post at the far wall is the room's group at the back
                         if (p.X > middle.X) crossEast++;
                         if (!CrossPlace(middle, p, p.X > middle.X, r)) faults.Add($"{label} is not 9 to 13 m east or west of the room's middle within 5 m north or south");
                         break;

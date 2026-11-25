@@ -45,6 +45,7 @@ namespace Roguelike.Rules.Tests
         sealed class Tally
         {
             public int Combat, Eligible, NearFlank, Pair, Nest, Ladder, Crossfire, CrossEligible, Floors, Reattempted;
+            public int CombatNorthSouth, CombatSide, CrossNorthSouth, CrossSide, CrossAtBack; // work order 124's second round: by the way she comes in
             public int RangedRooms, AllFar, MoreThanOneFar, Posts, InView, Warders, InPack, Elsewhere;
             public int NearShooters, NearLow, CrossPosts, CrossCovered, DeepPosts, DeepHidden;
             public readonly List<double> Shares = new List<double>();
@@ -73,14 +74,29 @@ namespace Roguelike.Rules.Tests
                 {
                     t.Combat++;
                     if (ranged >= r.NearFlankRangedAtLeast) t.Eligible++;
-                    if (l.Floor >= r.CrossfireFromFloor && ranged >= 2 && LevelRanged.EnteredNorthOrSouth(room, entry)) t.CrossEligible++;
+                    bool ns = LevelRanged.EnteredNorthOrSouth(room, entry);
+                    if (l.Floor >= r.CrossfireFromFloor && ranged >= 2) t.CrossEligible++;
+                    if (ns) t.CombatNorthSouth++;
+                    else t.CombatSide++;
                     string words = LevelRanged.PatternsOf(room);
                     List<string> w = words.Split('+').ToList();
                     if (w.Contains(LevelRanged.NearFlankWord)) t.NearFlank++;
                     if (w.Contains(LevelRanged.PairWord)) t.Pair++;
                     if (w.Contains(LevelRanged.NestWord)) t.Nest++;
                     if (w.Contains(LevelRanged.LadderWord)) t.Ladder++;
-                    if (w.Contains(LevelRanged.CrossfireWord)) t.Crossfire++;
+                    if (w.Contains(LevelRanged.CrossfireWord))
+                    {
+                        t.Crossfire++;
+                        if (ns) t.CrossNorthSouth++;
+                        else t.CrossSide++;
+                        double depth = LevelLancers.Depth(l, room, entry, v);
+                        for (int i = 0; i < room.EnemyGroups.Count; i++)
+                            if (room.EnemyGroups[i].Ranged?.Post == RangedPost.Crossfire && Share(l, room, entry, room.EnemyPoints[i], depth) >= v.FarBand - 1e-9)
+                            {
+                                t.CrossAtBack++;
+                                break;
+                            }
+                    }
                 }
                 if (posts.Count > 0)
                 {
@@ -198,7 +214,9 @@ namespace Roguelike.Rules.Tests
                     Count(la, after, a, true);
                     Count(lb, before, b, false);
                 }
-                lines.Add(string.Format(Inv, "RANGEDFLOORS floor {0}: of {1} combat rooms ({2} with two or more ranged, {3} of these entered heading north or south on floors 4 and 5): near flank {4} ({5} of those with two or more), pair {6}, nest {7}, ladder {8}, crossfire {9} ({10} of those that could)",
+                lines.Add(string.Format(Inv, "RANGEDFLOORS floor {0}: crossfire by the way in: heading north or south {1} of {2} ({3}), from the side {4} of {5} ({6}); rooms whose crossfire has a post in the far band (the room's group at the back) {7}",
+                    floor, a.CrossNorthSouth, a.CombatNorthSouth, P(a.CrossNorthSouth, a.CombatNorthSouth), a.CrossSide, a.CombatSide, P(a.CrossSide, a.CombatSide), a.CrossAtBack));
+                lines.Add(string.Format(Inv, "RANGEDFLOORS floor {0}: of {1} combat rooms ({2} with two or more ranged, {3} of these on floors 4 and 5): near flank {4} ({5} of those with two or more), pair {6}, nest {7}, ladder {8}, crossfire {9} ({10} of those that could)",
                     floor, a.Combat, a.Eligible, a.CrossEligible, P(a.NearFlank, a.Combat), P(a.NearFlank, a.Eligible), P(a.Pair, a.Combat), P(a.Nest, a.Combat),
                     P(a.Ladder, a.Combat), P(a.Crossfire, a.Combat), P(a.Crossfire, a.CrossEligible)));
                 lines.Add(string.Format(Inv, "RANGEDFLOORS floor {0}: depth share of the ranged posts BEFORE {1}; AFTER {2}", floor, Spread(b), Spread(a)));
@@ -240,7 +258,7 @@ namespace Roguelike.Rules.Tests
             var v = new LevelValues();
             string[] patterns = { LevelRanged.NearFlankWord, LevelRanged.PairWord, LevelRanged.NestWord, LevelRanged.LadderWord, LevelRanged.CrossfireWord, LevelRanged.PackWord };
             var found = new Dictionary<string, string>();
-            for (ulong run = 1; run < 400 && found.Count < patterns.Length * 2; run++)
+            for (ulong run = 1; run < 400 && found.Count < patterns.Length * 4; run++)
             {
                 ulong runSeed = run * 7919UL + 124UL;
                 string before = null;
@@ -255,7 +273,7 @@ namespace Roguelike.Rules.Tests
                         number++;
                         LevelDoor entry = LevelGeometry.EntryDoor(l, r);
                         int wall = entry != null ? LevelGeometry.WallOf(r.Rect, entry) : -1;
-                        string heading = wall == LevelGenerator.South ? "north" : wall == LevelGenerator.North ? "south" : null;
+                        string heading = wall == LevelGenerator.South ? "north" : wall == LevelGenerator.North ? "south" : wall == LevelGenerator.West ? "east" : wall == LevelGenerator.East ? "west" : null;
                         if (heading == null) continue;
                         List<string> w = LevelRanged.PatternsOf(r).Split('+').ToList();
                         foreach (string p in patterns)
@@ -270,7 +288,7 @@ namespace Roguelike.Rules.Tests
             }
             var lines = new List<string>();
             foreach (string p in patterns)
-                foreach (string h in new[] { "north", "south" })
+                foreach (string h in new[] { "north", "south", "east", "west" })
                     lines.Add("RANGEDWHERE " + p + " heading " + h + ": " + (found.TryGetValue(p + " heading " + h, out string s) ? s : "none found"));
             // The lab: each preset's share of seeds with each pattern, over the ordinary rooms of the floors' templates and the drawn shape.
             foreach (LabMix mix in RoomLab.Mixes)
@@ -295,7 +313,7 @@ namespace Roguelike.Rules.Tests
                 lines.Add("RANGEDWHERE lab " + mix.Name + " (" + rooms + " rooms): " + string.Join(", ", patterns.Select(p => p + " " + P(counts[p], rooms) + (example.TryGetValue(p, out string x) ? " e.g. " + x : ""))));
             }
             TestContext.WriteLine(string.Join("\n", lines));
-            Assert.That(found.Keys.Count(k => k.StartsWith(LevelRanged.NearFlankWord, StringComparison.Ordinal)), Is.EqualTo(2), "a near flank heading north and south");
+            Assert.That(found.Keys.Count(k => k.StartsWith(LevelRanged.NearFlankWord, StringComparison.Ordinal)), Is.EqualTo(4), "a near flank from every side");
         }
     }
 }

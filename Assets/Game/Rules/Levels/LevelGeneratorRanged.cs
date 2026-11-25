@@ -142,7 +142,19 @@ namespace Roguelike.Rules
                     EnemyGroup e = _room.EnemyGroups[i];
                     if (e != null && e.Elite && (e.Kind == EnemyKind.Shooter || e.Kind == EnemyKind.Caster) && InFar(_room.EnemyPoints[i])) eliteBack = true;
                 }
-                if (_r.OneAtTheBack && !eliteBack)
+                // Part 8: the crossfire, on its floors, in a combat room, by the room's draw, of two that stand alone. In a room entered from the
+                // side (with CrossfireNorthOrSouthOnly off: his tick of 2026-11-25, "Også i rom du går inn i fra siden") east and west of the
+                // middle lie along the room's depth: it is stood before the group at the back, and a post of it in the far band IS the room's
+                // one group at the back (none is stood there besides; with a ranged elite there already, it keeps short of the far band).
+                bool crossWanted = _r.Crossfire && _level.Floor >= _r.CrossfireFromFloor && _room.Kind == RoomKind.Combat && cross < _r.CrossfireShare
+                                   && (!_r.CrossfireNorthOrSouthOnly || _northOrSouth);
+                bool crossAtBack = false;
+                if (crossWanted && !_northOrSouth)
+                {
+                    List<EnemyGroup> crossed = Crossfire(pool, !(_r.OneAtTheBack && eliteBack));
+                    crossAtBack = crossed != null && crossed.Any(g => InFar(_room.EnemyPoints[_room.EnemyGroups.IndexOf(g)]));
+                }
+                if (_r.OneAtTheBack && !eliteBack && !crossAtBack)
                 {
                     List<EnemyGroup> back = pool.FirstOrDefault(u => u.Count == 2)
                                             ?? pool.FirstOrDefault(u => u.Count == 1 && u[0].Kind == EnemyKind.Caster)
@@ -154,17 +166,8 @@ namespace Roguelike.Rules
                     }
                 }
 
-                // Part 8: the crossfire, on its floors, in a combat room, by the room's draw, of two that stand alone.
-                if (_r.Crossfire && _level.Floor >= _r.CrossfireFromFloor && _room.Kind == RoomKind.Combat && cross < _r.CrossfireShare
-                    && (!_r.CrossfireNorthOrSouthOnly || _northOrSouth))
-                {
-                    List<List<EnemyGroup>> singles = pool.Where(u => u.Count == 1 && u[0].Count == 1).Take(2).ToList();
-                    if (singles.Count == 2 && PlaceCrossfire(singles[0][0], singles[1][0]))
-                    {
-                        pool.Remove(singles[0]);
-                        pool.Remove(singles[1]);
-                    }
-                }
+                // In a room entered heading north or south, after the group at the back and with part 6 on short of the far band.
+                if (crossWanted && _northOrSouth) Crossfire(pool, !_r.OneAtTheBack);
 
                 // Part 3: the near flank, by the room's draw, in a room with enough ranged enemies: a shooter alone first, else a caster.
                 int nearSide = 0;
@@ -305,16 +308,26 @@ namespace Roguelike.Rules
                 return First(g, Ok, out LevelPoint at, out LevelPoint[] members) && Put(g, at, members, new RangedPlace { Post = RangedPost.NearFlank });
             }
 
-            /// <summary>Part 8: one west and one east of the room's middle, 9 to 13 m from it, within 5 m north or south, 16 m apart at least; with part 6 on, short of the far band.</summary>
-            bool PlaceCrossfire(EnemyGroup west, EnemyGroup east)
+            /// <summary>Part 8 of the pool's first two that stand alone (<see cref="PlaceCrossfire"/>): the two stood, taken out of the pool; null when it found no room.</summary>
+            List<EnemyGroup> Crossfire(List<List<EnemyGroup>> pool, bool farOk)
+            {
+                List<List<EnemyGroup>> singles = pool.Where(u => u.Count == 1 && u[0].Count == 1).Take(2).ToList();
+                if (singles.Count != 2 || !PlaceCrossfire(singles[0][0], singles[1][0], farOk)) return null;
+                pool.Remove(singles[0]);
+                pool.Remove(singles[1]);
+                return new List<EnemyGroup> { singles[0][0], singles[1][0] };
+            }
+
+            /// <summary>Part 8: one west and one east of the room's middle, 9 to 13 m from it, within 5 m north or south, 16 m apart at least; unless <paramref name="farOk"/>, short of the far band.</summary>
+            bool PlaceCrossfire(EnemyGroup west, EnemyGroup east, bool farOk)
             {
                 var easts = new List<LevelPoint>();
                 foreach (LevelPoint p in _places)
-                    if (LevelRanged.CrossPlace(_middle, p, true, _r) && !(_r.OneAtTheBack && InFar(p)) && _fits(east, p, out _)) easts.Add(p);
+                    if (LevelRanged.CrossPlace(_middle, p, true, _r) && (farOk || !InFar(p)) && _fits(east, p, out _)) easts.Add(p);
                 if (easts.Count == 0) return false;
                 foreach (LevelPoint w in _places)
                 {
-                    if (!LevelRanged.CrossPlace(_middle, w, false, _r) || (_r.OneAtTheBack && InFar(w)) || !_fits(west, w, out LevelPoint[] wm)) continue;
+                    if (!LevelRanged.CrossPlace(_middle, w, false, _r) || (!farOk && InFar(w)) || !_fits(west, w, out LevelPoint[] wm)) continue;
                     foreach (LevelPoint e in easts)
                     {
                         if (e.DistanceTo(w) < _r.CrossApartLeast - 1e-9) continue;

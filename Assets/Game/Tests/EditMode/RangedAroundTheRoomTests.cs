@@ -193,9 +193,9 @@ namespace Roguelike.Rules.Tests
         {
             ulong h = Print(LancersOn, true);
 #if UNITY_5_3_OR_NEWER
-            const ulong pinned = 0x25DD83C6CFB6137BUL; // Unity's EditMode run of this code (work order 124's filtered run, 2026-11-25)
+            const ulong pinned = 0xC3D33E230B076707UL; // Unity's EditMode run of this code (work order 124's second round, 2026-11-25: crossfire from the side too; 0x25DD83C6CFB6137B with it north or south only)
 #else
-            const ulong pinned = 0x5D20DE88DFAA37E8UL; // .NET, this code (the .NET rules run of work order 124, 2026-11-25)
+            const ulong pinned = 0x7DEEE9B0606E1190UL; // .NET, this code (the .NET rules run of work order 124's second round, 2026-11-25: crossfire from the side too)
 #endif
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("RANGEDPRINT LANCERS ON " + found);
@@ -208,9 +208,9 @@ namespace Roguelike.Rules.Tests
         {
             ulong h = Print(LancersOff, true);
 #if UNITY_5_3_OR_NEWER
-            const ulong pinned = 0xC26BF39017A4010AUL; // Unity's EditMode run of this code (work order 124's filtered run, 2026-11-25)
+            const ulong pinned = 0x7B08321A30B49AD7UL; // Unity's EditMode run of this code (work order 124's second round, 2026-11-25: crossfire from the side too; 0xC26BF39017A4010A with it north or south only)
 #else
-            const ulong pinned = 0x65E3D478D12BABB6UL; // .NET, this code (the .NET rules run of work order 124, 2026-11-25)
+            const ulong pinned = 0xA55893AF50F6CDCBUL; // .NET, this code (the .NET rules run of work order 124's second round, 2026-11-25: crossfire from the side too)
 #endif
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("RANGEDPRINT LANCERS OFF " + found);
