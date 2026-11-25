@@ -313,7 +313,7 @@ namespace Roguelike
             {
                 // The clean part opened: the tick, and the first time in a session the line (with the ring).
                 Ticks++;
-                if (PlaceholderSounds.Current != null) PlaceholderSounds.Current.AskFor(PlaceholderSound.Menu);
+                if (PlaceholderSounds.Current != null && !TimingAtTheSight.TakesTheTick) PlaceholderSounds.Current.AskFor(PlaceholderSound.Menu); // work order 134: its click in its place, not both
                 TickAsked?.Invoke();
                 if (Values.CleanWindow && s_Line.TryShow(Time.unscaledTime, Values.LineSeconds)) LinesShown++;
             }
