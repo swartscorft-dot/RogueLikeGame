@@ -60,7 +60,7 @@ namespace Roguelike
         static readonly bool[] s_CharacterHintCap = { true, true, false };
 
         public static readonly string[] TabWords = { "START RUN", "UPGRADES", "STATS" };
-        public static readonly string[] MainWords = { "START RUN", "UPGRADES", "STATS", "QUIT" };
+        public static readonly string[] MainWords = { "START RUN", "UPGRADES", "STATS", "QUIT", "SETTINGS" }; // SETTINGS: work order 128
         public const string BackWords = "BACK", NextWords = "RUN LOADOUT  >", EchoesWord = "ECHOES", TrialOffWord = "trial off", QuestionMark = "?";
 
         /// <summary>The view's width in the layout (1080 high).</summary>
@@ -175,7 +175,7 @@ namespace Roguelike
         /// <summary>A click at a point of the 1080 layout: what is under it is done (the drawing's buttons do the same). False over nothing.</summary>
         public bool ClickAt(Vector2 point)
         {
-            if (!Up || !HitAt(point, out HitKind kind, out int index)) return false;
+            if (!Up || SettingsScreen.Holds || !HitAt(point, out HitKind kind, out int index)) return false; // work order 128: not under the settings screen
             return Act(kind, index);
         }
 
@@ -220,12 +220,19 @@ namespace Roguelike
             {
                 bool first = float.IsNaN(_mouse.x);
                 _mouse = e.mousePosition;
-                if (!first) Hover(_mouse);
+                if (!first && !SettingsScreen.Holds) Hover(_mouse); // work order 128: not under the settings screen
             }
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
             StartMenuValues s = m.Start;
             DrawBackdrop(viewWidth, v, s);
+            if (SettingsScreen.Holds)
+            {
+                // Work order 128: the settings screen over the menu draws itself; her picture and its veil stay under it.
+                GUI.matrix = before;
+                GUI.color = colorBefore;
+                return;
+            }
             switch (Screen)
             {
                 case MenuScreen.Main: DrawMain(v, m, s); break;
@@ -248,7 +255,7 @@ namespace Roguelike
         {
             float h = ViewHeight;
             Texture2D picture = Picture;
-            bool bare = Screen == MenuScreen.Main || Screen == MenuScreen.Character;
+            bool bare = (Screen == MenuScreen.Main || Screen == MenuScreen.Character) && !SettingsScreen.Holds; // work order 128: veiled under the settings screen
             if (picture != null)
             {
                 InterfaceStyle.Fill(new Rect(0f, 0f, w, h), InterfaceStyle.C(v.Black));

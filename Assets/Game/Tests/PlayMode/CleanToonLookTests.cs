@@ -56,6 +56,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             ToonLookValues.On = true;
             ToonLookValues.Enemies = true;
             ToonLookValues.CleanInk = true;
@@ -348,6 +349,7 @@ namespace Roguelike.PlayModeTests
             AntiAliasingValues.Kind = AntiAliasingKind.Msaa4x;
             Draw(cam, 1);
             Assert.That(cam.allowMSAA, Is.True, "on: multisampling allowed (the asset asks for 4 samples)");
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             RunHud hud = RunHud.Ensure();
             yield return null;
             Assert.That(hud.Escape(), Is.True, "paused");

@@ -89,6 +89,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;
             if (_recordings != null && Directory.Exists(_recordings)) Directory.Delete(_recordings, true);
@@ -704,6 +705,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ThePauseMenusLine_TurnsItOnAndOff_AndKeepsItInPlayerPrefs()
         {
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             Assert.That(_hud.Escape(), Is.True);
             yield return null;
             Assert.That(_hud.MenuLines, Has.Member(RunHud.MenuLine.BetweenRuns));

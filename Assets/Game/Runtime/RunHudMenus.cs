@@ -225,9 +225,9 @@ namespace Roguelike
                 _rowValueW.Add(_rowValues[i].Length > 0 ? InterfaceStyle.Measure(_rowValues[i], RowValueStyle(m)).x : 0f);
                 _rowKeyW.Add(_rowKeys[i].Length > 0 ? Mathf.Max(m.KeyCapHeight * 1.35f, InterfaceStyle.Measure(_rowKeys[i], cap).x + 18f) : 0f);
             }
-            for (int i = 0; i < s_Hint.Length; i++)
-                _hintW[i] = s_HintCap[i] ? Mathf.Max(m.KeyCapHeight * 1.2f, InterfaceStyle.Measure(s_Hint[i], cap).x + 16f)
-                                         : InterfaceStyle.Measure(s_Hint[i], words).x;
+            for (int i = 0; i < PauseHint.Length; i++)
+                _hintW[i] = PauseHintCap[i] ? Mathf.Max(m.KeyCapHeight * 1.2f, InterfaceStyle.Measure(PauseHint[i], cap).x + 16f)
+                                         : InterfaceStyle.Measure(PauseHint[i], words).x;
 
             float side = _statsH + (_statsH > 0f && _keysH > 0f ? m.SideGap : 0f) + _keysH;
             float viewWidth = LayoutViewWidth;
@@ -301,7 +301,7 @@ namespace Roguelike
                 if (w > (_keyCol[i] == -1 ? _colW * 2f + m.ColumnInnerGap : _colW)) problems.Add("key " + _keyCaps[i].Key + " is wider than its place");
             }
             float hint = 0f;
-            for (int i = 0; i < s_Hint.Length; i++) hint += _hintW[i] + (s_HintCap[i] ? 6f : 18f);
+            for (int i = 0; i < PauseHint.Length; i++) hint += _hintW[i] + (PauseHintCap[i] ? 6f : 18f);
             if (hint > _pl.Hint.W) problems.Add("the line of keys is wider than the rows");
             GUIStyle head = InterfaceStyle.Text(true, m.PanelHeadSize, TextAnchor.MiddleLeft), sub = InterfaceStyle.Text(false, m.PanelSubSize, TextAnchor.MiddleRight);
             if (InterfaceStyle.Measure(StatsHead, head).x + 24f + InterfaceStyle.Measure(StatsSub, sub).x + 50f > m.SideWidth - 2f * m.PanelPad) problems.Add("the stats' heading is wider than its panel");
@@ -425,16 +425,16 @@ namespace Roguelike
         {
             float x = r.x + 6f, h = m.KeyCapHeight;
             GUIStyle words = InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft);
-            for (int i = 0; i < s_Hint.Length; i++)
+            for (int i = 0; i < PauseHint.Length; i++)
             {
-                if (s_HintCap[i])
+                if (PauseHintCap[i])
                 {
-                    KeyCap(new Rect(x, r.y + (r.height - h) * 0.5f, _hintW[i], h), s_Hint[i], m, v);
+                    KeyCap(new Rect(x, r.y + (r.height - h) * 0.5f, _hintW[i], h), PauseHint[i], m, v);
                     x += _hintW[i] + 6f;
                 }
                 else
                 {
-                    TextLabel(new Rect(x + 2f, r.y, _hintW[i] + 6f, r.height), s_Hint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
+                    TextLabel(new Rect(x + 2f, r.y, _hintW[i] + 6f, r.height), PauseHint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
                     x += _hintW[i] + 18f;
                 }
             }

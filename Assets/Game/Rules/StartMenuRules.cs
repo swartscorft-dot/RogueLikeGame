@@ -7,7 +7,7 @@ namespace Roguelike.Rules
     public enum MenuScreen { None, Main, Character, Loadout, Upgrades, Stats }
 
     /// <summary>The main menu's lines, in the order shown (work order 114, his words: "start run ... En annen fane er upgrades. Stats og annet morro").</summary>
-    public enum MainLine { StartRun, Upgrades, Stats, Quit }
+    public enum MainLine { StartRun, Upgrades, Stats, Quit, Settings } // Settings: work order 128 (shown between STATS and QUIT)
 
     /// <summary>
     /// The start menu's numbers and words (work order 114, 2026-11-24). Kristian: "Hvi kan godt også lage en start og main menu i
@@ -167,6 +167,17 @@ namespace Roguelike.Rules
             into.Add(MainLine.StartRun);
             into.Add(MainLine.Upgrades);
             into.Add(MainLine.Stats);
+            if (quit) into.Add(MainLine.Quit);
+        }
+
+        /// <summary>
+        /// The main menu's lines with work order 128's SETTINGS between STATS and QUIT when <paramref name="settings"/> (the
+        /// settings screen's switch, <see cref="SettingsScreenValues.On"/>); without it, as before.
+        /// </summary>
+        public static void MainLines(bool quit, bool settings, List<MainLine> into)
+        {
+            MainLines(false, into);
+            if (settings) into.Add(MainLine.Settings);
             if (quit) into.Add(MainLine.Quit);
         }
 

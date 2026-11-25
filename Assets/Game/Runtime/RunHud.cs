@@ -58,7 +58,7 @@ namespace Roguelike
         /// CameraDistance (work order 083): the camera's distance, 28, 25 or 22 m, beside the kick. Light (work order 085): as
         /// before or one of three lamplit levels, under the greybox view (RunHudLight.cs).
         /// </summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, ToonLook, Music, MusicVolume, CameraAngle, AntiAliasing }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, ToonLook, Music, MusicVolume, CameraAngle, AntiAliasing, Settings } // Settings: work order 128 (RunHudSettings.cs)
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -216,6 +216,7 @@ namespace Roguelike
         public bool Escape()
         {
             Find();
+            if (SettingsScreen.Holds) return SettingsScreen.Current.Escape(); // work order 128: back one step on the settings screen
             if (SheetUp) return CloseSheet(); // work order 095: Esc closes her sheet, as its own key does
             if (_levels == null || _levels.Choice != GeneratedLevels.ChoiceKind.None) return false;
             if (_levels.BetweenRunsUp) return _levels.LeaveBetweenRuns(); // work order 029: to the practice room
@@ -234,7 +235,7 @@ namespace Roguelike
             Find();
             if (_levels == null || !_levels.Paused) return false;
             BuildMenu();
-            if (!_menu.Contains(line)) return false;
+            if (!_menu.Contains(line) && !OnASettingsPage(line)) return false; // work order 128: a setting on a page still does what it did
             _pauseLinesStale = true; // work order 078: the rows' words are made with the lists (a setting's value may change)
             switch (line)
             {
@@ -264,6 +265,7 @@ namespace Roguelike
                 case MenuLine.Music:
                 case MenuLine.MusicVolume: PickMusic(line); break; // work order 116 (RunHudMusic.cs)
                 case MenuLine.CameraAngle: ChangeSetting(line, 1); break; // work order 121
+                case MenuLine.Settings: OpenSettings(); break; // work order 128 (RunHudSettings.cs)
             }
             return true;
         }
@@ -369,6 +371,7 @@ namespace Roguelike
             Keyboard keys = PlayerInputDriver.ReadRealDevices ? Keyboard.current : TestKeyboard; // work order 066: or a test's
             if (_levels == null || !(keys is Keyboard keyboard)) return;
             if (DeveloperKeys.On && keyboard[DevTextKey].wasPressedThisFrame) ToggleDevText(); // work order 066: a developer key
+            if (SettingsScreen.Holds || SettingsScreen.KeysTakenThisFrame) return; // work order 128: the settings screen reads its own keys (SettingsScreen.cs)
             if (StartMenu.Holds || StartMenu.KeysTakenThisFrame) return; // work order 114: the start menu reads its own keys while it is up (StartMenu.cs)
             if (keyboard[PauseKey].wasPressedThisFrame)
             {
@@ -535,6 +538,7 @@ namespace Roguelike
 
         void BuildMenu()
         {
+            if (BuildSettingsMenu()) return; // work order 128 (RunHudSettings.cs): the short list, the settings on the screen's pages
             _menu.Clear();
             _menu.Add(MenuLine.Resume);
             _menu.Add(MenuLine.Restart);
@@ -581,6 +585,7 @@ namespace Roguelike
                 case MenuLine.ToonLook: return ToonLookText; // work order 115 (RunHudToonLook.cs)
                 case MenuLine.CameraAngle: return CameraAngleText; // work order 121 (RunHudCameraAngle.cs)
                 case MenuLine.AntiAliasing: return AntiAliasingText; // work order 125 (RunHudAntiAliasing.cs)
+                case MenuLine.Settings: return "Settings"; // work order 128
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }
@@ -764,6 +769,7 @@ namespace Roguelike
             if (PromptText.Length > 0) { if (kinetic) DrawPromptKinetic(viewWidth); else DrawPrompt(viewWidth); }
             // Work order 095: her sheet over the paused game (RunHudSheet.cs), in the concept's style whatever the switches.
             if (SheetUp && _levels != null && _levels.Paused) DrawSheet();
+            else if (SettingsScreen.Holds) { } // work order 128: the settings screen draws itself (SettingsScreenGui.cs)
             else if (StartMenu.Holds) { } // work order 114: the start menu draws its screens, the screen between runs' cards among them (RunHudStartMenu.cs)
             // Work order 078: the menus in the concept's style (RunHudMenus.cs), with the skin and MenuValues.Concept on.
             else if (kinetic && MenuConcept)

@@ -54,6 +54,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             if (_player != null)
             {
                 _player.GetComponent<PlayerInputDriver>().InputSource = null;
@@ -241,6 +242,7 @@ namespace Roguelike.PlayModeTests
             GameSettings.Load();
             Assert.That(GameSettings.CameraDistanceStep, Is.EqualTo(2), "read back from PlayerPrefs");
 
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             // The pause menu: its line right after the camera's kick, stepping 22 to 28, 25, 22.
             RunHud hud = RunHud.Ensure();
             yield return null;
