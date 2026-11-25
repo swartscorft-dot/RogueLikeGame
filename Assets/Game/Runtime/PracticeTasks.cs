@@ -23,8 +23,11 @@ namespace Roguelike
     /// By itself only the first time she is in the practice room with nothing else up: once they were finished or ended a flag is
     /// saved in PlayerPrefs under <see cref="DoneKey"/> and they do not come back by themselves. The flag is read and written only by
     /// the one that installed itself at the start of Play (<see cref="UsesSavedFlag"/>): a test's keeps it in memory unless it says so.
+    ///
+    /// The follow-up (his answer of 2026-11-25, <see cref="PracticeTasksValues.InTheFirstRun"/>): the first run teaches, in floor 1's own
+    /// entrance room (PracticeTasksFirstRun.cs), and the grey room then starts them only with H.
     /// </summary>
-    public sealed class PracticeTasks : MonoBehaviour
+    public sealed partial class PracticeTasks : MonoBehaviour
     {
         /// <summary>The saved flag: 1 once the tasks were finished or ended (work order 133).</summary>
         public const string DoneKey = "Roguelike.Practice.TasksDone";
@@ -107,6 +110,7 @@ namespace Roguelike
         {
             Listen(null);
             RemoveProp();
+            StopTeaching(PracticeTaskLog.LeftTheRun); // its doors open and its targets go: never a room left shut
             if (Current == this) Current = null;
         }
 
@@ -224,10 +228,14 @@ namespace Roguelike
         void Over()
         {
             if (PracticeTaskFlag.Saves(Run)) SaveFlag();
+            if (Teaching) TaughtOver(Run); // the follow-up: its door opens, the log is told
             Run = null;
             RemoveProp();
             _laid = false;
         }
+
+        /// <summary>She is where the tasks run now: the first run's teaching room while it teaches, else the grey practice room.</summary>
+        public bool InPlaceNow => Teaching ? InTeachingRoomNow : InPracticeRoomNow;
 
         /// <summary>The keys and ways as the bindings and the rules have them now.</summary>
         PracticeKeys KeysNow()
@@ -247,6 +255,7 @@ namespace Roguelike
                 Cover = Name(b.TakeCover), Duck = duck,
                 Focus = b.Focus != Key.None ? Name(b.Focus) : "",
                 Start = menu ? StartKeyWithMenu : Name(GeneratedLevels.NewLevelKey), StartMenu = menu,
+                InRun = Teaching,
             };
         }
 
@@ -288,16 +297,19 @@ namespace Roguelike
         {
             if (!Values.On)
             {
+                StopTeaching(PracticeTaskLog.LeftTheRun);
                 if (Run != null) { Run = null; RemoveProp(); _laid = false; }
                 return;
             }
             if (!HasHer()) return;
             // The last plate is done when she leaves for a run: the menu opened from the room, or a run begun.
-            if (Run != null && !Run.Over && Run.Current != null && Run.Current.Kind == PracticeTaskKind.StartRun && !_wasAway && LeftForARun())
+            if (!Teaching && Run != null && !Run.Over && Run.Current != null && Run.Current.Kind == PracticeTaskKind.StartRun && !_wasAway && LeftForARun())
             {
                 Run.Note(PracticeEvent.Of(PracticeEventKind.LeftForARun), Time.time);
                 if (Run.Over) Over();
             }
+            // The follow-up: the first run's teaching room has its own frame (PracticeTasksFirstRun.cs).
+            if (TickFirstRun(keys)) return;
             bool room = InPracticeRoomNow;
             _wasAway = !room && LeftForARun();
             _roomSeconds = room ? _roomSeconds + Time.deltaTime : 0f;
@@ -363,7 +375,7 @@ namespace Roguelike
 
         void OnReport(PlayerReport r)
         {
-            if (Run == null || Run.Over || Run.Ticked || !InPracticeRoomNow) return;
+            if (Run == null || Run.Over || Run.Ticked || !InPlaceNow) return;
             PracticeEvent e;
             switch (r.Kind)
             {
@@ -418,8 +430,9 @@ namespace Roguelike
             if (!FindPropPlace(out Vector3 at, out float yaw)) return;
             LevelProp p = LevelProp.Make(DuckProp, new LevelPoint(at.x, at.z), Mathf.RoundToInt(yaw), Rules.PropPlace.Floor);
             _propMaterial = PropFactory.MakeMaterial(DuckProp);
-            _prop = PropFactory.Make(p, at, null, 0, _propMaterial, PropName);
-            SceneManager.MoveGameObjectToScene(_prop, _player.gameObject.scene);
+            // In the teaching room it belongs to the floor (its root, its walls' layer), so it goes with it; in the grey room, to her scene.
+            _prop = PropFactory.Make(p, at, Teaching ? _teachLevel.transform : null, Teaching ? _teachLevel.WallLayer : 0, _propMaterial, PropName);
+            if (!Teaching) SceneManager.MoveGameObjectToScene(_prop, _player.gameObject.scene);
             _prop.AddComponent<Shelter>().LowProp = PropHeights.Low(DuckProp); // the duck works beside it; the sprint jumps it, as a level's
             // She is moved on the NavMesh, which the practice room has baked without it: it is cut out of it while it stands.
             if (_prop.TryGetComponent(out BoxCollider box))
@@ -468,6 +481,7 @@ namespace Roguelike
                 Vector3 p = start.position + dir * Mathf.Max(1f, Values.PropDistance);
                 if (!NavMesh.SamplePosition(p, out NavMeshHit hit, 0.5f, NavMesh.AllAreas)) continue;
                 if (NavMesh.Raycast(start.position, hit.position, out _, NavMesh.AllAreas)) continue;
+                if (!InTheTeachingRoomAndClear(hit.position, PropClearRadius)) continue; // the follow-up: inside the room, clear of its props
                 bool clear = true;
                 foreach (TrainingDummy d in dummies)
                 {
@@ -494,6 +508,9 @@ namespace Roguelike
         /// <summary>The plate's padding left and right of what is on it, the keys' height and gap, the line's and the small words' sizes.</summary>
         const float Pad = 26f, CapHeight = 32f, CapGap = 7f, WordsGap = 16f, FootGap = 9f, FootCap = 22f, CountWidth = 70f, DoneWidth = 96f;
         const int WordsSize = 24, HeadSize = 17, FootSize = 16, CapSize = 19, FootCapSize = 15, CountSize = 21, DoneSize = 19;
+        /// <summary>The line's size steps down by this, to no smaller than this, when it would not fit (the teaching room's narrower room).</summary>
+        const int WordsStep = 2, WordsLeast = 20;
+        int _wordsSize = WordsSize;
 
         bool _laid;
         int _laidIndex = -1;
@@ -509,8 +526,8 @@ namespace Roguelike
         public Rect PlateRect { get; private set; }
         public Rect AgainRect { get; private set; }
         /// <summary>The plate shows now, and the small line that starts the tasks again.</summary>
-        public bool PlateShown => Values.On && Run != null && !Run.Over && InPracticeRoomNow;
-        public bool AgainShown => Values.On && Run == null && InPracticeRoomNow;
+        public bool PlateShown => Values.On && Run != null && !Run.Over && InPlaceNow;
+        public bool AgainShown => Values.On && Run == null && !Teaching && InPracticeRoomNow;
 
         static float ViewWidth => InterfaceStyle.ScreenWidth / Mathf.Max(1e-4f, InterfaceStyle.Scale);
 
@@ -545,12 +562,34 @@ namespace Roguelike
                 _capW.Add(w);
                 keys += w + CapGap;
             }
-            _wordsW = InterfaceStyle.Measure(t.Words, InterfaceStyle.Text(false, WordsSize, TextAnchor.MiddleLeft)).x;
-            float width = Pad + keys + WordsGap + _wordsW + WordsGap + Mathf.Max(t.ShowsCount ? CountWidth : 0f, DoneWidth) + Pad;
-            float left = LeftmostX(InterfaceStyle.V);
-            width = Mathf.Clamp(width, PlateLeast, Mathf.Min(PlateMost, _viewWidth - left - Pad));
-            // In the middle of the screen, or as far right as it must be to stay clear of her health and focus at the top left.
-            PlateRect = new Rect(Mathf.Max((_viewWidth - width) * 0.5f, left), PlateTop, width, PlateHeight);
+            float left = LeftmostX(InterfaceStyle.V), right = RightmostX(InterfaceStyle.V, _viewWidth);
+            float room = Mathf.Min(PlateMost, right - left), rest = Pad + keys + WordsGap + WordsGap + Mathf.Max(t.ShowsCount ? CountWidth : 0f, DoneWidth) + Pad;
+            // The line in its size; a size or two smaller when it would not fit between the plates at the top (the run box's room is narrower).
+            for (_wordsSize = WordsSize; ; _wordsSize -= WordsStep)
+            {
+                _wordsW = InterfaceStyle.Measure(t.Words, InterfaceStyle.Text(false, _wordsSize, TextAnchor.MiddleLeft)).x;
+                if (rest + _wordsW <= room || _wordsSize - WordsStep < WordsLeast) break;
+            }
+            float width = rest + _wordsW;
+            width = Mathf.Clamp(width, PlateLeast, Mathf.Min(PlateMost, right - left));
+            // In the middle of the screen, or as far over as it must be to stay clear of her health and focus at the top left and,
+            // in a run, of the run box at the top right.
+            float x = Mathf.Max((_viewWidth - width) * 0.5f, left);
+            if (x + width > right) x = Mathf.Max(left, right - width);
+            PlateRect = new Rect(x, PlateTop, width, PlateHeight);
+        }
+
+        /// <summary>
+        /// The rightmost the plate may reach: in a run (the first run's teaching room), left of the run box at the top right
+        /// (<see cref="RunHud.RunBoxKinetic"/>, in the HUD's 720 layout, made 1080); else the padding from the right edge.
+        /// </summary>
+        float RightmostX(InterfaceValues v, float view)
+        {
+            RunHud hud = RunHud.Current;
+            if (!Teaching || hud == null || hud.RunBoxLines.Count == 0 || !InterfaceStyle.Kinetic) return view - Pad;
+            float k = v.LayoutHeight / SkillBar.LayoutHeight;
+            Rect box = RunHud.RunBoxKinetic(view / k, hud.RunBoxLines.Count);
+            return Mathf.Min(view - Pad, box.x * k - ClearOfTopPlate);
         }
 
         /// <summary>Layout pixels the plate keeps from the top left plate (her health and focus), its own lean and outline included.</summary>
@@ -599,7 +638,7 @@ namespace Roguelike
                 x += _capW[i] + CapGap;
             }
             x += WordsGap - CapGap;
-            Label(new Rect(x, r.y, _wordsW + 8f, r.height), t.Words, InterfaceStyle.Text(false, WordsSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White, ticked ? 0.6f : 1f), true);
+            Label(new Rect(x, r.y, _wordsW + 8f, r.height), t.Words, InterfaceStyle.Text(false, _wordsSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.White, ticked ? 0.6f : 1f), true);
             if (ticked)
             {
                 // Done: a teal stamp at its right end, black words, the red double slash after it.
@@ -686,8 +725,8 @@ namespace Roguelike
             var problems = new List<string>();
             PracticeTaskRun run = Run ?? LastRun;
             if (run == null) return "no tasks";
-            float view = ViewWidth, most = Mathf.Min(PlateMost, view - LeftmostX(InterfaceStyle.V) - Pad);
-            GUIStyle cap = InterfaceStyle.Text(true, CapSize, TextAnchor.MiddleCenter), words = InterfaceStyle.Text(false, WordsSize, TextAnchor.MiddleLeft);
+            float view = ViewWidth, most = Mathf.Min(PlateMost, RightmostX(InterfaceStyle.V, view) - LeftmostX(InterfaceStyle.V));
+            GUIStyle cap = InterfaceStyle.Text(true, CapSize, TextAnchor.MiddleCenter), words = InterfaceStyle.Text(false, WordsLeast, TextAnchor.MiddleLeft);
             foreach (PracticeTask t in run.Tasks)
             {
                 float keys = 0f;

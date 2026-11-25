@@ -64,15 +64,95 @@ namespace Roguelike.Rules.Tests
             Assert.That(v.MarksToSpend, Is.EqualTo(2));
             Assert.That(v.TickBeat, Is.InRange(0.5f, 2f), "a short beat");
             Assert.That(v.FirstDelay, Is.EqualTo(1f));
+            Assert.That(v.InTheFirstRun, Is.True, "his answer of 2026-11-25: the first run teaches");
+            Assert.That(v.TargetModel, Is.EqualTo(PropModel.Statue), "the project's own crypt statue");
+            Assert.That(v.Targets, Is.EqualTo(3));
         }
 
         [Test]
-        public void TheSwitchOff_TheTasksNeverBeginByThemselves()
+        public void TheSwitchOff_TheTasksNeverBeginByThemselves_InTheGreyRoomOrInTheFirstRun()
         {
-            var v = new PracticeTasksValues { On = false };
+            var v = new PracticeTasksValues { On = false, InTheFirstRun = false };
             Assert.That(PracticeTaskFlag.BeginsByItself(v, false, false, true, 100f), Is.False);
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 1, true, false), Is.False);
+            v.InTheFirstRun = true;
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 1, true, false), Is.False, "the first run's own bool is under the switch");
             v.On = true;
-            Assert.That(PracticeTaskFlag.BeginsByItself(v, false, false, true, 100f), Is.True, "the same moment with the switch on");
+            v.InTheFirstRun = false;
+            Assert.That(PracticeTaskFlag.BeginsByItself(v, false, false, true, 100f), Is.True, "the same moment with the switch on: the grey room's version alone");
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 1, true, false), Is.False);
+        }
+
+        // ---------------- The first run's teaching room (the follow-up) ----------------
+
+        [Test]
+        public void TheFirstRun_Teaches_OnlyOnFloorOne_InItsEntrance_BeforeTheFlag_OnceAFloor()
+        {
+            var v = new PracticeTasksValues();
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 1, true, false), Is.True);
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, true, true, 1, true, false), Is.False, "the flag set: later runs start as today");
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, false, 1, true, false), Is.False, "not in a run");
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 2, true, false), Is.False, "floor 2");
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 1, false, false), Is.False, "not in the entrance room");
+            Assert.That(PracticeTaskFlag.BeginsInTheRun(v, false, true, 1, true, true), Is.False, "this floor taught already");
+            Assert.That(PracticeTaskFlag.BeginsByItself(v, false, false, true, 100f), Is.False, "with the first run teaching, the grey room waits for H");
+        }
+
+        [Test]
+        public void InTheRun_TheLastPlateSaysTheDoorLeadsOn_HasNoKey_AndIsDoneByWalkingOut()
+        {
+            PracticeKeys k = Keys();
+            k.InRun = true;
+            List<PracticeTask> list = PracticeTaskList.Make(null, k, StartKit());
+            Assert.That(list.Count, Is.EqualTo(StartList().Count), "the same thirteen");
+            PracticeTask last = list.Last();
+            Assert.That(last.Kind, Is.EqualTo(PracticeTaskKind.GoOn));
+            Assert.That(last.Words, Is.EqualTo("That is the kit. The door is open: the run goes on."));
+            Assert.That(last.Keys, Is.Empty);
+            Assert.That(PracticeTaskRules.Counts(last, E(PracticeEventKind.LeftTheRoom)), Is.EqualTo(1f));
+            Assert.That(PracticeTaskRules.Counts(last, E(PracticeEventKind.LeftForARun)), Is.Zero);
+            Assert.That(list.Take(list.Count - 1).Select(t => t.Words), Is.EqualTo(StartList().Take(list.Count - 1).Select(t => PracticeWords.InTheRun(t.Words))), "the other plates as in the grey room, its targets statues");
+            Assert.That(list.Any(t => t.Words.Contains("dummy")), Is.False, "no dummy in the crypt");
+            Assert.That(list[1].Words, Is.EqualTo("Aim with the mouse and click to shoot a statue."));
+        }
+
+        [Test]
+        public void TheDoorOpens_WhenTheLastPlateIsUp_OrTheyAreOver_AndTheClockIsHeldUntilSheWalksOut()
+        {
+            PracticeKeys k = Keys();
+            k.InRun = true;
+            var run = new PracticeTaskRun(PracticeTaskList.Make(null, k, StartKit()));
+            Assert.That(PracticeTaskFlag.DoorOpens(run), Is.False, "the first task: shut");
+            for (int i = 0; i < 30 && !run.OnLast; i++) run.Skip();
+            Assert.That(PracticeTaskFlag.DoorOpens(run), Is.True, "the last plate leads on");
+            var ended = new PracticeTaskRun(PracticeTaskList.Make(null, k, StartKit()));
+            ended.End();
+            Assert.That(PracticeTaskFlag.DoorOpens(ended), Is.True, "ended with H");
+            Assert.That(PracticeTaskFlag.HoldsTheClock(true, false, true), Is.True, "the door shut");
+            Assert.That(PracticeTaskFlag.HoldsTheClock(true, true, true), Is.True, "open, she still in the room");
+            Assert.That(PracticeTaskFlag.HoldsTheClock(true, true, false), Is.False, "out: the run's clock runs");
+            Assert.That(PracticeTaskFlag.HoldsTheClock(false, false, true), Is.False, "no teaching");
+        }
+
+        [Test]
+        public void InTheRun_TheCleanPressTasksSkillIsReadyWhenTheTaskBegins_InTheGreyRoomNot()
+        {
+            PracticeTask clean = StartList().First(t => t.Kind == PracticeTaskKind.CleanPress);
+            Assert.That(PracticeTaskFlag.ReadyAtStart(clean, true), Is.True);
+            Assert.That(PracticeTaskFlag.ReadyAtStart(clean, false), Is.False);
+            Assert.That(PracticeTaskFlag.ReadyAtStart(StartList().First(t => t.Kind == PracticeTaskKind.UseSkill), true), Is.False, "only the clean presses (the producer's decision)");
+        }
+
+        [Test]
+        public void TheTargetsPlaces_StartStraightAhead_AtTheDistance_TurningEitherWay()
+        {
+            List<GroundPoint> c = PracticeTaskPlaces.Candidates(new GroundPoint(10f, 10f), new GroundPoint(0f, 5f), 6f);
+            Assert.That(c[0].X, Is.EqualTo(10f).Within(1e-3f));
+            Assert.That(c[0].Z, Is.EqualTo(16f).Within(1e-3f), "straight ahead, 6 m");
+            Assert.That((c[1] - new GroundPoint(10f, 10f)).Length, Is.EqualTo(6f).Within(1e-3f));
+            Assert.That(c[1].X, Is.Not.EqualTo(10f).Within(0.1f), "then turned");
+            Assert.That(c.Count, Is.GreaterThan(30), "three rings of turns");
+            Assert.That(PracticeTaskPlaces.Candidates(new GroundPoint(0f, 0f), new GroundPoint(0f, 0f), 6f)[0].Z, Is.EqualTo(6f).Within(1e-3f), "no way ahead: north");
         }
 
         // ---------------- The list ----------------
@@ -372,7 +452,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheTasksBeginByThemselves_OnlyTheFirstTime_InTheRoom_AfterTheFirstDelay()
         {
-            var v = new PracticeTasksValues();
+            var v = new PracticeTasksValues { InTheFirstRun = false }; // the grey room's version alone
             Assert.That(PracticeTaskFlag.BeginsByItself(v, false, false, true, 1f), Is.True);
             Assert.That(PracticeTaskFlag.BeginsByItself(v, true, false, true, 100f), Is.False, "finished or ended before: never by themselves again");
             Assert.That(PracticeTaskFlag.BeginsByItself(v, false, true, true, 100f), Is.False, "running already");

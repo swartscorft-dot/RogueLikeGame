@@ -35,6 +35,52 @@ namespace Roguelike.Rules
         public float PropDistance = 3f;
         /// <summary>Metres the low prop keeps from every dummy.</summary>
         public float PropClearOfDummies = 2.5f;
+
+        /// <summary>
+        /// The tasks in the first run (work order 133's follow-up; Kristian, 2026-11-25: "Første start går ditt, men et tilpasset
+        /// øvingsrom som ser ut som et run, sånn at neste rom blir første vanlige rom"): on, a player's first run (the saved flag not
+        /// set) opens in floor 1's own entrance room dressed as the teaching room (targets that do not fight back, its doors held shut
+        /// until the tasks are finished or ended), and the grey practice room no longer starts them by itself. Off, the grey room's
+        /// version stands alone, exactly as the first build of the order. Under <see cref="On"/>.
+        /// </summary>
+        public bool InTheFirstRun = true;
+        /// <summary>The targets put in the teaching room: how many, the project's own crypt statue, metres from her start, metres apart.</summary>
+        public int Targets = 3;
+        public PropModel TargetModel = PropModel.Statue;
+        public float TargetDistance = 6f;
+        public float TargetsApart = 3f;
+        /// <summary>Metres a target or the low prop keeps from the teaching room's walls, and from the room's own props (their colliders).</summary>
+        public float FromWalls = 1.6f;
+        public float ClearOfProps = 1.2f;
+    }
+
+    /// <summary>
+    /// Where the teaching room's targets may stand (work order 133's follow-up): points on three rings round her start, the first
+    /// ring <see cref="PracticeTasksValues.TargetDistance"/> out, straight ahead first (toward the room's middle) and then turning
+    /// either way by 30 degrees; the runtime keeps the first that are on the floor, inside the room and clear.
+    /// </summary>
+    public static class PracticeTaskPlaces
+    {
+        /// <summary>Degrees between the turns tried, and metres between the rings.</summary>
+        public const float TurnStep = 30f, RingStep = 1.5f;
+
+        public static List<GroundPoint> Candidates(GroundPoint start, GroundPoint ahead, float distance)
+        {
+            var list = new List<GroundPoint>();
+            float len = ahead.Length;
+            GroundPoint f = len > 1e-4f ? ahead * (1f / len) : new GroundPoint(0f, 1f);
+            float[] rings = { distance, distance + RingStep, Math.Max(1f, distance - RingStep) };
+            foreach (float r in rings)
+                for (int i = 0; i <= (int)(180f / TurnStep) * 2; i++)
+                {
+                    float turn = (i + 1) / 2 * TurnStep * (i % 2 == 1 ? 1f : -1f);
+                    if (Math.Abs(turn) > 180f) continue;
+                    double a = turn * Math.PI / 180.0, c = Math.Cos(a), s = Math.Sin(a);
+                    var d = new GroundPoint((float)(f.X * c - f.Z * s), (float)(f.X * s + f.Z * c));
+                    list.Add(start + d * r);
+                }
+            return list;
+        }
     }
 
     /// <summary>What a task asks for (work order 133).</summary>
@@ -58,6 +104,8 @@ namespace Roguelike.Rules
         Focus,
         /// <summary>The last plate: the start menu opened from the room, or a run started.</summary>
         StartRun,
+        /// <summary>The last plate in the first run's teaching room (the follow-up): its door is open, done when she walks out of it.</summary>
+        GoOn,
     }
 
     /// <summary>One task: what it asks, the skill it is about (-1 for none), its keys as shown, its line, how many it needs.</summary>
@@ -125,6 +173,8 @@ namespace Roguelike.Rules
         public string Start;
         /// <summary>The start menu is installed: the key opens it, and START RUN begins a run.</summary>
         public bool StartMenu;
+        /// <summary>The tasks run in the first run's teaching room (the follow-up): the last plate says the door leads on.</summary>
+        public bool InRun;
     }
 
     /// <summary>
@@ -190,10 +240,16 @@ namespace Roguelike.Rules
                 list.Add(new PracticeTask { Kind = PracticeTaskKind.Duck, Keys = new[] { k.Cover }, Words = PracticeWords.Duck(k.Duck), Need = 1 });
             if (!string.IsNullOrEmpty(k.Focus))
                 list.Add(new PracticeTask { Kind = PracticeTaskKind.Focus, Keys = new[] { k.Focus }, Words = PracticeWords.Focus, Need = 1 });
-            list.Add(new PracticeTask
+            if (k.InRun)
             {
-                Kind = PracticeTaskKind.StartRun, Keys = new[] { k.Start }, Words = k.StartMenu ? PracticeWords.StartWithMenu : PracticeWords.StartWithoutMenu, Need = 1,
-            });
+                foreach (PracticeTask t in list) t.Words = PracticeWords.InTheRun(t.Words); // the targets there are statues
+                list.Add(new PracticeTask { Kind = PracticeTaskKind.GoOn, Words = PracticeWords.GoOn, Need = 1 }); // no key: she walks on
+            }
+            else
+                list.Add(new PracticeTask
+                {
+                    Kind = PracticeTaskKind.StartRun, Keys = new[] { k.Start }, Words = k.StartMenu ? PracticeWords.StartWithMenu : PracticeWords.StartWithoutMenu, Need = 1,
+                });
             return list;
         }
     }
@@ -216,6 +272,13 @@ namespace Roguelike.Rules
         public const string Focus = "Spent marks and clean presses fill focus. When it is full, press the key.";
         public const string StartWithMenu = "That is the kit. Press the key for the menu, then START RUN.";
         public const string StartWithoutMenu = "That is the kit. Press the key to start a run.";
+        /// <summary>The last plate in the first run's teaching room (the follow-up).</summary>
+        public const string GoOn = "That is the kit. The door is open: the run goes on.";
+        /// <summary>The targets' words in the grey room, and in the first run's teaching room (the crypt's statues).</summary>
+        public const string Dummy = "the dummy", Statue = "a statue";
+
+        /// <summary>A line as the teaching room says it: its targets are statues, not the practice room's dummies.</summary>
+        public static string InTheRun(string words) => string.IsNullOrEmpty(words) ? words : words.Replace(Dummy, Statue);
 
         /// <summary>A skill's own line for its first use, by name; a plain one for a skill not here.</summary>
         public static string Use(PracticeSkill s)
@@ -302,6 +365,8 @@ namespace Roguelike.Rules
         FocusSpent,
         /// <summary>The start menu opened from the room, or a run started.</summary>
         LeftForARun,
+        /// <summary>She walked out of the first run's teaching room (the follow-up).</summary>
+        LeftTheRoom,
     }
 
     public struct PracticeEvent
@@ -341,6 +406,7 @@ namespace Roguelike.Rules
                 case PracticeTaskKind.Duck: return (e.Kind == PracticeEventKind.Ducked || e.Kind == PracticeEventKind.TookCover) && e.AtPracticeProp ? 1f : 0f;
                 case PracticeTaskKind.Focus: return e.Kind == PracticeEventKind.FocusSpent ? 1f : 0f;
                 case PracticeTaskKind.StartRun: return e.Kind == PracticeEventKind.LeftForARun ? 1f : 0f;
+                case PracticeTaskKind.GoOn: return e.Kind == PracticeEventKind.LeftTheRoom ? 1f : 0f;
                 default: return 0f;
             }
         }
@@ -435,7 +501,24 @@ namespace Roguelike.Rules
         /// running, she in the practice room with nothing else up, for <see cref="PracticeTasksValues.FirstDelay"/>.
         /// </summary>
         public static bool BeginsByItself(PracticeTasksValues v, bool doneBefore, bool running, bool inPracticeRoom, float secondsInRoom) =>
-            v != null && v.On && !doneBefore && !running && inPracticeRoom && secondsInRoom >= v.FirstDelay;
+            v != null && v.On && !v.InTheFirstRun && !doneBefore && !running && inPracticeRoom && secondsInRoom >= v.FirstDelay; // the follow-up: with the first run teaching, the grey room waits for H
+
+        /// <summary>
+        /// The follow-up: does the first run's teaching begin now? Both switches on, the flag not set, in a run, on floor 1, she in its
+        /// entrance room, and this floor not taught already (a floor built again is a new one).
+        /// </summary>
+        public static bool BeginsInTheRun(PracticeTasksValues v, bool doneBefore, bool inRun, int floor, bool inEntrance, bool taughtThisFloor) =>
+            v != null && v.On && v.InTheFirstRun && !doneBefore && inRun && floor == 1 && inEntrance && !taughtThisFloor;
+
+        /// <summary>The teaching room's door opens once the tasks are over (finished or ended) or the last plate, which leads on, is up.</summary>
+        public static bool DoorOpens(PracticeTaskRun run) =>
+            run == null || run.Over || (run.Current != null && run.Current.Kind == PracticeTaskKind.GoOn);
+
+        /// <summary>The run's clock is held while she is taught: until the door is open and she has walked out of the room.</summary>
+        public static bool HoldsTheClock(bool teaching, bool doorOpen, bool inTheRoom) => teaching && (!doorOpen || inTheRoom);
+
+        /// <summary>The producer's decision for the teaching room: the skill a clean-press task is about is ready when the task begins.</summary>
+        public static bool ReadyAtStart(PracticeTask t, bool inRun) => inRun && t != null && t.Kind == PracticeTaskKind.CleanPress;
 
         /// <summary>Is the flag saved now? When a run of the tasks is over: finished or ended.</summary>
         public static bool Saves(PracticeTaskRun run) => run != null && run.Over;
@@ -444,5 +527,12 @@ namespace Roguelike.Rules
         public static bool Read(int stored) => stored == 1;
 
         public const int Stored = 1;
+    }
+
+    /// <summary>The session log's lines of the first run's teaching (the follow-up): one type, its name what happened.</summary>
+    public static class PracticeTaskLog
+    {
+        public const string Type = "practice_tasks";
+        public const string Began = "began", Finished = "finished", Ended = "ended", WalkedOn = "walked on", LeftTheRun = "left the run";
     }
 }

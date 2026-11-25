@@ -111,6 +111,7 @@ namespace Roguelike.PlayModeTests
             _tasks.TestKeyboard = _keyboard;
             _tasks.UsesSavedFlag = false;
             _tasks.DoneBefore = false;
+            _tasks.Values.InTheFirstRun = false; // the grey room's version alone, as the order's first build (the follow-up's switch has its own tests)
             return _tasks;
         }
 
@@ -420,6 +421,19 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
+        public IEnumerator WithTheFirstRunTeaching_TheGreyRoomWaitsForH()
+        {
+            Make();
+            _tasks.Values.InTheFirstRun = true; // the follow-up's default
+            yield return Seconds(1.6f);
+            Assert.That(_tasks.Run, Is.Null, "no longer by itself on a first visit: the first run teaches");
+            Assert.That(_tasks.AgainShown, Is.True, "the small line that starts them shows");
+            yield return Tap(PracticeTasks.AgainKey);
+            Assert.That(_tasks.Run, Is.Not.Null, "H starts them, as built");
+            Assert.That(_tasks.Run.Tasks.Last().Kind, Is.EqualTo(PracticeTaskKind.StartRun), "the grey room's last plate");
+        }
+
+        [UnityTest]
         public IEnumerator EndingEarly_LeavesTheRoomAsToday()
         {
             int sheltersBefore = Shelter.All.Count;
@@ -497,6 +511,7 @@ namespace Roguelike.PlayModeTests
             _tasks = PracticeTasks.Ensure();
             _tasks.TestKeyboard = _keyboard;
             _tasks.UsesSavedFlag = true;
+            _tasks.Values.InTheFirstRun = false;
             yield return Until(() => _tasks.Run != null, 3f);
             Assert.That(_tasks.Run, Is.Not.Null, "no flag stored: they begin by themselves");
             Assert.That(PlayerPrefs.HasKey(PracticeTasks.DoneKey), Is.False, "nothing written while they run");
@@ -507,6 +522,7 @@ namespace Roguelike.PlayModeTests
             _tasks = PracticeTasks.Ensure();
             _tasks.TestKeyboard = _keyboard;
             _tasks.UsesSavedFlag = true;
+            _tasks.Values.InTheFirstRun = false;
             yield return Seconds(1.6f);
             Assert.That(_tasks.DoneBefore, Is.True, "the next game reads it");
             Assert.That(_tasks.Run, Is.Null, "and they do not begin by themselves");
