@@ -215,7 +215,11 @@ namespace Roguelike.PlayModeTests
             {
                 GeneratedLevel floor = _levels.StartRun(0x0840C0DEUL + (ulong)run);
                 yield return null;
-                Assert.That(floor.Layout.Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since < RoomTemplateLibrary.MoreSince), Is.True,
+                // 2026-11-25: the second set is the templates of Since MoreSince (17) exactly. Before, this asked Since < MoreSince,
+                // which also shut out work order 089's third set (Since ExitSince, 20); work order 103 (generator version 20,
+                // asked for: "egne utgangsrom i etasje 1–4") turned that set on in the floors, so every floor 1 now ends in an exit
+                // room of its own of Since 20, and the old check failed on a template that is not of the second set at all.
+                Assert.That(floor.Layout.Rooms.Where(r => r.Template != null).All(r => r.Template.Template.Since != RoomTemplateLibrary.MoreSince), Is.True,
                             "a run's floor of the default values holds no second-set template");
             }
             _levels.BackToPracticeRoom();
