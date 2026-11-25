@@ -277,7 +277,7 @@ namespace Roguelike
             if (State == EnemyState.Windup && Player != null)
             {
                 Vector3 f = transform.forward;
-                GroundPoint facing = LancerRules.Facing(Ground(transform.position), Player.GroundPosition, new GroundPoint(f.x, f.z));
+                GroundPoint facing = RageTurn(LancerRules.Facing(Ground(transform.position), Player.GroundPosition, new GroundPoint(f.x, f.z))); // work order 129
                 Face(new Vector3(facing.X, 0f, facing.Z));
             }
         }
@@ -287,7 +287,7 @@ namespace Roguelike
             if (attack == null || attack.Rush <= 0f) return false;
             Vector3 at = Flat(transform.position);
             Vector3 f = transform.forward;
-            GroundPoint dir = LancerRules.ChargeLine(Ground(at), Player != null ? Player.GroundPosition : Ground(at + f), new GroundPoint(f.x, f.z));
+            GroundPoint dir = RageTurn(LancerRules.ChargeLine(Ground(at), Player != null ? Player.GroundPosition : Ground(at + f), new GroundPoint(f.x, f.z))); // work order 129: down the line its lance showed
             var dir3 = new Vector3(dir.X, 0f, dir.Z);
             float stopAt = StopDistance(at, dir3, attack.Length, out LancerStopper stopper);
             _running = attack;

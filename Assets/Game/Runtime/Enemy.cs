@@ -44,7 +44,7 @@ namespace Roguelike
     /// fight ends it goes home at once, with the rest of its room.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
-    public abstract class Enemy : MonoBehaviour
+    public abstract partial class Enemy : MonoBehaviour
     {
         const float TelegraphHeight = 0.07f;
         const float TelegraphThin = 0.05f;
@@ -354,6 +354,7 @@ namespace Roguelike
         {
             EnemyValues values = Values;
             float now = Time.time;
+            _brain.RestShare = RageRest(now); // work order 129: a share of its rest once a part is lost (EnemyRage.cs); 1 else
             if (_agent.enabled) _agent.speed = values.MoveSpeed;
 
             if (!_self.IsAlive)
@@ -410,8 +411,8 @@ namespace Roguelike
             if (state == EnemyState.Windup && before != EnemyState.Windup)
             {
                 // The attack is aimed once, here. The player can leave the area until the strike.
-                _aim = Player.Position;
-                Face(toPlayer);
+                _aim = RageAim(Player.Position); // work order 129: off by its rage's angle once a part is lost (EnemyRage.cs); else her
+                Face(RageFacing(toPlayer));
                 if (TakesTurns && AttackTurns.TakesTurn(_brain.Attack)) Turns.Began(Id, sort, now, _brain.Attack.Windup);
                 OnWindupStarted(_brain.Attack);
                 Report(EnemyReportKind.AttackStarted, _brain.Attack);
