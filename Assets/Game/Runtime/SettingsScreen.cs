@@ -191,7 +191,7 @@ namespace Roguelike
                         MenuWords.Setting(hud.MenuText(menuLine), out string name, out string value);
                         _names.Add(line == SettingLine.Volume ? L.MasterVolumeName : name); // the order's "master volume" beside the music's own
                         _values.Add(value);
-                        _notes.Add(RunHud.LastsTheSessionOnly(menuLine) ? L.SessionNote : "");
+                        _notes.Add("");
                         _greyed.Add(false);
                     }
                     else

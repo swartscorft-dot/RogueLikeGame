@@ -184,7 +184,7 @@ namespace Roguelike
             MenuValues m = v.Menus;
             StartMenuValues s = m.Start;
             // From the Esc menu the game shows through a veil; from the start menu its picture and veil are under this (StartMenuGui.cs).
-            if (From == SettingsFrom.PauseMenu) InterfaceStyle.Fill(new Rect(0f, 0f, viewWidth, ViewHeight), InterfaceStyle.C(v.Black, L.GameVeil));
+            if (From == SettingsFrom.PauseMenu) DrawOpaqueBackdrop(viewWidth, v);
             DrawHeading(HeadRect(m, s), OnPage ? SettingsPages.Words[(int)Page] : L.Heading, v, m);
             if (OnPage)
             {
@@ -201,6 +201,26 @@ namespace Roguelike
                 }
             GUI.matrix = before;
             GUI.color = colorBefore;
+        }
+
+        /// <summary>The screen is up over a run (opened from the Esc menu) and drawn on an opaque backdrop. For tests.</summary>
+        public bool BackdropOpaque => Up && From == SettingsFrom.PauseMenu;
+
+        /// <summary>
+        /// Opened from the Esc menu, an opaque backdrop: nothing of the run's HUD (its plates, the skill bar) may read through the
+        /// pages (the follow-up to work order 128). The start menu's own backdrop (her picture under the panels' veil, or its flat
+        /// backdrop) when the start menu is installed; else black and the flat backdrop, veiled.
+        /// </summary>
+        void DrawOpaqueBackdrop(float viewWidth, InterfaceValues v)
+        {
+            InterfaceStyle.Fill(new Rect(0f, 0f, viewWidth, ViewHeight), InterfaceStyle.C(v.Black));
+            if (StartMenu.Current != null)
+            {
+                StartMenu.Current.DrawSettingsBackdrop(viewWidth);
+                return;
+            }
+            StartMenu.FlatBackdrop(viewWidth, ViewHeight, v);
+            InterfaceStyle.Fill(new Rect(0f, 0f, viewWidth, ViewHeight), InterfaceStyle.C(v.Black, L.GameVeil));
         }
 
         /// <summary>A heading on a red plate leaning as her health's does, as the pause menu's and the start menu's tabs' headings.</summary>

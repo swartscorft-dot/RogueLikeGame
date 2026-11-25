@@ -45,6 +45,7 @@ namespace Roguelike
             MusicValues v = MusicNow;
             if (line == MenuLine.Music) v.On = !v.On;
             else v.VolumeStep = SettingsRules.StepVolume(v.VolumeStep, delta);
+            SavedMusicAndLook.Keep(); // saved like every other setting (the follow-up to work order 128)
         }
 
         /// <summary>Enter or a click on a music line: the switch flips; the volume goes up a step, and round to 0 after 100 %, as the game's volume line does.</summary>
@@ -53,6 +54,7 @@ namespace Roguelike
             MusicValues v = MusicNow;
             if (line == MenuLine.Music) v.On = !v.On;
             else v.VolumeStep = SettingsRules.VolumeStep(v.VolumeStep) >= SettingsRules.VolumeSteps ? 0 : SettingsRules.VolumeStep(v.VolumeStep) + 1;
+            SavedMusicAndLook.Keep(); // saved like every other setting (the follow-up to work order 128)
         }
     }
 }

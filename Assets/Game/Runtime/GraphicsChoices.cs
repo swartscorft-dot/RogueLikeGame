@@ -72,6 +72,7 @@ namespace Roguelike
         {
             if (!SessionRecordingRule.MayStartByItself(SceneManager.GetActiveScene().name, Application.isBatchMode)) return;
             Load();
+            SavedMusicAndLook.Load(); // the music's two lines and the toon look, saved since the follow-up to work order 128
         }
 
         /// <summary>Loaded (by itself in play, or by a test).</summary>

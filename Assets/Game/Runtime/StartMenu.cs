@@ -266,6 +266,11 @@ namespace Roguelike
             if (!StartMenuFlow.MayChoose(slot))
             {
                 Note = NotYet;
+                if (MenuHelpValues.On)
+                {
+                    Note = MenuHelpRules.RefusedSlot(S.Name); // the menus' help (StartMenuHelp.cs): a plain line, and the cursor back on her
+                    Selected = StartMenuFlow.HerSlot;
+                }
                 return false;
             }
             SetScreen(MenuScreen.Loadout);

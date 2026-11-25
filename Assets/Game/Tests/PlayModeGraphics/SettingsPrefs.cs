@@ -23,6 +23,7 @@ namespace Roguelike.PlayModeTests
             yield return BetweenRunsSwitch.Key;
             yield return AttachmentsSwitch.Key;
             foreach (string k in GraphicsChoices.Keys) yield return k;
+            foreach (string k in SavedMusicAndLook.Keys) yield return k; // the follow-up to work order 128
         }
 
         /// <summary>His values now: each key's value, or null where he has none.</summary>

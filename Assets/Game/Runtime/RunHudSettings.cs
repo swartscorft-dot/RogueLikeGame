@@ -69,7 +69,5 @@ namespace Roguelike
             }
         }
 
-        /// <summary>The Esc menu's lines whose value lasts only until the game stops, as before (the music's two, the toon look's): the screen says so.</summary>
-        public static bool LastsTheSessionOnly(MenuLine line) => line == MenuLine.Music || line == MenuLine.MusicVolume || line == MenuLine.ToonLook;
     }
 }

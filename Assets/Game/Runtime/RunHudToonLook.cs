@@ -17,6 +17,10 @@ namespace Roguelike
         string ToonLookText => ToonLookValues.On ? ToonLookOnLine : ToonLookOffLine;
 
         /// <summary>Either way it flips.</summary>
-        void FlipToonLook() => ToonLookValues.On = !ToonLookValues.On;
+        void FlipToonLook()
+        {
+            ToonLookValues.On = !ToonLookValues.On;
+            SavedMusicAndLook.Keep(); // saved like every other setting (the follow-up to work order 128)
+        }
     }
 }

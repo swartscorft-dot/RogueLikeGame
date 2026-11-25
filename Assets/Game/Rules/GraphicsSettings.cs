@@ -413,7 +413,7 @@ namespace Roguelike.Rules
     {
         /// <summary>The draw order: over the start menu and the HUD's screens.</summary>
         public int Depth = InterfaceDepth.Screens - 2;
-        /// <summary>The veil over the game when opened from the Esc menu (the start menu's picture has its own, <see cref="StartMenuValues.PanelVeil"/>).</summary>
+        /// <summary>The veil over the flat backdrop under the pages opened from the Esc menu when no start menu is installed (with it, its own backdrop and veil, <see cref="StartMenuValues.PanelVeil"/>); the backdrop is opaque either way.</summary>
         public float GameVeil = 0.88f;
         /// <summary>The page's heading plate: its top and width (its height the pause menu's, <see cref="MenuValues.HeadingHeight"/>).</summary>
         public float HeadTop = 104f;
@@ -441,8 +441,6 @@ namespace Roguelike.Rules
         public string EditorNote = "in the Editor: saved, applied in the built game";
         /// <summary>The note on the frame-rate cap while V-Sync is on.</summary>
         public string GreyedNote = "V-Sync paces the frames";
-        /// <summary>The note on an old line whose value lasts only until the game stops (as it did in the Esc menu).</summary>
-        public string SessionNote = "until the game stops";
         /// <summary>The Esc menu's "Volume" as the Sound page names it, beside the music's own volume (the same line, its key as before).</summary>
         public string MasterVolumeName = "Master volume";
     }

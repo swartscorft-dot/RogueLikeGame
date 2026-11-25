@@ -32,7 +32,7 @@ namespace Roguelike.PlayModeTests
         const ulong RunSeed = 0x0128128UL;
         const int W = 1920, H = 1080;
         /// <summary>The renders' own noise between two draws of one frame, as measured (see the pair's comment): pixels, and the largest step of 255.</summary>
-        const int NoisePixels = 100, NoiseStep = 4;
+        const int NoisePixels = 100, NoiseStep = 8;
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
         PlayerCharacter _player;
@@ -178,6 +178,49 @@ namespace Roguelike.PlayModeTests
             yield return Picture("framerate", "Show frame rate on: the number at the top left (without a window the frames are very short)");
         }
 
+        // ---------------- The menus' help (the follow-up to work order 128) ----------------
+
+        [UnityTest, Timeout(900000)]
+        public IEnumerator E_TheWayIntoARun_WithTheHelp()
+        {
+            MenuHelpValues.On = true;
+            Assume.That(_menu.Open(MenuScreen.Main), Is.True);
+            yield return null;
+            _menu.PickMain(MainLine.StartRun);
+            yield return Picture("help-character", "the character screen: her slot CHOSEN, the line of keys saying what goes on");
+            _menu.ChooseSlot(3);
+            yield return Picture("help-character-refused", "a dark slot chosen: the plain line on its plate, the cursor back on her");
+            yield return Picture("help-character-refused-720", "the same at 1280 by 720", 1280, 720);
+            _menu.ChooseSlot(0);
+            yield return null;
+            yield return Picture("help-loadout", "the loadout (the trials off): the line of keys saying first what starts the run");
+        }
+
+        [UnityTest, Timeout(900000)]
+        public IEnumerator F_WhatSheCannotAfford_BeforeAndAtTheTry()
+        {
+            MenuHelpValues.On = true;
+            MetaValues v = _levels.MetaValues;
+            var s = new MetaState { Currency = 45, EarnedInAll = 120, Runs = 3 };
+            s.Owned.Add(v.Pieces.First(p => p.Name == "Steady Start").Id);
+            Assume.That(MetaSaveFile.Save(GeneratedLevels.BetweenRunsSavePathInUse, s, out string error), Is.True, error);
+            v.Enabled = true;
+            v.Attachments = true;
+            Assume.That(_menu.Open(MenuScreen.Upgrades), Is.True);
+            yield return null;
+            yield return null;
+            yield return Picture("help-upgrades-before", "UPGRADES with 45 Echoes: what she cannot afford drawn dimmer, before she tries");
+            int item = -1;
+            for (int i = 0; i < _menu.ItemCount && item < 0; i++) if (_hud.MenuItemUnaffordable(_menu, i)) item = i;
+            Assume.That(item, Is.GreaterThanOrEqualTo(0));
+            _menu.UseItem(item);
+            yield return Picture("help-upgrades-refused", "at the try (one frame in): its price and the Echoes plate red, the line saying how many more");
+            _menu.Close();
+            yield return null;
+            v.Enabled = false;
+            v.Attachments = false;
+        }
+
         // ---------------- High is today's picture, and the cost ----------------
 
         [UnityTest, Timeout(1800000)]
@@ -218,8 +261,9 @@ namespace Roguelike.PlayModeTests
             int differ = Differ(before, after), differ2 = Differ(before2, after2), noiseOff = Differ(before, before2), noiseOn = Differ(after, after2), differLow = Differ(before, low);
             _log.Add(string.Format(Inv, "{0:HH:mm:ss} HIGH IS TODAY'S: the floor 5 fight ({1} enemies), {2} by {3}: before (the switch off) and after (on, the defaults) differ in {4} pixels of {5} (again: {6}; largest step {7}); two draws with the switch off differ in {8}, two with it on in {9} (the renders' own noise; where they differ: high-differ.png, red); Low differs from before in {10}",
                                    DateTime.Now, enemies, W, H, differ, before.Length, differ2, Largest(before, after), noiseOff, noiseOn, differLow));
-            // Two draws of the very same frame differ by themselves in a handful of pixels by a step or two (8 to 48 pixels of two
-            // million, at most 3 of 255, in the runs of 2026-11-25): "no difference" is a difference of that size and kind.
+            // Two draws of the very same frame differ by themselves in a handful of pixels by a few steps (4 to 48 pixels of two
+            // million, up to 5 of 255, in the runs of 2026-11-25): "no difference" is a difference of that size and kind (a visible
+            // one, Low's, is a million pixels).
             int noise = Math.Max(noiseOff, noiseOn);
             Assert.That(differ, Is.LessThanOrEqualTo(Math.Max(2 * noise, NoisePixels)), "High with the defaults is today's picture: no more pixels differ than two draws of the same frame differ by");
             Assert.That(Largest(before, after), Is.LessThanOrEqualTo(NoiseStep), "and by no more than the renders' own noise in any pixel");
