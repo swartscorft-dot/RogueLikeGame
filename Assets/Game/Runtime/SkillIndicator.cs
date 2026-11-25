@@ -44,7 +44,10 @@ namespace Roguelike
         {
             SkillDefinition skill = Player != null ? Player.ActiveSkill : null;
             SkillPhase phase = Player != null ? Player.SkillPhase : SkillPhase.None;
-            bool show = skill != null && phase != SkillPhase.None && phase != SkillPhase.Recovery;
+            // Work order 123: with SkillLookValues.EffectsNotShapes on, only while a key is held to aim before it fires (a Charge skill
+            // charging); a round thrown over its startup is drawn in the air instead (SkillEffects). Off, as before.
+            bool show = skill != null && SkillLookRules.OutlineShows(SkillLookValues.EffectsNotShapes, skill.Input, phase);
+            if (SkillLookValues.EffectsNotShapes && skill != null && skill.Input == SkillInput.Point && phase == SkillPhase.Startup) SkillEffects.Ensure().Watch(Player);
             if (_line.enabled != show) _line.enabled = show;
             if (!show) return;
 

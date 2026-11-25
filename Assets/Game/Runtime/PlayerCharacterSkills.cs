@@ -505,7 +505,7 @@ namespace Roguelike
             GroundPoint c = area.Centre;
             var centre = new Vector3(c.X, 0f, c.Z);
             LastKegPoint = centre;
-            ShotFx circle = ShotFx.Outline(centre, skill.Radius, skill.Fuse, look.Paint, ShotFxMaterial);
+            ShotFx circle = SkillLookValues.EffectsNotShapes ? SkillLookKegLanded() : ShotFx.Outline(centre, skill.Radius, skill.Fuse, look.Paint, ShotFxMaterial); // work order 123: the keg, not a circle
             _kegs.Add(new LyingKeg { Skill = skill, Slot = _castSlot, Centre = c, BurstAt = Time.time + skill.Fuse, Circle = circle, Prime = _castPrime });
         }
 

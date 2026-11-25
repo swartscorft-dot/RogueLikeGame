@@ -131,6 +131,7 @@ namespace Roguelike
 
             if (skill.Shape == SkillShape.Circle)
             {
+                if (SkillLookValues.EffectsNotShapes) return SkillLookCircle(skill, look, area); // work order 123: no rings on the ground
                 // The area hit is a thin ring at the circle's edge. The bang is a big burst over the middle,
                 // drawn in front of whatever stands in it, and a shockwave that runs out to the edge. It is where the
                 // circle landed: short of cover in its way (Kristian, 2026-11-19).
@@ -152,6 +153,7 @@ namespace Roguelike
             SpawnFlash(look, muzzle, dir);
             if (skill.Shape == SkillShape.Cone)
             {
+                if (SkillLookValues.EffectsNotShapes) return SkillLookCone(skill, look, muzzle, level, dir); // work order 123: no wedge
                 int rays = Mathf.Max(1, look.Values.Rays);
                 for (int i = 0; i < rays; i++)
                 {

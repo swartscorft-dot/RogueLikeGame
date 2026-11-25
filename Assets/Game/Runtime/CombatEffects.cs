@@ -819,6 +819,7 @@ namespace Roguelike
         {
             if (!Ask(FxMoment.BreakerSlugHit, FxTier.Plain)) return;
             ShotLook look = LookOf(skill);
+            if (SkillLookValues.EffectsNotShapes) { Put(Chips(FxMoment.BreakerSlugHit, FxTier.Plain, Middle(target), SkillLookValues.Live.SlugChipReach, SkillLookValues.Live.SlugChipSize, SkillLookValues.Live.SlugChips, SkillLookValues.Live.SlugChipSeconds, look.Rim, look.Core)); return; } // work order 123: chips off it, no ring on the ground
             Put(Band(FxShape.Ring, FxMoment.BreakerSlugHit, FxTier.Plain, Feet(target), Values.SlugRing, Values.SlugSeconds, look.Rim, look.Core));
         }
 
@@ -830,6 +831,7 @@ namespace Roguelike
             if (!Ask(FxMoment.SlideStarted, FxTier.Plain)) return;
             Vector3 move = _player.MoveInput;
             Vector3 dir = Flat(move).sqrMagnitude > 1e-6f ? Flat(move).normalized : Flat(_player.transform.forward).normalized;
+            if (SkillLookValues.EffectsNotShapes) { SkillEffects.Ensure().Watch(_player).SlideDust(_slideFrom, -dir); return; } // work order 123: puffs, no wedge
             FxPiece dust = Band(FxShape.Wedge, FxMoment.SlideStarted, FxTier.Plain, _slideFrom, Values.SlideDust, Values.SlideDustSeconds,
                                 Values.DustRim, Values.DustCore, faint: true);
             dust.Direction = -dir;
@@ -857,6 +859,7 @@ namespace Roguelike
             star.CoreGlow = Values.BrightestGlow;
             star.TowardCamera = target.Radius + 0.4f;
             Put(star);
+            if (SkillLookValues.EffectsNotShapes) { Put(Chips(FxMoment.Countered, FxTier.Key, Middle(target), SkillLookValues.Live.CounterChipReach, SkillLookValues.Live.CounterChipSize, SkillLookValues.Live.CounterChips, SkillLookValues.Live.CounterChipSeconds, Values.CounterRim, Values.CounterCore)); return; } // work order 123
             Put(Band(FxShape.Ring, FxMoment.Countered, FxTier.Key, Feet(target), Values.CounterRing, Values.CounterRingSeconds,
                      Values.CounterRim, Values.CounterCore));
         }
@@ -865,6 +868,7 @@ namespace Roguelike
         void Perfect(SkillDefinition skill, int slot)
         {
             if (!Ask(FxMoment.PerfectRelease, FxTier.Plain)) return;
+            if (!SkillLookValues.EffectsNotShapes) // work order 123: no ring on the ground at her feet; the larger spark where it lands stays
             Put(Band(FxShape.Ring, FxMoment.PerfectRelease, FxTier.Plain, _player.Position, Values.PerfectRing, Values.PerfectRingSeconds,
                      Values.HerRim, Values.HerCore));
             ShotLook look = LookOf(skill);
@@ -941,7 +945,7 @@ namespace Roguelike
             {
                 Vector3 centre = Flat(_player.LastKegPoint);
                 CombatFx ring = null;
-                if (Ask(FxMoment.KegLying, FxTier.Plain))
+                if (!SkillLookValues.EffectsNotShapes && Ask(FxMoment.KegLying, FxTier.Plain)) // work order 123: the keg itself is drawn (SkillEffects), no ring
                 {
                     FxPiece p = Band(FxShape.Closing, FxMoment.KegLying, FxTier.Plain, centre, skill.Radius, skill.Fuse, look.Rim, look.Core);
                     ring = Put(p);
@@ -969,6 +973,7 @@ namespace Roguelike
                                   Values.KegShotSeconds, look.Rim, look.Core);
             spark.TowardCamera = skill.Radius + 1f;
             Put(spark);
+            if (!SkillLookValues.EffectsNotShapes) // work order 123: its blast's own dust runs out to the radius (SkillEffects.Blast)
             Put(Band(FxShape.Ring, FxMoment.KegSetOffByShot, FxTier.Plain, at, skill.Radius * Values.KegShotRing, Values.KegShotSeconds, look.Rim, look.Core));
         }
 
@@ -1234,5 +1239,15 @@ namespace Roguelike
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        /// <summary>Work order 123: chips flying off a hit, facing the camera, in place of a ring on the ground under it.</summary>
+        FxPiece Chips(FxMoment moment, FxTier tier, Vector3 at, float reach, float size, int count, float seconds, Color rim, Color core)
+        {
+            FxPiece p = Piece(FxShape.Shards, moment, tier, at, reach, seconds, rim, core);
+            p.Count = count;
+            p.PieceSize = size;
+            p.TowardCamera = 0.5f;
+            return p;
+        }
     }
 }
