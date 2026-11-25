@@ -287,7 +287,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(Pieces.Live, Is.EqualTo(0), "all gone in their time");
             for (int i = 0; i < Pieces.Made; i++) Assert.That(Pieces.BodyOf(i).gameObject.activeSelf, Is.False);
             yield return null;
-            Assert.That(Pieces.enabled, Is.False, "and the pool does not run while none lives");
+            // The merge of 2026-11-25: the pool's component stays on for the play start check; idle is its Running, not its enabled.
+            Assert.That(Pieces.Running, Is.False, "and the pool does not run while none lives");
+            Assert.That(Pieces.enabled, Is.True, "its component stays on (an off one reads as a fault in its Awake to the play start check)");
         }
 
         [UnityTest]

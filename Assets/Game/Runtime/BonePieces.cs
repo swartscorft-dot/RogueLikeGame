@@ -97,8 +97,13 @@ namespace Roguelike
                 dynamicFriction = (float)v.DynamicFriction, staticFriction = (float)v.StaticFriction, bounciness = (float)v.Bounce,
                 frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Average,
             };
-            enabled = false;
+            // The component stays ON while it has nothing to do (the merge of 2026-11-25): the play start check (work order 096)
+            // reads a MonoBehaviour that is off at the start as one Unity switched off after a fault in its Awake, and it must be
+            // able to say that of this one too. Idle, a frame of it is the one test in Tick.
         }
+
+        /// <summary>True while a piece lives or a landing waits: the pool has a frame's work to do.</summary>
+        public bool Running => Live > 0 || _landings > 0;
 
         void OnDestroy()
         {
@@ -201,11 +206,7 @@ namespace Roguelike
         /// <summary>A frame of the pieces (its Update; public for the test of what a frame allocates): each piece's life moved on.</summary>
         public void Tick()
         {
-            if (Live == 0 && _landings == 0)
-            {
-                enabled = false;
-                return;
-            }
+            if (!Running) return; // idle: nothing done (the component itself stays on, see Awake)
             BoneBreakValues v = BoneBreakValues.Live;
             if (_landings > 0) BreakAgain(v);
             float dt = Time.deltaTime;
