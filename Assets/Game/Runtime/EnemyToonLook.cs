@@ -49,8 +49,10 @@ namespace Roguelike
         readonly Transform _root;
         readonly List<Material> _materials = new List<Material>();
         readonly List<Today> _today = new List<Today>(); // beside each of _materials: its Simple Lit values while it wears the look
+        readonly List<Renderer> _figures = new List<Renderer>(); // work order 125: its renderers that hold one of _materials, marked for the clean line
         int _children = -1;
         bool _shown;
+        bool _clean; // work order 125: the line its materials were last set for (the clean one, or 119's hull)
 
         /// <summary>The look for the enemy whose object is <paramref name="root"/>; nothing happens until its first <see cref="Tick"/>.</summary>
         public EnemyToonLook(Transform root) => _root = root;
@@ -80,6 +82,7 @@ namespace Roguelike
                 }
             }
             if (want != _shown) Show(want);
+            else if (_shown && _clean != ToonLookValues.CleanInk) Show(true); // work order 125: the line's way changed
         }
 
         void Show(bool on)
@@ -90,6 +93,11 @@ namespace Roguelike
                 if (m == null) continue;
                 if (on)
                 {
+                    if (m.shader == s_toon)
+                    {
+                        if (_clean != ToonLookValues.CleanInk) ToonLook.Push(m, false, ToonLookValues.Live); // work order 125: the line's way changed
+                        continue;
+                    }
                     if (m.shader != s_today) continue;
                     _today[i] ??= new Today();
                     _today[i].Take(m);
@@ -103,6 +111,9 @@ namespace Roguelike
                 }
             }
             _shown = on;
+            // Work order 125: its own renderers (and only they: nothing that copies its materials) marked for the clean line.
+            _clean = ToonLookValues.CleanInk;
+            for (int i = 0; i < _figures.Count; i++) ToonInkFigures.Mark(_figures[i], on && _clean);
         }
 
         /// <summary>
@@ -187,11 +198,15 @@ namespace Roguelike
                 if (string.Equals(r.gameObject.name, WarderBody.LightName, StringComparison.Ordinal)) continue; // the ward's light: a glow
                 r.GetSharedMaterials(s_slots);
                 foreach (Material m in s_slots)
-                    if (m != null && !_materials.Contains(m) && Ours(m))
+                {
+                    if (m == null || !Ours(m)) continue;
+                    if (!_figures.Contains(r)) _figures.Add(r); // work order 125
+                    if (!_materials.Contains(m))
                     {
                         _materials.Add(m);
                         _today.Add(null);
                     }
+                }
             }
             s_renderers.Clear();
             s_slots.Clear();

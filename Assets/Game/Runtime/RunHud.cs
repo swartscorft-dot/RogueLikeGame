@@ -58,7 +58,7 @@ namespace Roguelike
         /// CameraDistance (work order 083): the camera's distance, 28, 25 or 22 m, beside the kick. Light (work order 085): as
         /// before or one of three lamplit levels, under the greybox view (RunHudLight.cs).
         /// </summary>
-        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, ToonLook, Music, MusicVolume }
+        public enum MenuLine { Resume, Restart, Leave, Quit, DashDirection, Volume, DamageNumbers, SameRun, BetweenRuns, CameraKick, Attachments, Greybox, CameraDistance, Light, ToonLook, Music, MusicVolume, AntiAliasing }
 
         static readonly CultureInfo s_Inv = CultureInfo.InvariantCulture;
         static readonly Color s_Accent = new Color(0.25f, 0.85f, 0.85f, 1f);
@@ -260,6 +260,7 @@ namespace Roguelike
                 case MenuLine.BetweenRuns: ChangeSetting(line, 1); break;
                 case MenuLine.Attachments: ChangeSetting(line, 1); break; // work order 060
                 case MenuLine.ToonLook: ChangeSetting(line, 1); break; // work order 115
+                case MenuLine.AntiAliasing: ChangeSetting(line, 1); break; // work order 125
                 case MenuLine.Music:
                 case MenuLine.MusicVolume: PickMusic(line); break; // work order 116 (RunHudMusic.cs)
             }
@@ -321,6 +322,11 @@ namespace Roguelike
             if (line == MenuLine.ToonLook)
             {
                 FlipToonLook(); // work order 115 (RunHudToonLook.cs): either way it flips; her model follows this frame
+                return true;
+            }
+            if (line == MenuLine.AntiAliasing)
+            {
+                FlipAntiAliasing(); // work order 125 (RunHudAntiAliasing.cs): either way it flips; the camera follows next frame
                 return true;
             }
             if (IsMusicLine(line))
@@ -538,6 +544,7 @@ namespace Roguelike
             _menu.Add(MenuLine.Light); // work order 085: as before or lamplit, under the greybox view (which wins over it)
             _menu.Add(MenuLine.BetweenRuns); // work order 029: the trial's switch
             AddMusicLines(); // work order 116: the music's switch and volume (RunHudMusic.cs), under the between-runs line (its test asks for that)
+            _menu.Add(MenuLine.AntiAliasing); // work order 125: beside the toon look's line, just above it (which stays just above the attachments')
             _menu.Add(MenuLine.ToonLook); // work order 115: her model's toon look, a trial; just above the attachments' line (its test asks for that), which three tests keep last
             _menu.Add(MenuLine.Attachments); // work order 060: her pistols' parts' switch, last
             if (Selected >= _menu.Count) Selected = _menu.Count - 1;
@@ -565,6 +572,7 @@ namespace Roguelike
                 case MenuLine.BetweenRuns: return "Between runs (trial):  " + (BetweenRunsOn ? "on" : "off");
                 case MenuLine.Attachments: return "Weapon attachments (trial):  " + (AttachmentsLineOn ? "on" : "off"); // work order 060
                 case MenuLine.ToonLook: return ToonLookText; // work order 115 (RunHudToonLook.cs)
+                case MenuLine.AntiAliasing: return AntiAliasingText; // work order 125 (RunHudAntiAliasing.cs)
                 default: return string.Format(s_Inv, "Volume:  {0} %", SettingsRules.Percent(GameSettings.VolumeStep));
             }
         }

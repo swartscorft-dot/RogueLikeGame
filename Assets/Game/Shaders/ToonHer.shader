@@ -55,6 +55,13 @@ Shader "Roguelike/Toon Her"
         _OutlineColor("Ink colour", Color) = (0.06, 0.04, 0.06, 1)
         _OutlineWidth("Ink width (px at 1080 rows)", Range(0, 8)) = 1.25
         _OutlineDepthPush("Ink pushed back (m)", Range(0, 0.5)) = 0.06
+        // Work order 125, the clean line (ToonLookValues.CleanInk; both 0 while it is off, work order 119's line exactly): 1 pushes
+        // the hull back along the line of sight (119's push along the camera's axis moved it on the screen toward its middle, so
+        // that the line thickened on one side of a figure and was lost on the other); and 1 draws the hull only round a renderer
+        // marked for it (a bit of its shader user value, Runtime/ToonInkFigures.cs: her model and each enemy's own meshes, not a
+        // loose piece that copies an enemy's materials).
+        [HideInInspector] _OutlineAlongRay("Ink pushed back along the line of sight (work order 125)", Float) = 0
+        [HideInInspector] _InkNeedsMark("Ink only round a marked renderer (work order 125)", Float) = 0
 
         // Work order 119: an enemy's own glow, as URP Simple Lit has it (the caster's eyes and palms, the warder's green); black on her.
         [HDR] _EmissionColor("Glow colour (an enemy's; black on her)", Color) = (0, 0, 0, 1)
@@ -103,6 +110,8 @@ Shader "Roguelike/Toon Her"
             float _OutlineWidth;
             float _OutlineDepthPush;
             half4 _EmissionColor; // work order 119
+            float _OutlineAlongRay; // work order 125
+            float _InkNeedsMark;    // work order 125
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);
@@ -295,6 +304,9 @@ Shader "Roguelike/Toon Her"
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
 
+            // Work order 125: the bit of a renderer's shader user value that marks it for the line (ToonInkFigures.InkBit).
+            #define INK_MARK 1u
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -319,7 +331,11 @@ Shader "Roguelike/Toon Her"
                 // Pushed a little away from the camera: the line of a small piece lying on her (a buckle, a pouch, a button) stays
                 // behind the surface it lies on, so only real edges and the silhouette are inked.
                 float3 positionVS = TransformWorldToView(TransformObjectToWorld(input.positionOS.xyz));
-                positionVS.z -= _OutlineDepthPush;
+                // Work order 125: along the camera's axis (119's) the push moves the hull on the screen toward the screen's middle
+                // by push / distance of its way from there (at 6.5 m, 3 px at 300 px out: more than the line is wide): the line
+                // thickened on one side of a figure and was lost on the other. Along the line of sight it stays where it is.
+                if (_OutlineAlongRay > 0.5) positionVS *= 1.0 + _OutlineDepthPush / max(length(positionVS), 1e-3);
+                else positionVS.z -= _OutlineDepthPush;
                 float4 positionCS = TransformWViewToHClip(positionVS);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 float2 normalCS = mul((float3x3)GetWorldToHClipMatrix(), normalWS).xy;
@@ -331,6 +347,8 @@ Shader "Roguelike/Toon Her"
                 float pixels = _OutlineWidth * screen.y / 1080.0;
                 // Pixels to clip space: the screen spans 2 in normalised device coordinates, times w for the perspective divide.
                 positionCS.xy += way * (pixels * 2.0) / screen * positionCS.w;
+                // Work order 125: no line round a renderer that is not marked for it (every vertex on one point: nothing is drawn).
+                if (_InkNeedsMark > 0.5 && (unity_RendererUserValue & INK_MARK) == 0u) positionCS = float4(0.0, 0.0, 0.0, 1.0);
                 output.positionCS = positionCS;
                 output.fogFactor = ComputeFogFactor(positionCS.z);
                 return output;
