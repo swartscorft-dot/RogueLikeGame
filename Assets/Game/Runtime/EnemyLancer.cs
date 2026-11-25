@@ -41,7 +41,9 @@ namespace Roguelike
         public static readonly Color ShaftColor = new Color(0.32f, 0.27f, 0.22f);
         /// <summary>The lance's point: pale bone.</summary>
         public static readonly Color PointColor = new Color(0.86f, 0.84f, 0.76f);
-        const float PointLength = 0.35f;    // m of the lance that is its point, of LanceLength
+        /// <summary>The start of the name of its lance's two materials, made here (work order 119's toon look finds them by it).</summary>
+        public const string MaterialPrefix = "Lancer_";
+        const float PointLength = 0.35f;   // m of the lance that is its point, of LanceLength
         const float PointWidth = 2.2f;      // times the shaft's thickness the point is at its base
         const float BlockedSlack = 0.5f;    // m short of where it should be that means the walkable ground ended under it
         const float EdgeSlack = 1f;         // m past the walkable ground's end within which a thing the physics saw is what ended it
@@ -175,7 +177,7 @@ namespace Roguelike
                 if (lit == null) return null;
                 m = new Material(lit);
             }
-            m.name = "Lancer_" + partName;
+            m.name = MaterialPrefix + partName;
             m.mainTexture = null;
             if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", null);
             if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", Color.black);

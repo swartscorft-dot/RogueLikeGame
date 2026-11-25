@@ -52,6 +52,7 @@ namespace Roguelike.PlayModeTests
             if (string.IsNullOrEmpty(_folder)) Assert.Ignore("pictures are taken only when " + FolderVariable + " names a folder (work order 115)");
             Directory.CreateDirectory(_folder);
             ToonLookValues.On = true;
+            ToonLookValues.Enemies = false; // work order 119: these are her pictures beside skeletons in today's look, as taken for 115
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false;
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
@@ -76,6 +77,7 @@ namespace Roguelike.PlayModeTests
             if (_folder != null && _log.Count > 0) File.AppendAllLines(Path.Combine(_folder, "pictures-log.txt"), _log);
             _log.Clear();
             ToonLookValues.On = true;
+            ToonLookValues.Enemies = true;
             GameSettings.Unload();
             if (_player != null) _player.GetComponent<PlayerHealth>().Untouchable = false;
             if (Benchmark.Current != null) Object.Destroy(Benchmark.Current.gameObject);
