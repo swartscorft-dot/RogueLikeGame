@@ -135,7 +135,7 @@ namespace Roguelike.Rules
         /// <summary>What of hers its parts act on.</summary>
         public static string WeaponActsOn(WeaponKind weapon) => "the basic shot";
 
-        public static WeaponAttachment[] Create() => new[]
+        public static WeaponAttachment[] Create() => WeaponPartValues.WithCosts(new[] // work order 139: the drawbacks halved, with its switch
         {
             new WeaponAttachment(LaserSight, "Laser Sight", WeaponKind.Pistols, WeaponSlot.Sight, 30,
                                  "A red beam on her pistols. Reach 12 m.", "The shot's line is narrower: aim truer.") // work order 102: it was "A line shows where the shot would end. Reach 12 m."
@@ -176,7 +176,7 @@ namespace Roguelike.Rules
             new WeaponAttachment(QuickDrawGrip, "Quick-Draw Grip", WeaponKind.Pistols, WeaponSlot.Grip, 55,
                                  "The first shot after a dash or a skill goes off at once.", "Each shot deals 10 % less.")
                 { FirstShotStartupScale = 0.25f, DamageScale = 0.9f, MorePart = true },
-        };
+        });
 
         /// <summary>The slot's head on the screen: SIGHT, BARREL, GRIP.</summary>
         public static string SlotWord(WeaponSlot slot) => slot == WeaponSlot.Sight ? "SIGHT" : slot == WeaponSlot.Barrel ? "BARREL" : "GRIP";

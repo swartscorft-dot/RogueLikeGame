@@ -76,6 +76,7 @@ namespace Roguelike.PlayModeTests
         {
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
+            WeaponPartValues.GentlerCosts = false; // work order 139: this class pins the costs as work orders 060 and 110 set them (the halved ones: UpgradeTabsTests)
             _prefsBefore.Clear();
             foreach (string k in Keys) _prefsBefore[k] = PlayerPrefs.HasKey(k) ? PlayerPrefs.GetInt(k) : (int?)null;
             ClearKeys();
@@ -135,6 +136,7 @@ namespace Roguelike.PlayModeTests
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
             PlayerInputDriver.ReadRealDevices = true;
+            WeaponPartValues.GentlerCosts = true; // as it ships
         }
 
         static void ClearKeys()
