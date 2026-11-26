@@ -68,6 +68,7 @@ namespace Roguelike.PlayModeTests
         readonly List<(ShotFxKind kind, ShotFx fx, int frame)> _shots = new List<(ShotFxKind, ShotFx, int)>();
         readonly List<(FxPiece p, int frame)> _pieces = new List<(FxPiece, int)>();
         readonly List<string> _outlineFrames = new List<string>();
+        readonly List<string> _outlineNow = new List<string>(); // work order 140: the state of the frame the outline was seen in, beside the frame before
         readonly List<int> _firedFrames = new List<int>();
         readonly List<SkillEffects.Shown> _shown = new List<SkillEffects.Shown>();
         int _outlineSeen, _smokeDiscs, _shotsAtStart;
@@ -118,6 +119,7 @@ namespace Roguelike.PlayModeTests
         public void CleanUp()
         {
             SkillLookValues.EffectsNotShapes = true;
+            SkillLookValues.OutlineInCastAndHold = true; // work order 140: back to its default
             CombatEffects.Spawned -= Record;
             if (_player != null) _player.Reported -= OnReport;
             if (_combat != null) Object.Destroy(_combat.gameObject);
@@ -189,6 +191,7 @@ namespace Roguelike.PlayModeTests
             _shots.Clear();
             _pieces.Clear();
             _outlineFrames.Clear();
+            _outlineNow.Clear();
             _firedFrames.Clear();
             _outlineSeen = 0;
             _smokeDiscs = 0;
@@ -210,6 +213,7 @@ namespace Roguelike.PlayModeTests
             {
                 _outlineSeen++;
                 _outlineFrames.Add(_lastState);
+                _outlineNow.Add(state);
             }
             _lastState = state;
             foreach (SmokeCloudView v in Object.FindObjectsByType<SmokeCloudView>(FindObjectsSortMode.None))
@@ -341,6 +345,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest, Timeout(600000)]
         public IEnumerator SwitchOn_NoneOfHerFifteen_DrawsAFlatShapeOnTheGround_AtOrAfterFiring_EachIsShownInTheWorld()
         {
+            // Work order 140 (changed deliberately): this test pins work order 123's reading of the outline; the outline during a cast
+            // and a hold (SkillLookValues.OutlineInCastAndHold) is OutlineInCastAndHoldTests'. CleanUp puts it back.
+            SkillLookValues.OutlineInCastAndHold = false;
             var faults = new List<string>();
             foreach (string name in HerFifteen)
             {
@@ -349,10 +356,21 @@ namespace Roguelike.PlayModeTests
                 int ours = fx != null ? fx.DrawnBy.Sum() - _shotsAtStart : 0;
                 string flats = Flats();
                 if (flats.Length > 0) faults.Add(name + ": flat shapes on the ground: " + flats);
-                // The outline: only while Long Shot's key is held to aim, before it fires.
-                foreach (string f in _outlineFrames.Distinct())
-                    if (!f.EndsWith("Charge Channel")) faults.Add(name + ": the aim outline showed at " + f);
+                // The outline: only while Long Shot's key is held to aim, before it fires; work order 140 (changed deliberately, his tick
+                // "Vis under kast og hold"): and while a Casting skill is cast and a Holding skill's key is held and it fires.
+                // A cast's or a hold's outline frame is judged by the frame before or, at its one-frame edge, by its own.
+                bool castAndHold = SkillLookValues.OutlineInCastAndHold;
+                bool InCastOrHold(string f) => f.EndsWith("Casting Startup") || f.EndsWith("Holding Startup") || f.EndsWith("Holding Channel");
+                for (int k = 0; k < _outlineFrames.Count; k++)
+                {
+                    string f = _outlineFrames[k];
+                    if (f.EndsWith("Charge Channel") || (castAndHold && (InCastOrHold(f) || InCastOrHold(_outlineNow[k])))) continue;
+                    string fault = name + ": the aim outline showed at " + f + " (seen in " + _outlineNow[k] + ")";
+                    if (!faults.Contains(fault)) faults.Add(fault);
+                }
                 if (name == "Long Shot" && _outlineSeen == 0) faults.Add("Long Shot: no aim outline while its key was held (it must stay)");
+                if (castAndHold && (name == "Heavy Volley" || name == "Deadeye" || name == "Fan Fire") && _outlineSeen == 0)
+                    faults.Add(name + ": no aim outline during its cast or its hold (work order 140)");
                 if (_smokeDiscs > 0) faults.Add(name + ": the smoke's flat discs drawn");
                 int shown = _shots.Count(x => x.kind == ShotFxKind.Streak || x.kind == ShotFxKind.Spark || x.kind == ShotFxKind.Flash) + ours;
                 if (shown == 0) faults.Add(name + ": nothing showed it");
@@ -484,7 +502,9 @@ namespace Roguelike.PlayModeTests
                 Assert.That(tracers.Max(t => t.yaw), Is.EqualTo(s.Angle * 0.5f).Within(1f));
                 foreach ((float yaw, float reach) t in tracers) Assert.That(t.reach, Is.EqualTo(s.Range).Within(Metres));
             }
-            Assert.That(_outlineSeen, Is.Zero, "no cone drawn on the ground while it fires");
+            // Work order 140 (changed deliberately, "Vis under kast og hold"): its cone's outline stands while its key is held and it fires.
+            if (SkillLookValues.OutlineInCastAndHold) Assert.That(_outlineSeen, Is.GreaterThan(0), "its cone's outline while it is held");
+            else Assert.That(_outlineSeen, Is.Zero, "no cone drawn on the ground while it fires");
         }
 
         [UnityTest]

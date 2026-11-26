@@ -20,7 +20,7 @@ namespace Roguelike.Rules.Tests
             var v = new BossEntranceValues();
             Assert.That(v.Total, Is.EqualTo(4f).Within(1e-5f), "the order's first guess: about four seconds in all");
             Assert.That(v.CloseDistance, Is.LessThan(CameraAngles.OursDistance), "closer than the play camera (28 m)");
-            Assert.That(v.SkipGraceSeconds, Is.EqualTo(0f), "a key ends it at once");
+            Assert.That(v.SkipGraceSeconds, Is.EqualTo(0.3f), "work order 140 (changed deliberately): a key ends it only after 0.3 s (0 in work order 130)");
         }
 
         [Test]

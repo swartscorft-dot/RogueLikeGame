@@ -114,6 +114,15 @@ namespace Roguelike.Rules
         /// for the whole game (the rack reads it too), so it is static; tests set it and put it back.
         /// </summary>
         public static bool Finale = true;
+
+        /// <summary>
+        /// Work order 140's first part, ON by default. Kristian, 2026-11-26, asked whether the boss, alone on floor 5 since work order
+        /// 130, should still call its own swarmers (a pack of six at two thirds of its health and another at one third), ticked
+        /// "Ingen flokker": on, it calls nobody through the whole fight, at neither share of <see cref="CallsAt"/> (no pack, no call's
+        /// ring or sound, nothing told to the log); its anger, its break and its attacks are as before. Off: it calls its packs as before,
+        /// field for field. One switch for the whole game (the practice room's boss too), so it is static; tests set it and put it back.
+        /// </summary>
+        public static bool NoPacks = true;
         /// <summary>The finale's numbers (work order 106): the roar, the lamps' colour, the Ground Slam.</summary>
         public BossFinaleValues Phases = new BossFinaleValues();
     }
@@ -178,10 +187,12 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// How many packs it calls now: one for each share of <see cref="BossValues.CallsAt"/> (highest first) that its
-        /// health has come down to since the last call, each once. A hit that takes it past both calls both.
+        /// health has come down to since the last call, each once. A hit that takes it past both calls both. None, ever, with
+        /// <see cref="BossValues.NoPacks"/> on (work order 140).
         /// </summary>
         public int CallsDue(float healthShare, BossValues v)
         {
+            if (BossValues.NoPacks) return 0; // work order 140: "Ingen flokker"
             int due = 0;
             float[] at = v.CallsAt ?? Array.Empty<float>();
             while (_calls < at.Length && healthShare <= at[_calls])

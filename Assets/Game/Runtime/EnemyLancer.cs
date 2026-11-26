@@ -222,8 +222,11 @@ namespace Roguelike
                 _lineCheckedAt = now;
                 _lineClear = LooksClear();
             }
-            return LancerRules.MayCharge(distance, _lineClear, ChargeAttack);
+            return LancerRules.MayCharge(distance, _lineClear, ChargeAttack) && Opening.AllowsSeen(this, RangedOpeningRules.LancerToo); // work order 140: its charge begins only on his screen ("Ja, begge")
         }
+
+        /// <summary>Work order 140: when it may begin its charge's wind-up in a room's fight, on his screen (<see cref="RangedOpening.AllowsSeen"/>).</summary>
+        public readonly RangedOpening Opening = new RangedOpening();
 
         /// <summary>
         /// Is its line to her clear: no wall, shut door or tall prop on it (the cover query, at its sight height) and the walkable

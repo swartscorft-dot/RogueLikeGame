@@ -79,6 +79,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            Roguelike.Rules.BossValues.NoPacks = true; // work order 140: back to its default
             PlaceholderSounds.Requested -= Record;
             ShotSounds.Requested -= Voice;
             PlaceholderSounds.RecordedClips = _recordedBefore;
@@ -403,6 +404,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheBoss_AsksForItsCallAndItsAnger_EachOnce_AtItsMoment()
         {
+            Roguelike.Rules.BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             EnemyBoss boss = SpawnBoss();
             boss.Tuning.Enemy.MoveSpeed = 0f;
             yield return Frames(2);

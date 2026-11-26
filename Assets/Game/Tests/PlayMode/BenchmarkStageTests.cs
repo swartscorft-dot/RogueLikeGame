@@ -36,6 +36,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void LetGo()
         {
+            BossValues.NoPacks = true; // work order 140: back to its default
             _stage?.End();
             _stage = null;
             if (GeneratedLevels.Current != null) Object.Destroy(GeneratedLevels.Current.gameObject);
@@ -54,6 +55,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Floor5Boss_TheBossIsAwakeAngry_BothPacksAreCalled_AndAllOfThemFight()
         {
+            BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             _stage = BenchmarkStage.Begin(BenchmarkScenario.Floor5Boss);
             Assert.That(_stage, Is.Not.Null);
             StandsWithinEveryLeash();

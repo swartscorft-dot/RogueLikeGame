@@ -151,6 +151,14 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < 60 && !(Array.TrueForAll(down, k => _keyboard[k].isPressed) && (down.Length > 0 || !_keyboard.anyKey.isPressed)); i++) yield return null;
         }
 
+        /// <summary>Work order 140: until the entrance has played its skip grace (real time), so a key may end it.</summary>
+        IEnumerator PastTheGrace()
+        {
+            float grace = _levels.Entrance.SkipGrace;
+            yield return Until(() => !_levels.EntranceHolds || _levels.EntranceTime >= grace + 0.02f, grace + 2f);
+            Assert.That(_levels.EntranceTime, Is.GreaterThanOrEqualTo(grace), "past the grace");
+        }
+
         IEnumerator Tap(Key key)
         {
             yield return Press(key);
@@ -360,7 +368,7 @@ namespace Roguelike.PlayModeTests
             yield return BuildFloor5(x => f = x);
             yield return WalkIn(f);
             Assert.That(_levels.EntranceHolds, Is.True);
-            yield return Frames(3);
+            yield return PastTheGrace(); // work order 140 (changed deliberately): a key ends it only after its 0.3 s of grace
             yield return Press(Key.Digit3);
             yield return Press();
             yield return Press(Key.Digit4);
@@ -379,7 +387,7 @@ namespace Roguelike.PlayModeTests
             yield return BuildFloor5(x => f = x);
             yield return WalkIn(f);
             Assert.That(_levels.EntranceHolds, Is.True);
-            yield return Frames(3);
+            yield return PastTheGrace(); // work order 140 (changed deliberately): a key ends it only after its 0.3 s of grace
             yield return Press(Key.Escape);
             Assert.That(_levels.EntranceHolds, Is.False, "Esc ends it");
             yield return Frames(2);
@@ -390,7 +398,7 @@ namespace Roguelike.PlayModeTests
             yield return BuildFloor5(x => f = x);
             yield return WalkIn(f);
             Assert.That(_levels.EntranceHolds, Is.True);
-            yield return Frames(3);
+            yield return PastTheGrace(); // work order 140 (changed deliberately): a key ends it only after its 0.3 s of grace
             yield return Press(Key.Q); // her first skill's key
             Assert.That(_levels.EntranceHolds, Is.False, "her action key ends it");
             Assert.That(f.Fight.On, Is.True);
@@ -399,7 +407,7 @@ namespace Roguelike.PlayModeTests
             yield return BuildFloor5(x => f = x);
             yield return WalkIn(f);
             Assert.That(_levels.EntranceHolds, Is.True);
-            yield return Frames(3);
+            yield return PastTheGrace(); // work order 140 (changed deliberately): a key ends it only after its 0.3 s of grace
             yield return Press(Key.Enter);
             Assert.That(_levels.EntranceHolds, Is.False, "Enter ends it");
             yield return Press();
@@ -450,6 +458,68 @@ namespace Roguelike.PlayModeTests
             Assert.That(Rig().Shot, Is.Null);
             Assert.That(_levels.EntranceCardShows, Is.EqualTo(0f));
             Assert.That(f.Boss.enabled, Is.True);
+        }
+
+        /// <summary>
+        /// Work order 140 (the producer's choice, told to him: with no grace a click as she walked in threw the intro away): in its first
+        /// <see cref="BossEntranceValues.SkipGraceSeconds"/> (0.3 s of real time) a press of Space, Esc or her action key does nothing,
+        /// and it is not remembered: past the grace, with nothing pressed again, it still plays; a new press then ends it.
+        /// </summary>
+        [UnityTest, Timeout(180000)]
+        public IEnumerator InItsFirstThreeTenths_APressDoesNothing_AndIsNotRemembered_APressAfterEndsIt()
+        {
+            Assert.That(BossEntranceValues.GraceOn, Is.True, "on by default");
+            float grace = _levels.Entrance.SkipGrace;
+            Assert.That(grace, Is.EqualTo(0.3f).Within(1e-5f));
+            Floor f = null;
+            yield return BuildFloor5(x => f = x);
+            yield return WalkIn(f);
+            Assert.That(_levels.EntranceHolds, Is.True);
+            int pressed = 0;
+            foreach (Key key in new[] { Key.Space, Key.Escape, Key.Q, Key.Enter })
+            {
+                if (_levels.EntranceTime >= grace - 0.05f) break; // a slow frame: what is left of the grace is too short for another press
+                yield return Press(key);
+                Assert.That(_levels.EntranceTime, Is.LessThan(grace), "pressed inside the grace");
+                Assert.That(_levels.EntranceHolds, Is.True, key + " in the grace does nothing");
+                yield return Press();
+                pressed++;
+            }
+            Assert.That(pressed, Is.GreaterThan(0), "at least one press fell inside the grace");
+            Debug.Log($"[140] {pressed} presses inside the grace of {grace:F2} s did nothing");
+            yield return PastTheGrace();
+            yield return Frames(5);
+            Assert.That(_levels.EntranceHolds, Is.True, "not remembered: past the grace it still plays");
+            yield return Press(Key.Space);
+            Assert.That(_levels.EntranceHolds, Is.False, "a press after the grace ends it");
+            Assert.That(_levels.LastEntranceSkipped, Is.True);
+            Assert.That(f.Fight.On, Is.True);
+            yield return Press();
+        }
+
+        /// <summary>Work order 140, the switch off: as work order 130 built it, a key ends it at once (no grace).</summary>
+        [UnityTest, Timeout(180000)]
+        public IEnumerator WithTheGraceOff_AKeyEndsItAtOnce_AsBefore()
+        {
+            bool before = BossEntranceValues.GraceOn;
+            BossEntranceValues.GraceOn = false;
+            try
+            {
+                Assert.That(_levels.Entrance.SkipGrace, Is.EqualTo(0f));
+                Floor f = null;
+                yield return BuildFloor5(x => f = x);
+                yield return WalkIn(f);
+                Assert.That(_levels.EntranceHolds, Is.True);
+                yield return Frames(1);
+                yield return Press(Key.Space);
+                Assert.That(_levels.EntranceHolds, Is.False, "Space ends it at once");
+                Assert.That(_levels.LastEntranceSkipped, Is.True);
+                yield return Press();
+            }
+            finally
+            {
+                BossEntranceValues.GraceOn = before;
+            }
         }
     }
 }

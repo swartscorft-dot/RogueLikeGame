@@ -27,11 +27,27 @@ namespace Roguelike
         public bool DrewOnScreen => _drewOnScreen;
 
         /// <summary>May <paramref name="enemy"/>, <paramref name="distance"/> from her, with a reach of <paramref name="reach"/>, begin a draw or a cast now?</summary>
-        public bool Allows(Enemy enemy, float distance, float reach)
+        public bool Allows(Enemy enemy, float distance, float reach) => Asks(enemy, distance, reach, true);
+
+        /// <summary>
+        /// Work order 140 (<see cref="RangedOpeningRules.WarderToo"/>, <see cref="RangedOpeningRules.LancerToo"/>, handed in as
+        /// <paramref name="on"/>): may the warder begin its bolt, or the lancer the wind-up of its charge, now? Part 1 alone, his screen,
+        /// asked as <see cref="Allows"/> asks it; no grace at the waking. True with its switch off, as before.
+        /// </summary>
+        public bool AllowsSeen(Enemy enemy, bool on) => !on || Asks(enemy, 0f, 0f, false);
+
+        bool Asks(Enemy enemy, float distance, float reach, bool grace)
         {
             RoomFight f = enemy != null ? enemy.Fight : null;
             RangedAroundValues r = f?.Ranged;
             if (r == null || !f.On) return true;
+            Vector3 at = enemy.transform.position;
+            if (!grace)
+            {
+                bool seen = RangedOpeningRules.MayBeginSeen(r, !r.OnScreenOnly || OnScreen(at, r.ScreenMargin));
+                if (seen) _drewOnScreen = OnScreen(at, 0f);
+                return seen;
+            }
             if (f != _fight || f.Starts != _starts)
             {
                 // The first ask of this waking: was it within its reach of her as the room woke?
@@ -39,7 +55,6 @@ namespace Roguelike
                 _starts = f.Starts;
                 _inReachAtWaking = distance <= reach;
             }
-            Vector3 at = enemy.transform.position;
             bool onScreen = !r.OnScreenOnly || OnScreen(at, r.ScreenMargin);
             bool may = RangedOpeningRules.MayBegin(r, onScreen, f.StartedAt, Time.time, _inReachAtWaking);
             if (may) _drewOnScreen = OnScreen(at, 0f);
@@ -64,7 +79,8 @@ namespace Roguelike
         public static void Note(SessionEvent e, Enemy enemy)
         {
             if (e == null || enemy == null || enemy.Fight?.Ranged == null || !enemy.Fight.Ranged.TellsTheLog) return;
-            RangedOpening o = enemy is EnemyShooter s ? s.Opening : enemy is EnemyCaster c ? c.Opening : null;
+            RangedOpening o = enemy is EnemyShooter s ? s.Opening : enemy is EnemyCaster c ? c.Opening
+                : enemy is EnemyWarder w && RangedOpeningRules.WarderToo ? w.Opening : null; // work order 140: the warder's bolt too
             if (o == null) return;
             e.AddExtra("on_screen", OnScreen(enemy.transform.position, 0f) ? "yes" : "no");
             e.AddExtra("drew_on_screen", o.DrewOnScreen ? "yes" : "no");

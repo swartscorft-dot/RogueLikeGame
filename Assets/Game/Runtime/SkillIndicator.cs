@@ -46,7 +46,8 @@ namespace Roguelike
             SkillPhase phase = Player != null ? Player.SkillPhase : SkillPhase.None;
             // Work order 123: with SkillLookValues.EffectsNotShapes on, only while a key is held to aim before it fires (a Charge skill
             // charging); a round thrown over its startup is drawn in the air instead (SkillEffects). Off, as before.
-            bool show = skill != null && SkillLookRules.OutlineShows(SkillLookValues.EffectsNotShapes, skill.Input, phase);
+            // Work order 140 (SkillLookValues.OutlineInCastAndHold, "Vis under kast og hold"): also while a skill is cast or its key is held.
+            bool show = skill != null && SkillLookRules.OutlineShows(SkillLookValues.EffectsNotShapes, SkillLookValues.OutlineInCastAndHold, skill.Input, phase);
             if (SkillLookValues.EffectsNotShapes && skill != null && skill.Input == SkillInput.Point && phase == SkillPhase.Startup) SkillEffects.Ensure().Watch(Player);
             if (_line.enabled != show) _line.enabled = show;
             if (!show) return;
@@ -56,6 +57,13 @@ namespace Roguelike
             Vector3 dir = toAim.sqrMagnitude > 1e-6f ? toAim.normalized : Ground(Player.transform.forward).normalized;
             _line.widthMultiplier = BaseWidth * (skill.Input == SkillInput.Charge ? 1f + 2f * Player.SkillCharge : 1f);
             float lineHeight = Player.Feel.AimAtShotHeight ? LineHeight : HeightAboveGround;
+
+            // Work order 140: Deadeye's is the circle of its reach round her, where it picks the marked enemies it shoots as its cast ends.
+            if (SkillLookRules.OutlineIsReach(skill, SkillLookValues.EffectsNotShapes, SkillLookValues.OutlineInCastAndHold))
+            {
+                GroundOutline.Circle(_line, origin, skill.Range, HeightAboveGround);
+                return;
+            }
 
             switch (skill.Shape)
             {

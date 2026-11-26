@@ -84,6 +84,14 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Calls_AtTwoThirdsAndOneThird_OnceEach()
         {
+            bool noPacks = BossValues.NoPacks;
+            BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"
+            try { CallsAsBefore(); }
+            finally { BossValues.NoPacks = noPacks; }
+        }
+
+        static void CallsAsBefore()
+        {
             var v = new BossValues();
             var t = new BossTactics();
             Assert.That(t.CallsDue(1f, v), Is.EqualTo(0));
