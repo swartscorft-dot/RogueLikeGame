@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 710c60cb6cbd1b546a7c09d00ad23f76
+guid: 105b3495df9012845ad2b725551c09a3
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -56,7 +56,7 @@ TextureImporter:
   spriteTessellationMethod: 0
   spriteTessellationDetail: -1
   spriteGeometrySubdivision: -1
-  textureType: 1
+  textureType: 0
   textureShape: 1
   singleChannelComponent: 0
   flipbookRows: 1

@@ -321,7 +321,7 @@ namespace Roguelike.PlayModeTests
                 Assert.That(stage.Ghosted(slot), Is.False, "owned: not ghosted");
                 Assert.That(part.parent, Is.SameAs(mount), "at its mount");
                 WeaponMount m = WeaponStageValues.MountOf(slot);
-                Assert.That(Vector3.Distance(mount.localPosition, new Vector3(m.At.X * half.x, m.At.Y * half.y, m.At.Z * half.z)), Is.LessThan(1e-4f), "the mount where the values put it in the model's box");
+                Assert.That(Vector3.Distance(mount.localPosition, new Vector3(m.At.X * half.x, m.At.Y * half.y, m.At.Z * half.z) + stage.Shift), Is.LessThan(1e-4f), "the mount where the values put it in the model's box (the frame shifted back for the barrel part)");
                 Renderer[] shapes = part.GetComponentsInChildren<Renderer>();
                 Assert.That(shapes.Length, Is.GreaterThan(0));
                 Bounds b = shapes[0].bounds;
@@ -329,13 +329,15 @@ namespace Roguelike.PlayModeTests
                 Assert.That(Vector3.Distance(b.center, mount.position), Is.LessThan(0.3f * WeaponStageValues.ModelLength), slot + ": its shape is on the mount, not off it");
             }
             Vector3 sightBefore = stage.PartOn(WeaponSlot.Sight).position;
+            Quaternion sightTurnBefore = stage.PartOn(WeaponSlot.Sight).rotation;
             Vector3 local = stage.MountOn(WeaponSlot.Sight).parent.InverseTransformPoint(sightBefore);
             _menu.DragModel(new Vector2(120f, 40f));
             yield return null;
             yield return null;
             _menu.ReleaseModel();
             Vector3 sightAfter = stage.PartOn(WeaponSlot.Sight).position;
-            Assert.That(Vector3.Distance(sightBefore, sightAfter), Is.GreaterThan(0.05f), "it moved with the turn");
+            // Turned with the model (2026-11-26: by its turn, not by how far it moved: on the high-detail original the sight sits near the turn's middle).
+            Assert.That(Quaternion.Angle(sightTurnBefore, stage.PartOn(WeaponSlot.Sight).rotation), Is.GreaterThan(20f), "it turned with the model");
             Assert.That(Vector3.Distance(local, stage.MountOn(WeaponSlot.Sight).parent.InverseTransformPoint(sightAfter)), Is.LessThan(1e-4f), "and stayed where it sits on the model");
             Assert.That(stage.MountInPicture(WeaponSlot.Barrel, out Vector2 at), Is.True);
             Assert.That(at.x, Is.InRange(0f, 1f), "the muzzle in the picture, for the line from its row");
@@ -371,35 +373,43 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TheStage_ShowsWhateverIsAtTheModelsNamedPlace_AndHerPistolWithoutIt()
+        public IEnumerator TheStage_ShowsWhateverIsAtTheModelsNamedPlace_TheHighDetailOriginal_NeverHerFiguresPistol()
         {
             TrialsOn();
-            // The model at Resources/Weapon/Pistol (the new one from Meshy): the stage shows it.
+            // The model at Resources/Weapon/Pistol (the high-detail original of the pistol in her hands): the stage shows it.
             var named = Resources.Load<GameObject>(WeaponStageValues.ModelPath);
             Assert.That(named, Is.Not.Null, "the model is at the named place");
+            long triangles = 0;
+            foreach (MeshFilter f in named.GetComponentsInChildren<MeshFilter>(true))
+                for (int s = 0; s < f.sharedMesh.subMeshCount; s++) triangles += (long)f.sharedMesh.GetIndexCount(s) / 3;
+            Assert.That(triangles, Is.GreaterThan(400000), "the high-detail original (470,344 triangles), not her in-hand copy");
+            CharacterAnimation holding = Object.FindAnyObjectByType<CharacterAnimation>();
+            Assert.That(holding != null && holding.RightWeapon != null, Is.True);
+            Mesh inHand = holding.RightWeapon.GetComponentInChildren<MeshFilter>().sharedMesh;
+            Assert.That(inHand.GetIndexCount(0) / 3, Is.LessThan(10000), "her pistol in a run is still the in-hand copy (3,964 triangles)");
             yield return OpenUpgrades();
             WeaponStage stage = _menu.Stage;
             yield return Frames(() => stage.Texture != null);
             Assert.That(stage.ModelSource, Is.EqualTo(WeaponStage.Source.NamedPlace));
             Assert.That(stage.ModelMeshes, Is.EqualTo(named.GetComponentsInChildren<MeshFilter>(true).Select(f => f.sharedMesh).ToArray()), "its meshes, and nothing else");
             Assert.That(Mathf.Max(stage.Half.x, Mathf.Max(stage.Half.y, stage.Half.z)), Is.EqualTo(WeaponStageValues.ModelLength * 0.5f).Within(1e-3f), "its longest side the named length");
+            Assert.That(stage.Half.x, Is.EqualTo(WeaponStageValues.ModelLength * 0.5f).Within(1e-3f), "laid by ModelTurn with its length along x");
+            Assert.That(stage.Half.y, Is.GreaterThan(stage.Half.z * 2f), "upright: its height along y (half of it 0.31 of its length), its thickness along z (half 0.1)");
+            Assert.That(stage.ModelMeshes, Has.No.Member(inHand), "not her in-hand copy");
             yield return Tap(Key.Escape);
             yield return null;
             yield return null;
             Assert.That(WeaponStage.Current, Is.Null);
 
-            // Nothing there (the hook says so): her pistol from her character model.
+            // Nothing there (the hook says so): a pistol made of boxes, never her figure's pistol (the stage does not read her).
             WeaponStage.LoadHook = () => null;
             Assert.That(_menu.PickMain(MainLine.Upgrades), Is.True);
             yield return null;
             yield return null;
             stage = _menu.Stage;
             yield return Frames(() => stage.Texture != null);
-            Assert.That(stage.ModelSource, Is.EqualTo(WeaponStage.Source.HerPistol));
-            CharacterAnimation her = Object.FindAnyObjectByType<CharacterAnimation>();
-            Assert.That(her != null && her.RightWeapon != null, Is.True, "her pistol in her right hand");
-            Mesh hers = her.RightWeapon.GetComponentInChildren<MeshFilter>().sharedMesh;
-            Assert.That(stage.ModelMeshes, Does.Contain(hers), "her own pistol's mesh");
+            Assert.That(stage.ModelSource, Is.EqualTo(WeaponStage.Source.CodeMade));
+            Assert.That(stage.ModelMeshes, Has.No.Member(inHand), "not her figure's pistol");
             yield return Tap(Key.Escape);
             yield return null;
             yield return null;
