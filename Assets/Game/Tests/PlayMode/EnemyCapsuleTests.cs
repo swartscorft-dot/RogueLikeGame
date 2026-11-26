@@ -53,6 +53,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
             if (s_settings != null) s_settings.Values.UseModels = _wasOn;
             s_settings = null;
             if (_levels != null) Object.Destroy(_levels.gameObject);
@@ -94,6 +95,7 @@ namespace Roguelike.PlayModeTests
 
             // The guard dazed is tinted; a hit flashes.
             Enemy guard = made[2];
+            Roguelike.Rules.HitChipsValues.On = false; // work order 127: this pins the flash from before its order; on, a hit throws chips (HitChipsPlayTests)
             guard.Body.TakeHit(1, 1e6f);
             yield return null;
             Assert.That(guard.IsDazed, Is.True);

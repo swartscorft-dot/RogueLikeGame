@@ -56,6 +56,7 @@ namespace Roguelike.PlayModeTests
         public void CleanUp()
         {
             SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
+            Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
             ToonLookValues.On = true;
             foreach (GameObject g in _made) if (g != null) Object.Destroy(g);
             _made.Clear();
@@ -403,6 +404,7 @@ namespace Roguelike.PlayModeTests
             TrainingDummy dummy = Object.FindObjectsByType<TrainingDummy>(FindObjectsInactive.Exclude).OrderBy(t => (t.transform.position - _player.Position).sqrMagnitude).First();
             Damageable target = dummy.GetComponent<Damageable>();
             target.SetMaxHealth(100000);
+            Roguelike.Rules.HitChipsValues.On = false; // work order 127: this pins the flash from before its order; on, a hit throws chips (HitChipsPlayTests)
             target.TakeHit(1);
             yield return null;
             Assert.That(dummy.IsFlashing, Is.True, "the dummy flashes when hit");

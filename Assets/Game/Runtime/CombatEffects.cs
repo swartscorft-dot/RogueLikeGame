@@ -578,6 +578,7 @@ namespace Roguelike
             Vector3 feet = Feet(e);
             Later(e.ShownDeadFor(e.Values), () =>
             {
+                if (!HitChipsRules.RingWhenABodyGoes(HitChipsValues.On, HitChipsValues.RingWhenABodyGoes)) return; // work order 127: "du kan droppe den sirkelen når døde enemies despawner"
                 if (!Ask(FxMoment.BodyHidden, FxTier.Plain)) return;
                 Put(Band(FxShape.Outline, FxMoment.BodyHidden, FxTier.Plain, e != null ? Feet(e) : feet, Values.HiddenRing * k,
                          Values.HiddenRingSeconds, Values.BoneRim, Values.BoneCore));
@@ -725,7 +726,7 @@ namespace Roguelike
             }
             Later(e.ShownDeadFor(e.Values), () =>
             {
-                if (Ask(FxMoment.BodyHidden, FxTier.Plain))
+                if (HitChipsRules.RingWhenABodyGoes(HitChipsValues.On, HitChipsValues.RingWhenABodyGoes) && Ask(FxMoment.BodyHidden, FxTier.Plain)) // work order 127: its body's ring too; its death's ring above stays
                     Put(Band(FxShape.Outline, FxMoment.BodyHidden, FxTier.Plain, feet, Values.HiddenRing * KindScale(EnemyKind.Boss),
                              Values.HiddenRingSeconds, Values.BoneRim, Values.BoneCore));
             });

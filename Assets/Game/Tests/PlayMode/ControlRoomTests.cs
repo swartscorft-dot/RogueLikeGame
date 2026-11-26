@@ -60,6 +60,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void RestoreTimeAndInput()
         {
+            Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = true;
         }
@@ -136,6 +137,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Dummy_FlashesWhenHit_AndRefillsAfterItDies()
         {
             var dummy = _a.GetComponent<TrainingDummy>();
+            Roguelike.Rules.HitChipsValues.On = false; // work order 127: this pins the flash from before its order; on, a hit throws chips (HitChipsPlayTests)
             _a.TakeHit(10);
             yield return null;
             Assert.That(dummy.IsFlashing, Is.True);

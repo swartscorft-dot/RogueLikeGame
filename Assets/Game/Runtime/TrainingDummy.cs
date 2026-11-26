@@ -35,7 +35,9 @@ namespace Roguelike
 
         void OnDamaged(int amount)
         {
-            _flashUntil = Time.time + FlashSeconds;
+            // Work order 127: with its switch on the dummy follows the enemies' rule, chips of its own material and no flash.
+            if (HitChipsRules.Flashes(HitChipsValues.On)) _flashUntil = Time.time + FlashSeconds;
+            else HitChips.Hit(_damageable, amount);
             if (!_damageable.IsAlive) _deadSince = Time.time;
         }
 

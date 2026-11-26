@@ -103,6 +103,7 @@ namespace Roguelike
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
             // Work order 064: a crit's flash on the enemy is a hard white frame, with the shots' weight running.
             if (_dealtCrit && applied > 0 && FiringWeight.Running != null && target.TryGetComponent(out HitFlash flash)) flash.Crit();
+            if (_dealtCrit && applied > 0) HitChips.Crit(target); // work order 127: with its switch on, a crit's spray in place of that frame
             focus = applied > 0 ? GainFocus(applied * identity.FocusPerDamage) : 0f; // through the run's Keen focus (work order 025)
             if (tagged && !target.IsAlive) SpreadTag(target); // work order 017
             return applied;

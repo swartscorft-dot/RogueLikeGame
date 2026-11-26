@@ -56,6 +56,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
             BoneBreakValues.On = true; // work order 122
@@ -287,6 +288,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(guard.State, Is.EqualTo(EnemyState.Windup));
             Assume.That(guard.Look.Weight("Slam"), Is.GreaterThan(0.9f));
 
+            Roguelike.Rules.HitChipsValues.On = false; // work order 127: this pins the flash from before its order; on, a hit throws chips (HitChipsPlayTests)
             guard.Body.TakeHit(1, 1e6f);
             Assert.That(guard.IsDazed, Is.True);
             yield return null;
