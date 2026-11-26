@@ -187,7 +187,10 @@ namespace Roguelike
             PoseEntrance(_enterT);
         }
 
-        /// <summary>The intent of a skip (work order 130): as one of her action keys, Enter, Space or Esc. False when none plays.</summary>
+        /// <summary>
+        /// The intent of a skip (work order 130): as one of her action keys, Enter, Space or Esc. False when none plays. Not held to the
+        /// keys' skip grace (work order 140, <see cref="BossEntranceValues.SkipGrace"/>): the tests and tools that call it end it at once.
+        /// </summary>
         public bool SkipEntrance()
         {
             if (!_entering) return false;
@@ -217,7 +220,7 @@ namespace Roguelike
 
         bool SkipPressed()
         {
-            if (Time.frameCount == _enterStartFrame || _enterT < Entrance.SkipGraceSeconds) return false; // the press that walked her in is not one
+            if (Time.frameCount == _enterStartFrame || _enterT < Entrance.SkipGrace) return false; // the press that walked her in is not one; work order 140: nor one in its first 0.3 s (a press read only as it comes, so not remembered)
             Keyboard k = ChoiceKeys;
             if (k != null && (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame || k.spaceKey.wasPressedThisFrame || k.escapeKey.wasPressedThisFrame))
                 return true;

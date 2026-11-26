@@ -35,7 +35,17 @@ namespace Roguelike.Rules
         public float FocusNearer = -0.2f;       // m the close camera looks short of the boss's feet, toward the camera; below 0, past them: the boss stands a little lower on the screen, so the weapon over its head stays in the frame (0.6 in the first pictures); at -0.4 a foot its Idle steps forward went under the card's top
 
         // ---- The skip (the producer's addition) ----
-        public float SkipGraceSeconds = 0f;     // s after it begins before a key may end it: 0, at once (the order); raise it if a click as she walks in throws it away
+        public float SkipGraceSeconds = 0.3f;   // s of real time after it begins before a key may end it (work order 140: the producer's choice, told to him; 0 in work order 130, when a click as she walked in threw it away); a press before it does nothing and is not remembered
+
+        /// <summary>
+        /// Work order 140's fourth part, ON by default (the producer's choice, told to Kristian on 2026-11-26: with no grace a click as she
+        /// walked in threw the intro away). On: a key ends the intro only once <see cref="SkipGraceSeconds"/> of it have passed. Off: a key
+        /// ends it at once, as work order 130 built it (<see cref="SkipGrace"/> is 0). One switch for the whole game, so it is static.
+        /// </summary>
+        public static bool GraceOn = true;
+
+        /// <summary>The seconds of real time from its beginning in which no key ends it: <see cref="SkipGraceSeconds"/> with <see cref="GraceOn"/>, else 0.</summary>
+        public float SkipGrace => GraceOn ? Math.Max(0f, SkipGraceSeconds) : 0f;
 
         // ---- The card (in the interface's style: a slanted plate, Barlow Condensed; as the start menu's name plate) ----
         public float CardDelay = 0.15f;         // s into the hold before the card begins to show
