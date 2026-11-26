@@ -185,7 +185,7 @@ namespace Roguelike
             Screen = next;
             Note = "";
             Selected = 0;
-            if (next == MenuScreen.Main) StartMenuFlow.MainLines(ShowQuit, _main);
+            if (next == MenuScreen.Main) StartMenuFlow.MainLines(ShowQuit, SettingsScreenValues.On, _main); // work order 128: SETTINGS with its switch
             if (next == MenuScreen.Stats) RunHud.Current?.MakeMenuStats(this);
             _laidOut = false;
             Hold();
@@ -225,6 +225,7 @@ namespace Roguelike
         public bool Escape()
         {
             if (!Up) return false;
+            if (SettingsScreen.Holds) return SettingsScreen.Current.Escape(); // work order 128: back one step on the settings screen over it
             MenuScreen back = StartMenuFlow.Back(Screen);
             if (back == MenuScreen.None) Close();
             else SetScreen(back);
@@ -236,6 +237,7 @@ namespace Roguelike
         {
             if (Screen != MenuScreen.Main || !_main.Contains(line)) return false;
             Selected = _main.IndexOf(line);
+            if (line == MainLine.Settings) return SettingsScreen.Ensure().Open(SettingsFrom.StartMenu); // work order 128: the settings screen over the main menu
             if (line == MainLine.Quit)
             {
                 Close();
@@ -264,6 +266,11 @@ namespace Roguelike
             if (!StartMenuFlow.MayChoose(slot))
             {
                 Note = NotYet;
+                if (MenuHelpValues.On)
+                {
+                    Note = MenuHelpRules.RefusedSlot(S.Name); // the menus' help (StartMenuHelp.cs): a plain line, and the cursor back on her
+                    Selected = StartMenuFlow.HerSlot;
+                }
                 return false;
             }
             SetScreen(MenuScreen.Loadout);
@@ -374,6 +381,7 @@ namespace Roguelike
             if (levels.BetweenRunsUp && !StartMenuFlow.UsesBetweenRuns(Screen)) SetScreen(MenuScreen.Loadout);
             FollowItems();
             Hold();
+            if (SettingsScreen.Holds || SettingsScreen.KeysTakenThisFrame) return; // work order 128: the settings screen over it reads its own keys
             if (keys != null && _keysFrame != Time.frameCount && keys.anyKey.wasPressedThisFrame)
             {
                 _keysFrame = Time.frameCount;

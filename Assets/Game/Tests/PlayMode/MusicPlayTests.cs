@@ -83,6 +83,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             MusicPlayer.Scheduled -= OnTold;
             MusicPlayer.Landed -= OnLanded;
             if (_music != null) Object.Destroy(_music.gameObject);
@@ -421,6 +422,7 @@ namespace Roguelike.PlayModeTests
             _hud = RunHud.Ensure();
             AudioListener.volume = 0f; // the HUD put the game's own volume back on the listener
             yield return CalmInARun();
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             Assert.That(_hud.Escape(), Is.True, "paused");
             float until = Time.realtimeSinceStartup + 1f;
             while (_music.HeldNow > MusicPlayer.Values.HeldShare && Time.realtimeSinceStartup < until) yield return null;

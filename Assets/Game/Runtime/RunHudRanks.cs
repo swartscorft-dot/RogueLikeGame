@@ -54,6 +54,7 @@ namespace Roguelike
             MetaRank r = RankTable[rank];
             if (r == null) return false;
             BetweenRunsSelected = RankRowFirst + rank;
+            NoteRankTry(rank); // the menus' help (RunHudMenuHelp.cs): a try at what she cannot afford is answered; the press goes on as before
             if (MetaRanks.AtMost(_levels.BetweenRunsState, r)) return false;
             return _levels.BuyRank(r.Id) == MetaRankBuy.Bought;
         }

@@ -55,6 +55,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             ToonLookValues.On = true;
             foreach (GameObject g in _made) if (g != null) Object.Destroy(g);
             _made.Clear();
@@ -465,6 +466,7 @@ namespace Roguelike.PlayModeTests
             GeneratedLevels.Ensure();
             RunHud hud = RunHud.Ensure();
             yield return null;
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             Assert.That(hud.Escape(), Is.True, "paused");
             yield return null;
             List<RunHud.MenuLine> lines = hud.MenuLines.ToList();

@@ -61,6 +61,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             InterfaceStyle.ScreenForPictures = Vector2Int.zero;
             InterfaceStyle.Shared.Menus.Concept = true;
             if (_health != null) _health.Untouchable = false;
@@ -150,6 +151,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheSelectedRow_StandsOut_AndMovesWithTheArrows()
         {
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             yield return PausedInARun();
             Rect resume = _hud.PauseRowRect(0), next = _hud.PauseRowRect(1);
             Assert.That(resume.x, Is.GreaterThan(next.x), "the selected row (Resume, on opening) moved out to the right");
@@ -161,6 +163,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheLists_AreMadeWhenTheMenuOpens_AndWhenASettingChanges_NotEveryFrame_AndAFrameAllocatesNothing()
         {
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             _levels.StartRun(RunSeed);
             yield return null;
             int made = _hud.PauseListsMade, weapon = _hud.WeaponListsMade;

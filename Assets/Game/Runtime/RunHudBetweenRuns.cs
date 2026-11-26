@@ -68,6 +68,7 @@ namespace Roguelike
             if (_levels == null || !_levels.BetweenRunsUp || line < 0 || line >= BetweenRunsRows) return false;
             BetweenRunsSelected = line;
             if (line == 0) return _levels.StartFromBetweenRuns() != null;
+            NoteRackTry(line - 1); // the menus' help (RunHudMenuHelp.cs): a try at what she cannot afford is answered; the press goes on as before
             return _levels.UsePiece(Pieces[line - 1].Id);
         }
 

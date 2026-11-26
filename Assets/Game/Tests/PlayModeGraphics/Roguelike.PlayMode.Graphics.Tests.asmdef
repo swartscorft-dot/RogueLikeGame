@@ -1,0 +1,28 @@
+{
+    "name": "Roguelike.PlayMode.Graphics.Tests",
+    "rootNamespace": "Roguelike.PlayModeTests",
+    "references": [
+        "Roguelike.Rules",
+        "Roguelike.Runtime",
+        "Roguelike.Look",
+        "Roguelike.PlayMode.Tests",
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -194,6 +194,7 @@ namespace Roguelike
             }
             bool done = ClickBetweenCard(card);
             Tick(); // the screen's lines again now, so the cards say what changed
+            if (!done) refused = RefusalFor(card); // the menus' help (RunHudMenuHelp.cs): how many more Echoes are needed
             return done;
         }
 
@@ -376,7 +377,7 @@ namespace Roguelike
             }
             string note = menu.Note.Length > 0 ? menu.Note : _levels != null && _levels.BetweenRunsUp ? _levels.BetweenRunsNote : "";
             if (note.Length > 0)
-                TextLabel(new Rect(s.EchoesMargin, v.LayoutHeight - s.HintBottom - s.HintHeight - 40f, 1100f, 30f), note, InterfaceStyle.Text(false, s.NoteSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
+                TextLabel(new Rect(s.EchoesMargin, v.LayoutHeight - s.HintBottom - s.HintHeight - 40f, 1100f, 30f), note, InterfaceStyle.Text(false, s.NoteSize, TextAnchor.MiddleLeft), NoteInk(note, v), true); // the menus' help: a refusal in red
             if (menu.Screen == MenuScreen.Loadout) DrawMenuStart(menu.Selected == _menuCards.Count, v, m, s);
         }
 

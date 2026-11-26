@@ -60,6 +60,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            SettingsScreenValues.On = true; // work order 128: the switch as it ships, whatever a test set
             if (_player != null)
             {
                 _player.GetComponent<PlayerInputDriver>().InputSource = null;
@@ -287,6 +288,7 @@ namespace Roguelike.PlayModeTests
             GameSettings.SetGreybox(false, keep: false); // whatever this machine keeps for the greybox (it wins over the light): off for the test
             GeneratedLevel level = StyleRoom();
             yield return Frames(2);
+            SettingsScreenValues.On = false; // work order 128: this test pins the long Esc menu of before (the switch off); the short one is SettingsScreenPlayTests'
             Assert.That(_levels.Pause(), Is.True);
             yield return null;
             List<RunHud.MenuLine> lines = _hud.MenuLines.ToList();

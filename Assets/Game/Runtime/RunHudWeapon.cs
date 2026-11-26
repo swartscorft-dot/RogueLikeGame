@@ -81,6 +81,7 @@ namespace Roguelike
             List<WeaponAttachment> parts = WeaponRack.InSlotOrder(_levels.MetaValues);
             if (part < 0 || part >= parts.Count) return false;
             BetweenRunsSelected = BetweenRunsRows + part;
+            NotePartTry(part); // the menus' help (RunHudMenuHelp.cs): a try at what she cannot afford is answered; the press goes on as before
             return _levels.UseAttachment(parts[part].Id);
         }
 

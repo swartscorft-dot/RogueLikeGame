@@ -225,9 +225,9 @@ namespace Roguelike
                 _rowValueW.Add(_rowValues[i].Length > 0 ? InterfaceStyle.Measure(_rowValues[i], RowValueStyle(m)).x : 0f);
                 _rowKeyW.Add(_rowKeys[i].Length > 0 ? Mathf.Max(m.KeyCapHeight * 1.35f, InterfaceStyle.Measure(_rowKeys[i], cap).x + 18f) : 0f);
             }
-            for (int i = 0; i < s_Hint.Length; i++)
-                _hintW[i] = s_HintCap[i] ? Mathf.Max(m.KeyCapHeight * 1.2f, InterfaceStyle.Measure(s_Hint[i], cap).x + 16f)
-                                         : InterfaceStyle.Measure(s_Hint[i], words).x;
+            for (int i = 0; i < PauseHint.Length; i++)
+                _hintW[i] = PauseHintCap[i] ? Mathf.Max(m.KeyCapHeight * 1.2f, InterfaceStyle.Measure(PauseHint[i], cap).x + 16f)
+                                         : InterfaceStyle.Measure(PauseHint[i], words).x;
 
             float side = _statsH + (_statsH > 0f && _keysH > 0f ? m.SideGap : 0f) + _keysH;
             float viewWidth = LayoutViewWidth;
@@ -301,7 +301,7 @@ namespace Roguelike
                 if (w > (_keyCol[i] == -1 ? _colW * 2f + m.ColumnInnerGap : _colW)) problems.Add("key " + _keyCaps[i].Key + " is wider than its place");
             }
             float hint = 0f;
-            for (int i = 0; i < s_Hint.Length; i++) hint += _hintW[i] + (s_HintCap[i] ? 6f : 18f);
+            for (int i = 0; i < PauseHint.Length; i++) hint += _hintW[i] + (PauseHintCap[i] ? 6f : 18f);
             if (hint > _pl.Hint.W) problems.Add("the line of keys is wider than the rows");
             GUIStyle head = InterfaceStyle.Text(true, m.PanelHeadSize, TextAnchor.MiddleLeft), sub = InterfaceStyle.Text(false, m.PanelSubSize, TextAnchor.MiddleRight);
             if (InterfaceStyle.Measure(StatsHead, head).x + 24f + InterfaceStyle.Measure(StatsSub, sub).x + 50f > m.SideWidth - 2f * m.PanelPad) problems.Add("the stats' heading is wider than its panel");
@@ -425,16 +425,16 @@ namespace Roguelike
         {
             float x = r.x + 6f, h = m.KeyCapHeight;
             GUIStyle words = InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft);
-            for (int i = 0; i < s_Hint.Length; i++)
+            for (int i = 0; i < PauseHint.Length; i++)
             {
-                if (s_HintCap[i])
+                if (PauseHintCap[i])
                 {
-                    KeyCap(new Rect(x, r.y + (r.height - h) * 0.5f, _hintW[i], h), s_Hint[i], m, v);
+                    KeyCap(new Rect(x, r.y + (r.height - h) * 0.5f, _hintW[i], h), PauseHint[i], m, v);
                     x += _hintW[i] + 6f;
                 }
                 else
                 {
-                    TextLabel(new Rect(x + 2f, r.y, _hintW[i] + 6f, r.height), s_Hint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
+                    TextLabel(new Rect(x + 2f, r.y, _hintW[i] + 6f, r.height), PauseHint[i], words, InterfaceStyle.C(v.White, 0.8f), true);
                     x += _hintW[i] + 18f;
                 }
             }
@@ -870,6 +870,7 @@ namespace Roguelike
             _cardChipW.Clear();
             _cardNameW.Clear();
             _slotHeads.Clear();
+            _cardNeed.Clear(); // the menus' help (RunHudMenuHelp.cs)
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
             _rackCards = _weaponEnd = 0; // work order 099
@@ -935,6 +936,7 @@ namespace Roguelike
                 AddCard(rk.Name, MetaRanks.RankWords(s, rk), rkChip, RankCardText(s, mv, rk), rkLast ? 0 : s.Currency >= rkPrice ? 2 : 3, -1);
             }
 
+            MakeCardNeeds(); // the menus' help (RunHudMenuHelp.cs): what she cannot afford, drawn dimmer
             // The cards' height: the tallest one's words at the card's width.
             GUIStyle words = InterfaceStyle.Text(false, m.CardTextSize, TextAnchor.UpperLeft, true);
             float textW = m.CardWidth - 2f * m.ChipPad - v.Slant * m.CardHeight;
@@ -1088,7 +1090,9 @@ namespace Roguelike
             DrawHeadingPlate(heading, BetweenWord, v, m);
             TextLabel(new Rect(heading.x, heading.y, heading.width - 26f, heading.height - 8f), TrialWord, InterfaceStyle.Text(false, m.PanelSubSize + 3, TextAnchor.LowerRight), InterfaceStyle.C(v.Black, 0.7f));
             var block = new Rect(x0 + BetweenWidth(m) - m.BlockWidth, m.BetweenTop, m.BlockWidth, m.HeadingHeight);
-            InterfaceStyle.InkedPlate(block, block.center.y, v.Slant, v.HeavyOutline, v.Depth * 2f, InterfaceStyle.C(v.Gold), 0.8f);
+            RefusalMotion(-1, out float blockShake, out float blockFlash); // the menus' help: the Echoes flash red and shake at a refused try
+            block.x += blockShake;
+            InterfaceStyle.InkedPlate(block, block.center.y, v.Slant, v.HeavyOutline, v.Depth * 2f, Color.Lerp(InterfaceStyle.C(v.Gold), InterfaceStyle.C(v.Red), blockFlash), 0.8f);
             InterfaceStyle.Leaning(block, block.center.y, v.Slant, InterfaceStyle.C(v.Black, 0.9f));
             TextLabel(new Rect(block.x + 22f, block.y + 4f, block.width - 30f, 24f), _bCurrencyName, InterfaceStyle.Text(true, m.BlockLabelSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Gold));
             TextLabel(new Rect(block.x, block.y + 18f, block.width - 10f, block.height - 18f), _bCurrency, InterfaceStyle.Text(true, m.BlockNumberSize, TextAnchor.MiddleCenter), InterfaceStyle.C(v.White), true);
@@ -1148,7 +1152,8 @@ namespace Roguelike
 
             // The last thing tried, and the keys.
             float y = BetweenGridTop(m) + RackRows() * (_cardH + m.CardGap) + 4f;
-            TextLabel(new Rect(x0, y, RackWidth(m), m.EndLine), _bNote, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
+            string betweenNote = BetweenNoteNow(_bNote);
+            TextLabel(new Rect(x0, y, RackWidth(m), m.EndLine), betweenNote, InterfaceStyle.Text(false, m.EndLineSize, TextAnchor.MiddleLeft), NoteInk(betweenNote, v), true);
             y += m.EndLine + 6f;
             float x = x0 + 6f;
             GUIStyle words = InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft);
@@ -1196,10 +1201,12 @@ namespace Roguelike
             {
                 GUIStyle chip = InterfaceStyle.Text(true, m.CardTextSize, TextAnchor.MiddleCenter);
                 float w = Mathf.Min(r.width * 0.42f, _cardChipW[i]);
-                var c = new Rect(r.xMax - pad - w + lean - 8f, name.y + 6f, w, name.height - 12f);
+                RefusalMotion(i, out float chipShake, out float chipFlash); // the menus' help: a refused try's price flashes red and shakes
+                var c = new Rect(r.xMax - pad - w + lean - 8f + chipShake, name.y + 6f, w, name.height - 12f);
+                Color chipInk = Color.Lerp(stateInk, InterfaceStyle.C(v.Red), chipFlash);
                 InterfaceStyle.Slanted(c, kind == 0 ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.Black));
-                if (kind != 0) InterfaceStyle.SlantedFrame(c, stateInk, 2f);
-                TextLabel(c, _cardChip[i], chip, kind == 0 ? InterfaceStyle.C(v.Black) : stateInk);
+                if (kind != 0) InterfaceStyle.SlantedFrame(c, chipInk, 2f);
+                TextLabel(c, _cardChip[i], chip, kind == 0 ? InterfaceStyle.C(v.Black) : chipInk);
             }
             if (_cardSubLine[i].Length > 0)
             {
@@ -1209,6 +1216,7 @@ namespace Roguelike
             }
             TextLabel(new Rect(name.x + 2f, y + 2f, r.width - 2f * pad - 10f, r.yMax - y - 8f), _cardText[i], InterfaceStyle.Text(false, m.CardTextSize, TextAnchor.UpperLeft, true),
                                  InterfaceStyle.C(v.White, kind == 3 ? 0.6f : 0.88f));
+            VeilUnaffordable(i, r, pivot, slant, v); // the menus' help (RunHudMenuHelp.cs): what she cannot afford, dimmer before she tries
         }
     }
 }

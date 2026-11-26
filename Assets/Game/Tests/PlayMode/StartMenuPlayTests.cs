@@ -75,6 +75,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            MenuHelpValues.On = true; // the follow-up to work order 128: the switch as it ships
             InterfaceStyle.ScreenForPictures = Vector2Int.zero;
             if (_keyboard != null) InputSystem.RemoveDevice(_keyboard);
             _keyboard = null;
@@ -244,6 +245,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheQuestionMarkSlots_Refuse_ByKeysAndByMouse()
         {
+            MenuHelpValues.On = false; // the follow-up to work order 128: this test pins the menus as they were (RUN LOADOUT refusing after a dark slot); with the help, MenuHelpPlayTests
             yield return OpenOn(MenuScreen.Character);
             yield return Tap(Key.RightArrow);
             Assert.That(_menu.Selected, Is.EqualTo(1));

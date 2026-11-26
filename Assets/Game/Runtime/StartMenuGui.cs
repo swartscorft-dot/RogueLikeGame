@@ -60,7 +60,7 @@ namespace Roguelike
         static readonly bool[] s_CharacterHintCap = { true, true, false };
 
         public static readonly string[] TabWords = { "START RUN", "UPGRADES", "STATS" };
-        public static readonly string[] MainWords = { "START RUN", "UPGRADES", "STATS", "QUIT" };
+        public static readonly string[] MainWords = { "START RUN", "UPGRADES", "STATS", "QUIT", "SETTINGS" }; // SETTINGS: work order 128
         public const string BackWords = "BACK", NextWords = "RUN LOADOUT  >", EchoesWord = "ECHOES", TrialOffWord = "trial off", QuestionMark = "?";
 
         /// <summary>The view's width in the layout (1080 high).</summary>
@@ -88,8 +88,8 @@ namespace Roguelike
             switch (Screen)
             {
                 case MenuScreen.Main: _hint = s_MainHint; _hintCap = s_MainHintCap; break;
-                case MenuScreen.Character: _hint = s_CharacterHint; _hintCap = s_CharacterHintCap; break;
-                case MenuScreen.Loadout: _hint = s_LoadoutHint; _hintCap = s_LoadoutHintCap; break;
+                case MenuScreen.Character: _hint = MenuHelpValues.On ? CharacterHintHelp : s_CharacterHint; _hintCap = MenuHelpValues.On ? s_CharacterHintHelpCap : s_CharacterHintCap; break; // the menus' help (StartMenuHelp.cs)
+                case MenuScreen.Loadout: _hint = MenuHelpValues.On ? s_LoadoutHintHelp : s_LoadoutHint; _hintCap = MenuHelpValues.On ? s_LoadoutHintHelpCap : s_LoadoutHintCap; break;
                 case MenuScreen.Upgrades: _hint = s_UpgradesHint; _hintCap = s_UpgradesHintCap; break;
                 default: _hint = s_StatsHint; _hintCap = s_StatsHintCap; break;
             }
@@ -109,6 +109,7 @@ namespace Roguelike
                 for (int i = 0; i < s.Slots; i++) _hits.Add(new Hit { R = SlotRect(i, s), Kind = HitKind.Slot, Index = i });
                 _hits.Add(new Hit { R = BackRect(s), Kind = HitKind.Back });
                 _hits.Add(new Hit { R = NextRect(s), Kind = HitKind.Next });
+                if (MenuHelpValues.On) _hits.Add(new Hit { R = NamePlateHit(s), Kind = HitKind.Next }); // the menus' help: a click on her name plate goes on as Enter does
             }
             else if (hud != null)
             {
@@ -175,7 +176,7 @@ namespace Roguelike
         /// <summary>A click at a point of the 1080 layout: what is under it is done (the drawing's buttons do the same). False over nothing.</summary>
         public bool ClickAt(Vector2 point)
         {
-            if (!Up || !HitAt(point, out HitKind kind, out int index)) return false;
+            if (!Up || SettingsScreen.Holds || !HitAt(point, out HitKind kind, out int index)) return false; // work order 128: not under the settings screen
             return Act(kind, index);
         }
 
@@ -187,7 +188,7 @@ namespace Roguelike
                 case HitKind.MainLine: return index < _main.Count && PickMain(_main[index]);
                 case HitKind.Slot: return ChooseSlot(index);
                 case HitKind.Back: return Escape();
-                case HitKind.Next: return ChooseSlot(Selected);
+                case HitKind.Next: return GoOn(); // the menus' help (StartMenuHelp.cs): on with her wherever the cursor stands
                 case HitKind.Item: return UseItem(index);
                 case HitKind.StrikeLess:
                     Selected = index;
@@ -220,12 +221,19 @@ namespace Roguelike
             {
                 bool first = float.IsNaN(_mouse.x);
                 _mouse = e.mousePosition;
-                if (!first) Hover(_mouse);
+                if (!first && !SettingsScreen.Holds) Hover(_mouse); // work order 128: not under the settings screen
             }
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
             StartMenuValues s = m.Start;
             DrawBackdrop(viewWidth, v, s);
+            if (SettingsScreen.Holds)
+            {
+                // Work order 128: the settings screen over the menu draws itself; her picture and its veil stay under it.
+                GUI.matrix = before;
+                GUI.color = colorBefore;
+                return;
+            }
             switch (Screen)
             {
                 case MenuScreen.Main: DrawMain(v, m, s); break;
@@ -248,7 +256,7 @@ namespace Roguelike
         {
             float h = ViewHeight;
             Texture2D picture = Picture;
-            bool bare = Screen == MenuScreen.Main || Screen == MenuScreen.Character;
+            bool bare = (Screen == MenuScreen.Main || Screen == MenuScreen.Character) && !SettingsScreen.Holds; // work order 128: veiled under the settings screen
             if (picture != null)
             {
                 InterfaceStyle.Fill(new Rect(0f, 0f, w, h), InterfaceStyle.C(v.Black));
@@ -264,6 +272,16 @@ namespace Roguelike
                 GUI.DrawTexture(new Rect(0f, 0f, s.LeftShadeWidth, h), Shade, ScaleMode.StretchToFill);
             }
             else InterfaceStyle.Fill(new Rect(0f, 0f, w, h), InterfaceStyle.C(v.Black, s.PanelVeil));
+        }
+
+        /// <summary>
+        /// The backdrop under the settings screen opened from the Esc menu (the follow-up to work order 128: nothing of the run's
+        /// HUD may read through it): her picture, or the flat backdrop without it, under the panels' veil, opaque, as the start menu's.
+        /// </summary>
+        public void DrawSettingsBackdrop(float w)
+        {
+            LoadPicture();
+            DrawBackdrop(w, InterfaceStyle.V, S);
         }
 
         Texture2D _shade;
@@ -289,7 +307,7 @@ namespace Roguelike
         }
 
         /// <summary>The flat backdrop when her picture is missing: black, a pale slab and one teal and one red stripe leaning hard, a patch of dots; restrained.</summary>
-        static void FlatBackdrop(float w, float h, InterfaceValues v)
+        internal static void FlatBackdrop(float w, float h, InterfaceValues v)
         {
             float pivot = h * 0.5f;
             InterfaceStyle.Fill(new Rect(0f, 0f, w, h), InterfaceStyle.C(v.Black));
@@ -372,6 +390,7 @@ namespace Roguelike
                         Label(r, s.Name, InterfaceStyle.Text(true, 19, TextAnchor.MiddleCenter), InterfaceStyle.C(v.Black), false);
                     }
                     InterfaceStyle.LeaningFrame(new Rect(r.x - 4f, r.y - 4f, r.width + 8f, r.height + 8f), r.center.y, 0f, InterfaceStyle.C(v.Teal), cursor ? 6f : 4f);
+                    if (MenuHelpValues.On) DrawChosen(r, v); // the menus' help: she is the one chosen
                 }
                 else
                 {
@@ -381,7 +400,8 @@ namespace Roguelike
                 }
                 if (cursor) InterfaceStyle.Slashes(r.xMax + 2f, r.y - 26f, 20f, 5f, 2, InterfaceStyle.C(v.Red));
             }
-            if (Note.Length > 0) InterfaceStyle.Line(panel.center.x, panel.y - 96f, Note);
+            if (Note.Length > 0 && MenuHelpValues.On) DrawRefusedSlot(panel, v); // the menus' help: a plain line on a plate over the row
+            else if (Note.Length > 0) InterfaceStyle.Line(panel.center.x, panel.y - 96f, Note);
             DrawHint(new Rect(panel.x + 6f, panel.y - 38f, panel.width, 30f), v, m);
 
             // BACK and the step on.
@@ -430,7 +450,9 @@ namespace Roguelike
             }
             // His Echoes, small.
             Rect e = EchoesRect(s);
-            InterfaceStyle.InkedPlate(e, e.center.y, v.Slant, v.HeavyOutline * 0.7f, v.Depth, InterfaceStyle.C(v.White, 0.5f), 0.6f);
+            float echoesFlash = 0f;
+            if (RunHud.Current != null) e.x += RunHud.Current.EchoesShakeNow(out echoesFlash); // the menus' help: the Echoes flash red and shake at a refused try
+            InterfaceStyle.InkedPlate(e, e.center.y, v.Slant, v.HeavyOutline * 0.7f, v.Depth, Color.Lerp(InterfaceStyle.C(v.White, 0.5f), InterfaceStyle.C(v.Red), echoesFlash), 0.6f);
             InterfaceStyle.Leaning(e, e.center.y, v.Slant, InterfaceStyle.C(v.Black, 0.94f));
             InterfaceStyle.PipRow(new Rect(e.x + 22f, e.center.y - 9f, 18f, 18f), 1, InterfaceStyle.C(v.Gold));
             bool trial = EchoesKnown(out int echoes);
@@ -542,6 +564,7 @@ namespace Roguelike
             float hint = 0f;
             for (int i = 0; i < _hintW.Count; i++) hint += _hintW[i] + (_hintCap[i] ? 6f : 18f);
             Fits("the line of keys is wider than its place", hint, Screen == MenuScreen.Character ? SlotsPanelRect(s).width : _viewWidth - 2f * s.EchoesMargin - (Screen == MenuScreen.Loadout ? s.StartWidth + 30f : 0f));
+            HelpTextOutside(problems); // the menus' help
             string panels = RunHud.Current != null && Screen != MenuScreen.Main && Screen != MenuScreen.Character ? RunHud.Current.MenuTextOutside(this) : "";
             if (panels.Length > 0) problems.Add(panels);
             return string.Join("; ", problems);
