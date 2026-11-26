@@ -131,6 +131,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(w.Frames.FindAll(f => f.phase == SkillPhase.Startup && !f.shown).Count, Is.LessThanOrEqualTo(1), "through the whole cast");
             Assert.That(worstOff, Is.LessThan(Metres), "toward the aim it was pressed with, its half width to each side");
             Assert.That(w.HiddenThroughout(SkillPhase.Recovery), Is.True, "gone the moment its shot resolves");
+            Assert.That(w.CountIn(SkillPhase.None), Is.GreaterThan(0), "watched past its end");
+            Assert.That(w.HiddenThroughout(SkillPhase.None), Is.True, "and not left standing after it");
         }
 
         [UnityTest]
@@ -159,6 +161,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(w.ShownIn(SkillPhase.Startup), Is.True, "the outline stands during its cast");
             Assert.That(worst, Is.LessThan(Metres), "a circle of its reach (" + s.Range + " m) round her");
             Assert.That(w.HiddenThroughout(SkillPhase.Recovery), Is.True, "gone as it fires");
+            Assert.That(w.HiddenThroughout(SkillPhase.None), Is.True, "and not left standing after it");
         }
 
         [UnityTest]
@@ -173,6 +176,7 @@ namespace Roguelike.PlayModeTests
             w.Last = _player.SkillPhase;
             yield return Watching(w, s.Startup + 0.5f);
             _player.ReleaseSkill(slot);
+            w.Last = _player.SkillPhase; // let go here: the frame after is judged by the phase after the release
             yield return Watching(w, s.Recovery + 0.3f);
             Assert.That(w.ShownIn(SkillPhase.Startup), Is.True, "from the press");
             Assert.That(w.ShownIn(SkillPhase.Channel), Is.True, "while it is held and fires");
