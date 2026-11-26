@@ -577,9 +577,12 @@ namespace Roguelike
             if (st != null && sel >= 0 && sel < _tabItems.Count && st.MountInPicture(_tabItems[sel].Slot, out Vector2 at))
             {
                 Rect row = R(PlanRow(menu, sel));
-                var from = new Vector2(row.xMax + 40f, row.center.y);
+                var from = new Vector2(row.xMax + 30f, row.center.y); // in the gap between the lists and the stage, clear of both frames
                 var to = new Vector2(stage.x + at.x * stage.width, stage.y + at.y * stage.height);
-                Wire(from, to, InterfaceStyle.C(v.Teal, 0.9f), 2f);
+                // A row lower than the stage (the grips') goes up the gap beside it first, so the line never runs under the part's panel.
+                var bend = new Vector2(from.x, Mathf.Clamp(from.y, stage.y + 12f, stage.yMax - 12f));
+                if (bend.y != from.y) Wire(from, bend, InterfaceStyle.C(v.Teal, 0.9f), 2f);
+                Wire(bend, to, InterfaceStyle.C(v.Teal, 0.9f), 2f);
                 InterfaceStyle.Fill(new Rect(to.x - 5f, to.y - 5f, 10f, 10f), InterfaceStyle.C(v.Teal));
                 InterfaceStyle.Fill(new Rect(to.x - 2f, to.y - 2f, 4f, 4f), InterfaceStyle.C(v.Black));
                 InterfaceStyle.Fill(new Rect(from.x - 4f, from.y - 4f, 8f, 8f), InterfaceStyle.C(v.Teal));
@@ -631,7 +634,10 @@ namespace Roguelike
             float length = d.magnitude;
             if (length < 1f) return;
             Matrix4x4 before = GUI.matrix;
-            GUIUtility.RotateAroundPivot(Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg, from);
+            // Turned about its start in the layout's own space (GUIUtility.RotateAroundPivot turns about the point on the screen
+            // unscaled: at 1280 by 720 the line missed its mount, the pictures of 2026-11-26).
+            var at = new Vector3(from.x, from.y, 0f);
+            GUI.matrix = before * Matrix4x4.TRS(at, Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg), Vector3.one) * Matrix4x4.Translate(-at);
             GUI.color = c;
             GUI.DrawTexture(new Rect(from.x, from.y - thick * 0.5f, length, thick), Texture2D.whiteTexture);
             GUI.matrix = before;
