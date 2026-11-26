@@ -36,7 +36,8 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_IsOnByDefault_AndTheValuesAreTheFirstGuesses()
         {
             Assert.That(PartRageValues.On, Is.True, "on by default (the order's point 6)");
-            Assert.That(V.RestShare, Is.EqualTo(0.5f), "the rest cut to half (the order's first guess)");
+            Assert.That(V.RestShare, Is.EqualTo(0.5f), "the rest cut to half (the order's first guess): the shooters, the casters, the warder");
+            Assert.That(V.MeleeRestShare, Is.EqualTo(0.75f), "the melee kinds' rest cut to three quarters (the merge of 2026-11-26, \"Nærkamp raser svakere\")");
             Assert.That(V.ShotDegrees, Is.EqualTo(12f), "a shot or a bolt up to 12 degrees to either side");
             Assert.That(V.ChargeDegrees, Is.GreaterThan(0f).And.LessThan(V.ShotDegrees), "the charge: a smaller angle");
             Assert.That(V.StrikeDegrees, Is.EqualTo(0f), "a melee strike's aim left alone");
@@ -102,8 +103,8 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- Fires much more often ----------------
 
-        /// <summary>A brain stepped every millisecond with her 8 m away: when its wind-ups begin and when it strikes.</summary>
-        static (List<float> windups, List<float> strikes) Run(EnemyBrain brain, EnemyAttackDefinition attack, float seconds)
+        /// <summary>A brain stepped every millisecond with her 8 m away (or at <paramref name="distance"/>): when its wind-ups begin and when it strikes.</summary>
+        static (List<float> windups, List<float> strikes) Run(EnemyBrain brain, EnemyAttackDefinition attack, float seconds, float distance = 8f)
         {
             var values = new EnemyValues { Health = 800, AggroRange = 14f, LeashRange = 26f, Attacks = new[] { attack } };
             var windups = new List<float>();
@@ -113,7 +114,7 @@ namespace Roguelike.Rules.Tests
             for (int i = 0; i <= steps; i++)
             {
                 float t = i * 0.001f;
-                bool struck = brain.Step(t, 8f, true, true, values);
+                bool struck = brain.Step(t, distance, true, true, values);
                 if (brain.State == EnemyState.Windup && before != EnemyState.Windup) windups.Add(t);
                 if (struck) strikes.Add(t);
                 before = brain.State;
@@ -125,8 +126,8 @@ namespace Roguelike.Rules.Tests
         public void TheRestIsCut_AndTheWindupIsNot()
         {
             EnemyAttackDefinition arrow = new ShooterValues().Arrows[0];
-            var whole = new EnemyBrain { RestShare = PartRageRules.RestShare(false, V) };
-            var raging = new EnemyBrain { RestShare = PartRageRules.RestShare(true, V) };
+            var whole = new EnemyBrain { RestShare = PartRageRules.RestShare(EnemyKind.Shooter, false, V) };
+            var raging = new EnemyBrain { RestShare = PartRageRules.RestShare(EnemyKind.Shooter, true, V) };
             Assert.That(whole.RestShare, Is.EqualTo(1f), "calm: today's rest");
             Assert.That(raging.RestShare, Is.EqualTo(V.RestShare), "enraged: its share");
             var w = Run(whole, arrow, 12f);
@@ -140,6 +141,39 @@ namespace Roguelike.Rules.Tests
                 Assert.That(r.windups[i + 1] - r.windups[i], Is.EqualTo(arrow.Windup + arrow.Recovery * V.RestShare).Within(Step), "enraged: 0.9 + 0.9 s");
             }
             Assert.That(r.strikes.Count, Is.GreaterThan(w.strikes.Count), "more strikes in the same time");
+        }
+
+        [Test]
+        public void TheMeleeKinds_RageWeaker_WithTheirOwnShare_AndTheOthersKeepTheHalf()
+        {
+            // The merge of 2026-11-26 (Kristian's tick of 2026-11-25, "Nærkamp raser svakere"): the kinds that strike in reach stand
+            // three quarters of their rest, the shooters, the casters and the warder a half; the boss never rages.
+            PartRageValues.On = true;
+            var melee = new[] { EnemyKind.Swarmer, EnemyKind.Brute, EnemyKind.Guard, EnemyKind.Lancer, EnemyKind.Bomber };
+            var ranged = new[] { EnemyKind.Shooter, EnemyKind.Caster, EnemyKind.Warder };
+            foreach (EnemyKind kind in s_Kinds)
+            {
+                bool isMelee = Array.IndexOf(melee, kind) >= 0, isRanged = Array.IndexOf(ranged, kind) >= 0;
+                Assert.That(isMelee || isRanged || kind == EnemyKind.Boss, Is.True, kind + ": a kind this test does not know (say whether it strikes in reach)");
+                Assert.That(PartRageRules.Melee(kind), Is.EqualTo(isMelee), kind + ": melee");
+                if (isMelee) Assert.That(PartRageRules.RestShare(kind, true, V), Is.EqualTo(0.75f), kind + ": three quarters of its rest");
+                if (isRanged) Assert.That(PartRageRules.RestShare(kind, true, V), Is.EqualTo(0.5f), kind + ": half its rest");
+                Assert.That(PartRageRules.RestShare(kind, false, V), Is.EqualTo(1f), kind + ": calm, its whole rest");
+            }
+
+            // And a brain stepped by it: the brute's Stroke, its wind-up kept, three quarters of its rest.
+            EnemyAttackDefinition stroke = null;
+            foreach (EnemyAttackDefinition a in MeleeAttacks.Brute()) if (a.Name == MeleeAttacks.Stroke) stroke = a;
+            Assert.That(stroke, Is.Not.Null);
+            var raging = new EnemyBrain { RestShare = PartRageRules.RestShare(EnemyKind.Brute, true, V) };
+            var r = Run(raging, stroke, 12f, 0.5f * (stroke.MinDistance + stroke.MaxDistance)); // she in its reach
+            const float Step = 0.0025f;
+            Assert.That(r.windups.Count, Is.GreaterThanOrEqualTo(4), "it strikes in its reach");
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.That(r.strikes[i] - r.windups[i], Is.EqualTo(stroke.Windup).Within(Step), "enraged: the same wind-up");
+                Assert.That(r.windups[i + 1] - r.windups[i], Is.EqualTo(stroke.Windup + stroke.Recovery * 0.75f).Within(Step), "enraged: three quarters of its rest");
+            }
         }
 
         // ---------------- Aims worse ----------------
@@ -216,7 +250,7 @@ namespace Roguelike.Rules.Tests
             PartRageValues.On = false;
             foreach (EnemyKind kind in s_Kinds)
             {
-                Assert.That(PartRageRules.RestShare(true, V), Is.EqualTo(1f), "the whole rest");
+                Assert.That(PartRageRules.RestShare(kind, true, V), Is.EqualTo(1f), kind + ": the whole rest");
                 Assert.That(PartRageRules.Angle(kind, true, 1.0, V), Is.EqualTo(0f), kind + ": no angle");
                 Assert.That(PartRageRules.Angle(kind, true, -0.37, V), Is.EqualTo(0f), kind + ": no angle");
             }
@@ -235,7 +269,7 @@ namespace Roguelike.Rules.Tests
             {
                 var values = new EnemyValues { Health = 800, AggroRange = 14f, LeashRange = 26f, Attacks = new[] { attack } };
                 var today = new EnemyBrain();
-                var off = new EnemyBrain { RestShare = PartRageRules.RestShare(true, V) };
+                var off = new EnemyBrain { RestShare = PartRageRules.RestShare(EnemyKind.Brute, true, V) };
                 float near = Math.Max(attack.MinDistance, Math.Min(attack.MaxDistance, 0.5f * (attack.MinDistance + attack.MaxDistance)));
                 for (int i = 0; i < 20000; i++)
                 {
@@ -261,9 +295,11 @@ namespace Roguelike.Rules.Tests
         public void ACalmEnemy_AttacksAsToday_WithTheSwitchOn()
         {
             PartRageValues.On = true;
-            Assert.That(PartRageRules.RestShare(false, V), Is.EqualTo(1f));
             foreach (EnemyKind kind in s_Kinds)
+            {
+                Assert.That(PartRageRules.RestShare(kind, false, V), Is.EqualTo(1f), kind + ": its whole rest");
                 Assert.That(PartRageRules.Angle(kind, false, 1.0, V), Is.EqualTo(0f), kind.ToString());
+            }
         }
     }
 }

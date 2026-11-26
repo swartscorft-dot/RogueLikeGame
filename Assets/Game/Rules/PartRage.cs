@@ -32,13 +32,23 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The share of its rest after a strike (an attack's <see cref="EnemyAttackDefinition.Recovery"/>) an enraged enemy stands
-        /// before it may begin the next: a half. The producer's reading of "fyrer av mye oftere": the rest between attacks is cut, the
+        /// before it may begin the next: a half (the shooters, the casters and the warder; since the merge of 2026-11-26 the melee
+        /// kinds have their own, <see cref="MeleeRestShare"/>). The producer's reading of "fyrer av mye oftere": the rest between attacks is cut, the
         /// wind-up is NOT (she must still read and dodge each attack), so a shooter's arrow comes every 0.9 + 0.9 = 1.8 s instead of
         /// 0.9 + 1.8 = 2.7 s, half as many again. 1 is today's rest; 0 would leave none. A skill's own cooldown
         /// (<see cref="EnemyAttackDefinition.Cooldown"/>), the turns to attack (<see cref="AttackTurns"/>) and the rule that a shooter
         /// draws only on screen (<see cref="RangedOpeningRules"/>) are not touched.
         /// </summary>
         public float RestShare = 0.5f;
+
+        /// <summary>
+        /// The share of its rest after a strike an enraged MELEE kind stands (the kinds that strike in reach, <see cref="PartRageRules.Melee"/>:
+        /// the swarmer, the brute, the guard, the lancer, and the bomber, whose blast has no rest): three quarters. Kristian's tick of
+        /// 2026-11-25, "Nærkamp raser svakere" (melee rages weaker): at <see cref="RestShare"/>'s half the brute's Stroke went from
+        /// 545 to 828 damage a minute in her reach, which he found too much; at 0.75 it is 658 (PartRageMeasureTests). The shooters, the casters and the warder
+        /// keep <see cref="RestShare"/>. 1 is today's rest (the merge of 2026-11-26).
+        /// </summary>
+        public float MeleeRestShare = 0.75f;
 
         /// <summary>
         /// Degrees to either side a shot or a bolt (the archer's arrows, the caster's orbs, the warder's bolt) is thrown off by at
@@ -127,11 +137,19 @@ namespace Roguelike.Rules
         }
 
         /// <summary>
-        /// The share of its rest after a strike it stands: <see cref="PartRageValues.RestShare"/> while enraged with the switch on,
-        /// else exactly 1 (today's rest).
+        /// Does this kind strike in reach (the merge of 2026-11-26, "Nærkamp raser svakere"): the swarmer, the brute, the guard (their
+        /// strikes at arm's length), the lancer (its charge meets her body) and the bomber (its blast round itself; it has no rest, so
+        /// its share changes nothing). Not the shooter, the caster or the warder (shots and bolts that fly), nor the boss (never rages).
         /// </summary>
-        public static float RestShare(bool enraged, PartRageValues v) =>
-            PartRageValues.On && enraged && v != null ? Math.Max(0f, v.RestShare) : 1f;
+        public static bool Melee(EnemyKind kind) =>
+            kind == EnemyKind.Swarmer || kind == EnemyKind.Brute || kind == EnemyKind.Guard || kind == EnemyKind.Lancer || kind == EnemyKind.Bomber;
+
+        /// <summary>
+        /// The share of its rest after a strike this kind stands: while enraged with the switch on, <see cref="PartRageValues.MeleeRestShare"/>
+        /// for a melee kind (<see cref="Melee"/>) and <see cref="PartRageValues.RestShare"/> for the others; else exactly 1 (today's rest).
+        /// </summary>
+        public static float RestShare(EnemyKind kind, bool enraged, PartRageValues v) =>
+            PartRageValues.On && enraged && v != null ? Math.Max(0f, Melee(kind) ? v.MeleeRestShare : v.RestShare) : 1f;
 
         /// <summary>
         /// The angle (degrees, + turns to the left seen from above) an attack's aim is thrown off by: <paramref name="signed"/> (a

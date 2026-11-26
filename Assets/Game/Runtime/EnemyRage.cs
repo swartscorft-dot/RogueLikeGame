@@ -12,7 +12,8 @@ namespace Roguelike
     /// (<see cref="PartRageRules.Due"/>: the rules value, not the picture, so the same with 122's look off or with no model) it is
     /// enraged until it dies; standing up again (the practice brute) it is whole and calm. Enraged, with the switch on:
     ///
-    /// - its brain stands <see cref="PartRageValues.RestShare"/> of each attack's rest after the strike (<see cref="EnemyBrain.RestShare"/>);
+    /// - its brain stands <see cref="PartRageValues.RestShare"/> of each attack's rest after the strike, a melee kind
+    ///   <see cref="PartRageValues.MeleeRestShare"/> (<see cref="EnemyBrain.RestShare"/>, <see cref="PartRageRules.RestShare"/>);
     ///   the wind-up is never touched;
     /// - at the start of each wind-up, where its aim is fixed today, it draws one angle from its own seeded stream
     ///   (<see cref="PartRageRules.Seed"/>: the floor's seed, the floor and its place's name), within its kind's width
@@ -62,7 +63,7 @@ namespace Roguelike
                 _enraged = true;
                 _enragedAt = now;
             }
-            return PartRageRules.RestShare(IsEnraged, PartRageValues.Live);
+            return PartRageRules.RestShare(Kind, IsEnraged, PartRageValues.Live);
         }
 
         /// <summary>

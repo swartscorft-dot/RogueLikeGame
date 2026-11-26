@@ -12,7 +12,9 @@ namespace Roguelike.Rules.Tests
     /// kind's usual range (the middle of the band it keeps), and so its expected damage a minute (the attack's own damage, before the
     /// floor's scale). A shot is flown by the game's own projectile rule (<see cref="ProjectileRules.Step"/>, the arrow led as the
     /// archer leads it, the orb aimed where she is), the charge by the lancer's own (<see cref="LancerCharge"/>); the angle is spread
-    /// evenly over its width, as the stream draws it. Attacks a minute are the wind-up and the rest alone, back to back: the turns to
+    /// evenly over its width, as the stream draws it. A kind's enraged rest is its own share (<see cref="PartRageRules.RestShare"/>:
+    /// the melee kinds, the lancer among them, <see cref="PartRageValues.MeleeRestShare"/>, the others <see cref="PartRageValues.RestShare"/>;
+    /// the merge of 2026-11-26, "Nærkamp raser svakere"), and the melee lines state it at both. Attacks a minute are the wind-up and the rest alone, back to back: the turns to
     /// attack, the screen rule, her cover and its walking all come on top, the same calm and enraged. The table is written to the
     /// test's output (and asserted only where it must hold).
     /// </summary>
@@ -111,12 +113,13 @@ namespace Roguelike.Rules.Tests
         static Row Measure(string name, EnemyKind kind, float range, params Shot[] mix)
         {
             float width = PartRageRules.Degrees(kind, V);
+            float share = Share(kind);
             double calmTime = 0, rageTime = 0;
             var r = new Row { Name = name, Range = range };
             foreach (Shot s in mix)
             {
                 calmTime += s.Attack.Windup + s.Besides + s.Attack.Recovery;
-                rageTime += s.Attack.Windup + s.Besides + s.Attack.Recovery * V.RestShare;
+                rageTime += s.Attack.Windup + s.Besides + s.Attack.Recovery * share;
                 double a = HitsPerAttack(s, range, 0f, false), b = HitsPerAttack(s, range, width, false);
                 double c = HitsPerAttack(s, range, 0f, true), d = HitsPerAttack(s, range, width, true);
                 r.CalmStanding += a / mix.Length; r.RageStanding += b / mix.Length; r.CalmRunning += c / mix.Length; r.RageRunning += d / mix.Length;
@@ -129,6 +132,12 @@ namespace Roguelike.Rules.Tests
             r.RageDpmStanding *= 60.0 / rageTime; r.RageDpmRunning *= 60.0 / rageTime;
             return r;
         }
+
+        /// <summary>The kind's own share of its rest while enraged with the switch on (the rules' choice, not the static switch's state).</summary>
+        static float Share(EnemyKind kind) => PartRageRules.Melee(kind) ? V.MeleeRestShare : V.RestShare;
+
+        /// <summary>A melee attack's damage a minute in her reach, every strike landing, at this share of its rest.</summary>
+        static double MeleeDamageAMinute(EnemyAttackDefinition a, float share) => 60.0 / (a.Windup + a.Recovery * share) * a.Damage;
 
         static Shot ArrowShot(string name, int count = 1) =>
             new Shot { Attack = Find(Shooter.Arrows, name), As = Flies.Arrow, Count = count, Apart = Shooter.FanDegrees, Out = Shooter.BodyRadius + 0.2f };
@@ -162,12 +171,18 @@ namespace Roguelike.Rules.Tests
             return rows;
         }
 
-        /// <summary>A melee kind's ordinary attack: its aim is left alone, so only how often changes (she in its reach, every strike landing).</summary>
+        /// <summary>
+        /// A melee kind's ordinary attack: its aim is left alone, so only how often changes (she in its reach, every strike landing),
+        /// stated calm, enraged at <see cref="PartRageValues.RestShare"/> (work order 129's half, every kind's share before the merge
+        /// of 2026-11-26) and enraged at <see cref="PartRageValues.MeleeRestShare"/> (the melee kinds' own share now).
+        /// </summary>
         static string MeleeLine(string name, EnemyAttackDefinition a)
         {
-            double calm = 60.0 / (a.Windup + a.Recovery), rage = 60.0 / (a.Windup + a.Recovery * V.RestShare);
-            return string.Format(Inv, "| {0} | {1:0.00}+{2:0.00} s -> {1:0.00}+{3:0.00} s | {4:0.0} -> {5:0.0} | in reach: every one, as today | {6:0} -> {7:0} (in reach) |",
-                                 name, a.Windup, a.Recovery, a.Recovery * V.RestShare, calm, rage, calm * a.Damage, rage * a.Damage);
+            double calm = 60.0 / (a.Windup + a.Recovery), half = 60.0 / (a.Windup + a.Recovery * V.RestShare);
+            double melee = 60.0 / (a.Windup + a.Recovery * V.MeleeRestShare);
+            return string.Format(Inv, "| {0} | {1:0.00}+{2:0.00} s -> {1:0.00}+{3:0.00} s / {1:0.00}+{4:0.00} s | {5:0.0} -> {6:0.0} / {7:0.0} | {8:0} -> {9:0} / {10:0} (in reach) |",
+                                 name, a.Windup, a.Recovery, a.Recovery * V.RestShare, a.Recovery * V.MeleeRestShare,
+                                 calm, half, melee, calm * a.Damage, half * a.Damage, melee * a.Damage);
         }
 
         [Test]
@@ -181,7 +196,8 @@ namespace Roguelike.Rules.Tests
                 sb.AppendLine(string.Format(Inv, "| {0} | {1:0.##} m | {2:0.0} -> {3:0.0} | {4:0.00} -> {5:0.00} | {6:0.00} -> {7:0.00} | {8:0} -> {9:0} | {10:0} -> {11:0} |",
                                             r.Name, r.Range, r.CalmPerMinute, r.RagePerMinute, r.CalmStanding, r.RageStanding, r.CalmRunning, r.RageRunning,
                                             r.CalmDpmStanding, r.RageDpmStanding, r.CalmDpmRunning, r.RageDpmRunning));
-            sb.AppendLine("Melee (aim left alone, StrikeDegrees 0): | attack | wind-up+rest | attacks/min | hits | damage/min |");
+            sb.AppendLine("Melee (aim left alone, StrikeDegrees 0; calm -> enraged at RestShare " + V.RestShare.ToString("0.##", Inv)
+                          + " / enraged at MeleeRestShare " + V.MeleeRestShare.ToString("0.##", Inv) + ", the melee kinds' share now): | attack | wind-up+rest | attacks/min | damage/min |");
             var brute = MeleeAttacks.Brute();
             var guard = MeleeAttacks.Guard();
             var swarmer = MeleeAttacks.Swarmer();
@@ -194,11 +210,23 @@ namespace Roguelike.Rules.Tests
 
             foreach (Row r in rows)
             {
-                Assert.That(r.RagePerMinute, Is.GreaterThan(r.CalmPerMinute * 1.1), r.Name + ": more often (the lancer least: its run is not cut)");
+                // The lancer least (its run is not cut, and since the merge of 2026-11-26 it keeps three quarters of its rest, a melee kind's share).
+                Assert.That(r.RagePerMinute, Is.GreaterThan(r.CalmPerMinute * (r.Name.StartsWith("Lancer", StringComparison.Ordinal) ? 1.05 : 1.1)), r.Name + ": more often");
                 Assert.That(r.RageStanding, Is.LessThanOrEqualTo(r.CalmStanding + 1e-9), r.Name + ": standing still, no better aimed");
             }
             Assert.That(rows[0].CalmStanding, Is.EqualTo(1.0), "a calm arrow meets her standing still, every one");
             Assert.That(rows[0].RageStanding, Is.LessThan(0.9), "an enraged one misses her standing still now and then");
+
+            // The melee kinds rage weaker (the merge of 2026-11-26): more often than calm, less often than at the shooters' half.
+            Assert.That(Share(EnemyKind.Brute), Is.EqualTo(0.75f), "the brute's share: three quarters");
+            Assert.That(Share(EnemyKind.Swarmer), Is.EqualTo(0.75f), "the swarmer's share: three quarters");
+            Assert.That(Share(EnemyKind.Shooter), Is.EqualTo(0.5f), "the archer's share: a half");
+            foreach (EnemyAttackDefinition a in new[] { Find(brute, MeleeAttacks.Stroke), Find(guard, MeleeAttacks.Fist), Find(swarmer, MeleeAttacks.Bite) })
+            {
+                double calm = MeleeDamageAMinute(a, 1f), half = MeleeDamageAMinute(a, V.RestShare), now = MeleeDamageAMinute(a, V.MeleeRestShare);
+                Assert.That(now, Is.GreaterThan(calm), a.Name + ": enraged it still strikes more often than calm");
+                Assert.That(now, Is.LessThan(half), a.Name + ": but less often than at the shooters' half");
+            }
         }
     }
 }
