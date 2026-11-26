@@ -40,10 +40,10 @@ namespace Roguelike
         /// <summary>The low prop of the duck task: a sarcophagus, the project's own low prop (a long low stone box, 1.9 by 1.1 m, 1 m high).</summary>
         public const PropModel DuckProp = PropModel.Sarcophagus;
         /// <summary>
-        /// The basic shot keeps firing while its button is held: no such rule in the build work order 133 was cut from (the driver: "holding
-        /// it never repeats"), so the task says click. Work order 132 adds hold to fire: at the merge this reads its rule.
+        /// The basic shot keeps firing while its button is held: work order 132's rule (<see cref="HoldToFireValues.On"/>), read here
+        /// since the merge of 2026-11-26. On, the task's words say hold; off, they say click as in the build work order 133 was cut from.
         /// </summary>
-        public static bool ShootKeepsFiring => false;
+        public static bool ShootKeepsFiring => HoldToFireValues.On;
 
         /// <summary>The one running now, or null.</summary>
         public static PracticeTasks Current { get; private set; }
