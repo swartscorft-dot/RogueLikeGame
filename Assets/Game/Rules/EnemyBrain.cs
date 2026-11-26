@@ -113,6 +113,13 @@ namespace Roguelike.Rules
         /// <summary>The attack being wound up or recovered from, else null.</summary>
         public EnemyAttackDefinition Attack { get; private set; }
 
+        /// <summary>
+        /// The share of an attack's <see cref="EnemyAttackDefinition.Recovery"/> it stands after the strike (work order 129, rage
+        /// when a part is lost: <see cref="PartRageRules.RestShare"/>, set by its enemy before each step). 1, exactly today's rest,
+        /// unless its enemy is enraged; the wind-up is never touched.
+        /// </summary>
+        public float RestShare = 1f;
+
         /// <summary>Back to standing at home, as after a death.</summary>
         public void Reset()
         {
@@ -187,7 +194,7 @@ namespace Roguelike.Rules
                     return true;
 
                 case EnemyState.Recover:
-                    if (now - _stateSince < Attack.Recovery) return false;
+                    if (now - _stateSince < Attack.Recovery * RestShare) return false; // work order 129: RestShare 1 is today's rest
                     Attack = null;
                     Enter(EnemyState.Chase, now);
                     return false;

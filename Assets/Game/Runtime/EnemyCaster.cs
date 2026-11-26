@@ -436,6 +436,7 @@ namespace Roguelike
             GroundPoint dir = Player.GroundPosition - me;
             if (dir.Length < 1e-3f) dir = new GroundPoint(transform.forward.x, transform.forward.z);
             dir = dir * (1f / Mathf.Max(1e-6f, dir.Length));
+            dir = RageTurn(dir); // work order 129: enraged, off by the angle its cast showed (EnemyRage.cs); else itself
             Face(new Vector3(dir.X, 0f, dir.Z));
             GroundPoint hand = me + dir * (Tuning.BodyRadius * transform.lossyScale.x + 0.3f);
             ThingsThatFly fly = ThingsThatFly.Ensure();
