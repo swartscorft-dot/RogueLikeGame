@@ -101,11 +101,13 @@ namespace Roguelike.Rules.Tests
                             LevelBombers.Put(fights, floorSeed, mix.Floor, v);
                             LevelWarders.Put(fights, floorSeed, mix.Floor, v);
                         }
+                        LevelBossAlone.Clear(new List<List<EnemyGroup>> { floor }, v); // work order 130 (changed deliberately): the boss room holds the boss alone, after every draw
                         Assert.That(lab.Select(g => g.ToString()), Is.EqualTo(floor.Select(g => g.ToString())), mix + " " + kind + " seed " + s);
 
                         v.EnemyRange(k, mix.Floor, out int fewest, out int most);
                         int count = lab.Where(g => !g.Boss && !g.Elite).Sum(g => g.Count);
-                        Assert.That(count, Is.InRange(fewest, most), "the floor's range");
+                        if (lab.Any(g => g.Boss)) Assert.That(count, Is.EqualTo(0), "the boss alone (work order 130)");
+                        else Assert.That(count, Is.InRange(fewest, most), "the floor's range");
                         Assert.That(lab.Count(g => g.Boss), Is.EqualTo(k == RoomKind.Exit && mix.Floor >= v.FloorsPerAct ? 1 : 0), "the act boss in the act's last exit room only");
                         Assert.That(lab.Count(g => g.Elite), Is.EqualTo(kind == LabKind.Elite ? 1 : 0));
                         Assert.That(lab.Where(g => g.Kind == EnemyKind.Bomber).Sum(g => g.Count), Is.InRange(0, bombersMost), "the floor's bombers, none to its most");

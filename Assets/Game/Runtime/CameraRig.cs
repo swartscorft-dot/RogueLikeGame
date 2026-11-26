@@ -9,6 +9,8 @@ namespace Roguelike
     {
         public Transform Target;
         public FeelSettings Settings;
+        /// <summary>Work order 130: while the boss's entrance plays it moves this rig's focus and distance (its pitch and field of view stay); null, the play camera.</summary>
+        [System.NonSerialized] public ICameraShot Shot;
 
         readonly FeelValues _fallbackFeel = new FeelValues();
         Camera _camera;
@@ -26,7 +28,9 @@ namespace Roguelike
             _camera.fieldOfView = angle.FieldOfView;
             Quaternion rotation = Quaternion.Euler(angle.Pitch, 0f, 0f);
             Vector3 focus = new Vector3(Target.position.x, 0f, Target.position.z);
-            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * angle.Distance, rotation);
+            float distance = angle.Distance;
+            Shot?.Frame(ref focus, ref distance); // work order 130
+            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * distance, rotation);
         }
     }
 }

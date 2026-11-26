@@ -193,6 +193,10 @@ namespace Roguelike.Rules
     /// validator its pattern's (<see cref="LevelRanged.Faults"/>); the fight's cover serves the near flank's line first and stands tall
     /// cover before the crossfire's posts where it can. The contents stream draws what it drew; the rooms' points, and the props and
     /// cover laid round them, stand otherwise. With it off every floor is version 22's, field for field, but for the version.
+    /// Version 24 (work order 130; Kristian, 2026-11-25: "bossrommet. der tenker jeg bare bossen skal være"): with
+    /// <see cref="LevelValues.BossAlone"/> on (the default) the act boss's room holds the boss alone (<see cref="LevelBossAlone"/>): its
+    /// other groups are drawn as before and taken out after every draw, so a floor without the act boss is version 23's, field for
+    /// field; the validator asks that room for the boss alone. With it off every floor is version 23's, field for field, but for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -239,7 +243,9 @@ namespace Roguelike.Rules
         // 23: work order 124, ranged enemies around the room (LevelValues.RangedAroundTheRoom, on: the shooters singly, one ranged group at
         // the back, a near flank, a ladder, a pair or a nest, crossfire from floor 4, the warder in the pack, on the stream "ranged"; off,
         // every floor is version 22's).
-        public const int Version = 23;
+        // 24: work order 130, the boss alone (LevelValues.BossAlone, on: the act boss's room holds the boss and nobody else, its other
+        // groups drawn as before and then taken out; every floor without the act boss is version 23's; off, every floor is version 23's).
+        public const int Version = 24;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -275,6 +281,7 @@ namespace Roguelike.Rules
             if (values.WardersInFloors) LevelWarders.Put(fights, seed, floor, values); // work order 079; on with the act's plan (087)
             if (values.LancersInFloors) LevelLancers.Put(fights, seed, floor, values); // work order 118 (version 22): 108's lancer; on with the act's plan
             LevelRanged.Split(fights, values); // work order 124 (version 23): the shooters stand singly (nothing with its switch off)
+            LevelBossAlone.Clear(fights, values); // work order 130 (version 24): the act boss's room holds the boss alone (nothing with its switch off)
             List<string> faults = null;
             for (int attempt = 0; attempt < values.Attempts; attempt++)
             {

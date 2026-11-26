@@ -78,7 +78,7 @@ namespace Roguelike.Rules.Tests
         {
             // Work order 051: the rooms' carved outlines off, so this measures the line against the side rooms as it did; what the
             // shapes cost is measured on its own (RoomShapesTests.Generation_CostsAtMostHalfAsMuchAgain_ByTheMedian).
-            var on = new LevelValues { Shapes = false, Passages = false, Warders = false, Bombers = false, Lancers = false, RangedAroundTheRoom = false }; // work order 059: the rooms touching, as the row of 041 was measured; 087: the warders and bombers are put into the row's groups after version 9's floor is drawn, so they are left out here; 118: and the lancers likewise
+            var on = new LevelValues { Shapes = false, Passages = false, Warders = false, Bombers = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 059: the rooms touching, as the row of 041 was measured; 087: the warders and bombers are put into the row's groups after version 9's floor is drawn, so they are left out here; 118: and the lancers likewise
             var off = new LevelValues { InALine = false };
             Assert.That(on.InALine, Is.True, "on by default");
             LevelGenerator.Generate(424242UL, floor, on); // the first calls pay for compiling the code
@@ -229,7 +229,7 @@ namespace Roguelike.Rules.Tests
         {
             // Work order 044: the rooms' mood off too, as version 9 had none: with it on, an ossuary's piles are banked at its
             // far wall (pinned in RoomMoodPlanTests), and every other field of every floor is the same either way.
-            var off = new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false }; // work order 054: version 9 had the casters off; 058: nor templates; 059: nor passages; 087: nor the act's plan; 103: nor the exit rooms of their own
+            var off = new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 054: version 9 had the casters off; 058: nor templates; 059: nor passages; 087: nor the act's plan; 103: nor the exit rooms of their own
             var print = new Print();
             ulong described = 14695981039346656037UL;
             for (ulong s = 0; s < 1000; s++)

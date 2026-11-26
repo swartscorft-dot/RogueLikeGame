@@ -203,6 +203,7 @@ namespace Roguelike.Rules
             List<EnemyGroup> Lanced(List<EnemyGroup> g)
             {
                 if (mix.Lancers > 0 && v.Lancers && k == RoomKind.Combat) LevelLancers.Convert(g, mix.Lancers);
+                if (LevelBossAlone.On(v) && LevelBossAlone.HoldsTheBoss(g)) g.RemoveAll(x => x == null || !x.Boss); // work order 130: the boss room as a floor holds it, the boss alone (after every draw)
                 return g;
             }
             if (BombersIn(kind, mix, v) <= 0 && WardersIn(kind, mix, groups, v) <= 0) return Lanced(groups);
