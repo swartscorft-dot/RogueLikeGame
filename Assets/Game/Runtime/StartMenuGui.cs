@@ -90,7 +90,7 @@ namespace Roguelike
                 case MenuScreen.Main: _hint = s_MainHint; _hintCap = s_MainHintCap; break;
                 case MenuScreen.Character: _hint = MenuHelpValues.On ? CharacterHintHelp : s_CharacterHint; _hintCap = MenuHelpValues.On ? s_CharacterHintHelpCap : s_CharacterHintCap; break; // the menus' help (StartMenuHelp.cs)
                 case MenuScreen.Loadout: _hint = MenuHelpValues.On ? s_LoadoutHintHelp : s_LoadoutHint; _hintCap = MenuHelpValues.On ? s_LoadoutHintHelpCap : s_LoadoutHintCap; break;
-                case MenuScreen.Upgrades: _hint = s_UpgradesHint; _hintCap = s_UpgradesHintCap; break;
+                case MenuScreen.Upgrades: _hint = UpgradesHint; _hintCap = UpgradesHintCap; break; // work order 139: the page's keys with the tabs on
                 default: _hint = s_StatsHint; _hintCap = s_StatsHintCap; break;
             }
             GUIStyle cap = CapStyle(m), words = InterfaceStyle.Text(false, m.KeyWordSize, TextAnchor.MiddleLeft);
@@ -101,7 +101,7 @@ namespace Roguelike
             _nextCapW = Mathf.Max(m.KeyCapHeight * 1.35f, InterfaceStyle.Measure("Enter", cap).x + 18f);
 
             if (Screen != MenuScreen.Main)
-                for (int t = 0; t < TabWords.Length; t++) _hits.Add(new Hit { R = TabRect(t, s), Kind = HitKind.Tab, Index = t });
+                for (int t = 0; t < TabsNow.Length; t++) _hits.Add(new Hit { R = TabRect(t, s), Kind = HitKind.Tab, Index = t }); // work order 139: five tabs with its switch
             if (Screen == MenuScreen.Main)
                 for (int i = 0; i < _main.Count; i++) _hits.Add(new Hit { R = MainRowRect(i, s), Kind = HitKind.MainLine, Index = i });
             else if (Screen == MenuScreen.Character)
@@ -223,6 +223,7 @@ namespace Roguelike
                 _mouse = e.mousePosition;
                 if (!first && !SettingsScreen.Holds) Hover(_mouse); // work order 128: not under the settings screen
             }
+            TabsMouse(e); // work order 139: the model dragged and wheeled on the WEAPON page
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
             StartMenuValues s = m.Start;
@@ -436,15 +437,16 @@ namespace Roguelike
         {
             if (Screen != MenuScreen.Main)
             {
-                int on = StartMenuFlow.TabOf(Screen);
+                int on = TabHere; // work order 139: five tabs with its switch
+                string[] tabs = TabsNow;
                 GUIStyle tab = InterfaceStyle.Text(true, s.TabTextSize, TextAnchor.MiddleCenter);
-                for (int t = 0; t < TabWords.Length; t++)
+                for (int t = 0; t < tabs.Length; t++)
                 {
                     Rect r = TabRect(t, s);
                     bool here = t == on;
                     InterfaceStyle.HeavyPlate(r, r.center.y, v.Slant, 2f, v.Depth);
                     InterfaceStyle.Slanted(r, here ? InterfaceStyle.C(v.White) : InterfaceStyle.C(v.Black, 0.92f));
-                    Label(r, TabWords[t], tab, here ? InterfaceStyle.C(v.Black) : InterfaceStyle.C(v.White, 0.9f), false);
+                    Label(r, tabs[t], tab, here ? InterfaceStyle.C(v.Black) : InterfaceStyle.C(v.White, 0.9f), false);
                     if (here) InterfaceStyle.Slanted(new Rect(r.x, r.yMax + 6f, r.width, 5f), InterfaceStyle.C(v.Teal));
                 }
             }
@@ -538,8 +540,8 @@ namespace Roguelike
             else
             {
                 GUIStyle tab = InterfaceStyle.Text(true, s.TabTextSize, TextAnchor.MiddleCenter);
-                foreach (string t in TabWords) Fits("the tab " + t + " is wider than its plate", InterfaceStyle.Measure(t, tab).x + 20f, s.TabWidth);
-                Fits("the tabs reach the Echoes", TabRect(TabWords.Length - 1, s).xMax + 20f, EchoesRect(s).x);
+                foreach (string t in TabsNow) Fits("the tab " + t + " is wider than its plate", InterfaceStyle.Measure(t, tab).x + 20f, s.TabWidth); // work order 139: five with its switch
+                Fits("the tabs reach the Echoes", TabRect(TabsNow.Length - 1, s).xMax + 20f, EchoesRect(s).x);
             }
             if (Screen == MenuScreen.Character)
             {

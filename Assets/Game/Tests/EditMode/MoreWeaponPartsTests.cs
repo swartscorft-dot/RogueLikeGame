@@ -20,11 +20,16 @@ namespace Roguelike.Rules.Tests
         string _folder;
 
         [SetUp]
-        public void MakeFolder() => _folder = Path.Combine(Path.GetTempPath(), "MoreWeaponPartsTests-" + Guid.NewGuid().ToString("N"));
+        public void MakeFolder()
+        {
+            _folder = Path.Combine(Path.GetTempPath(), "MoreWeaponPartsTests-" + Guid.NewGuid().ToString("N"));
+            WeaponPartValues.GentlerCosts = false; // work order 139: this class pins the costs as work orders 060 and 110 set them (its halved costs: UpgradeTabsTests)
+        }
 
         [TearDown]
         public void RemoveFolder()
         {
+            WeaponPartValues.GentlerCosts = true; // as it ships
             if (Directory.Exists(_folder)) Directory.Delete(_folder, true);
         }
 

@@ -49,6 +49,7 @@ namespace Roguelike.PlayModeTests
             BetweenRunsSwitch.Unload();
             AttachmentsSwitch.Unload();
             PlayerInputDriver.ReadRealDevices = false;
+            UpgradeTabsValues.On = false; // work order 139: this class pins the one screen of cards of UPGRADES and its three tabs (the three pages: UpgradeTabsPlayTests)
             InterfaceStyle.Shared.Kinetic = true;
             InterfaceStyle.Shared.Menus.Concept = true;
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
@@ -102,6 +103,7 @@ namespace Roguelike.PlayModeTests
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
             PlayerInputDriver.ReadRealDevices = true;
+            UpgradeTabsValues.On = true; // as it ships
         }
 
         static IEnumerator Frames(Func<bool> condition)

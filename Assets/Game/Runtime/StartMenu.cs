@@ -191,6 +191,7 @@ namespace Roguelike
             Hold();
             _lastCount = ItemCount;
             if (next == MenuScreen.Loadout) Selected = Mathf.Max(0, _lastCount - 1); // START: "character, then straight to START"
+            TabsScreenSet(next); // work order 139: the upgrades' page
         }
 
         int _lastCount;
@@ -252,6 +253,7 @@ namespace Roguelike
         public bool OpenTab(int tab)
         {
             if (!Up) return false;
+            if (UpgradeTabsValues.On) return OpenTabOfFive(tab); // work order 139: five tabs, the upgrades' three pages among them
             MenuScreen to = StartMenuFlow.TabScreen(tab);
             if (StartMenuFlow.TabOf(Screen) == tab && Screen != MenuScreen.Main) return true;
             SetScreen(to);
@@ -382,6 +384,7 @@ namespace Roguelike
             FollowItems();
             Hold();
             if (SettingsScreen.Holds || SettingsScreen.KeysTakenThisFrame) return; // work order 128: the settings screen over it reads its own keys
+            TabsFrame(keys); // work order 139: the WEAPON page's stage and its held keys
             if (keys != null && _keysFrame != Time.frameCount && keys.anyKey.wasPressedThisFrame)
             {
                 _keysFrame = Time.frameCount;
@@ -396,6 +399,7 @@ namespace Roguelike
                 Escape();
                 return;
             }
+            if (TabsKeys(k)) return; // work order 139: the pages' Tab, Q, E and R
             bool up = k.upArrowKey.wasPressedThisFrame || k.wKey.wasPressedThisFrame, down = k.downArrowKey.wasPressedThisFrame || k.sKey.wasPressedThisFrame;
             bool left = k.leftArrowKey.wasPressedThisFrame || k.aKey.wasPressedThisFrame, right = k.rightArrowKey.wasPressedThisFrame || k.dKey.wasPressedThisFrame;
             bool enter = k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame, space = k.spaceKey.wasPressedThisFrame;

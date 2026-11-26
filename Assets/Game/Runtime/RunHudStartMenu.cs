@@ -89,6 +89,7 @@ namespace Roguelike
                 h = h * 31 + _menuStatsMade;
                 GeneratedLevels levels = _levels != null ? _levels : GeneratedLevels.Current;
                 h = h * 31 + (levels != null && levels.MetaOn ? 1 : 0) + (levels != null && levels.AttachmentsOn ? 2 : 0) + (levels != null && levels.BetweenRunsUp ? 4 : 0);
+                h = h * 31 + TabsVersion(menu); // work order 139: the upgrades' page
                 return h;
             }
         }
@@ -166,6 +167,7 @@ namespace Roguelike
         /// <summary>The items of the loadout (its cards and START) or the upgrades (its cards).</summary>
         public int MenuItemCount(StartMenu menu)
         {
+            if (TabsFor(menu)) return TabItemCount(menu); // work order 139: the page's rows
             EnsureMenuItems(menu);
             return _menuCards.Count + (menu.Screen == MenuScreen.Loadout ? 1 : 0);
         }
@@ -184,6 +186,7 @@ namespace Roguelike
         public bool UseMenuItem(StartMenu menu, int item, out string refused)
         {
             refused = null;
+            if (TabsFor(menu)) return UseTabItem(menu, item, out refused); // work order 139: the page's row, by its card
             EnsureMenuItems(menu);
             if (item < 0 || item >= _menuCards.Count) return false;
             int card = _menuCards[item];
@@ -203,6 +206,11 @@ namespace Roguelike
         /// <summary>The panels of the screen up, laid out for this view (called by the menu's layout when what they show or the screen changes).</summary>
         public void LayOutMenuScreen(StartMenu menu, float viewWidth)
         {
+            if (TabsFor(menu))
+            {
+                LayOutTabs(menu, viewWidth); // work order 139: the three pages
+                return;
+            }
             EnsureMenuItems(menu);
             _menuItemRects.Clear();
             _menuCardRaw.Clear();
@@ -348,6 +356,11 @@ namespace Roguelike
         /// <summary>The loadout, the upgrades or the stats drawn over the menu's backdrop (from the menu's OnGUI, its matrix the layout's).</summary>
         public void DrawMenuScreen(StartMenu menu, InterfaceValues v, MenuValues m)
         {
+            if (TabsFor(menu))
+            {
+                DrawTabs(menu, v, m); // work order 139: the three pages
+                return;
+            }
             StartMenuValues s = m.Start;
             string word = menu.Screen == MenuScreen.Loadout ? LoadoutWord : menu.Screen == MenuScreen.Upgrades ? UpgradesWord : StatsWord;
             DrawHeadingPlate(new Rect(s.TabLeft + m.HeadingHeight * m.HeadingSlant * 0.5f, s.HeadTop, m.HeadingWidth, m.HeadingHeight), word, v, m);
@@ -451,6 +464,7 @@ namespace Roguelike
         /// <summary>What of the loadout's, the upgrades' or the stats' words does not fit inside its shape at the screen now; empty when all does. For tests.</summary>
         public string MenuTextOutside(StartMenu menu)
         {
+            if (TabsFor(menu)) return TabsTextOutside(menu); // work order 139
             var problems = new List<string>();
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
