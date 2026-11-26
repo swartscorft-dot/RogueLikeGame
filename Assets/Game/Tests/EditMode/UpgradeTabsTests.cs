@@ -154,7 +154,7 @@ namespace Roguelike.Rules.Tests
                 Assert.That(m.Forward.Length, Is.GreaterThan(0.5f), slot + " faces a way");
                 Assert.That(m.Up.Length, Is.GreaterThan(0.5f), slot + " has a top");
             }
-            Assert.That(WeaponStageValues.Sight.At.Y, Is.EqualTo(1f), "the sight on top");
+            Assert.That(WeaponStageValues.Sight.At.Y, Is.GreaterThan(0.5f), "the sight on top (on the barrel's top, 0.8 of the box: the block behind it rises higher)");
             Assert.That(WeaponStageValues.Barrel.At.X, Is.EqualTo(1f), "the barrel at the muzzle (+X)");
             Assert.That(WeaponStageValues.Grip.At.Y, Is.LessThan(0f), "the grip below");
             Assert.That(WeaponStageValues.ModelPath, Is.EqualTo("Weapon/Pistol"), "the one named place");
