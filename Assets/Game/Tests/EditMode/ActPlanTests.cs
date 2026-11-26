@@ -319,7 +319,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandFloors_BeforeAndAfter_ThePlanHolds_AndARoomsCountStays(int floor)
         {
-            LevelValues before = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false }, after = new LevelValues();
+            LevelValues before = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false }, after = new LevelValues { BossAlone = false }; // work order 130 (changed deliberately): the plan against version 17, the boss room as it was before version 24 emptied it
             Tally tb = new Tally(), ta = new Tally();
             int same = 0, rooms = 0;
             for (int i = 0; i < Seeds; i++)

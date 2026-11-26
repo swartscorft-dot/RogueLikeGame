@@ -180,11 +180,12 @@ namespace Roguelike.PlayModeTests
         struct After
         {
             public float TimeScale;
-            public bool Held, Untouchable, FightOn, BossEnabled, ShotNull, Card;
+            public bool Held, Untouchable, FightOn, BossEnabled, ShotNull, Card, StaggerBarShown;
             public Vector3 PivotPosition, PivotScale;
+            public float PivotTurn;
             public float CameraOff, CameraTurn, FieldOfViewOff;
             public override string ToString() =>
-                $"time scale {TimeScale}, input held {Held}, untouchable {Untouchable}, fight on {FightOn}, boss on {BossEnabled}, shot gone {ShotNull}, card {Card}, pivot {PivotPosition:F4} {PivotScale:F4}, camera off the play camera by {CameraOff:F5} m and {CameraTurn:F4} degrees, field of view by {FieldOfViewOff:F4}";
+                $"time scale {TimeScale}, input held {Held}, untouchable {Untouchable}, fight on {FightOn}, boss on {BossEnabled}, shot gone {ShotNull}, card {Card}, stagger bar shown {StaggerBarShown}, pivot {PivotPosition:F4} {PivotScale:F4} turned {PivotTurn:F4} degrees off its own, camera off the play camera by {CameraOff:F5} m and {CameraTurn:F4} degrees, field of view by {FieldOfViewOff:F4}";
         }
 
         IEnumerator Leaves(Floor f, Action<After> got)
@@ -199,7 +200,10 @@ namespace Roguelike.PlayModeTests
             {
                 a.PivotPosition = look.Pivot.localPosition - Vector3.up * look.Measured.Lift;
                 a.PivotScale = look.Pivot.localScale / look.Measured.Scale;
+                a.PivotTurn = Quaternion.Angle(look.Pivot.localRotation, Quaternion.Euler(0f, look.Measured.Yaw, 0f));
             }
+            StaggerBarView staggerBar = f.Boss.GetComponentInChildren<StaggerBarView>(true);
+            a.StaggerBarShown = staggerBar != null && staggerBar.gameObject.activeSelf;
             yield return null; // the rig's LateUpdate of this frame
             CameraRig rig = Rig();
             PlayPose(rig, out Vector3 p, out Quaternion r, out float fov);
@@ -221,6 +225,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(a.Card, Is.False, what + ": no card");
             Assert.That(a.PivotPosition.magnitude, Is.LessThan(1e-5f), what + ": the boss on the floor");
             Assert.That((a.PivotScale - Vector3.one).magnitude, Is.LessThan(1e-5f), what + ": the boss at its own height");
+            Assert.That(a.PivotTurn, Is.LessThan(1e-3f), what + ": its model turned as its own again (not held to the camera)");
+            Assert.That(a.StaggerBarShown, Is.True, what + ": its stagger bar given back");
             Assert.That(a.CameraOff, Is.LessThan(1e-3f), what + ": the camera where the play camera stands");
             Assert.That(a.CameraTurn, Is.LessThan(1e-3f), what + ": and looking as it looks");
             Assert.That(a.FieldOfViewOff, Is.LessThan(1e-4f), what + ": with its field of view");
@@ -276,7 +282,9 @@ namespace Roguelike.PlayModeTests
             int health = _health.Current;
             float gameTime = Time.time;
             var bar = f.Boss.GetComponent<BossHealthBar>();
-            bool sawHold = false, sawCard = false, sawBack = false, barUp = false, notIdle = false, hurt = false;
+            StaggerBarView staggerBar = f.Boss.GetComponentInChildren<StaggerBarView>(true);
+            Assert.That(staggerBar, Is.Not.Null, "the boss has its stagger bar over its head");
+            bool sawHold = false, sawCard = false, sawBack = false, barUp = false, notIdle = false, hurt = false, staggerUp = false;
             float closest = float.MaxValue;
             Camera cam = Rig().GetComponent<Camera>();
             while (_levels.EntranceHolds)
@@ -285,6 +293,7 @@ namespace Roguelike.PlayModeTests
                 hurt |= took > 0 || _health.Current < health;
                 notIdle |= f.Boss.State != EnemyState.Idle || f.Boss.Attack != null || f.Boss.IsTelegraphing;
                 barUp |= bar != null && bar.Showing;
+                staggerUp |= staggerBar.gameObject.activeInHierarchy;
                 EntrancePhase phase = _levels.EntrancePhaseNow;
                 sawHold |= phase == EntrancePhase.Hold;
                 sawBack |= phase == EntrancePhase.TravelBack;
@@ -298,6 +307,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(reports, Has.No.Member(EnemyReportKind.AttackStarted));
             Assert.That(reports, Has.No.Member(EnemyReportKind.Woke), "not while it played");
             Assert.That(barUp, Is.False, "its bar down under the card");
+            Assert.That(staggerUp, Is.False, "its stagger bar not over its head while it plays (it floated at the top of the close shot)");
             Assert.That(sawHold && sawCard && sawBack, Is.True, "the hold, the card and the travel back were seen");
             Assert.That(Time.time - gameTime, Is.LessThan(0.2f), "game time held");
             var v = new BossEntranceValues();

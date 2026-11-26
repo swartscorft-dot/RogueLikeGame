@@ -31,8 +31,8 @@ namespace Roguelike.Rules
         public bool Eased = true;               // the travels ease in and out (smoothstep); false: at an even speed
 
         // ---- The camera (his "forstørre kameraet litt", read as: the boss shown larger) ----
-        public float CloseDistance = 16f;       // m from the camera to the boss's feet along its look, against the play camera's 28 (OUR angle): the boss shown about twice as tall (27 % of the screen's height against 14 %)
-        public float FocusNearer = 0.6f;        // m the close camera looks short of the boss's feet, toward the camera: the boss stands a little higher on the screen, its feet clear of the card
+        public float CloseDistance = 17f;       // m from the camera to where it looks, against the play camera's 28 (OUR angle): the boss shown close to twice as tall (about 25 % of the screen's height against 14.6 %); 16 in the first pictures, where the weapon it holds up over its head went out at the top
+        public float FocusNearer = -0.2f;       // m the close camera looks short of the boss's feet, toward the camera; below 0, past them: the boss stands a little lower on the screen, so the weapon over its head stays in the frame (0.6 in the first pictures); at -0.4 a foot its Idle steps forward went under the card's top
 
         // ---- The skip (the producer's addition) ----
         public float SkipGraceSeconds = 0f;     // s after it begins before a key may end it: 0, at once (the order); raise it if a click as she walks in throws it away

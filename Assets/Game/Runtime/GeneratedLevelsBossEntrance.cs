@@ -65,6 +65,9 @@ namespace Roguelike
         CameraRig _enterRig;
         PlayerInputDriver _enterDriver;
         Quaternion _enterFacingFrom, _enterFacingViewer, _enterFacingTo;
+        Transform _enterHead, _enterHeadFront;
+        GameObject _enterBar;
+        bool _enterBarWasShown;
         BossEntranceCard _card;
 
         /// <summary>True while the entrance plays: everything holds.</summary>
@@ -126,6 +129,17 @@ namespace Roguelike
             Transform look = Camera.main != null ? Camera.main.transform : null;
             Vector3 toCamera = look != null ? -Flat(look.forward) : Vector3.back;
             _enterFacingViewer = toCamera.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(toCamera.normalized, Vector3.up) : _enterFacingFrom;
+            // Its Idle stands it bladed and sways it (the first pictures showed its front at one moment, its side at the next): its face
+            // is held toward the camera by turning its model against where its head looks (EnemyLook.FacingOf's bones).
+            EnemyLook bossLook = boss.Look;
+            _enterHead = bossLook != null ? bossLook.Bone("Head") : null;
+            _enterHeadFront = bossLook != null ? bossLook.Bone("headfront") : null;
+            // Its stagger bar over its head (work order 008) is not shown while the card is up: in the close shot it floated at the
+            // top of the screen. It is given back as it was at the end.
+            StaggerBarView bar = boss.GetComponentInChildren<StaggerBarView>(true);
+            _enterBar = bar != null ? bar.gameObject : null;
+            _enterBarWasShown = _enterBar != null && _enterBar.activeSelf;
+            if (_enterBarWasShown) _enterBar.SetActive(false);
             // The play camera's own rig, moved by the entrance's numbers.
             _enterRig = Camera.main != null ? Camera.main.GetComponent<CameraRig>() : null;
             if (_enterRig == null) _enterRig = FindAnyObjectByType<CameraRig>();
@@ -238,6 +252,14 @@ namespace Roguelike
             EnemyLook look = boss.Look;
             if (look == null || look.Pivot == null) return;
             look.Tick(boss, Vector3.zero, _enterLookBase + t); // its Idle goes on under the entrance (it is stopped: nothing else shows it)
+            // Its face to the camera as it turns there, whatever its Idle does to its body (the Tick above set the model's own turn).
+            float face = pose.Turn * (1f - pose.ToHer);
+            if (face > 0f && _enterHead != null && _enterHeadFront != null)
+            {
+                Vector3 looks = boss.transform.InverseTransformVector(_enterHeadFront.position - _enterHead.position);
+                if (looks.x * looks.x + looks.z * looks.z > 1e-8f)
+                    look.Pivot.localRotation = Quaternion.AngleAxis(-Mathf.Atan2(looks.x, looks.z) * Mathf.Rad2Deg * face, Vector3.up) * look.Pivot.localRotation;
+            }
             float scale = look.Measured.Scale;
             look.Pivot.localPosition = Vector3.up * (look.Measured.Lift + pose.Lift);
             look.Pivot.localScale = new Vector3(scale, scale * pose.Height, scale);
@@ -267,10 +289,14 @@ namespace Roguelike
                     float scale = look.Measured.Scale;
                     look.Pivot.localPosition = Vector3.up * look.Measured.Lift;
                     look.Pivot.localScale = Vector3.one * scale;
-                    look.Tick(boss, Vector3.zero, Time.time); // its clips go on from the game's time again
+                    look.Tick(boss, Vector3.zero, Time.time); // its clips go on from the game's time again (and its model's own turn)
                 }
                 boss.enabled = true;
             }
+            if (_enterBarWasShown && _enterBar != null) _enterBar.SetActive(true);
+            _enterBar = null;
+            _enterBarWasShown = false;
+            _enterHead = _enterHeadFront = null;
             if (_enterMadeUntouchable && _health != null) _health.Untouchable = false;
             _enterMadeUntouchable = false;
             if (_enterHeldInput) PlayerInputDriver.HeldByScreen = false; // the frame of the letting go: the key that ended it reaches her not

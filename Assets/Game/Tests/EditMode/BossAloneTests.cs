@@ -163,7 +163,7 @@ namespace Roguelike.Rules.Tests
         /// The boss room's list of enemies is the boss alone on a thousand seeds, every floor valid; what left it, by kind, the
         /// same seeds with the switch off; and the rooms before it, field for field, where the floor was made on the same attempt.
         /// </summary>
-        [Test]
+        [Test, Timeout(3600000)] // the long sweeps' own time limit (see EveryFloorWithoutTheBoss_IsVersion23s_FieldForField)
         public void AThousandSeeds_TheBossRoomHoldsTheBossAlone_AndWhatLeftIt_IsCounted()
         {
             var left = new Dictionary<EnemyKind, int>();
@@ -234,7 +234,10 @@ namespace Roguelike.Rules.Tests
         /// The floors of version 23's pins (two thousand floors and a hundred runs of five) that hold no act boss (floors 1 to 4) are,
         /// with the switch on, field for field what they are with it off (version 23's: RangedAroundTheRoomTests' pins, switch named off).
         /// </summary>
-        [Test]
+        // The long sweeps' own time limit (as FloorCharacterTests' and, since 340b4be, RoomShapesTests'): in Unity this sweep took 203 s
+        // and timed out at the default 180 s on 2026-11-26 with other runs sharing the machine (it passed there on a quieter one). The
+        // limit is for a hang, not for speed.
+        [Test, Timeout(3600000)]
         public void EveryFloorWithoutTheBoss_IsVersion23s_FieldForField()
         {
             int compared = 0;
@@ -264,7 +267,7 @@ namespace Roguelike.Rules.Tests
         // ---------------- Version 24's pins ----------------
 
         /// <summary>Version 24's pin with the lancers named on (the default). Each runtime has its own number: .NET's from the .NET rules run of this code, Unity's from a filtered Unity EditMode run of it.</summary>
-        [Test]
+        [Test, Timeout(3600000)] // the long sweeps' own time limit (see EveryFloorWithoutTheBoss_IsVersion23s_FieldForField)
         public void Version24_LancersOn_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
             ulong h = Print(LancersOn);
@@ -279,7 +282,7 @@ namespace Roguelike.Rules.Tests
         }
 
         /// <summary>Version 24's pin with the lancers named off.</summary>
-        [Test]
+        [Test, Timeout(3600000)] // the long sweeps' own time limit (see EveryFloorWithoutTheBoss_IsVersion23s_FieldForField)
         public void Version24_LancersOff_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
             ulong h = Print(LancersOff);
