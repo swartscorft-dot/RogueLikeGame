@@ -64,7 +64,7 @@ namespace Roguelike.Rules
         public float QuickPressCleanFrom = 0.12f;  // s after the shot that a quick press's clean part begins (the producer's guess was 0.10); below 0, CleanFrom
         public float QuickPressCleanTo = 0.30f;    // s after the shot that it ends (the producer's guess was 0.28); below 0, CleanTo
         public float LastPressWindow = 0.80f;      // s after the shot before it that the last press's window stays open; below 0, the skill's RecastWindow
-        public float LastPressCleanFrom = 0.42f;   // s after that shot that the last press's clean part begins: the beat; below 0, CleanFrom
+        public float LastPressCleanFrom = KitTimingChoices.LastPressCleanFrom; // s after that shot that the last press's clean part begins: the beat (0.42 until work order 142, his tick of 2026-11-26: 0.36; KitTimingChoices.LastPressAt036 off gives 0.42); below 0, CleanFrom
         public float LastPressCleanTo = 0.66f;     // s after it that it ends; below 0, CleanTo
 
         // Work order 138 (Kristian, 2026-11-25: "Jeg tror også vi har litt for mange spell slots. Kanskje fjerne 2 spell slots";

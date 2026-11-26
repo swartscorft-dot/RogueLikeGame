@@ -81,12 +81,26 @@ namespace Roguelike.PlayModeTests
                 if (o != null) Object.Destroy(o);
             _made.Clear();
             _levels = null;
+            if (_player != null && !float.IsNaN(_openingFromWas)) _player.Kit.OpeningMoveCleanFrom = _openingFromWas;
+            if (_player != null && !float.IsNaN(_lastFromWas)) _player.Kit.LastPressCleanFrom = _lastFromWas;
+            _openingFromWas = _lastFromWas = float.NaN;
             InterfaceStyle.Shared.Kinetic = true;
             InterfaceStyle.Shared.BladeWithCombo = false; // work order 068
             Time.timeScale = 1f;
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
             PlayerInputDriver.ReadRealDevices = true;
+        }
+
+        // Work order 142's second round: the kit's two numbers it moved, put back after the tests of Wide window's widening that pin them.
+        float _openingFromWas = float.NaN, _lastFromWas = float.NaN;
+
+        void Give142sOldNumbers()
+        {
+            _openingFromWas = _player.Kit.OpeningMoveCleanFrom;
+            _lastFromWas = _player.Kit.LastPressCleanFrom;
+            _player.Kit.OpeningMoveCleanFrom = 0.03f;
+            _player.Kit.LastPressCleanFrom = 0.42f;
         }
 
         void OnReport(PlayerReport r)
@@ -792,7 +806,8 @@ namespace Roguelike.PlayModeTests
         public IEnumerator WithWideWindowTaken_TripleTapsWiderPart_IsShownAndJudgedAlike_JustOutsideTheOldPartCleanAndFurtherNot()
         {
             // With no stat, today's part of the last press (work order 069: 0.42 to 0.66 s; until then 0.10 to 0.30 s): a press at
-            // 0.39 s is early.
+            // 0.39 s is early. Work order 142 moved its start to 0.36 (KitTimingChoices): this test of the widening is given the number before.
+            Give142sOldNumbers();
             yield return TripleTapLastWindowOpen();
             Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f), "today's part");
             Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f));

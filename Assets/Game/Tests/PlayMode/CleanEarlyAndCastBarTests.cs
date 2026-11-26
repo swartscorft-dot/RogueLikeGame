@@ -196,12 +196,13 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f), "the clean part from 0.42 s...");
+            // Work order 142's second round (KitTimingChoices.LastPressAt036, his tick of 2026-11-26): from 0.36 s, 0.42 s before.
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(KitTimingChoices.LastPressCleanFrom).Within(1e-5f), "the clean part from 0.36 s...");
             Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f), "...to 0.66 s after the window opened");
             yield return Until(() => _player.RecastSinceOpened >= 0.2f, 2f);
             Assert.That(_player.RecastPressWouldBeClean, Is.False, "0.2 s: this morning's clean time is early now");
             yield return Until(() => _player.RecastSinceOpened >= 0.54f, 2f);
-            Assume.That(_player.RecastSinceOpened, Is.InRange(0.42f, 0.66f));
+            Assume.That(_player.RecastSinceOpened, Is.InRange(KitTimingChoices.LastPressCleanFrom, 0.66f));
             Assert.That(_player.RecastPressWouldBeClean, Is.True);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the last press");
             Assert.That(_recasts.Last().Clean, Is.True, "clean");

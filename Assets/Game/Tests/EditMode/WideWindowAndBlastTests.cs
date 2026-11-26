@@ -16,6 +16,22 @@ namespace Roguelike.Rules.Tests
     /// </summary>
     public class WideWindowAndBlastTests
     {
+        // Work order 142's second round moved two defaults (KitTimingChoices): these tests pin the numbers before it, so they
+        // are given them here, and put back after.
+        [SetUp]
+        public void TheNumbersBefore142()
+        {
+            KitTimingChoices.LastPressAt036 = false;
+            KitTimingChoices.BackstepFromHopsEnd = false;
+        }
+
+        [TearDown]
+        public void PutBack142()
+        {
+            KitTimingChoices.LastPressAt036 = true;
+            KitTimingChoices.BackstepFromHopsEnd = true;
+        }
+
         static readonly string[] Four = { "Quick Shot", "Scatter Blast", "Backstep", "Triple Tap" };
         const string A = OfferTexts.Arrow;
         const float Eps = 1e-5f;
