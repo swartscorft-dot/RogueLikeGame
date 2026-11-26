@@ -101,7 +101,9 @@ namespace Roguelike
             damage = target.ScaleForTag(damage); // Tag Round's tag (work order 015)
             bool tagged = target.IsTagged;
             if (Modifiers != null) stagger *= Modifiers.StaggerShare; // the run's Heavy hits (work order 025)
+            PassItOnBefore(target, basicShot); // work order 141: Pass It On keeps a marked target's marks if this hit kills it
             int applied = target.TakeHit(_focus.Scale(damage, Time.time, identity), stagger);
+            PassItOnAfter(target);
             // Work order 064: a crit's flash on the enemy is a hard white frame, with the shots' weight running.
             if (_dealtCrit && applied > 0 && FiringWeight.Running != null && target.TryGetComponent(out HitFlash flash)) flash.Crit();
             if (_dealtCrit && applied > 0) HitChips.Crit(target); // work order 127: with its switch on, a crit's spray in place of that frame

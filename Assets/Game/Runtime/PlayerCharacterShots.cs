@@ -100,6 +100,7 @@ namespace Roguelike
         bool ResolveBasicShot()
         {
             BasicShotsFired++;
+            ChamberTurn(); // work order 141: Sixth Chamber counts every basic shot fired, hit or miss
             float peekStagger = TakePeekStagger(); // the quick duck's reward (work order 043): 0 for every other basic shot
             Look look = LookFor(null, 0f);
             Vector3 muzzle = NextMuzzle(out bool leftHand);
@@ -119,8 +120,8 @@ namespace Roguelike
             bool stopped = hit == null && stop < range;
             if (stopped) endPoint = NoteCoverStop(origin, aim, stop);
             Vector3 end = new Vector3(endPoint.x, muzzle.y, endPoint.z);
-            SpawnFlash(WarmFlash(look), muzzle, end - muzzle); // work order 138: Hot Barrel's heat on her muzzle flash
-            SpawnStreak(look, muzzle, end, 1f);
+            SpawnFlash(HeavyFlash(WarmFlash(look)), muzzle, end - muzzle); // work order 138: Hot Barrel's heat on her muzzle flash; 141: the heavy round's
+            SpawnStreak(look, muzzle, end, HeavyStreak); // work order 141: the heavy round's wider streak (1 for every other)
             if (stopped) SpawnCoverHit(look, end);
             // A lying keg on the shot's way, up to where it ended, goes off at once (work order 015).
             if (_kegs.Count > 0)
@@ -141,8 +142,9 @@ namespace Roguelike
             if (Modifiers != null) damage = Modifiers.Weapon.ShotDamage(damage, _movingShot);
             damage = SlideShotDamageNow(damage); // work order 111: Gun Slide, during the slide
             damage = HeatedDamage(damage); // work order 138: Hot Barrel's heat
+            damage = HeavyDamage(damage); // work order 141: Sixth Chamber's heavy round
             int shotDamage = damage; // work order 138: what a pierced enemy takes its share of
-            float stagger = peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f);
+            float stagger = peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f) + HeavyStagger; // work order 141: the heavy round's
             bool marked = hit.MarkCount > 0; // work order 065: before a Tap Out takes them
             damage = TapOutOn(hit, damage, out int tapped); // work order 138: Tap Out at the cap
             int applied = Deal(hit, damage, out float focus, stagger, marked: marked, basicShot: true); // work order 110: a sight's crit
@@ -158,11 +160,13 @@ namespace Roguelike
             BasicShotHits++;
             // Every few hits, whatever the target, the hit that completes the count marks the target it hit; in the
             // focus window every hit does (decision 0005).
-            if (BasicHitMarks(empowered)) AddMarks(hit, 1, -1); // work order 138: Marking Rounds' count, or the kit's own
+            int basicMarks = BasicHitMarks(empowered, hit); // work order 138: Marking Rounds' count, or the kit's own; 141: Hunter's Count's
+            if (basicMarks > 0) AddMarks(hit, basicMarks, -1);
             HeatHit(); // work order 138
             BasicShotHit(hit);
             Quicken(); // work order 138: once a shot that hit
             HitPierced(look, muzzle, shotDamage, stagger, crit, empowered); // work order 138
+            ChainKill(look, hit, shotDamage, stagger, crit, empowered); // work order 141: a kill bounces on
             return ShotFired(true);
         }
 

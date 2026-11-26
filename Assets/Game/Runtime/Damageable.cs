@@ -48,6 +48,26 @@ namespace Roguelike
         public event Action<int> Damaged;
 
         /// <summary>
+        /// Work order 141, Hunter's Count: her basic hits on it toward its next mark (the count is the enemy's own); 0 again when it
+        /// dies or is reset.
+        /// </summary>
+        [NonSerialized] public int HunterHits;
+        /// <summary>
+        /// Work order 141, Pass It On: set by her hit while it lasts when the marks it carries go on to another if the hit kills it:
+        /// then its death keeps them for her (<see cref="TakePassedMarks"/>) and they are not lost (no <see cref="MarksLost"/>).
+        /// </summary>
+        [NonSerialized] public bool PassMarksOnDeath;
+        int _passedMarks;
+
+        /// <summary>Work order 141: the marks its death kept for Pass It On, taken once; 0 when none.</summary>
+        public int TakePassedMarks()
+        {
+            int marks = _passedMarks;
+            _passedMarks = 0;
+            return marks;
+        }
+
+        /// <summary>
         /// Its stagger bar, or null for a target without one (work order 008: the guard has one). With a bar, hits take
         /// stagger off it, and while it is dazed every hit deals more (<see cref="StaggerBar"/>).
         /// </summary>
@@ -142,7 +162,12 @@ namespace Roguelike
             {
                 HitsTaken++;
                 Damaged?.Invoke(applied);
-                if (_health.IsDead) ClearMarks(MarkLoss.Died);
+                if (_health.IsDead && PassMarksOnDeath) // work order 141: Pass It On takes them on
+                {
+                    _passedMarks = _marks.Clear(now);
+                    HunterHits = 0;
+                }
+                else if (_health.IsDead) ClearMarks(MarkLoss.Died);
             }
             if (applied > 0 && !_health.IsDead && Stagger != null && stagger > 0f)
             {
@@ -169,6 +194,7 @@ namespace Roguelike
         void ClearMarks(MarkLoss why)
         {
             int lost = _marks.Clear(Time.time);
+            HunterHits = 0; // work order 141: Hunter's Count's count goes with them (a death or a reset)
             if (lost > 0) MarksLost?.Invoke(this, lost, why);
         }
 

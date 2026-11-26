@@ -117,7 +117,8 @@ namespace Roguelike.Rules.Tests
         {
             var values = new RunValues { StatsAndTiers = false };
             Assert.That(MixedFloorRewards.StatStep(5UL, 1, 0, new List<string>(), values, new RunModifiers(), false), Is.Null);
-            var shotOff = new BasicShotUpgradeValues { PiercingRound = false, Quickening = false, HotBarrel = false, MarkingRounds = false, TapOut = false };
+            var shotOff = new BasicShotUpgradeValues { PiercingRound = false, Quickening = false, HotBarrel = false, MarkingRounds = false, TapOut = false,
+                                                       ChainKill = false, SixthChamber = false, HuntersCount = false, PassItOn = false }; // work order 141: its four too
             List<FloorRewardCard> cards = MixedFloorRewards.Offer(5UL, 4, 0, -1, new RunBasicShotUpgrades(), shotOff, true, new List<SkillUpgradeDefinition>(), null, null);
             Assert.That(cards, Is.Empty, "nothing to give: no card (the reward is skipped, as when no skill was left)");
             cards = MixedFloorRewards.Offer(5UL, 1, 0, 3, new RunBasicShotUpgrades(), shotOff, false, new List<SkillUpgradeDefinition>(), null, null);

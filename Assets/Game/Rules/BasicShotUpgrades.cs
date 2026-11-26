@@ -22,6 +22,16 @@ namespace Roguelike.Rules
         MarkingRounds,
         /// <summary>D4, the analyst's own (taken by him with the five): a basic shot on an enemy at the cap of marks spends them.</summary>
         TapOut,
+        // Work order 141 (Kristian, 2026-11-26, his tick of all four: Chain Kill, Pass It On, Sixth Chamber, Hunter's Count), at
+        // the end: the draft's A3, C2, D2 and D3 (BasicShotUpgradesMore.cs).
+        /// <summary>A3: a kill by a basic shot bounces the shot to the nearest living enemy near it, and a bounce that kills again.</summary>
+        ChainKill,
+        /// <summary>C2: every sixth basic shot fired, hit or miss, is a heavy round: more damage, through one enemy, a stagger.</summary>
+        SixthChamber,
+        /// <summary>D2: the count to a basic mark is kept per enemy, and the third basic hit on the same enemy marks it.</summary>
+        HuntersCount,
+        /// <summary>D3: her basic shot's kill of a marked enemy passes its marks to the nearest living enemy near it.</summary>
+        PassItOn,
     }
 
     /// <summary>
@@ -63,6 +73,36 @@ namespace Roguelike.Rules
         public int[] TapOutBelowCap = { 0, 1, 1 };         // marks under the cap (KitValues.MaxMarks) from which a basic hit spends them: at the cap, then one under
         public float[] TapOutBonus = { 0.2f, 0.2f, 0.3f };  // damage a mark spent adds, as a spender's (MarkRules.SpenderDamage)
 
+        // Work order 141 (his tick of 2026-11-26: "Chain Kill, Pass It On, Sixth Chamber, Hunter's Count"): the four's switches,
+        // each on, and their numbers, first guesses around the draft's (the tiers past its first guess are this order's).
+        public bool ChainKill = true;
+        public bool SixthChamber = true;
+        public bool HuntersCount = true;
+        public bool PassItOn = true;
+
+        // Chain Kill (the draft's A3: 100 % of the shot to the nearest living enemy within 4 m past cover, at most 3 bounces;
+        // the tiers are this order's: rare 5.5 m, epic 130 %).
+        public float[] BounceShare = { 1f, 1f, 1.3f };   // of the shot's damage, to each enemy a bounce hits
+        public float[] BounceReach = { 4f, 5.5f, 5.5f }; // m from the enemy it leaves to the one it hits (Ricochet's NextJump)
+        public int[] BounceMost = { 3, 3, 3 };           // bounces a shot makes at most; a bounce that does not kill ends it
+
+        // Sixth Chamber (the draft's C2: every 6th shot, double damage, through one enemy, 10 stagger; rare every 5th; epic triple).
+        public int[] ShotsPerHeavy = { 6, 5, 5 };        // the heavy round is every this many basic shots fired, hit or miss
+        public float[] HeavyScale = { 2f, 2f, 3f };      // its damage, times the shot's
+        public int HeavyPierce = 1;                      // enemies past the first on her line it goes on to (with Piercing Round held: the more of the two)
+        public float HeavyPierceShare = 0.5f;            // of its damage, to each (with Piercing Round held: the larger share of the two)
+        public float HeavyStagger = 10f;                 // stagger it adds to the shot's own
+        public float HeavyFlashGrow = 0.8f;              // its muzzle flash this share larger (the shot's own look, nothing new)
+        public float HeavyStreakScale = 1.8f;            // its streak this many times as wide
+
+        // Hunter's Count (the draft's D2: the 3rd basic hit on the same enemy marks it; rare 2 marks; epic every 2nd hit).
+        public int[] HuntHits = { 3, 3, 2 };             // basic hits on one enemy that mark it, in place of the kit's 5 on anyone
+        public int[] HuntMarks = { 1, 2, 2 };            // marks that hit adds
+
+        // Pass It On (the draft's D3: 5 m; rare 7 m; epic on any kill of hers).
+        public float[] PassReach = { 5f, 7f, 7f };       // m from the one that died to the nearest living enemy that takes its marks
+        public bool[] PassOnAnyKill = { false, false, true }; // a skill's kill passes them too (else her basic shot's only)
+
         /// <summary>The upgrade's own switch.</summary>
         public bool On(BasicShotUpgradeKind kind)
         {
@@ -72,6 +112,10 @@ namespace Roguelike.Rules
                 case BasicShotUpgradeKind.Quickening: return Quickening;
                 case BasicShotUpgradeKind.HotBarrel: return HotBarrel;
                 case BasicShotUpgradeKind.MarkingRounds: return MarkingRounds;
+                case BasicShotUpgradeKind.ChainKill: return ChainKill; // work order 141
+                case BasicShotUpgradeKind.SixthChamber: return SixthChamber;
+                case BasicShotUpgradeKind.HuntersCount: return HuntersCount;
+                case BasicShotUpgradeKind.PassItOn: return PassItOn;
                 default: return TapOut;
             }
         }
@@ -86,7 +130,7 @@ namespace Roguelike.Rules
     /// </summary>
     public sealed class RunBasicShotUpgrades
     {
-        readonly int[] _tier = new int[5];
+        readonly int[] _tier = new int[All.Length]; // work order 141: one a kind (nine)
         readonly List<BasicShotUpgradeKind> _order = new List<BasicShotUpgradeKind>();
 
         /// <summary>The numbers and switches read for the run (the run's <see cref="RunValues.BasicShot"/>, set as one is taken).</summary>
@@ -95,11 +139,14 @@ namespace Roguelike.Rules
         public int KitPerMark = 5, MarkCap = 5;
         /// <summary>Goes up with every take, for what shows them.</summary>
         public int Version { get; private set; }
+        /// <summary>Work order 141, Sixth Chamber: basic shots fired since its last heavy round (counted only while it works).</summary>
+        public int ChamberFired;
 
         public static readonly BasicShotUpgradeKind[] All =
         {
             BasicShotUpgradeKind.PiercingRound, BasicShotUpgradeKind.Quickening, BasicShotUpgradeKind.HotBarrel,
             BasicShotUpgradeKind.MarkingRounds, BasicShotUpgradeKind.TapOut,
+            BasicShotUpgradeKind.ChainKill, BasicShotUpgradeKind.SixthChamber, BasicShotUpgradeKind.HuntersCount, BasicShotUpgradeKind.PassItOn, // work order 141
         };
 
         /// <summary>The tier held, 0 for none.</summary>
@@ -124,6 +171,7 @@ namespace Roguelike.Rules
         {
             Array.Clear(_tier, 0, _tier.Length);
             _order.Clear();
+            ChamberFired = 0; // work order 141
             Version++;
         }
     }
@@ -157,7 +205,7 @@ namespace Roguelike.Rules
             values = values ?? new BasicShotUpgradeValues();
             var open = new List<BasicShotUpgradeKind>();
             foreach (BasicShotUpgradeKind k in RunBasicShotUpgrades.All)
-                if (values.On(k) && (held == null || held.TierOf(k) < BasicShotUpgradeValues.Tiers)) open.Add(k);
+                if (values.On(k) && (held == null || held.TierOf(k) < BasicShotUpgradeValues.Tiers) && !BasicShotMoreRules.Excluded(k, held)) open.Add(k); // work order 141: Hunter's Count or Marking Rounds
             return open;
         }
 
@@ -306,8 +354,8 @@ namespace Roguelike.Rules
     /// </summary>
     public sealed class BasicShotUpgradeTally
     {
-        readonly int[] _fired = new int[5];
-        readonly float[] _added = new float[5];
+        readonly int[] _fired = new int[RunBasicShotUpgrades.All.Length]; // work order 141: nine
+        readonly float[] _added = new float[RunBasicShotUpgrades.All.Length];
 
         /// <summary>How often it fired since the last read, and what it added (damage for Piercing Round, Hot Barrel and Tap Out; seconds of cooldown for Quickening; marks for Marking Rounds and the marks Tap Out spent are not counted here).</summary>
         public int Fired(BasicShotUpgradeKind k) => _fired[(int)k];
@@ -354,13 +402,19 @@ namespace Roguelike.Rules
                 case BasicShotUpgradeKind.Quickening: return "Quickening";
                 case BasicShotUpgradeKind.HotBarrel: return "Hot Barrel";
                 case BasicShotUpgradeKind.MarkingRounds: return "Marking Rounds";
+                case BasicShotUpgradeKind.ChainKill: return "Chain Kill"; // work order 141
+                case BasicShotUpgradeKind.SixthChamber: return "Sixth Chamber";
+                case BasicShotUpgradeKind.HuntersCount: return "Hunter's Count";
+                case BasicShotUpgradeKind.PassItOn: return "Pass It On";
                 default: return "Tap Out";
             }
         }
 
         /// <summary>What a tally's "added" counts for each (the log's unit): damage, seconds of cooldown, or marks.</summary>
         public static string AddedUnit(BasicShotUpgradeKind k) =>
-            k == BasicShotUpgradeKind.Quickening ? "seconds" : k == BasicShotUpgradeKind.MarkingRounds ? "marks" : "damage";
+            k == BasicShotUpgradeKind.Quickening ? "seconds"
+            : k == BasicShotUpgradeKind.MarkingRounds || k == BasicShotUpgradeKind.HuntersCount || k == BasicShotUpgradeKind.PassItOn ? "marks" // work order 141
+            : "damage";
 
         /// <summary>The tier's numeral: I, II, III.</summary>
         public static string Numeral(int tier) => tier <= 1 ? "I" : tier == 2 ? "II" : "III";
@@ -381,6 +435,10 @@ namespace Roguelike.Rules
                 case BasicShotUpgradeKind.Quickening: return "Every basic shot that hits brings all your skills back a little sooner.";
                 case BasicShotUpgradeKind.HotBarrel: return "Basic shots that hit in a row deal more and more; a miss cools the barrel.";
                 case BasicShotUpgradeKind.MarkingRounds: return "Your basic shot marks more often.";
+                case BasicShotUpgradeKind.ChainKill: // work order 141
+                case BasicShotUpgradeKind.SixthChamber:
+                case BasicShotUpgradeKind.HuntersCount:
+                case BasicShotUpgradeKind.PassItOn: return BasicShotMoreTexts.Sentence(k);
                 default: return "A basic shot on an enemy full of marks spends them all for more damage.";
             }
         }
@@ -389,6 +447,7 @@ namespace Roguelike.Rules
         public static string What(BasicShotUpgradeKind k, int tier, BasicShotUpgradeValues v, int kitPerMark = 5, int cap = 5)
         {
             v = v ?? new BasicShotUpgradeValues();
+            if (k >= BasicShotUpgradeKind.ChainKill) return BasicShotMoreTexts.What(k, tier, v, kitPerMark); // work order 141
             if (tier <= 0)
             {
                 switch (k)
