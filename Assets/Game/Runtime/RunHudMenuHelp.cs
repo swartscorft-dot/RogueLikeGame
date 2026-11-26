@@ -76,6 +76,7 @@ namespace Roguelike
         /// <summary>An item of the start menu's UPGRADES she cannot afford now. For tests.</summary>
         public bool MenuItemUnaffordable(StartMenu menu, int item)
         {
+            if (TabsFor(menu)) return TabItemUnaffordable(menu, item); // work order 139: the page's rows
             EnsureMenuItems(menu);
             return item >= 0 && item < _menuCards.Count && BetweenCardUnaffordable(_menuCards[item]);
         }
