@@ -287,7 +287,7 @@ namespace Roguelike.Rules
     /// The WEAPON tab's stage (work order 139): its model laid as the drawing expects it (the barrel along +X, its top along +Y,
     /// the grip below), the three mount points, the camera's limits and how the model turns. The model's own way is undone by
     /// <see cref="ModelTurn"/>; the mount points are in the model's box, so a new model is set by these values alone, never by
-    /// the drawing. First guesses, set from the stand-in's pictures (her pistol from her character model).
+    /// the drawing. Set for the high-detail original of the pistol in her hands (2026-11-26).
     /// </summary>
     public static class WeaponStageValues
     {
@@ -299,24 +299,50 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The turn (Euler degrees, X then Y then Z as the engine applies them) that lays the model with its barrel along +X and its
-        /// top along +Y. 0: her pistol from her character model already lies so (its holder's own axes). The new model from Meshy
-        /// is set here when it comes: its muzzle at -X and its grip at -Z in Blender's axes, which an FBX brings in as +X and -Y
-        /// (Unity's import turns Blender's X round and its Z up), so (0, 0, 0) should lay it; if its muzzle points left, (0, 180, 0).
+        /// top along +Y. The high-detail original (Meshy, 2026-11-17) has its muzzle at -X and its top at +Z in Blender's axes, which
+        /// Unity's import of the FBX brings in as +X and +Y (it turns X round and puts the up axis's turn on the model's root, which
+        /// the stage keeps): (0, 0, 0) lays it, as the pictures of 2026-11-26 show.
         /// </summary>
         public static StagePoint ModelTurn = new StagePoint(0f, 0f, 0f);
+        /// <summary>
+        /// The stage draws the model in the toon look her pistol wears in a run (her toon shader with the model's own colours, its
+        /// teal lit, the ink line round it) instead of its own lit material (URP Lit with the original's colour, normal, metallic and
+        /// smoothness maps, its high detail). Off: the lit material, large and clean (the producer's choice, 2026-11-26: the owner
+        /// asked to see the model "i høy res"; the toon look flattens the normal map's detail away). Read when the stage is built.
+        /// </summary>
+        public static bool ToonOnStage = false;
         /// <summary>The model's longest side on the stage, in the stage's units (the camera's distances are in the same).</summary>
         public const float ModelLength = 1f;
 
-        // Set from the new pistol's outline read off the stage's own picture square on (UpgradeTabsPicturesTests, 2026-11-26): its
-        // barrel's top runs at 0.8 of its box from 0.15 behind the middle to the muzzle, the cylinder block behind it rises to 1.03,
-        // the muzzle's face spans 0.17 to 0.83, the handle hangs from -0.6 to -0.95 along the barrel down to -0.99, leaning back
-        // about 16 degrees, its middle at (-0.77, -0.53).
-        /// <summary>The sight: on the barrel's top, just in front of the cylinder block, facing the barrel's way.</summary>
-        public static WeaponMount Sight = new WeaponMount(new StagePoint(-0.1f, 0.8f, 0f), new StagePoint(1f, 0f, 0f), new StagePoint(0f, 1f, 0f));
-        /// <summary>The barrel: at the muzzle, on the barrel's line (the middle of its face), facing out of it.</summary>
-        public static WeaponMount Barrel = new WeaponMount(new StagePoint(1f, 0.5f, 0f), new StagePoint(1f, 0f, 0f), new StagePoint(0f, 1f, 0f));
-        /// <summary>The grip: the handle's middle, facing down the handle (which leans back), its top toward the muzzle.</summary>
-        public static WeaponMount Grip = new WeaponMount(new StagePoint(-0.77f, -0.53f, 0f), new StagePoint(-0.28f, -1f, 0f), new StagePoint(1f, -0.28f, 0f));
+        // Set from the high-detail original's own vertices (counted in Blender, 2026-11-26), in its box (-1 to 1, x toward the muzzle,
+        // y up): the barrel's top rib runs at 0.845 from x -0.1 to 0.75 (the slide's bronze block behind it at 0.88, the rear sight
+        // at 1.0 round x -0.65, the front sight at 0.96 by the muzzle); the muzzle's ring spans y 0.415 to 0.785 round its bore at
+        // 0.6; the grip's panels run from y -0.2 to -0.7, their middle line from x -0.59 to -0.715 (leaning back 21 degrees), 0.26
+        // of the model's length deep square to it, 0.83 of the model's thickness thick at the top and 0.74 lower down; below them
+        // the magazine's bronze base, level, its bottom at y -1 round x -0.70, 0.29 deep and 0.75 thick.
+        /// <summary>The sight: on the barrel's top rib, ahead of the slide's bronze block, facing the barrel's way.</summary>
+        public static WeaponMount Sight = new WeaponMount(new StagePoint(0.2f, 0.845f, 0f), new StagePoint(1f, 0f, 0f), new StagePoint(0f, 1f, 0f));
+        /// <summary>The barrel: at the muzzle, on the bore's line (the middle of the muzzle's ring), facing out of it.</summary>
+        public static WeaponMount Barrel = new WeaponMount(new StagePoint(1f, 0.6f, 0f), new StagePoint(1f, 0f, 0f), new StagePoint(0f, 1f, 0f));
+        /// <summary>The grip: the middle of the grip's panels, facing down the handle (which leans back 21 degrees), its top toward the muzzle.</summary>
+        public static WeaponMount Grip = new WeaponMount(new StagePoint(-0.66f, -0.45f, 0f), new StagePoint(-0.38f, -1f, 0f), new StagePoint(1f, -0.38f, 0f));
+
+        /// <summary>The handle's depth front to back (square to it), as a share of the model's length: the grip's parts are sized to it.</summary>
+        public const float HandleDepth = 0.265f;
+        /// <summary>The Runner's Grip's three bands, flat straps: this far apart along the handle, this wide along it, this thick either side of their middle, this far off the handle, their corners this round (a share of the shorter half side), all shares of the model's length but the last.</summary>
+        public const float GripBandSpacing = 0.05f, GripBandWidth = 0.022f, GripBandTube = 0.0035f, GripBandGap = 0.002f, GripBandCorner = 0.95f; // corners: 0.6 stood off the handle's rounded front and back
+        /// <summary>The handle's thickness where each band sits (top, middle, bottom), as shares of the model's whole thickness.</summary>
+        public static readonly float[] GripBandThickness = { 0.834f, 0.77f, 0.737f };
+        /// <summary>The handle's foot (the middle of the magazine base's bottom face) in the model's box, where the foot's parts sit level.</summary>
+        public static StagePoint FootAt = new StagePoint(-0.7f, -1f, 0f);
+        /// <summary>The foot's depth front to back (a share of the model's length) and its thickness (a share of the model's thickness).</summary>
+        public const float FootDepth = 0.29f, FootThickness = 0.75f;
+        /// <summary>
+        /// The model and its mounts stand back from the turn's middle by this share of how far the barrel part shown sticks out past
+        /// the muzzle, so the pistol with its barrel stays inside the frame (2026-11-26: with the nearer camera the first long barrel
+        /// ran out of it).
+        /// </summary>
+        public const float FrameShiftShare = 0.65f;
 
         /// <summary>The mount of a slot.</summary>
         public static WeaponMount MountOf(WeaponSlot slot) => slot == WeaponSlot.Sight ? Sight : slot == WeaponSlot.Barrel ? Barrel : Grip;
@@ -325,17 +351,21 @@ namespace Roguelike.Rules
 
         /// <summary>The stage camera's field of view (degrees, up and down): narrow, so the model is drawn with little distortion.</summary>
         public const float FieldOfView = 24f;
-        /// <summary>The camera's distance from the model's middle at rest, and the wheel's limits (his words: "between named limits"): nearest and farthest.</summary>
-        public const float RestDistance = 2.35f;
-        public const float NearestDistance = 1.8f;
-        public const float FarthestDistance = 4.2f;
+        /// <summary>
+        /// The camera's distance from the model's middle at rest, and the wheel's limits (his words: "between named limits"): nearest
+        /// and farthest. 2026-11-26: nearer than the first 2.35 (and 1.8 and 4.2), so the pistol fills more of its frame at rest
+        /// (about seven tenths of its width, from six).
+        /// </summary>
+        public const float RestDistance = 2.1f;
+        public const float NearestDistance = 1.45f;
+        public const float FarthestDistance = 3.6f;
         /// <summary>One notch of the wheel comes this much nearer or goes back.</summary>
         public const float WheelStep = 0.25f;
 
         // ---------------- The turn ----------------
 
         /// <summary>At rest (and after R): the model turned this far about the up axis (its muzzle a little toward the camera) and tipped this far toward the camera.</summary>
-        public const float RestYaw = -28f;
+        public const float RestYaw = -24f; // 2026-11-26: -28 before; less turned, its muzzle less near the camera, so it fits the nearer frame
         public const float RestPitch = 14f;
         /// <summary>A drag turns it this many degrees a layout pixel (1080-high layout), across about the up axis, up and down about the side axis.</summary>
         public const float DegreesPerPixel = 0.32f;

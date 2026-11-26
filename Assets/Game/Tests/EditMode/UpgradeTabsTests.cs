@@ -154,9 +154,16 @@ namespace Roguelike.Rules.Tests
                 Assert.That(m.Forward.Length, Is.GreaterThan(0.5f), slot + " faces a way");
                 Assert.That(m.Up.Length, Is.GreaterThan(0.5f), slot + " has a top");
             }
-            Assert.That(WeaponStageValues.Sight.At.Y, Is.GreaterThan(0.5f), "the sight on top (on the barrel's top, 0.8 of the box: the block behind it rises higher)");
+            // Where the high-detail original's own vertices put them (2026-11-26): the barrel's top rib at 0.845 of the box, the bore at
+            // 0.6, the middle of the grip's panels at (-0.66, -0.45), leaning back about 21 degrees.
+            Assert.That(WeaponStageValues.Sight.At.Y, Is.EqualTo(0.845f).Within(1e-4f), "the sight on the barrel's top rib (the slide's block behind it rises to 0.88, the rear sight to 1)");
+            Assert.That(WeaponStageValues.Sight.At.X, Is.InRange(-0.1f, 0.75f), "on the rib, between the slide's block and the front sight");
             Assert.That(WeaponStageValues.Barrel.At.X, Is.EqualTo(1f), "the barrel at the muzzle (+X)");
+            Assert.That(WeaponStageValues.Barrel.At.Y, Is.EqualTo(0.6f).Within(1e-4f), "on the bore's line, the middle of the muzzle's ring (0.415 to 0.785)");
             Assert.That(WeaponStageValues.Grip.At.Y, Is.LessThan(0f), "the grip below");
+            Assert.That(WeaponStageValues.Grip.At.X, Is.LessThan(-0.4f), "the handle at the back, under the slide's rear");
+            float lean = (float)(Math.Atan2(-WeaponStageValues.Grip.Forward.X, -WeaponStageValues.Grip.Forward.Y) * 180.0 / Math.PI);
+            Assert.That(lean, Is.InRange(15f, 25f), "facing down the grip's panels, which lean back about 21 degrees");
             Assert.That(WeaponStageValues.ModelPath, Is.EqualTo("Weapon/Pistol"), "the one named place");
         }
 

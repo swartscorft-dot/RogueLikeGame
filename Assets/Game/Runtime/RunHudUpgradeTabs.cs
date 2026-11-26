@@ -54,7 +54,6 @@ namespace Roguelike
         public const string RanksPageHead = "RANKS", RanksPageSub = "one press a step, no undo", RackPageHead = "RACK", RackPageSub = "pieces to own";
         public const string NoneName = "None", StockWord = "STOCK", FittedWord = "FITTED", OwnedWord = "OWNED", EquippedWord = "EQUIPPED", NotYetWord = "NOT YET";
         public const string AttachmentsOffLine = "Attachments are switched off: fitting a part here turns them on.";
-        public const string StandInLine = "Stand-in: her pistol from her character model, until a model is put in Resources/Weapon/Pistol (Editor only).";
 
         /// <summary>Is the start menu's screen the upgrades in three tabs (work order 139)?</summary>
         static bool TabsFor(StartMenu menu) => UpgradeTabsValues.On && menu != null && menu.Screen == MenuScreen.Upgrades;
@@ -569,8 +568,6 @@ namespace Roguelike
             }
             else InterfaceStyle.Fill(stage, InterfaceStyle.C(v.Black, 0.9f));
             InterfaceStyle.Fill(new Rect(stage.x, stage.y, 6f, stage.height), InterfaceStyle.C(v.Teal));
-            if (st != null && st.ModelSource != WeaponStage.Source.NamedPlace && Application.isEditor)
-                TextLabel(new Rect(stage.x + 18f, stage.yMax - 34f, stage.width - 36f, 26f), StandInLine, InterfaceStyle.Text(false, 16, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Grey), true);
 
             // The line from the row under the cursor to its part's place on the model.
             int sel = menu.Selected;
