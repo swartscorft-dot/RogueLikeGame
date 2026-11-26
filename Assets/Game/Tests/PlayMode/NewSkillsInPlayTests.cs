@@ -389,6 +389,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.UpgradeTableNow.Count(u => NewSkillRules.IsNew(u.Skill)), Is.EqualTo(6));
 
             _levels.RunValues.NewSkills = false;
+            KitSwitchesForTests.SkillsOnlyReward(_levels); // changed deliberately (work order 138): the three skills of the reward of before, pinned here
             _levels.StartRun(0x0109CAFEUL);
             yield return null;
             Assert.That(_player.Skills.Count, Is.EqualTo(12), "off: the twelve");

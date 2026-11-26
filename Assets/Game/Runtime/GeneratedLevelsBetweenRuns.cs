@@ -421,7 +421,7 @@ namespace Roguelike
         int FirstChestExtra => _chestsOpened.Count == 0 ? Modifiers.Meta.FirstChestExtra : 0;
 
         /// <summary>True while the floor reward is on screen and Second Look can still draw it again this run.</summary>
-        public bool CanRedraw => Choice == ChoiceKind.FloorReward && Modifiers.Meta.RedrawsLeft > 0;
+        public bool CanRedraw => Choice == ChoiceKind.FloorReward && Modifiers.Meta.RedrawsLeft > 0 && (!_mixedOn || _offeredSkills.Count > 0); // work order 138: only with a skill card shown
 
         /// <summary>
         /// Second Look (work order 029): the floor reward on screen is drawn again, once a run (<see cref="RewardRedraw"/>).
@@ -434,12 +434,13 @@ namespace Roguelike
             var had = new List<bool>();
             for (int slot = 0; slot < player.Skills.Count; slot++) had.Add(player.IsEquipped(slot));
             StrikeOutOfOffer(player, had);
-            List<int> again = RewardRedraw.Offer(RunSeed ?? 0UL, Floor, had, RunValues.SkillsOffered, _offeredSkills);
+            List<int> again = RewardRedraw.Offer(RunSeed ?? 0UL, Floor, had, RedrawCount, _offeredSkills); // work order 138: one skill for the card of three kinds
             if (again.Count == 0) return false;
             Modifiers.Meta.RedrawsLeft--;
             _offeredSkills.Clear();
             _offeredSkills.AddRange(again);
             DrawSkillTiers(player, 1); // work order 057: new tiers with the new slots
+            MixedSkillRedrawn(); // work order 138: the skill card made again
             NoteRewardOffer(player);
             Debug.Log("Between runs: Second Look drew the floor reward again");
             return true;

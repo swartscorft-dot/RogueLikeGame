@@ -43,6 +43,13 @@ namespace Roguelike.Rules
                             run.FloorSeconds[Number(e, "floor")] = s;
                         break;
                     case SessionEventTypes.RewardTake:
+                        // Work order 138: a card of three kinds that is not a skill is no skill taken; it is listed with the upgrades.
+                        string takenKind = e.ExtraValue("kind");
+                        if (!string.IsNullOrEmpty(takenKind) && takenKind != "skill")
+                        {
+                            run.Upgrades.Add(e.Name ?? "?");
+                            break;
+                        }
                         run.Skills.Add(e.Name ?? "?");
                         run.SkillsWith.Add(TakenWith(e)); // work order 057
                         break;

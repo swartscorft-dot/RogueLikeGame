@@ -124,6 +124,10 @@ namespace Roguelike.Rules
         public const string RicochetJump = "ricochet_jump";   // Ricochet's shot jumped on: name the skill, target what it hit, shot which hit of the use (2, 3)
         public const string SmokeCloud = "smoke_cloud";       // Smoke Round's cloud came up: name the skill, seconds how long it stands, x and z its middle
         public const string DeadeyeVolley = "deadeye_volley"; // Deadeye's shots went off: name the skill, shot how many marked enemies it shot at
+        // Work order 138: a basic-shot upgrade's use, at each floor's reward and at the run's end, for each one she holds: name
+        // it with its tier ("Hot Barrel II"), floor, fired (how often it worked), added (what it added) and unit (what added counts:
+        // damage, seconds of cooldown, marks). The floor reward of three kinds' reward_offer has kinds, and its reward_take kind.
+        public const string BasicShotUse = "basic_shot_use";
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>

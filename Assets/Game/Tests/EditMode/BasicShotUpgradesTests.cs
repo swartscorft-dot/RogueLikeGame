@@ -231,6 +231,23 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
+        public void HerSheet_AndThePauseMenusPanel_ListTheUpgradesSheHolds_UnderBasicShot_AndNoneBefore()
+        {
+            var c = new OfferContext { Modifiers = new RunModifiers { StatsAndTiers = true, StatValues = new StatValues() } };
+            List<SheetStat> before = HerSheet.Stats(c);
+            Assert.That(before.Any(s => s.Group == SheetGroup.BasicShot), Is.False, "none held: no group");
+            c.Modifiers.BasicShot.Take(Pierce);
+            c.Modifiers.BasicShot.Take(Pierce);
+            c.Modifiers.BasicShot.Take(Hot);
+            List<SheetStat> after = HerSheet.Stats(c);
+            Assert.That(after.Take(before.Count).Select(s => s.Name + s.Value), Is.EqualTo(before.Select(s => s.Name + s.Value)), "the lines of before");
+            Assert.That(after.Skip(before.Count).Select(s => (s.Group, s.Name, s.Value)),
+                        Is.EqualTo(new[] { (SheetGroup.BasicShot, "Piercing Round", "II"), (SheetGroup.BasicShot, "Hot Barrel", "I") }));
+            Assert.That(HerSheet.GroupWord(SheetGroup.BasicShot), Is.EqualTo("BASIC SHOT"));
+            Assert.That(HerSheet.ColumnOf(SheetGroup.BasicShot), Is.EqualTo(1), "in the shorter column, under fortune");
+        }
+
+        [Test]
         public void HerStats_ListTheUpgradesSheHolds_AndNoneBefore()
         {
             var m = new RunModifiers { StatsAndTiers = true, StatValues = new StatValues() };

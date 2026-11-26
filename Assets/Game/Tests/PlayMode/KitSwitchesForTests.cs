@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Roguelike.Rules;
 using UnityEngine;
 
@@ -17,9 +18,14 @@ namespace Roguelike.PlayModeTests
         /// </summary>
         public static SkillSettings EightSlots(PlayerCharacter player)
         {
+            // The skills she had (the practice room hands her every one) are had again, in list order, on the eight keys.
+            var had = new List<int>();
+            for (int s = 0; s < player.Skills.Count; s++) if (player.IsEquipped(s)) had.Add(s);
             SkillSettings copy = Object.Instantiate(player.SkillSet);
             copy.Kit.SixSlots = false;
             player.SkillSet = copy;
+            player.EquipStartSkills();
+            foreach (int s in had) player.EquipSkill(s);
             return copy;
         }
 

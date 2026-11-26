@@ -55,6 +55,10 @@ namespace Roguelike.PlayModeTests
             _driver.InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
             _levels.MetaValues.Attachments = false;
             _reports.Clear();
@@ -718,6 +722,10 @@ namespace Roguelike.PlayModeTests
             Assert.That(_practiceEnemy, Is.Not.Null, "the practice enemy, to copy");
             _practiceEnemy.enabled = false;
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.RunValues.SkillTiers = false; // work order 057: one test counts the skill upgrades taken, which a tiered floor reward adds to
             _reports.Clear();
             _player.Reported += r => _reports.Add((r, Time.frameCount, Time.time));

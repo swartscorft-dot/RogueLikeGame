@@ -54,6 +54,7 @@ namespace Roguelike.PlayModeTests
         {
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
+            if (RunHud.Current != null) Object.Destroy(RunHud.Current.gameObject); // made by a test here; it outlives the scene
             foreach (Object o in _copies) if (o != null) Object.Destroy(o);
             _copies.Clear();
             Time.timeScale = 1f;

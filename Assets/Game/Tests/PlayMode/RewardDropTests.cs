@@ -49,6 +49,10 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.RunValues.SkillTiers = false; // work order 057: these count the skill upgrades taken, which a tiered floor reward adds to
         }
 

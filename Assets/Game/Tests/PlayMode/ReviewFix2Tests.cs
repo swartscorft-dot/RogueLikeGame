@@ -189,7 +189,7 @@ namespace Roguelike.PlayModeTests
             {
                 yield return FinishFloorAndWaitForTheReward();
                 Assert.That(_levels.PickReward(0), Is.True, "floor " + floor);
-                if (floor == 1) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice");
+                if (floor == 1 && !_levels.RunValues.MixedFloorReward) Assert.That(_levels.PickFocusChoice(0), Is.True, "the focus choice"); // changed deliberately (work order 138): no focus screen with the floor reward of three kinds
                 yield return null;
             }
             Assert.That(_levels.Floor, Is.EqualTo(5));
@@ -708,6 +708,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AFocusWindowOpenedOnFloor1_EndsWithTheFocusChoice_EitherWay_AndTheFocusIsKept()
         {
+            KitSwitchesForTests.SkillsOnlyReward(_levels); // changed deliberately (work order 138): this pins the focus screen after floor 1, which its reward of three kinds takes away
             foreach (int pick in new[] { 1, 0 })
             {
                 _levels.StartRun(RunSeed);

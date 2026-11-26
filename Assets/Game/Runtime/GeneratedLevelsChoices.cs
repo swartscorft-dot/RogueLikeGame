@@ -20,6 +20,7 @@ namespace Roguelike
         void OfferFloorReward()
         {
             PlayerCharacter player = FindPlayer();
+            if (OfferMixedFloorReward(player)) return; // work order 138: the floor reward of three kinds, with its switch on (GeneratedLevelsMixedReward.cs)
             var equipped = new List<bool>();
             for (int slot = 0; slot < player.Skills.Count; slot++) equipped.Add(player.IsEquipped(slot));
             StrikeOutOfOffer(player, equipped); // work order 029: Not That One
@@ -46,6 +47,7 @@ namespace Roguelike
         public bool PickReward(int index)
         {
             PickUpForAPick(ChoiceKind.FloorReward); // work order 042: its drop, if it lies, is picked up first
+            if (_mixedOn) return PickMixedReward(index); // work order 138: a card of three kinds (GeneratedLevelsMixedReward.cs)
             if (Choice != ChoiceKind.FloorReward || index < 0 || index >= _offeredSkills.Count) return false;
             CardPicked(index); // work order 045: its card flashes as it goes
             PlayerCharacter player = FindPlayer();

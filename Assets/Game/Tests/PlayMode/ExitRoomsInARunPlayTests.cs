@@ -173,7 +173,7 @@ namespace Roguelike.PlayModeTests
                 Assert.That(_levels.Choice, Is.EqualTo(GeneratedLevels.ChoiceKind.FloorReward), where + ": the floor's reward comes");
                 yield return new WaitForSecondsRealtime(0.5f); // past the choice's guard
                 Assert.That(_levels.PickReward(0), Is.True, where);
-                if (floor == 1)
+                if (floor == 1 && !_levels.RunValues.MixedFloorReward) // changed deliberately (work order 138): no focus screen with the floor reward of three kinds
                 {
                     yield return Until(() => _levels.Choice == GeneratedLevels.ChoiceKind.FocusChoice, 60);
                     yield return new WaitForSecondsRealtime(0.5f);

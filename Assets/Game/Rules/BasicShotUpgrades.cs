@@ -358,6 +358,10 @@ namespace Roguelike.Rules
             }
         }
 
+        /// <summary>What a tally's "added" counts for each (the log's unit): damage, seconds of cooldown, or marks.</summary>
+        public static string AddedUnit(BasicShotUpgradeKind k) =>
+            k == BasicShotUpgradeKind.Quickening ? "seconds" : k == BasicShotUpgradeKind.MarkingRounds ? "marks" : "damage";
+
         /// <summary>The tier's numeral: I, II, III.</summary>
         public static string Numeral(int tier) => tier <= 1 ? "I" : tier == 2 ? "II" : "III";
 

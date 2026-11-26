@@ -490,6 +490,11 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator EachFloor_AsksForTheThreeNotes_EachPick_ForTheChord_AndTheLastFloor_ForTheFanfare()
         {
+            // Changed deliberately (work order 138): this counts the picks of four skill rewards and the focus screen after
+            // floor 1, so its six slots and its floor reward of three kinds are off here.
+            if (_levels == null) _levels = GeneratedLevels.Ensure();
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.StartRun(RunSeed);
             yield return null;
             for (int floor = 1; floor <= 4; floor++)

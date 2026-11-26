@@ -78,6 +78,10 @@ namespace Roguelike.PlayModeTests
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _health = _player.GetComponent<PlayerHealth>();
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.RunValues.StatsAndTiers = false; // work order 050: a chest's health step of today (+10) on top of Thick Hide
             _levels.MetaValues.Enabled = false; // work order 117: on in code now; these tests start from off, as written, and turn it on themselves (On)
             _levels.MetaValues.Attachments = false;
@@ -658,6 +662,10 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Assert.That(GeneratedLevels.Current, Is.Null);
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _hud = RunHud.Ensure();
             On();
             yield return null;
