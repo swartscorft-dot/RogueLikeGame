@@ -116,6 +116,7 @@ namespace Roguelike.PlayModeTests
             PlayerPrefs.Save();
             if (GameSettings.IsLoaded) GameSettings.Unload();
             CleanPressAnswers.On = true;
+            RecastGrace.On = true;
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
             PlayerInputDriver.HeldByChoice = false;
@@ -404,7 +405,9 @@ namespace Roguelike.PlayModeTests
                 yield return Ready(hit);
                 yield return PressesBefore(slot, press);
                 float target = targets[t];
-                yield return Until(() => !Waiting(press) || (_player.IsRecastWindowOpen && _player.RecastSinceOpened >= target - 1e-4f), 3f);
+                // The last: the frame after which the next would be past the clean part's end (a hit stop's real frames shift the grid).
+                if (t == 2) yield return Until(() => !Waiting(press) || (_player.IsRecastWindowOpen && _player.RecastSinceOpened + Frame > _player.RecastCleanTo + 1e-5f), 3f);
+                else yield return Until(() => !Waiting(press) || (_player.IsRecastWindowOpen && _player.RecastSinceOpened >= target - 1e-4f), 3f);
                 Assert.That(Waiting(press), Is.True);
                 Seen saw = Look(slot, 0);
                 int before = _recasts.Count;
@@ -415,6 +418,11 @@ namespace Roguelike.PlayModeTests
                 pressLog.AppendLine("[142]   pressed on the frame after the drawings' " + names[t] + " clean frame (drawn at since " + F(Ms(saw.Since)) + " ms, ring "
                                     + F(saw.RingRadius) + " px, combo lit " + saw.ComboLit + "): judged at since " + F(Ms(r.Seconds)) + " ms, " + r.Timing + (r.Clean ? ", rewarded" : ""));
                 if (t < 2) Assert.That(r.Timing, Is.EqualTo(RecastTiming.Clean), skill + " press " + press + ": a press on the frame after the drawings' " + names[t] + " clean frame is clean");
+                if (t == 2) Assert.That(saw.Judge, Is.True, "the frame before the press was drawn clean");
+                bool pastEnd = r.Seconds > saw.CleanTo + 1e-5f;
+                Assert.That(r.Grace, Is.EqualTo(pastEnd && RecastGrace.On && r.Timing == RecastTiming.Clean), "clean only by the frame of grace: only a press past the clean part's end");
+                // Work order 142 (RecastGrace): the press answering the last frame drawn clean is clean too, by one frame's grace.
+                if (t == 2) Assert.That(r.Timing, Is.EqualTo(RecastGrace.On ? RecastTiming.Clean : RecastTiming.Late), skill + " press " + press + ": the press after the last drawn-clean frame");
             }
             Debug.Log("[142] " + skill + " press " + press + (hit ? " (hit)" : " (no hit)") + ":\n" + pressLog);
         }
@@ -524,7 +532,35 @@ namespace Roguelike.PlayModeTests
             }
         }
 
-        // ---------------- 3. The switch ----------------
+        // ---------------- 3. The switches ----------------
+
+        [UnityTest, Timeout(60000)]
+        public IEnumerator TheGrace_OnlyAPressHasIt_TheDrawingsKeepTheirEnd_AndOffThePressAfterTheLastCleanFrameIsLate()
+        {
+            int slot = Slot("Triple Tap");
+            foreach (bool on in new[] { true, false })
+            {
+                RecastGrace.On = on;
+                yield return Ready(false);
+                yield return Press(slot);
+                yield return Until(() => !Waiting(2) || _player.RecastPressWouldBeClean, 3f);
+                // Frame by frame to the last frame the judge (and every drawing) says clean: the one after it says not, grace or none.
+                yield return Until(() => !Waiting(2) || _player.RecastSinceOpened + Frame > _player.RecastCleanTo + 1e-5f, 3f);
+                Assert.That(_player.RecastPressWouldBeClean, Is.True, "the last frame drawn clean");
+                yield return null;
+                Assert.That(_player.RecastPressWouldBeClean, Is.False, (on ? "on" : "off") + ": the frame after it is not drawn clean (the drawings keep their end)");
+                _cast.Tick();
+                Assert.That(_cast.ComboLit, Is.False);
+                int before = _recasts.Count;
+                _player.PressSkill(slot, _player.AimPoint); // the press read on that frame
+                Time.captureDeltaTime = 0f;
+                Assert.That(_recasts.Count, Is.EqualTo(before + 1));
+                Assert.That(_recasts.Last().Timing, Is.EqualTo(on ? RecastTiming.Clean : RecastTiming.Late), (on ? "on" : "off") + ": the press on the frame after the last drawn-clean frame");
+                Assert.That(_recasts.Last().Grace, Is.EqualTo(on), "and the log can count it");
+                Assert.That(_player.RecastPressWouldBeClean, Is.False, "after the press: nothing drawn clean by the grace");
+            }
+            RecastGrace.On = true;
+        }
 
         [UnityTest, Timeout(60000)]
         public IEnumerator TheSwitchOff_TheCastBarFlashesAsBefore_PlainForAQuickPressInItsCleanPart()

@@ -224,6 +224,14 @@ namespace Roguelike
         /// </summary>
         public IntentResult PressSkill(int slot, Vector3 point)
         {
+            // Work order 142 (RecastGrace): a press, and only a press, is judged with one frame's grace at the end of its clean part.
+            _graceNow = RecastGrace.Seconds(Time.deltaTime > 0f ? Time.deltaTime : Mathf.Min(Time.unscaledDeltaTime, RecastClock.MostPerFrame));
+            try { return PressSkillJudged(slot, point); }
+            finally { _graceNow = 0f; }
+        }
+
+        IntentResult PressSkillJudged(int slot, Vector3 point)
+        {
             if (slot < 0 || slot >= Skills.Count) return SkillPressed(slot, IntentResult.Rejected, 0f);
             if (!IsEquipped(slot))
             {

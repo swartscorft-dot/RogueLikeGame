@@ -111,6 +111,8 @@ namespace Roguelike
         public float Metres;          // SprintJumped: from the take-off to the landing
         // Work order 109.
         public bool NoTarget;         // SkillPressed: rejected because Deadeye had no marked enemy in sight
+        // Work order 142.
+        public bool Grace;            // RecastPressed: clean only by the frame of grace at the end of its clean part (RecastGrace)
     }
 
     /// <summary>

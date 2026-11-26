@@ -93,6 +93,7 @@ namespace Roguelike
                         // shot before went off; for a press that waited, when it fired), so that the clean parts can be set from his presses.
                         press.AddExtra("timing", r.Timing.ToString().ToLowerInvariant());
                         press.AddExtra("since", r.Seconds.ToString("0.000", CultureInfo.InvariantCulture));
+                        if (r.Grace) press.AddExtra("grace", "true"); // work order 142: clean by the frame of grace at its clean part's end
                         Add(press);
                         break;
                     }
