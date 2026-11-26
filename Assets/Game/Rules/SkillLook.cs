@@ -27,6 +27,18 @@ namespace Roguelike.Rules
         /// </summary>
         public static bool EffectsNotShapes = true;
 
+        /// <summary>
+        /// Work order 140's third part, ON by default. Work order 123 showed the aim outline only while a key is held to aim before it
+        /// fires (his tick then: "Bare etter avfyring" for the new look, the aim help while a key is held staying), and read a cast as
+        /// after the press, so Heavy Volley's and Deadeye's casts showed none and Fan Fire's cone was gone while its key was held. His
+        /// tick on 2026-11-26: "Vis under kast og hold". On (with <see cref="EffectsNotShapes"/>): the outline stands while a Casting
+        /// skill is cast and while a Holding skill's key is held and it fires, and goes the moment it resolves
+        /// (<see cref="SkillLookRules.OutlineShows(bool, bool, SkillInput, SkillPhase)"/>); Deadeye's, which hits the marked enemies in
+        /// its reach and not a line, is the circle of its reach round her (<see cref="SkillLookRules.OutlineIsReach"/>). Off: as work
+        /// order 123 left it. One switch for the whole game, so it is static; tests set it and put it back.
+        /// </summary>
+        public static bool OutlineInCastAndHold = true;
+
         /// <summary>The values the game draws with (one set).</summary>
         public static readonly SkillLookValues Live = new SkillLookValues();
 
@@ -200,12 +212,36 @@ namespace Roguelike.Rules
         /// skill that has not fired yet (a Charge skill charging, Long Shot); from the release, the press of any other skill, its
         /// cast and its hits, it is not drawn.
         /// </summary>
-        public static bool OutlineShows(bool effectsNotShapes, SkillInput input, SkillPhase phase)
+        public static bool OutlineShows(bool effectsNotShapes, SkillInput input, SkillPhase phase) => OutlineShows(effectsNotShapes, false, input, phase);
+
+        /// <summary>
+        /// Whether the aim outline is drawn in this phase, with work order 140's reading (<paramref name="inCastAndHold"/>,
+        /// <see cref="SkillLookValues.OutlineInCastAndHold"/>; his tick "Vis under kast og hold"): as
+        /// <see cref="OutlineShows(bool, SkillInput, SkillPhase)"/>, and also while a Casting skill is cast (its startup: Heavy Volley's
+        /// 1 s, Deadeye's 0.5 s) and while a Holding skill's key is held, from the press through every hit of the hold (its startup and its
+        /// channel: Fan Fire); not from the moment it resolves (a cast's hit, the hold's end) and never in its recovery. The skills with
+        /// only a short startup after a press (a Normal or a Point skill's 0.15 to 0.35 s, Long Shot's 0.1 s after its release) are not a
+        /// cast or a hold and stay as work order 123 left them. With <paramref name="effectsNotShapes"/> off, as before work order 123.
+        /// </summary>
+        public static bool OutlineShows(bool effectsNotShapes, bool inCastAndHold, SkillInput input, SkillPhase phase)
         {
             bool before = phase != SkillPhase.None && phase != SkillPhase.Recovery;
             if (!effectsNotShapes) return before;
-            return input == SkillInput.Charge && phase == SkillPhase.Channel;
+            if (input == SkillInput.Charge && phase == SkillPhase.Channel) return true;
+            if (!inCastAndHold) return false;
+            if (input == SkillInput.Casting) return phase == SkillPhase.Startup;
+            if (input == SkillInput.Holding) return phase == SkillPhase.Startup || phase == SkillPhase.Channel;
+            return false;
         }
+
+        /// <summary>
+        /// Work order 140: is this skill's outline during its cast the circle of its reach round her rather than its shape toward the aim?
+        /// Deadeye's (<see cref="SkillDefinition.DeadeyeMost"/>): it shoots every marked enemy she has a clear line to within its
+        /// <see cref="SkillDefinition.Range"/> of where she stands as the cast ends, not along the aim, so a strip toward the cursor
+        /// would show where it does NOT land. Only with both switches on; else as before.
+        /// </summary>
+        public static bool OutlineIsReach(SkillDefinition skill, bool effectsNotShapes, bool inCastAndHold) =>
+            skill != null && effectsNotShapes && inCastAndHold && skill.DeadeyeMost > 0;
 
         /// <summary>
         /// The yaw in degrees, from the aim, of tracer <paramref name="i"/> of <paramref name="count"/> across a cone of

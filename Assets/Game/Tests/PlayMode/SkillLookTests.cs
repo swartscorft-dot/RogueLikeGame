@@ -349,10 +349,15 @@ namespace Roguelike.PlayModeTests
                 int ours = fx != null ? fx.DrawnBy.Sum() - _shotsAtStart : 0;
                 string flats = Flats();
                 if (flats.Length > 0) faults.Add(name + ": flat shapes on the ground: " + flats);
-                // The outline: only while Long Shot's key is held to aim, before it fires.
+                // The outline: only while Long Shot's key is held to aim, before it fires; work order 140 (changed deliberately, his tick
+                // "Vis under kast og hold"): and while a Casting skill is cast and a Holding skill's key is held and it fires.
+                bool castAndHold = SkillLookValues.OutlineInCastAndHold;
                 foreach (string f in _outlineFrames.Distinct())
-                    if (!f.EndsWith("Charge Channel")) faults.Add(name + ": the aim outline showed at " + f);
+                    if (!f.EndsWith("Charge Channel") && !(castAndHold && (f.EndsWith("Casting Startup") || f.EndsWith("Holding Startup") || f.EndsWith("Holding Channel"))))
+                        faults.Add(name + ": the aim outline showed at " + f);
                 if (name == "Long Shot" && _outlineSeen == 0) faults.Add("Long Shot: no aim outline while its key was held (it must stay)");
+                if (castAndHold && (name == "Heavy Volley" || name == "Deadeye" || name == "Fan Fire") && _outlineSeen == 0)
+                    faults.Add(name + ": no aim outline during its cast or its hold (work order 140)");
                 if (_smokeDiscs > 0) faults.Add(name + ": the smoke's flat discs drawn");
                 int shown = _shots.Count(x => x.kind == ShotFxKind.Streak || x.kind == ShotFxKind.Spark || x.kind == ShotFxKind.Flash) + ours;
                 if (shown == 0) faults.Add(name + ": nothing showed it");
@@ -484,7 +489,9 @@ namespace Roguelike.PlayModeTests
                 Assert.That(tracers.Max(t => t.yaw), Is.EqualTo(s.Angle * 0.5f).Within(1f));
                 foreach ((float yaw, float reach) t in tracers) Assert.That(t.reach, Is.EqualTo(s.Range).Within(Metres));
             }
-            Assert.That(_outlineSeen, Is.Zero, "no cone drawn on the ground while it fires");
+            // Work order 140 (changed deliberately, "Vis under kast og hold"): its cone's outline stands while its key is held and it fires.
+            if (SkillLookValues.OutlineInCastAndHold) Assert.That(_outlineSeen, Is.GreaterThan(0), "its cone's outline while it is held");
+            else Assert.That(_outlineSeen, Is.Zero, "no cone drawn on the ground while it fires");
         }
 
         [UnityTest]
