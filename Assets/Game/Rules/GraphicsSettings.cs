@@ -36,6 +36,7 @@ namespace Roguelike.Rules
         Volume, Music, MusicVolume,
         DashDirection, DamageNumbers, CameraKick, CameraDistance,
         Attachments, Greybox, Light, ToonLook, BetweenRuns, CameraAngle,
+        TimingCue, TimingClick, // the merge of 2026-11-26: work order 134's two choices on the Trials page (TimingCueLines)
     }
 
     /// <summary>The quality presets (work order 128): each sets the four lines under it; a hand-made mix of them reads Custom.</summary>
@@ -350,7 +351,8 @@ namespace Roguelike.Rules
         /// <summary>
         /// A page's lines. Sound: what exists today (the master volume, the music on or off and its volume; no effects volume: no
         /// one place sets every effect's loudness). Trials: the trials and the developer's tools, and work order 121's camera angle
-        /// (he likes ours best: off the main list, the other three still here) while its switch is on.
+        /// (he likes ours best: off the main list, the other three still here) while its switch is on, then work order 134's timing
+        /// cue and its click (the merge of 2026-11-26).
         /// </summary>
         public static void Lines(SettingsPage page, bool cameraAngles, List<SettingLine> into)
         {
@@ -378,6 +380,8 @@ namespace Roguelike.Rules
                     into.Add(SettingLine.ToonLook);
                     into.Add(SettingLine.BetweenRuns);
                     if (cameraAngles) into.Add(SettingLine.CameraAngle);
+                    into.Add(SettingLine.TimingCue);   // the merge of 2026-11-26: work order 134's cue at the sight,
+                    into.Add(SettingLine.TimingClick); // and its cocking click, last on the page (TimingCueLines)
                     break;
             }
         }

@@ -327,4 +327,29 @@ namespace Roguelike.Rules
             return Math.Max(0.1f, v.ClickPitch) * (float)Math.Pow(2.0, k * v.ClickStep / 12.0);
         }
     }
+
+    /// <summary>
+    /// The setting's two lines on the settings screen's Trials page (the merge of 2026-11-26: work order 134 left them for work
+    /// order 128's page): "Timing cue", stepping through <see cref="TimingCues.Names"/> as the page's other lines step, and
+    /// "Timing click", on or off. Plain words; the screen reads and writes them through the game's TimingCueSettings.
+    /// </summary>
+    public static class TimingCueLines
+    {
+        public const string CueName = "Timing cue", ClickName = "Timing click";
+
+        /// <summary>Is this one of the two lines.</summary>
+        public static bool Is(SettingLine line) => line == SettingLine.TimingCue || line == SettingLine.TimingClick;
+
+        /// <summary>The line's name on the page.</summary>
+        public static string Name(SettingLine line) => line == SettingLine.TimingClick ? ClickName : CueName;
+
+        /// <summary>The cue a step of <paramref name="delta"/> leads to: forward for a step up or Enter, back for a step down.</summary>
+        public static TimingCue Stepped(TimingCue cue, int delta) => delta < 0 ? TimingCues.Previous(cue) : TimingCues.Next(cue);
+
+        /// <summary>The cue's words on its line.</summary>
+        public static string CueWords(TimingCue cue) => TimingCues.Names[(int)TimingCues.Step((int)cue)];
+
+        /// <summary>The click's words on its line.</summary>
+        public static string ClickWords(bool on) => on ? GraphicsRules.On : GraphicsRules.Off;
+    }
 }

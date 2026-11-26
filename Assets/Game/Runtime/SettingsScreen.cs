@@ -150,13 +150,15 @@ namespace Roguelike
 
         /// <summary>
         /// A line changed one step, wherever it stands (a test may change one that is not on the open page): a graphics line by
-        /// <see cref="GraphicsChoices.Change"/>, any other by the HUD's <see cref="RunHud.ChangeSetting"/>, saved as it always was.
+        /// <see cref="GraphicsChoices.Change"/>, the timing cue's two by <see cref="TimingCueSettings.ChangeLine"/> (the merge of
+        /// 2026-11-26), any other by the HUD's <see cref="RunHud.ChangeSetting"/>, saved as it always was.
         /// False when it did not change (a greyed line, no HUD).
         /// </summary>
         public bool ChangeLine(SettingLine line, int delta)
         {
             bool done;
             if (GraphicsRules.IsGraphics(line)) done = GraphicsChoices.Change(line, delta);
+            else if (TimingCueLines.Is(line)) done = TimingCueSettings.ChangeLine(line, delta);
             else done = RunHud.Current != null && RunHud.MenuLineOf(line, out RunHud.MenuLine menuLine) && RunHud.Current.ChangeSetting(menuLine, delta);
             if (done) MakeRows();
             return done;
@@ -185,6 +187,13 @@ namespace Roguelike
                         _values.Add(GraphicsChoices.ValueWords(line));
                         _notes.Add(greyed ? L.GreyedNote : GraphicsRules.IsDisplay(line) && !GraphicsChoices.DisplayActs ? L.EditorNote : "");
                         _greyed.Add(greyed);
+                    }
+                    else if (TimingCueLines.Is(line)) // the merge of 2026-11-26: work order 134's two lines, read through TimingCueSettings
+                    {
+                        _names.Add(TimingCueLines.Name(line));
+                        _values.Add(TimingCueSettings.LineWords(line));
+                        _notes.Add("");
+                        _greyed.Add(false);
                     }
                     else if (hud != null && RunHud.MenuLineOf(line, out RunHud.MenuLine menuLine))
                     {

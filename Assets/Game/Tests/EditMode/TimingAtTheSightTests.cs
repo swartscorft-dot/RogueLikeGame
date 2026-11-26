@@ -312,5 +312,31 @@ namespace Roguelike.Rules.Tests
             Assert.That(TimingCueClock.Since(-1f, 0.3f, 0.15f), Is.LessThan(0f), "a startup run long (a hit stop): still before");
             Assert.That(TimingCueClock.Since(-1f, 0.1f, 0.15f), Is.GreaterThan(TimingCueClock.Since(-1f, 0.05f, 0.15f)), "it runs on");
         }
+
+        [Test]
+        public void TheTrialsPagesTwoLines_TheirNames_TheirWords_AndTheCueSteppingBothWays()
+        {
+            // The merge of 2026-11-26: the setting's two lines on work order 128's Trials page.
+            Assert.That(TimingCueLines.Is(SettingLine.TimingCue) && TimingCueLines.Is(SettingLine.TimingClick), Is.True);
+            Assert.That(TimingCueLines.Is(SettingLine.Attachments) || TimingCueLines.Is(SettingLine.CameraAngle), Is.False);
+            Assert.That(TimingCueLines.Name(SettingLine.TimingCue), Is.EqualTo("Timing cue"));
+            Assert.That(TimingCueLines.Name(SettingLine.TimingClick), Is.EqualTo("Timing click"));
+            Assert.That(SettingsPages.PageOf(SettingLine.TimingCue), Is.EqualTo(SettingsPage.Trials));
+            Assert.That(SettingsPages.PageOf(SettingLine.TimingClick), Is.EqualTo(SettingsPage.Trials));
+            var forward = new List<string>();
+            TimingCue c = TimingCue.BarOnly;
+            for (int i = 0; i < TimingCues.Count; i++)
+            {
+                forward.Add(TimingCueLines.CueWords(c));
+                c = TimingCueLines.Stepped(c, 1);
+            }
+            Assert.That(forward, Is.EqualTo(new[] { "Bar only", "Cylinder", "Ring", "Hammer" }), "the four names");
+            Assert.That(c, Is.EqualTo(TimingCue.BarOnly), "round and back");
+            Assert.That(TimingCueLines.Stepped(TimingCue.BarOnly, -1), Is.EqualTo(TimingCue.Hammer), "a step back");
+            Assert.That(TimingCueLines.Stepped(TimingCue.Ring, -1), Is.EqualTo(TimingCue.Cylinder));
+            Assert.That(TimingCueLines.ClickWords(true), Is.EqualTo("on"));
+            Assert.That(TimingCueLines.ClickWords(false), Is.EqualTo("off"));
+            Assert.That(TimingCueLines.CueWords(TimingCue.Ring), Is.SameAs(TimingCueLines.CueWords(TimingCue.Ring)), "the same string each time");
+        }
     }
 }

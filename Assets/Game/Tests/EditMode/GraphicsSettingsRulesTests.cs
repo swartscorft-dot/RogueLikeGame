@@ -161,8 +161,13 @@ namespace Roguelike.Rules.Tests
             SettingsPages.Lines(SettingsPage.Gameplay, true, lines);
             Assert.That(lines, Is.EqualTo(new[] { SettingLine.DashDirection, SettingLine.DamageNumbers, SettingLine.CameraKick, SettingLine.CameraDistance }));
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines, Is.EqualTo(new[] { SettingLine.Attachments, SettingLine.Greybox, SettingLine.Light, SettingLine.ToonLook, SettingLine.BetweenRuns, SettingLine.CameraAngle }));
+            Assert.That(lines, Is.EqualTo(new[]
+            {
+                SettingLine.Attachments, SettingLine.Greybox, SettingLine.Light, SettingLine.ToonLook, SettingLine.BetweenRuns, SettingLine.CameraAngle,
+                SettingLine.TimingCue, SettingLine.TimingClick, // the merge of 2026-11-26: work order 134's two lines, last
+            }));
             SettingsPages.Lines(SettingsPage.Trials, false, lines);
+            Assert.That(lines.GetRange(lines.Count - 2, 2), Is.EqualTo(new[] { SettingLine.TimingCue, SettingLine.TimingClick }), "with the camera angle off, still last");
             Assert.That(lines, Has.No.Member(SettingLine.CameraAngle), "work order 121's switch off: no camera angle line");
             foreach (SettingsPage page in SettingsPages.All)
             {

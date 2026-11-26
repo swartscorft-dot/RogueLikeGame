@@ -40,11 +40,13 @@ namespace Roguelike
         public const int Order = LaserSightLate.Order + 10;
 
         /// <summary>
-        /// The temporary key (work order 134, until work order 128's Trials page has the lines): T steps through the cues, Bar only,
-        /// Cylinder, Ring, Hammer, the cue's name shown at the sight for a second; Shift and T turns the click on or off. T is bound
-        /// to nothing else (the bindings, the developer's keys, the run's keys). It works in every build, not only the developer's.
+        /// The temporary key (work order 134; since the merge of 2026-11-26 the settings screen's Trials page has the two lines as
+        /// well): Y steps through the cues, Bar only, Cylinder, Ring, Hammer, the cue's name shown at the sight for a second; Shift
+        /// and Y turns the click on or off. It was T until the merge: work order 133's teaching in the first run takes T (skip a
+        /// task) and H (end the teaching). Y is bound to nothing else (her bindings, the developer's keys, the room lab's, the run's
+        /// keys, and 133's). It works in every build, not only the developer's.
         /// </summary>
-        public const Key StepKey = Key.T;
+        public const Key StepKey = Key.Y;
 
         /// <summary>The one running now, or null.</summary>
         public static TimingAtTheSight Current { get; private set; }

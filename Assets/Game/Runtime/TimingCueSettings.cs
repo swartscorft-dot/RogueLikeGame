@@ -8,9 +8,9 @@ namespace Roguelike
     /// chosen, "Cylinder", "Ring", "Hammer") and <c>TimingSound</c> on or off (on by default with any cue but "Bar only"), kept
     /// between sessions in PlayerPrefs under <see cref="CueKey"/> and <see cref="SoundKey"/> as the camera angle is
     /// (<see cref="GameSettings.CameraAngleKey"/>). A plain static way to read and set it, as <see cref="GameSettings.CameraNow"/>:
-    /// <see cref="CueNow"/>, <see cref="SoundNow"/>, <see cref="SetCue"/>, <see cref="SetSound"/>. The menus are being rebuilt by
-    /// work order 128 in another folder: no menu line is this order's; the producer puts the lines on 128's Trials page at the
-    /// merge. Until then the temporary key steps through the cues (<see cref="TimingAtTheSight.StepKey"/>).
+    /// <see cref="CueNow"/>, <see cref="SoundNow"/>, <see cref="SetCue"/>, <see cref="SetSound"/>. Since the merge of 2026-11-26
+    /// the settings screen's Trials page has its two lines, "Timing cue" and "Timing click" (<see cref="ChangeLine"/>,
+    /// <see cref="LineWords"/>); the temporary key still steps through the cues (<see cref="TimingAtTheSight.StepKey"/>).
     ///
     /// Read as the game's other settings are: nothing until <see cref="GameSettings.Load"/> (the HUD does it when it starts), so a
     /// test that never makes the HUD plays with the defaults whatever this machine has stored, and <see cref="GameSettings.Unload"/>
@@ -97,6 +97,25 @@ namespace Roguelike
             PlayerPrefs.SetInt(SoundKey, s_sound);
             PlayerPrefs.Save();
         }
+
+        /// <summary>The click as chosen (stored, or the cue's default), whatever the order's switch says: the Trials page's value.</summary>
+        public static bool SoundChosen => TimingCues.Sound(SoundStored, CueChosen);
+
+        /// <summary>
+        /// The settings screen's line changed a step (the merge of 2026-11-26): "Timing cue" to the next cue (back for a step left),
+        /// "Timing click" on or off; kept as the temporary key keeps them. False for any other line.
+        /// </summary>
+        public static bool ChangeLine(SettingLine line, int delta)
+        {
+            if (line == SettingLine.TimingCue) SetCue(TimingCueLines.Stepped(CueChosen, delta));
+            else if (line == SettingLine.TimingClick) SetSound(!SoundChosen);
+            else return false;
+            return true;
+        }
+
+        /// <summary>The words of the line's value now ("Bar only" ... "Hammer"; "on", "off"): made once, never in a frame.</summary>
+        public static string LineWords(SettingLine line) =>
+            line == SettingLine.TimingClick ? TimingCueLines.ClickWords(SoundChosen) : TimingCueLines.CueWords(CueChosen);
 
         /// <summary>Forgets a stored sound value: its default follows the cue again (a test keeps nothing).</summary>
         public static void ForgetSound(bool keep = true)

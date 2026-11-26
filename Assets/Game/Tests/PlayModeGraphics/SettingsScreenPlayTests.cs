@@ -181,6 +181,63 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Paused, Is.False, "and Esc again resumes, as before");
         }
 
+        /// <summary>
+        /// The merge of 2026-11-26: work order 134's two choices stand last on the Trials page, "Timing cue" stepping through the four
+        /// cues both ways and "Timing click" on and off, read and written through TimingCueSettings, kept in PlayerPrefs and read back.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheTrialsPage_HasTheTimingCueAndItsClick_LastOnThePage_ReadAndWrittenThroughTimingCueSettings()
+        {
+            yield return PausedInARun();
+            if (!GameSettings.IsLoaded) GameSettings.Load(); // loaded first, so the known start below is not read over
+            TimingCueSettings.SetCue(TimingCue.BarOnly, keep: false); // a known start, whatever this machine has stored
+            TimingCueSettings.ForgetSound(keep: false);
+            Assert.That(_hud.PickMenuLine(RunHud.MenuLine.Settings), Is.True);
+            Assert.That(_screen.OpenPage(SettingsPage.Trials), Is.True);
+            List<SettingLine> lines = _screen.Lines.ToList();
+            int cue = lines.IndexOf(SettingLine.TimingCue), click = lines.IndexOf(SettingLine.TimingClick);
+            Assert.That(cue, Is.EqualTo(lines.Count - 2), "the cue next to last");
+            Assert.That(click, Is.EqualTo(lines.Count - 1), "its click last");
+            Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
+            Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
+            Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));
+            Assert.That(_screen.RowValues[cue], Is.EqualTo("Bar only"));
+            Assert.That(_screen.RowValues[click], Is.EqualTo("off"), "the bar only: no click by default");
+            Assert.That(_screen.RowGreyed[cue] || _screen.RowGreyed[click], Is.False);
+            Assert.That(_screen.TextOutside(), Is.Empty, "every word inside its shape");
+
+            Assert.That(_screen.Select(cue), Is.True);
+            Assert.That(_screen.Change(1), Is.True);
+            Assert.That(TimingCueSettings.CueChosen, Is.EqualTo(TimingCue.Cylinder));
+            Assert.That(PlayerPrefs.GetInt(TimingCueSettings.CueKey, -1), Is.EqualTo((int)TimingCue.Cylinder), "kept");
+            Assert.That(_screen.RowValues[cue], Is.EqualTo("Cylinder"));
+            Assert.That(_screen.RowValues[click], Is.EqualTo("on"), "none stored: the click follows the cue");
+            Assert.That(_screen.Change(-1), Is.True);
+            Assert.That(_screen.RowValues[cue], Is.EqualTo("Bar only"), "a step back");
+            Assert.That(_screen.Change(-1), Is.True);
+            Assert.That(_screen.RowValues[cue], Is.EqualTo("Hammer"), "round the other way");
+            Assert.That(_screen.Pick(cue), Is.True);
+            Assert.That(TimingCueSettings.CueChosen, Is.EqualTo(TimingCue.BarOnly), "Enter: the next, round and back");
+            Assert.That(_screen.Change(1) && _screen.Change(1), Is.True);
+            Assert.That(TimingCueSettings.CueChosen, Is.EqualTo(TimingCue.Ring));
+
+            Assert.That(_screen.Select(click), Is.True);
+            Assert.That(_screen.Change(1), Is.True);
+            Assert.That(TimingCueSettings.SoundChosen, Is.False, "the click off");
+            Assert.That(PlayerPrefs.GetInt(TimingCueSettings.SoundKey, -9), Is.EqualTo(TimingCues.SoundOff), "kept");
+            Assert.That(_screen.RowValues[click], Is.EqualTo("off"));
+            Assert.That(_screen.Pick(click), Is.True);
+            Assert.That(TimingCueSettings.SoundNow, Is.True, "and on again");
+            Assert.That(_screen.RowValues[click], Is.EqualTo("on"));
+
+            GameSettings.Unload();
+            Assert.That(TimingCueSettings.CueChosen, Is.EqualTo(TimingCue.BarOnly), "unloaded: the default (read between, as the cue does every frame)");
+            GameSettings.Load();
+            Assert.That(TimingCueSettings.CueChosen, Is.EqualTo(TimingCue.Ring), "read back");
+            Assert.That(TimingCueSettings.SoundStored, Is.EqualTo(TimingCues.SoundOn), "read back");
+            yield return null;
+        }
+
         [UnityTest]
         public IEnumerator ASettingOnAPage_StillDoesWhatItDid_WhenPickedThroughTheEscMenusOldIntent()
         {

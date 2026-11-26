@@ -517,13 +517,17 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator TheTemporaryKey_StepsTheCues_ShowsTheName_ShiftTurnsTheClick_AndTIsBoundToNothingElse()
+        public IEnumerator TheTemporaryKey_StepsTheCues_ShowsTheName_ShiftTurnsTheClick_AndYIsBoundToNothingElse()
         {
+            // The merge of 2026-11-26: the key moved from T to Y, because work order 133's teaching in the first run takes T (skip a
+            // task) and H (end the teaching).
+            Assert.That(Key, Is.EqualTo(UnityEngine.InputSystem.Key.Y), "the temporary key is Y");
+            Assert.That(Key, Is.Not.EqualTo(UnityEngine.InputSystem.Key.T).And.Not.EqualTo(UnityEngine.InputSystem.Key.H), "not work order 133's T or H");
             InputBindings b = _driver.ActiveBindings;
             Assert.That(b.MoveUp != Key && b.MoveDown != Key && b.MoveLeft != Key && b.MoveRight != Key && b.Dash != Key && b.Focus != Key
-                        && b.Interact != Key && b.TakeCover != Key && b.Sprint != Key && b.Sheet != Key, Is.True, "no binding of hers on T");
-            Assert.That(b.Skills.All(s => s.Source != BindingSource.Key || s.Key != Key), Is.True, "no skill on T");
-            Assert.That(DeveloperKeys.IsDeveloperKey(Key), Is.False, "no developer's key on T");
+                        && b.Interact != Key && b.TakeCover != Key && b.Sprint != Key && b.Sheet != Key, Is.True, "no binding of hers on Y");
+            Assert.That(b.Skills.All(s => s.Source != BindingSource.Key || s.Key != Key), Is.True, "no skill on Y");
+            Assert.That(DeveloperKeys.IsDeveloperKey(Key), Is.False, "no developer's key on Y (the room lab's among them)");
             Assert.That(Key, Is.Not.EqualTo(GeneratedLevels.NewLevelKey).And.Not.EqualTo(FloorMap.LargeKey).And.Not.EqualTo(GeneratedLevels.RedrawKey));
             Assert.That(Key, Is.Not.EqualTo(GeneratedLevels.HairTriggerKey).And.Not.EqualTo(GeneratedLevels.SteadyHandKey).And.Not.EqualTo(GeneratedLevels.TodaysFocusKey), "not the run's keys");
             Assert.That(Key, Is.Not.EqualTo(b.Interact), "not the chest's");
@@ -539,7 +543,7 @@ namespace Roguelike.PlayModeTests
             _cue.PressStepKey(false);
             Assert.That(TimingCueSettings.SoundNow, Is.True);
             _cue.PressStepKey(true);
-            Assert.That(TimingCueSettings.SoundNow, Is.False, "Shift and T: the click off");
+            Assert.That(TimingCueSettings.SoundNow, Is.False, "Shift and Y: the click off");
             Assert.That(_cue.NameText, Does.Contain("NO CLICK"));
             float end = Time.realtimeSinceStartup + _cue.Values.NameSeconds + 0.1f;
             yield return Until(() => Time.realtimeSinceStartup > end, 3f);
