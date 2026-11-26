@@ -98,8 +98,7 @@ namespace Roguelike
             InkedCircle(c, r, v.CylinderStroke * s, Ink(iv.White, 0.8f * a), s);
 
             // The notch: two posts at the top, a chamber's middle between them exactly when it is in the notch.
-            float halfChamber = Mathf.Asin(Mathf.Clamp01(v.ChamberRadius / Mathf.Max(1e-3f, v.CylinderRadius))) * Mathf.Rad2Deg;
-            float postAngle = Notch * 0.5f + halfChamber + Mathf.Atan2(v.PostWidth * 0.5f, v.CylinderRadius) * Mathf.Rad2Deg;
+            float postAngle = DrawnPostAngle; // work order 142: the post's width turned into degrees where the post stands
             float pr = r + cr + (v.PostGap + v.PostLength * 0.5f) * s;
             Color post = lit || flash > 0f ? Ink(iv.Teal, a) : Ink(iv.White, a);
             for (int side = -1; side <= 1; side += 2)
@@ -175,12 +174,18 @@ namespace Roguelike
             float gone = v.FlashSeconds > 0f && real - _goneAt < v.FlashSeconds * 2f ? 1f - (real - _goneAt) / (v.FlashSeconds * 2f) : 0f;
             bool flash = gone > 0f && _goneClean;
 
-            // The band: a faint fill between two lines; lit, brighter.
-            float inner = v.BandInner * s, outer = v.BandOuter * s;
+            // The band: a faint fill between two lines; lit, brighter. Work order 142 (DrawnEdges): the lines stand inside the
+            // judged radii by the ring's and their own half-widths, their outlines only on the band's side, so the ring's light line
+            // touches the outer one on the very frame a press turns clean and has left the inner one on the first frame it is late.
+            DrawnEdges.RingBand band = DrawnBand;
+            float inner = band.Inner * s, outer = band.Outer * s;
             Circle(c, (inner + outer) * 0.5f, outer - inner, lit || flash ? Ink(iv.Teal, 0.22f * a) : Ink(iv.Teal, 0.1f * a));
             Color edge = lit || flash ? Ink(iv.White, a) : Ink(iv.Teal, 0.85f * a);
-            InkedCircle(c, outer, 2f * s, edge, s);
-            InkedCircle(c, inner, 2f * s, edge, s);
+            Color edgeDark = new Color(0f, 0f, 0f, DarkAlpha * edge.a);
+            Circle(c, band.OuterDark * s, band.DarkWidth * s, edgeDark);
+            Circle(c, outer, DrawnEdges.BandLine * s, edge);
+            Circle(c, band.InnerDark * s, band.DarkWidth * s, edgeDark);
+            Circle(c, inner, DrawnEdges.BandLine * s, edge);
 
             // The ring pressed, where it was: lit if clean, grey if not, fading.
             if (gone > 0f)
@@ -203,8 +208,26 @@ namespace Roguelike
                 ink = Ink(iv.Red, a);
             }
             else return;
-            if (shows > 0f) InkedCircle(c, radius * s, v.RingStroke * s, ink, s);
+            if (shows <= 0f) return;
+            Circle(c, radius * s, band.RingDarkWidth * s, new Color(0f, 0f, 0f, DarkAlpha * ink.a)); // work order 142: its outline as thin as the rule allows
+            Circle(c, radius * s, v.RingStroke * s, ink);
         }
+
+        /// <summary>The ring's band as it is drawn now (work order 142's rule, <see cref="DrawnEdges.Band"/>): for tests, and the drawing.</summary>
+        public DrawnEdges.RingBand DrawnBand => DrawnEdges.Band(V, DrawnEdges.On);
+
+        /// <summary>The cylinder's notch posts' angle from the top, as drawn now (work order 142's rule, <see cref="DrawnEdges.NotchPost"/>).</summary>
+        public float DrawnPostAngle
+        {
+            get
+            {
+                TimingAtTheSightValues v = V;
+                return DrawnEdges.NotchPost(Notch, v.ChamberRadius, v.CylinderRadius, v.PostWidth, PostRadius(v), DrawnEdges.On);
+            }
+        }
+
+        /// <summary>The notch posts' middle's distance from the sight (layout px, before the screen's scale).</summary>
+        static float PostRadius(TimingAtTheSightValues v) => v.CylinderRadius + v.ChamberRadius + v.PostGap + v.PostLength * 0.5f;
 
         // ---------------- The name after the temporary key ----------------
 

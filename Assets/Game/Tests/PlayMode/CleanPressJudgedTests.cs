@@ -249,7 +249,7 @@ namespace Roguelike.PlayModeTests
         {
             public int Index;
             public float Since, Real;
-            public bool Open, Judge, Part, ComboLit, ComboIn, CastLit, CastIn, BoxLit, BoxIn, Cylinder, Ring, Hammer, Signs, HitStop;
+            public bool Open, Judge, Part, ComboLit, ComboIn, CastLit, CastIn, BoxLit, BoxIn, Cylinder, Ring, Hammer, Signs, HitStop, LooksInside;
             public float RingRadius, CleanFrom, CleanTo;
 
             /// <summary>
@@ -262,7 +262,8 @@ namespace Roguelike.PlayModeTests
         const float OnEdgeSeconds = 1e-4f;
 
         static readonly string[] Signals = { "judge", "clean part", "combo bar lit", "combo blade in zone", "old cast bar lit", "old cast bar marker in zone",
-                                             "skill box lit", "skill box marker in band", "cylinder in notch", "ring in band", "hammer brightest", "clean window sign" };
+                                             "skill box lit", "skill box marker in band", "cylinder in notch", "ring in band", "hammer brightest", "clean window sign",
+                                             "ring looks inside the lines (work order 142's rule)" };
 
         static bool Signal(Seen s, int i)
         {
@@ -279,7 +280,8 @@ namespace Roguelike.PlayModeTests
                 case 8: return s.Cylinder;
                 case 9: return s.Ring;
                 case 10: return s.Hammer;
-                default: return s.Signs;
+                case 11: return s.Signs;
+                default: return s.LooksInside;
             }
         }
 
@@ -313,6 +315,8 @@ namespace Roguelike.PlayModeTests
             s.Ring = _cue.RingSays && _cue.Lit;
             s.Hammer = _cue.HammerSays && _cue.Lit;
             s.RingRadius = _cue.RingRadius;
+            // Work order 142's rule: the ring's light line, as drawn, touches the band's light lines or lies between them.
+            s.LooksInside = s.Open && _cue.Clean.Any && _cue.DrawnBand.LooksInside(_cue.RingRadius);
             s.Signs = _signs.BandLit;
             return s;
         }
