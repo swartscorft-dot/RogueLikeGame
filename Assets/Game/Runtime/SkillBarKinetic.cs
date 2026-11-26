@@ -321,6 +321,7 @@ namespace Roguelike
             _right = R(InterfaceRules.RightEnd(count, viewWidth, v));
             _cover = R(InterfaceRules.CoverTag(count, viewWidth, v));
             _plate = R(InterfaceRules.StripPlate(count, viewWidth, v));
+            TickChamber(); // work order 141: Sixth Chamber's count over the left end (SkillBarChamber.cs)
 
             // At the figure.
             HealthShare = Health != null && Health.Max > 0 ? Mathf.Clamp01(Health.Current / (float)Health.Max) : 0f;
@@ -494,6 +495,7 @@ namespace Roguelike
             for (int box = 0; box < SlotCount; box++)
                 if (_slots[_boxKey[box]].Recast) DrawSlot(_slots[_boxKey[box]], v); // a lit box over its neighbours
             DrawEnds(v);
+            if (ChamberShown) DrawChamber(v); // work order 141
             if (StrokesShown) DrawStrokes(v);
             if (PlateShown) DrawTopPlate(v); // work order 068: her health and focus at the top left, as in the concept
 

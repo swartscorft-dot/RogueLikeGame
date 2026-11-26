@@ -223,7 +223,8 @@ namespace Roguelike.PlayModeTests
         {
             foreach (BasicShotUpgradeKind k in RunBasicShotUpgrades.All)
                 for (int t = 0; t < 3; t++) _m.BasicShot.Take(k);
-            _m.BasicShot.Values = new BasicShotUpgradeValues { PiercingRound = false, Quickening = false, HotBarrel = false, MarkingRounds = false, TapOut = false };
+            _m.BasicShot.Values = new BasicShotUpgradeValues { PiercingRound = false, Quickening = false, HotBarrel = false, MarkingRounds = false, TapOut = false,
+                                                               ChainKill = false, SixthChamber = false, HuntersCount = false, PassItOn = false }; // work order 141: its four held too
             KitValues kit = _player.Kit;
             _a.AddMarks(kit.MaxMarks, kit.MaxMarks, kit.MarkLifetime);
             var a = new List<int>();

@@ -13,6 +13,16 @@ namespace Roguelike.Rules.Tests
     public class BasicShotUpgradesTests
     {
         static readonly BasicShotUpgradeValues V = new BasicShotUpgradeValues();
+        /// <summary>
+        /// Work order 141: the five's draw pinned with work order 141's four switched off for the test (each card a fifth of the
+        /// draws, as before they existed); with them on, each card is a ninth (BasicShotUpgradesMoreTests).
+        /// </summary>
+        static BasicShotUpgradeValues FiveOnly(BasicShotUpgradeValues v)
+        {
+            v.ChainKill = v.SixthChamber = v.HuntersCount = v.PassItOn = false;
+            return v;
+        }
+        static readonly BasicShotUpgradeValues V5 = FiveOnly(new BasicShotUpgradeValues());
         const BasicShotUpgradeKind Pierce = BasicShotUpgradeKind.PiercingRound, Quick = BasicShotUpgradeKind.Quickening,
                                    Hot = BasicShotUpgradeKind.HotBarrel, Marking = BasicShotUpgradeKind.MarkingRounds, Tap = BasicShotUpgradeKind.TapOut;
 
@@ -57,6 +67,9 @@ namespace Roguelike.Rules.Tests
 
         // ---------------- The even draw ----------------
 
+        /// <summary>Work order 138's five, the kinds its draw tests count.</summary>
+        static readonly BasicShotUpgradeKind[] Five = { Pierce, Quick, Hot, Marking, Tap };
+
         static Dictionary<BasicShotUpgradeKind, int> Count(RunBasicShotUpgrades held, BasicShotUpgradeValues v, int draws)
         {
             var count = RunBasicShotUpgrades.All.ToDictionary(k => k, k => 0);
@@ -72,14 +85,14 @@ namespace Roguelike.Rules.Tests
         public void TheDraw_IsEven_AndStaysEvenOnceSheHasOne_NoLeaning()
         {
             const int draws = 10000;
-            Dictionary<BasicShotUpgradeKind, int> none = Count(new RunBasicShotUpgrades(), V, draws);
-            foreach (BasicShotUpgradeKind k in RunBasicShotUpgrades.All)
+            Dictionary<BasicShotUpgradeKind, int> none = Count(new RunBasicShotUpgrades(), V5, draws);
+            foreach (BasicShotUpgradeKind k in Five)
                 Assert.That(none[k], Is.InRange(draws / 5 - 300, draws / 5 + 300), k + " a fifth of the draws");
             // With one held (his tick "Nei, jevnt trukket"): it comes no more often than the others, only as its next tier.
             var held = new RunBasicShotUpgrades();
             held.Take(Pierce);
-            Dictionary<BasicShotUpgradeKind, int> one = Count(held, V, draws);
-            foreach (BasicShotUpgradeKind k in RunBasicShotUpgrades.All)
+            Dictionary<BasicShotUpgradeKind, int> one = Count(held, V5, draws);
+            foreach (BasicShotUpgradeKind k in Five)
                 Assert.That(one[k], Is.InRange(draws / 5 - 300, draws / 5 + 300), k + " still a fifth with Piercing Round held");
             BasicShotOffer again = Enumerable.Range(0, 200).Select(i => BasicShotRules.Draw(LevelRandom.Stream((ulong)i, BasicShotRules.Stage, 0), held, V))
                                              .First(o => o.Kind == Pierce);
@@ -91,17 +104,17 @@ namespace Roguelike.Rules.Tests
         {
             var held = new RunBasicShotUpgrades();
             for (int i = 0; i < 3; i++) held.Take(Tap);
-            var v = new BasicShotUpgradeValues { Quickening = false };
+            var v = FiveOnly(new BasicShotUpgradeValues { Quickening = false });
             Dictionary<BasicShotUpgradeKind, int> c = Count(held, v, 4000);
             Assert.That(c[Tap], Is.Zero, "Tap Out III held: never offered again");
             Assert.That(c[Quick], Is.Zero, "switched off: never offered");
             foreach (BasicShotUpgradeKind k in new[] { Pierce, Hot, Marking }) Assert.That(c[k], Is.InRange(1333 - 150, 1333 + 150), k + " a third");
             foreach (BasicShotUpgradeKind k in RunBasicShotUpgrades.All) for (int i = 0; i < 3; i++) held.Take(k);
             Assert.That(BasicShotRules.Draw(LevelRandom.Stream(1UL, BasicShotRules.Stage, 0), held, V), Is.Null, "all five at III: none open");
-            Assert.That(BasicShotRules.Open(new RunBasicShotUpgrades(), new BasicShotUpgradeValues
+            Assert.That(BasicShotRules.Open(new RunBasicShotUpgrades(), FiveOnly(new BasicShotUpgradeValues
             {
                 PiercingRound = false, Quickening = false, HotBarrel = false, MarkingRounds = false, TapOut = false,
-            }), Is.Empty, "every switch off: none");
+            })), Is.Empty, "every switch off: none");
         }
 
         // ---------------- Piercing Round ----------------

@@ -67,6 +67,7 @@ namespace Roguelike
             _ownMarks.Reset();
             _quickCut.Clear();
             _quickReadyAt.Clear();
+            ResetMoreShotUpgrades(); // work order 141
         }
 
         // ---------------- Piercing Round ----------------
@@ -78,14 +79,14 @@ namespace Roguelike
         Damageable PiercedOnTheLine(Damageable first, GroundPoint origin, GroundPoint aim, float range, float halfWidth, float stop)
         {
             _pierced.Clear();
-            int tier = ShotTier(BasicShotUpgradeKind.PiercingRound);
-            if (first == null || tier <= 0) return first;
+            int most = PierceMostNow; // work order 141: Piercing Round's, and Sixth Chamber's heavy round shares it
+            if (first == null || most <= 0) return first;
             IReadOnlyList<Damageable> all = Damageable.All;
             int at = -1;
             for (int i = 0; i < all.Count && i < _targetScratch.Count; i++)
                 if (all[i] == first) at = i;
             if (at < 0) return first;
-            BasicShotRules.PiercedTargets(origin, aim, range, halfWidth, _targetScratch, stop, at, BasicShotRules.PierceTargets(tier, ShotValues), _pierced);
+            BasicShotRules.PiercedTargets(origin, aim, range, halfWidth, _targetScratch, stop, at, most, _pierced);
             return _pierced.Count > 0 ? all[_pierced[_pierced.Count - 1]] : first;
         }
 
@@ -93,7 +94,7 @@ namespace Roguelike
         void HitPierced(Look look, Vector3 muzzle, int shotDamage, float stagger, bool crit, bool empowered)
         {
             if (_pierced.Count == 0) return;
-            float share = BasicShotRules.PierceShare(ShotTier(BasicShotUpgradeKind.PiercingRound), ShotValues);
+            float share = PierceShareNow; // work order 141: the heavy round's share shared with Piercing Round's
             IReadOnlyList<Damageable> all = Damageable.All;
             for (int p = 0; p < _pierced.Count; p++)
             {
@@ -107,7 +108,7 @@ namespace Roguelike
                 ReportTapOut(d, taken, applied);
                 if (applied <= 0) continue;
                 PiercedHits++;
-                ShotTally.Note(BasicShotUpgradeKind.PiercingRound, applied);
+                if (ShotTier(BasicShotUpgradeKind.PiercingRound) > 0) ShotTally.Note(BasicShotUpgradeKind.PiercingRound, applied); // work order 141: a heavy round's own pierce is not Piercing Round's
                 ReportHit(-1, d, applied, empowered, focus);
                 SpawnHit(look, d, muzzle);
                 if (empowered) AddMarks(d, 1, -1); // the focus window marks every basic hit: a pierced enemy too
@@ -196,15 +197,21 @@ namespace Roguelike
 
         // ---------------- Marking Rounds ----------------
 
-        /// <summary>A basic hit's mark by the count (Marking Rounds' or the kit's own); what Marking Rounds added beside the kit's own count is tallied.</summary>
-        bool BasicHitMarks(bool empowered)
+        /// <summary>
+        /// A basic hit's marks on <paramref name="target"/> by the count (Marking Rounds' or the kit's own; work order 141: Hunter's
+        /// Count's, the enemy's own, in their place while it is held): 0 or the marks to add. What Marking Rounds added beside the
+        /// kit's own count is tallied.
+        /// </summary>
+        int BasicHitMarks(bool empowered, Damageable target)
         {
+            int hunted = HunterHitOn(target, empowered); // work order 141
+            if (hunted >= 0) return hunted;
             bool marks = _basicMarks.Hit(BasicHitsPerMark, empowered);
-            if (ShotTier(BasicShotUpgradeKind.MarkingRounds) <= 0 || empowered) return marks;
+            if (ShotTier(BasicShotUpgradeKind.MarkingRounds) <= 0 || empowered) return marks ? 1 : 0;
             bool own = _ownMarks.Hit(Kit.BasicShotsPerMark, false);
             if (marks) ShotTally.Note(BasicShotUpgradeKind.MarkingRounds, 0f);
             ShotTally.NoteAdded(BasicShotUpgradeKind.MarkingRounds, (marks ? 1f : 0f) - (own ? 1f : 0f));
-            return marks;
+            return marks ? 1 : 0;
         }
 
         // ---------------- Tap Out ----------------

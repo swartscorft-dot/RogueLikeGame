@@ -253,7 +253,7 @@ namespace Roguelike.Rules
             // Work order 138: each basic-shot upgrade she holds, its tier its value (what it does is on its card and in the old look's lines).
             RunBasicShotUpgrades shot = m.BasicShot;
             foreach (BasicShotUpgradeKind k in shot.Held)
-                Add(SheetGroup.BasicShot, BasicShotTexts.Name(k), BasicShotTexts.Numeral(shot.TierOf(k)) + (shot.Values.On(k) ? "" : "  off"), shot.TierOf(k), "0");
+                Add(SheetGroup.BasicShot, BasicShotTexts.Name(k), BasicShotTexts.Numeral(shot.TierOf(k)) + (shot.Values.On(k) ? "" : "  off") + BasicShotMoreTexts.SheetCount(k, shot), shot.TierOf(k), "0"); // work order 141: Sixth Chamber's count
             return list;
         }
 
