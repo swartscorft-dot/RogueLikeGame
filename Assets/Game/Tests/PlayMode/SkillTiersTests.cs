@@ -58,6 +58,10 @@ namespace Roguelike.PlayModeTests
             _damage.Clear();
             _a.Damaged += d => _damage.Add(d);
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.RunValues.StatsAndTiers = false; // no crit in a hit's damage; luck 0, as on floor 1 with no chest opened
             Assert.That(_levels.RunValues.SkillTiers, Is.True, "on by default");
             _hud = RunHud.Ensure();

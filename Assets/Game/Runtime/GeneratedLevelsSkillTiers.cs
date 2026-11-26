@@ -45,6 +45,7 @@ namespace Roguelike
         void NoteRewardOffer(PlayerCharacter player)
         {
             if (PlaySessionRecorder.Current == null) return;
+            if (_mixedOn) { NoteMixedRewardOffer(player); return; } // work order 138: each card's name and kind
             List<string> names = _offeredSkills.Select(s => player.Skills[s].Name).ToList();
             List<string> tiers = RunValues.SkillTiers && _offeredSkillTiers.Count > 0
                 ? _offeredSkills.Select((s, i) => OfferedTierAt(i) != null ? OfferedTierAt(i).Word : UpgradeTiers.Word(UpgradeTier.Common)).ToList()

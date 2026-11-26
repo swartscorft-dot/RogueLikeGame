@@ -50,7 +50,14 @@ namespace Roguelike.PlayModeTests
             _levels.MetaValues.Enabled = false; // work order 117: the trials are on in code now; this class's tests were written with them off and turn them on themselves
             _levels.MetaValues.Attachments = false;
             _levels.RunValues.StatsAndTiers = false; // work order 050: these tests pin today's chest steps (+10 health, +5 % damage)
+            // Changed deliberately (work order 138): these pin a run of eight slots, four skill rewards and the focus screen
+            // after floor 1, so its six slots and its floor reward of three kinds are off here (SixSlotsPlayTests and
+            // MixedFloorRewardPlayTests have them on).
+            _eight = KitSwitchesForTests.EightSlots(_player);
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
         }
+
+        SkillSettings _eight;
 
         [TearDown]
         public void CleanUp()
@@ -61,6 +68,8 @@ namespace Roguelike.PlayModeTests
             _folder = null;
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
+            if (_eight != null) Object.Destroy(_eight); // work order 138
+            _eight = null;
             Time.timeScale = 1f;
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false; // work order 018: a death or a cleared act leaves an end screen up

@@ -81,6 +81,8 @@ namespace Roguelike.Rules
         Note,
         /// <summary>A cost, in the red: what it takes away.</summary>
         Cost,
+        /// <summary>Work order 138: what kind of card it is, on a floor reward of three kinds ("NEW SKILL", "BASIC SHOT UPGRADE"), first under the name.</summary>
+        Kind,
     }
 
     /// <summary>One part of a card: its kind and its words.</summary>
@@ -114,11 +116,14 @@ namespace Roguelike.Rules
         public readonly List<string> Numbers = new List<string>();
         public readonly List<string> Notes = new List<string>();
         public string Cost = "";
+        /// <summary>Work order 138: what kind of card it is on the floor reward of three kinds; "" on every other offer.</summary>
+        public string KindLine = "";
 
         /// <summary>The parts under the name, in the order drawn; empty ones left out.</summary>
         public List<OfferPart> Parts()
         {
             var parts = new List<OfferPart>();
+            if (KindLine.Length > 0) parts.Add(new OfferPart(OfferPartKind.Kind, KindLine)); // work order 138
             if (TierLine.Length > 0) parts.Add(new OfferPart(OfferPartKind.Tier, TierLine));
             if (For.Length > 0) parts.Add(new OfferPart(OfferPartKind.For, For));
             if (Sentence.Length > 0) parts.Add(new OfferPart(OfferPartKind.Sentence, Sentence));

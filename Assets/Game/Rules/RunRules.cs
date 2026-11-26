@@ -367,6 +367,20 @@ namespace Roguelike.Rules
         /// Off, the table is the 27 and work order 109's six, and every offer and epic is as before.
         /// </summary>
         public bool MoreSkillUpgrades = true;
+
+        /// <summary>
+        /// The floor reward of three kinds (work order 138; Kristian, 2026-11-25: "Jeg syntes også det er rart å alltid få en
+        /// fokus upgrade hver gang etter første flor", and his ticks "Tre kort av tre slag" and "Kortet blir et annet slag"), on
+        /// by default: after floors 1 to 4 the reward shows a new skill while a slot is free, a basic-shot upgrade, and a third
+        /// card that is a focus way, an upgrade of a skill she has or one large stat step (<see cref="MixedFloorReward"/>'s rules
+        /// in MixedFloorRewards), never two of a kind; the focus screen after floor 1 is gone. Off, the reward is as before,
+        /// the focus screen after floor 1 included.
+        /// </summary>
+        public bool MixedFloorReward = true;
+        /// <summary>The floor reward of three kinds' own numbers (work order 138).</summary>
+        public MixedRewardValues MixedReward = new MixedRewardValues();
+        /// <summary>The five basic-shot upgrades' switches and numbers (work order 138, part 3).</summary>
+        public BasicShotUpgradeValues BasicShot = new BasicShotUpgradeValues();
     }
 
     /// <summary>
@@ -506,6 +520,9 @@ namespace Roguelike.Rules
         /// </summary>
         public RunMetaEffects Meta { get; } = new RunMetaEffects();
 
+        /// <summary>The basic-shot upgrades taken this run and their tiers (work order 138): empty they change nothing.</summary>
+        public RunBasicShotUpgrades BasicShot { get; } = new RunBasicShotUpgrades();
+
         /// <summary>
         /// Her pistols' parts fitted for this run, their part of the loadout (work order 060, decision 0014): empty unless the
         /// attachments are switched on, and empty every one of its methods gives back the stock gun's numbers. A second weapon's
@@ -518,6 +535,7 @@ namespace Roguelike.Rules
             _taken.Clear();
             Meta.Clear();
             Weapon.Clear(); // work order 060
+            BasicShot.Clear(); // work order 138
         }
 
         float Sum(UpgradeKind kind, string skill = null)

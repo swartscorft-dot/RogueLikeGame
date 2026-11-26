@@ -5,7 +5,7 @@ using System.Globalization;
 namespace Roguelike.Rules
 {
     /// <summary>The groups her sheet's stats stand in (work order 095, the producer's grouping).</summary>
-    public enum SheetGroup { Attack, Skills, DefenceAndMoves, Fortune }
+    public enum SheetGroup { Attack, Skills, DefenceAndMoves, Fortune, BasicShot } // work order 138: BasicShot, the basic-shot upgrades she holds
 
     /// <summary>
     /// One line of her sheet's stats (work order 095): its group, its name, its value now, its change since the run's start
@@ -123,13 +123,13 @@ namespace Roguelike.Rules
 
         /// <summary>A group's heading.</summary>
         public static string GroupWord(SheetGroup g) =>
-            g == SheetGroup.Attack ? "ATTACK" : g == SheetGroup.Skills ? "SKILLS" : g == SheetGroup.DefenceAndMoves ? "DEFENCE AND MOVES" : "FORTUNE";
+            g == SheetGroup.Attack ? "ATTACK" : g == SheetGroup.Skills ? "SKILLS" : g == SheetGroup.DefenceAndMoves ? "DEFENCE AND MOVES" : g == SheetGroup.BasicShot ? "BASIC SHOT" : "FORTUNE";
 
         /// <summary>The column a group stands in, of two: attack over defence and moves, skills over fortune (the two columns about as long).</summary>
         public static int ColumnOf(SheetGroup g) => g == SheetGroup.Attack || g == SheetGroup.DefenceAndMoves ? 0 : 1;
 
         /// <summary>The groups in the order drawn: the first column's, then the second's.</summary>
-        public static readonly SheetGroup[] Order = { SheetGroup.Attack, SheetGroup.DefenceAndMoves, SheetGroup.Skills, SheetGroup.Fortune };
+        public static readonly SheetGroup[] Order = { SheetGroup.Attack, SheetGroup.DefenceAndMoves, SheetGroup.Skills, SheetGroup.Fortune, SheetGroup.BasicShot }; // work order 138: the basic-shot upgrades last, under fortune, only while she holds one
 
         // ---------------- The stats ----------------
 
@@ -249,6 +249,11 @@ namespace Roguelike.Rules
             double[] shares = UpgradeTiers.Shares(v.ChestOdds, s.Luck, v);
             Add(SheetGroup.Fortune, "Luck", s.Luck.ToString("0.#", s_Inv), s.Luck, "0.#", "", s.On && shares[0] <= 1e-6);
             Add(SheetGroup.Fortune, "Rare or better", OfferTexts.Pct(1.0 - shares[0]), (1.0 - shares[0]) * 100.0, "0.#", " %");
+
+            // Work order 138: each basic-shot upgrade she holds, its tier its value (what it does is on its card and in the old look's lines).
+            RunBasicShotUpgrades shot = m.BasicShot;
+            foreach (BasicShotUpgradeKind k in shot.Held)
+                Add(SheetGroup.BasicShot, BasicShotTexts.Name(k), BasicShotTexts.Numeral(shot.TierOf(k)) + (shot.Values.On(k) ? "" : "  off"), shot.TierOf(k), "0");
             return list;
         }
 

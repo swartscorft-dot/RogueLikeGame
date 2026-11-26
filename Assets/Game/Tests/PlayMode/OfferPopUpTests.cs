@@ -59,6 +59,10 @@ namespace Roguelike.PlayModeTests
             _a = GameObject.Find("Dummy_A").GetComponent<Damageable>();
             _a.SetMaxHealth(1000000);
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _reports.Clear();
             _player.Reported += r => _reports.Add(r);
             yield return null;

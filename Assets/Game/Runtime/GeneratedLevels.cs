@@ -438,6 +438,7 @@ namespace Roguelike
             PlaySessionRecorder.Current?.NoteRunEnded(how, Floor, CurrentRoom != null && CurrentRoom.Kind != RoomKind.Passage ? LevelGeometry.RoomNumber(_level.Layout, CurrentRoom) + 1 : 0,
                                                       CurrentRoom != null ? CurrentRoom.Kind.ToString().ToLowerInvariant() : "", Time.time - _runStartedAt,
                                                       Modifiers.StatsAndTiers ? StatsLine() : null); // work order 050: her final stats
+            NoteShotUpgradeUse(); // work order 138: what the basic-shot upgrades did on the last floor
             if (_player != null && _player.Modifiers == Modifiers) _player.Modifiers = null;
             Modifiers.Clear();
             if (_player != null && _player.SkillUpgrades == SkillUpgrades) _player.SkillUpgrades = null; // work order 017

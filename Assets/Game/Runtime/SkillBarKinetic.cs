@@ -100,9 +100,23 @@ namespace Roguelike
         public float LostAlpha { get; private set; }
         /// <summary>The one number beside the strokes: her health.</summary>
         public string HealthNumber { get; private set; } = "";
-        /// <summary>The keys' slots this frame, in key order.</summary>
+        /// <summary>
+        /// The boxes drawn this frame, one per slot of the bar in key order (work order 138: six with
+        /// <see cref="KitValues.SixSlots"/> on, keys 3 and 4 not drawn; eight off).
+        /// </summary>
         public int SlotCount { get; private set; }
-        public KineticSlot SlotOf(int key) => key >= 0 && key < SlotCount ? _slots[key] : default;
+        /// <summary>The slot of a key this frame (a key is its place in the bindings' skill keys); default for a key with no box.</summary>
+        public KineticSlot SlotOf(int key) => key >= 0 && key < _slots.Length && Drawn(key) ? _slots[key] : default;
+        /// <summary>Work order 138: the box <paramref name="box"/> places from the left this frame, and its key; default and -1 out of range.</summary>
+        public KineticSlot SlotAt(int box) => box >= 0 && box < SlotCount ? _slots[_boxKey[box]] : default;
+        public int KeyOfBox(int box) => box >= 0 && box < SlotCount ? _boxKey[box] : -1;
+
+        bool Drawn(int key)
+        {
+            for (int b = 0; b < SlotCount; b++)
+                if (_boxKey[b] == key) return true;
+            return false;
+        }
         /// <summary>The strip's ends this frame (layout pixels): the dash, focus.</summary>
         public Rect LeftEnd => _left;
         public Rect RightEnd => _right;
@@ -115,6 +129,7 @@ namespace Roguelike
         public float DashFlash { get; private set; }
 
         readonly KineticSlot[] _slots = new KineticSlot[SkillLoadout.KeyCount];
+        readonly int[] _boxKey = new int[SkillLoadout.KeyCount]; // work order 138: the key of each box drawn, from the left
         readonly float[] _cooldownTotal = new float[SkillLoadout.KeyCount];
         readonly string[] _shortOf = new string[SkillLoadout.KeyCount];
         readonly string[] _nameOf = new string[SkillLoadout.KeyCount];
@@ -181,8 +196,16 @@ namespace Roguelike
             Sizes(v);
             InputBindings bindings = _driver != null ? _driver.ActiveBindings : null;
             IReadOnlyList<SkillDefinition> skills = Player.Skills;
-            int count = bindings != null && bindings.Skills != null ? Mathf.Min(Player.KeyCount, bindings.Skills.Length) : Player.KeyCount;
-            count = Mathf.Clamp(count, 0, _slots.Length);
+            // Work order 138: a box per slot of the bar (six with the switch on), each its key's, centred with no hole.
+            int keys = bindings != null && bindings.Skills != null ? Mathf.Min(Player.KeyCount, bindings.Skills.Length) : Player.KeyCount;
+            int count = 0;
+            for (int i = 0; i < Player.BarCount && count < _boxKey.Length; i++)
+            {
+                int k = Player.BarKey(i);
+                if (k >= 0 && k < keys) _boxKey[count++] = k;
+            }
+            for (int k = 0; k < _slots.Length; k++)
+                if (!Player.KeyInUse(k)) _slots[k] = default; // keys 3 and 4 with six slots: no box
             SlotCount = count;
             int active = Player.ActiveSkillSlot, recovering = Player.FreeRecoverySlot;
             if (_pipsOf != Player.SkillUpgrades)
@@ -193,9 +216,10 @@ namespace Roguelike
             bool quiet = Quiet(out bool fresh);
             float now = Time.unscaledTime;
 
-            for (int key = 0; key < count; key++)
+            for (int place = 0; place < count; place++)
             {
-                UiBox home = InterfaceRules.Slot(key, count, viewWidth, v);
+                int key = _boxKey[place];
+                UiBox home = InterfaceRules.Slot(place, count, viewWidth, v); // work order 138: placed by its box, not its key
                 int slot = Player.SkillOnKey(key);
                 bool has = slot >= 0 && slot < skills.Count && skills[slot] != null && Player.IsEquipped(slot);
                 var s = new KineticSlot { Home = R(home), Box = R(home), Skill = has ? slot : -1, Key = bindings != null ? Label(bindings.Skills[key]) : "", Number = "" };
@@ -465,10 +489,10 @@ namespace Roguelike
             InterfaceStyle.BeginLayout(out Matrix4x4 matrixBefore);
 
             if (v.StripPlate) DrawStripPlate(v);
-            for (int key = 0; key < SlotCount; key++)
-                if (!_slots[key].Recast) DrawSlot(_slots[key], v);
-            for (int key = 0; key < SlotCount; key++)
-                if (_slots[key].Recast) DrawSlot(_slots[key], v); // a lit box over its neighbours
+            for (int box = 0; box < SlotCount; box++)
+                if (!_slots[_boxKey[box]].Recast) DrawSlot(_slots[_boxKey[box]], v);
+            for (int box = 0; box < SlotCount; box++)
+                if (_slots[_boxKey[box]].Recast) DrawSlot(_slots[_boxKey[box]], v); // a lit box over its neighbours
             DrawEnds(v);
             if (StrokesShown) DrawStrokes(v);
             if (PlateShown) DrawTopPlate(v); // work order 068: her health and focus at the top left, as in the concept

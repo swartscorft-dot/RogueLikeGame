@@ -20,11 +20,15 @@ namespace Roguelike
         void OfferFloorReward()
         {
             PlayerCharacter player = FindPlayer();
+            if (OfferMixedFloorReward(player)) return; // work order 138: the floor reward of three kinds, with its switch on (GeneratedLevelsMixedReward.cs)
             var equipped = new List<bool>();
             for (int slot = 0; slot < player.Skills.Count; slot++) equipped.Add(player.IsEquipped(slot));
             StrikeOutOfOffer(player, equipped); // work order 029: Not That One
             _offeredSkills.Clear();
             _offeredSkills.AddRange(FloorRewards.Offer(RunSeed ?? 0UL, Floor, equipped, RunValues.SkillsOffered));
+            // Work order 138: six slots with the reward of before (its three kinds off), the slots full after floor 2: a skill
+            // taken now would sit on no key, so nothing is offered, as when no skill is left. Eight slots: as before.
+            if (player.Kit.SixSlots && player.FirstFreeKey < 0) _offeredSkills.Clear();
             if (_offeredSkills.Count == 0)
             {
                 if (FocusChoiceDue) OfferFocusChoice(); // nothing left to offer, but the focus choice still comes (work order 025)
@@ -43,6 +47,7 @@ namespace Roguelike
         public bool PickReward(int index)
         {
             PickUpForAPick(ChoiceKind.FloorReward); // work order 042: its drop, if it lies, is picked up first
+            if (_mixedOn) return PickMixedReward(index); // work order 138: a card of three kinds (GeneratedLevelsMixedReward.cs)
             if (Choice != ChoiceKind.FloorReward || index < 0 || index >= _offeredSkills.Count) return false;
             CardPicked(index); // work order 045: its card flashes as it goes
             PlayerCharacter player = FindPlayer();

@@ -112,21 +112,27 @@ namespace Roguelike
             // Work order 060: where it ends is one calculation (BasicShotEnd). Work order 102: the Laser Sight no longer draws it.
             Damageable hit = BasicShotEnd(origin, aim, out float range, out float stop);
             float halfWidth = BasicShotHalfWidth; // work order 060: a sight's
+            // Work order 138: Piercing Round's enemies past the first on her line; the streak runs to the last it reaches.
+            Damageable last = PiercedOnTheLine(hit, origin, aim, range, halfWidth, stop);
 
-            Vector3 endPoint = hit != null ? hit.transform.position : _aimPoint;
+            Vector3 endPoint = last != null ? last.transform.position : _aimPoint;
             bool stopped = hit == null && stop < range;
             if (stopped) endPoint = NoteCoverStop(origin, aim, stop);
             Vector3 end = new Vector3(endPoint.x, muzzle.y, endPoint.z);
-            SpawnFlash(look, muzzle, end - muzzle);
+            SpawnFlash(WarmFlash(look), muzzle, end - muzzle); // work order 138: Hot Barrel's heat on her muzzle flash
             SpawnStreak(look, muzzle, end, 1f);
             if (stopped) SpawnCoverHit(look, end);
             // A lying keg on the shot's way, up to where it ended, goes off at once (work order 015).
             if (_kegs.Count > 0)
             {
-                float reach = hit != null ? hit.GroundPosition.DistanceTo(origin) : Mathf.Min(stop, range);
+                float reach = last != null ? last.GroundPosition.DistanceTo(origin) : Mathf.Min(stop, range); // work order 138: to the last enemy a pierce reached
                 SetOffKegs(origin, aim, range, halfWidth, reach);
             }
-            if (hit == null) return ShotFired(false);
+            if (hit == null)
+            {
+                HeatMissed(); // work order 138: a miss cools Hot Barrel
+                return ShotFired(false);
+            }
             bool empowered = IsEmpowered;
             // Work order 050: her flat damage. Work order 060: her pistols' parts, a barrel's weight and a grip's cost on the
             // move (the shot was started on the move, or became one before it went off), and a barrel's stagger. Work order
@@ -134,15 +140,29 @@ namespace Roguelike
             int damage = Placeholders.BasicShotDamage + FlatFor(null);
             if (Modifiers != null) damage = Modifiers.Weapon.ShotDamage(damage, _movingShot);
             damage = SlideShotDamageNow(damage); // work order 111: Gun Slide, during the slide
-            int applied = Deal(hit, damage, out float focus, peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f), marked: hit.MarkCount > 0, basicShot: true); // work order 110: a sight's crit
-            if (applied <= 0) return ShotFired(false);
+            damage = HeatedDamage(damage); // work order 138: Hot Barrel's heat
+            int shotDamage = damage; // work order 138: what a pierced enemy takes its share of
+            float stagger = peekStagger + (Modifiers != null ? Modifiers.Weapon.ShotStagger : 0f);
+            bool marked = hit.MarkCount > 0; // work order 065: before a Tap Out takes them
+            damage = TapOutOn(hit, damage, out int tapped); // work order 138: Tap Out at the cap
+            int applied = Deal(hit, damage, out float focus, stagger, marked: marked, basicShot: true); // work order 110: a sight's crit
+            bool crit = _dealtCrit;
+            ReportTapOut(hit, tapped, applied);
+            if (applied <= 0)
+            {
+                HeatMissed();
+                return ShotFired(false);
+            }
             ReportHit(-1, hit, applied, empowered, focus);
             SpawnHit(look, hit, muzzle);
             BasicShotHits++;
             // Every few hits, whatever the target, the hit that completes the count marks the target it hit; in the
             // focus window every hit does (decision 0005).
-            if (_basicMarks.Hit(Kit.BasicShotsPerMark, empowered)) AddMarks(hit, 1, -1);
+            if (BasicHitMarks(empowered)) AddMarks(hit, 1, -1); // work order 138: Marking Rounds' count, or the kit's own
+            HeatHit(); // work order 138
             BasicShotHit(hit);
+            Quicken(); // work order 138: once a shot that hit
+            HitPierced(look, muzzle, shotDamage, stagger, crit, empowered); // work order 138
             return ShotFired(true);
         }
 

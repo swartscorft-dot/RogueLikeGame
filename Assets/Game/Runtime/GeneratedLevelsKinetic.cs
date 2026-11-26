@@ -122,7 +122,7 @@ namespace Roguelike
             }
             InterfaceValues v = InterfaceStyle.V;
             float viewWidth = ViewWidthForTests > 0f ? ViewWidthForTests : InterfaceStyle.ScreenWidth / Mathf.Max(1e-4f, InterfaceStyle.Scale); // work order 065: a test's view
-            int count = Choice == ChoiceKind.FloorReward ? _offeredSkills.Count : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count
+            int count = Choice == ChoiceKind.FloorReward ? RewardCardCount : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count // work order 138: the cards of three kinds
                       : Choice == ChoiceKind.FocusChoice ? FocusModeRules.Options.Length : _offeredUpgrades.Count;
             if (SameCards(count) && Mathf.Approximately(_cardsWidth, viewWidth) && _cardsPopUp == OfferPopUp) return count;
             ClearCards();
@@ -143,6 +143,11 @@ namespace Roguelike
                 UiInk ink = UiInk.White;
                 switch (Choice)
                 {
+                    case ChoiceKind.FloorReward when MixedRewardShown: // work order 138: a card of three kinds
+                        _cardsOf.Add(_mixedCards[i]);
+                        _cardsSkills.Add(-1);
+                        MixedEdgeCard(i, context, bindings, out title, out text, out ink);
+                        break;
                     case ChoiceKind.FloorReward:
                     {
                         int slot = _offeredSkills[i];
@@ -208,7 +213,8 @@ namespace Roguelike
             }
             _cardsCanRedraw = CanRedraw;
             // The heading and the footer, the same words as the plain choice's.
-            heading = Choice == ChoiceKind.FloorReward
+            heading = MixedRewardShown ? MixedHeading(count) // work order 138
+                : Choice == ChoiceKind.FloorReward
                 ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
                 : Choice == ChoiceKind.SkillUpgrade
                 ? string.Format(CultureInfo.InvariantCulture, "ELITE ROOM CLEARED   choose a skill upgrade (1-{0} or click)", count)
@@ -285,6 +291,9 @@ namespace Roguelike
             {
                 switch (Choice)
                 {
+                    case ChoiceKind.FloorReward when MixedRewardShown: // work order 138: the same cards of three kinds (a redraw makes a new skill card)
+                        if (i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], _mixedCards[i])) return false;
+                        break;
                     case ChoiceKind.FloorReward: // work order 057: and its tier, so a redraw that keeps a skill at another tier makes them again
                         if (i >= _cardsSkills.Count || _cardsSkills[i] != _offeredSkills[i] || i >= _cardsOf.Count || !ReferenceEquals(_cardsOf[i], OfferedTierAt(i))) return false;
                         break;

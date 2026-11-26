@@ -350,6 +350,10 @@ namespace Roguelike.Rules
             // Work order 067: after 065's.
             lines.Add("Wide window  +" + Pct(WideWindow) + "  (+0 %)");
             lines.Add("Blast  +" + Pct(Blast) + "  (+0 %)");
+            // Work order 138: each basic-shot upgrade she holds, with its tier and what it does, after them.
+            RunBasicShotUpgrades shot = _m.BasicShot;
+            foreach (BasicShotUpgradeKind k in shot.Held)
+                lines.Add(BasicShotTexts.StatLine(k, shot.TierOf(k), shot.Values, shot.KitPerMark, shot.MarkCap, shot.Values.On(k)));
         }
 
         string CooldownWords()

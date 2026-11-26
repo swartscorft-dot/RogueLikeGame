@@ -52,7 +52,7 @@ namespace Roguelike.Rules.Tests
             List<SheetStat> lines = HerSheet.Stats(Start());
             foreach (SheetStat s in lines) Say(s.Group + ": " + s);
             Assert.That(lines.Select(s => s.Name), Is.EqualTo(Expected), "every stat that matters, in the groups' order");
-            Assert.That(lines.Select(s => s.Group).Distinct(), Is.EqualTo(HerSheet.Order), "the four groups, in order");
+            Assert.That(lines.Select(s => s.Group).Distinct(), Is.EqualTo(HerSheet.Order.Where(g => g != SheetGroup.BasicShot)), "the four groups, in order"); // changed deliberately (work order 138): its basic-shot group shows only while she holds one
             Assert.That(lines.Any(s => s.Changed), Is.False, "nothing changed at the start");
             Assert.That(lines.Any(s => s.AtCap), Is.False, "nothing at its cap at the start");
             Assert.That(Line(lines, "Damage").Value, Is.EqualTo("+0"));

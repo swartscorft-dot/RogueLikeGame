@@ -459,6 +459,10 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ClearingTheAct_ShowsItsScreen()
         {
+            // Changed deliberately (work order 138): this pins four skill rewards and the focus screen after floor 1, so its six
+            // slots and its floor reward of three kinds are off here.
+            SkillSettings eight = KitSwitchesForTests.EightSlots(_player);
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
             _levels.StartRun(RunSeed);
             yield return null;
             int exitKills = 0;

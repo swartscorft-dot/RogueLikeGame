@@ -166,11 +166,12 @@ namespace Roguelike
             PlayerCharacter player = _player;
             bool reward = Choice == ChoiceKind.FloorReward;
             bool skillUpgrade = Choice == ChoiceKind.SkillUpgrade; // work order 017
-            int count = reward ? _offeredSkills.Count : skillUpgrade ? _offeredSkillUpgrades.Count : _offeredUpgrades.Count;
-            float width = 520f, rowHeight = reward ? RewardRowHeight(width - 20f, _choiceStyle) : skillUpgrade ? 74f : 44f; // work order 057: a tiered card's longer text
+            int count = reward ? RewardCardCount : skillUpgrade ? _offeredSkillUpgrades.Count : _offeredUpgrades.Count; // work order 138: the cards of three kinds
+            float width = 520f, rowHeight = reward && MixedRewardShown ? MixedRowHeight(width - 20f, _choiceStyle) : reward ? RewardRowHeight(width - 20f, _choiceStyle) : skillUpgrade ? 74f : 44f; // work order 057: a tiered card's longer text
             float height = 40f + count * (rowHeight + 6f) + 24f;
             float left = (viewWidth - width) * 0.5f, top = (SkillBar.LayoutHeight - height) * 0.5f;
-            string title = reward
+            string title = reward && MixedRewardShown ? MixedHeading(count) // work order 138
+                : reward
                 ? string.Format(s_Inv, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
                 : skillUpgrade
                 ? string.Format(s_Inv, "ELITE ROOM CLEARED   choose a skill upgrade (1-{0} or click)", count)
@@ -180,7 +181,8 @@ namespace Roguelike
             for (int i = 0; i < count; i++)
             {
                 string text;
-                if (reward) text = RewardChoiceText(i); // today's text; work order 057: a rare or epic card's tier in it (GeneratedLevelsSkillTiers.cs)
+                if (reward && MixedRewardShown) text = MixedPlainText(i); // work order 138: its kind and its words
+                else if (reward) text = RewardChoiceText(i); // today's text; work order 057: a rare or epic card's tier in it (GeneratedLevelsSkillTiers.cs)
                 else if (skillUpgrade)
                 {
                     // The skill's name and key, the upgrade's name, its kind and its line (work order 017).

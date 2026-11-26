@@ -85,6 +85,10 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ARun_APoolSkillTaken_GoesOnTheFirstFreeKey_AndFiresFromIt()
         {
             _levels = GeneratedLevels.Ensure();
+            // Changed deliberately (work order 138): these pin the floor reward of before (three skills, the focus screen
+            // after floor 1) on eight slots, so its six slots and its reward of three kinds are off here.
+            KitSwitchesForTests.SkillsOnlyReward(_levels);
+            KitSwitchesForTests.EightSlots(_player);
             _levels.StartRun(0x0BADF00DUL);
             yield return null;
             Assert.That(_player.FirstFreeKey, Is.EqualTo(1), "the start four on Q, R, F and the right button: W's key is free");

@@ -105,6 +105,8 @@ namespace Roguelike
             PlayerCharacter player = _player;
             switch (Choice)
             {
+                case ChoiceKind.FloorReward when MixedRewardShown:
+                    return MixedCardFor(index, context, bindings); // work order 138: a card of three kinds, its kind first
                 case ChoiceKind.FloorReward:
                 {
                     SkillDefinition s = player.Skills[_offeredSkills[index]];
@@ -200,6 +202,7 @@ namespace Roguelike
             switch (kind)
             {
                 case OfferPartKind.Tier: return InterfaceStyle.Text(true, OfferLayout.Size(o.TierSize, k), TextAnchor.UpperLeft, true);
+                case OfferPartKind.Kind: return InterfaceStyle.Text(true, OfferLayout.Size(o.TierSize, k), TextAnchor.UpperLeft, true); // work order 138: as the tier's
                 case OfferPartKind.For: return InterfaceStyle.Text(false, OfferLayout.Size(o.ForSize, k), TextAnchor.UpperLeft, true);
                 case OfferPartKind.Numbers: return InterfaceStyle.Text(true, OfferLayout.Size(o.NumberSize, k), TextAnchor.UpperLeft, true);
                 case OfferPartKind.Note: return InterfaceStyle.Text(false, OfferLayout.Size(o.NoteSize, k), TextAnchor.UpperLeft, true);
@@ -268,7 +271,8 @@ namespace Roguelike
             for (int p = 0; p < parts.Count; p++)
             {
                 PopPart part = parts[p];
-                InterfaceStyle.Label(part.Rect, part.Text, part.Style, PartInk(part.Kind, ink, light, v), part.Kind == OfferPartKind.Numbers || part.Kind == OfferPartKind.Tier);
+                InterfaceStyle.Label(part.Rect, part.Text, part.Style, part.Kind == OfferPartKind.Kind ? KindInk(i, light, v) : PartInk(part.Kind, ink, light, v), // work order 138: a colour a kind
+                                     part.Kind == OfferPartKind.Numbers || part.Kind == OfferPartKind.Tier || part.Kind == OfferPartKind.Kind);
             }
             if (Choice == ChoiceKind.FocusChoice)
                 DrawGaugeSketchKinetic(FocusModeRules.Options[i], new Rect(r.xMax - o.Pad * k - 110f * k, r.yMax - o.Pad * k - 8f * k, 100f * k, 8f * k), light, v);
@@ -326,7 +330,7 @@ namespace Roguelike
         /// </summary>
         public int PlainCards()
         {
-            int count = Choice == ChoiceKind.FloorReward ? _offeredSkills.Count : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count
+            int count = Choice == ChoiceKind.FloorReward ? RewardCardCount : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades.Count // work order 138: the cards of three kinds
                       : Choice == ChoiceKind.FocusChoice ? FocusModeRules.Options.Length : _offeredUpgrades.Count;
             if (Choice == ChoiceKind.None || _player == null || count == 0)
             {
@@ -349,10 +353,11 @@ namespace Roguelike
             {
                 OfferCard card = OfferCardFor(i, context, bindings);
                 _plainOf.Add(OfferedOf(i));
-                if (Choice == ChoiceKind.FloorReward) _plainSlots.Add(_offeredSkills[i]);
+                if (Choice == ChoiceKind.FloorReward && !MixedRewardShown) _plainSlots.Add(_offeredSkills[i]); // work order 138: the cards of three kinds by OfferedOf
                 _plainTexts.Add((i + 1).ToString(CultureInfo.InvariantCulture) + "   " + card.Name.ToUpperInvariant() + "\n" + card.Body);
             }
-            _plainTitle = Choice == ChoiceKind.FloorReward
+            _plainTitle = MixedRewardShown ? MixedHeading(count) // work order 138
+                : Choice == ChoiceKind.FloorReward
                 ? string.Format(CultureInfo.InvariantCulture, "FLOOR {0} CLEARED   choose a new skill (1-{1} or click)", Floor, count)
                 : Choice == ChoiceKind.SkillUpgrade
                 ? string.Format(CultureInfo.InvariantCulture, "ELITE ROOM CLEARED   choose a skill upgrade (1-{0} or click)", count)
@@ -365,7 +370,8 @@ namespace Roguelike
 
         /// <summary>What card <paramref name="index"/> offers: the skill upgrade or the chest's upgrade itself, a floor reward's tier.</summary>
         object OfferedOf(int index) =>
-            Choice == ChoiceKind.FloorReward ? (object)OfferedTierAt(index)
+            MixedRewardShown ? (index >= 0 && index < _mixedCards.Count ? _mixedCards[index] : null) // work order 138: the card itself
+            : Choice == ChoiceKind.FloorReward ? (object)OfferedTierAt(index)
             : Choice == ChoiceKind.SkillUpgrade ? _offeredSkillUpgrades[index]
             : Choice == ChoiceKind.Chest ? _offeredUpgrades[index] : null;
 
@@ -375,7 +381,7 @@ namespace Roguelike
             for (int i = 0; i < count; i++)
             {
                 if (i >= _plainOf.Count || !ReferenceEquals(OfferedOf(i), _plainOf[i])) return false;
-                if (Choice == ChoiceKind.FloorReward && (i >= _plainSlots.Count || _plainSlots[i] != _offeredSkills[i])) return false;
+                if (Choice == ChoiceKind.FloorReward && !MixedRewardShown && (i >= _plainSlots.Count || _plainSlots[i] != _offeredSkills[i])) return false;
             }
             return _plainCanRedraw == CanRedraw;
         }
