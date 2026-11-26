@@ -163,7 +163,7 @@ namespace Roguelike.PlayModeTests
             _skillBar.Tick();
             Assert.That(_skillBar.Kinetic, Is.True);
             Assert.That(_skillBar.OldBarsDrawn, Is.False, "the boxes, the health and focus row and the cast row are not drawn");
-            Assert.That(_skillBar.SlotCount, Is.EqualTo(SkillLoadout.KeyCount), "a slot per key");
+            Assert.That(_skillBar.SlotCount, Is.EqualTo(_player.BarCount), "a slot per slot of the bar"); // changed deliberately (work order 138): six with KitValues.SixSlots on, not one per key
             Assert.That(_skillBar.StrokesShown, Is.True, "she is on screen: the strokes show");
             Vector2 feet = Feet();
             Rect h = _skillBar.HealthStroke, f = _skillBar.FocusStroke;
@@ -336,6 +336,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator ASkillWithoutAnIcon_ShowsItsKeyAndAShortName()
         {
             int slot = Slot("Long Shot");
+            _player.EquipStartSkills(); // changed deliberately (work order 138): the practice room's every skill leaves Long Shot on no key with six slots; from the start four it goes on 1
             _player.EquipSkill(slot);
             yield return null;
             _skillBar.Tick();

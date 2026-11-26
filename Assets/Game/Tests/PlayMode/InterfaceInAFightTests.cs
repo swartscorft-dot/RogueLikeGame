@@ -481,7 +481,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(Mathf.Max(_bar.HealthStroke.yMax, _bar.HealthNumberBox.yMax), Is.LessThan(strip.yMin), "the strokes over the strip");
             for (int key = 0; key < _bar.SlotCount; key++)
             {
-                Rect box = _bar.SlotOf(key).Box;
+                Rect box = _bar.SlotAt(key).Box; // changed deliberately (work order 138): by its box from the left; keys 3 and 4 have none with six slots
                 Assert.That(box.yMax, Is.LessThan(v.LayoutHeight), "box " + key + " on screen");
                 Assert.That(box.xMin, Is.GreaterThan(0f));
                 Assert.That(box.xMax, Is.LessThan(width));
@@ -509,7 +509,7 @@ namespace Roguelike.PlayModeTests
             InputBindings bindings = _player.GetComponent<PlayerInputDriver>().ActiveBindings;
             for (int k = 0; k < _bar.SlotCount; k++)
             {
-                string label = bindings.SkillLabel(k);
+                string label = bindings.SkillLabel(_bar.KeyOfBox(k)); // changed deliberately (work order 138): the key of each box drawn
                 Vector2 size = InterfaceStyle.Measure(label, key);
                 Assert.That(size.x, Is.LessThan(plate.width), label + " within its plate");
                 Assert.That(size.y, Is.LessThanOrEqualTo(plate.height + 0.5f), label + " within its plate's height");

@@ -202,6 +202,9 @@ namespace Roguelike.PlayModeTests
         public IEnumerator EachOfTheEightBindings_StartsItsOwnSkill_ReadFromTheSettings()
         {
             InputBindings bindings = _driver.ActiveBindings;
+            // Changed deliberately (work order 138): this pins work order 015's eight keys, so six slots are off here (SixSlotsPlayTests has the six).
+            SkillSettings eight = KitSwitchesForTests.EightSlots(_player);
+            KitSwitchesForTests.EverySkill(_player); // the practice room's every skill, made again on the eight keys
             // Work order 015: eight keys for twelve skills; each key starts the skill on it.
             Assume.That(bindings.Skills.Length, Is.EqualTo(_player.KeyCount));
             var keyboard = InputSystem.AddDevice<Keyboard>();
@@ -247,6 +250,7 @@ namespace Roguelike.PlayModeTests
             {
                 InputSystem.RemoveDevice(keyboard);
                 InputSystem.RemoveDevice(mouse);
+                Object.Destroy(eight);
             }
         }
 

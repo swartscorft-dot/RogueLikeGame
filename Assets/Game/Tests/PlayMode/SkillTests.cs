@@ -382,6 +382,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Input_EachSkillKey_StartsItsOwnSkill()
         {
+            // Changed deliberately (work order 138): this pins work order 015's eight keys, so six slots are off here (SixSlotsPlayTests has the six).
+            SkillSettings eight = KitSwitchesForTests.EightSlots(_player);
+            KitSwitchesForTests.EverySkill(_player); // the practice room's every skill, made again on the eight keys
             UseFakeInput();
             Vector2 onA = ScreenOf(_a.transform.position);
             _idle = new InputFrame { CursorScreen = onA };
@@ -397,6 +400,7 @@ namespace Roguelike.PlayModeTests
                 _player.Teleport(_player.Position); // clear it, so the next key is not buffered
                 yield return null;
             }
+            Object.Destroy(eight);
         }
 
         // ---------------- Helpers ----------------
