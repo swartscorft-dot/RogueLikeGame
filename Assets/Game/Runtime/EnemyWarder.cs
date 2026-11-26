@@ -498,7 +498,7 @@ namespace Roguelike
         {
             if (distance < Tuning.BackOffUnder) _backingOff = true;
             if (distance >= Tuning.KeepNear) _backingOff = false;
-            return _alone && !_backingOff && SeesHer() && Opening.AllowsSeen(this); // work order 140: its bolt begins only on his screen ("Ja, begge")
+            return _alone && !_backingOff && SeesHer() && Opening.AllowsSeen(this, RangedOpeningRules.WarderToo); // work order 140: its bolt begins only on his screen ("Ja, begge")
         }
 
         /// <summary>Work order 140: when it may begin its bolt in a room's fight, on his screen (<see cref="RangedOpening.AllowsSeen"/>).</summary>

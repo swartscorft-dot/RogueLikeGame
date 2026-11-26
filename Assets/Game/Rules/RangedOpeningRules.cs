@@ -12,7 +12,7 @@ namespace Roguelike.Rules
     /// - Part 2, a second's grace: one that was within its reach of her as its room's fight woke may not begin before
     ///   <see cref="RangedAroundValues.GraceSeconds"/> have passed since the waking.
     ///
-    /// Work order 140 (<see cref="WarderAndLancerToo"/>): the warder's bolt and the beginning of the lancer's charge are asked part 1 too,
+    /// Work order 140 (<see cref="WarderToo"/>, <see cref="LancerToo"/>): the warder's bolt and the beginning of the lancer's charge are asked part 1 too,
     /// by the same test of his screen with the same margin (<see cref="MayBeginSeen"/>), not part 2.
     /// </summary>
     public static class RangedOpeningRules
@@ -24,9 +24,21 @@ namespace Roguelike.Rules
         /// asked as a shooter's draw is (part 1 here, its margin, the real camera); while it may not, it does what it did while it could
         /// not attack (the warder walks to its spot, the lancer keeps its distance and faces her); a charge or a bolt already begun
         /// goes on wherever she walks. The second's grace at the waking (part 2) is not theirs. Off: both are as before, field for field.
-        /// One switch for the whole game, so it is static; tests set it and put it back.
+        /// This switch is the warder's half; the lancer's is <see cref="LancerToo"/>. One switch for the whole game, so it is static;
+        /// tests set it and put it back.
         /// </summary>
-        public static bool WarderAndLancerToo = true;
+        public static bool WarderToo = true;
+
+        /// <summary>
+        /// Work order 140's second part, the lancer's half: OFF by default, against his tick ("Ja, begge"), until he has answered. Built and
+        /// measured (WarderAndLancerOnScreenPlayTests, floors 4 and 5 of three run seeds, a stand-in for her that walks to the nearest
+        /// enemy and shoots it): before, 2.5 (floor 4) and 4.3 (floor 5) charges a minute a lancer, 35 of 61 begun off screen; with this
+        /// on, NONE in 18 lancer-minutes. The lancer keeps 12 to 16 m from her and charges from 10 to 17 m, and his screen reaches only
+        /// about 7.2 m toward its bottom and 10.8 m toward its top of her (13.3 m to the sides) inside the margin, so a lancer above or below
+        /// her is never on screen inside its band and holds there for ever: the different fault work order 140 warned of. On: the rule as
+        /// he ticked it, for the comparison; how the lancer should come into view is his to choose (the report's question).
+        /// </summary>
+        public static bool LancerToo = false;
 
         /// <summary>
         /// Part 1 alone, his screen: true without the values; else, with <see cref="RangedAroundValues.OnScreenOnly"/> on, only standing

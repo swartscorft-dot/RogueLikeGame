@@ -17,7 +17,8 @@ namespace Roguelike.PlayModeTests
     /// bolt from off his screen and the lancer begins its charge from off it, Kristian ticked "Ja, begge"), measured: on floors 4 and 5 of
     /// a few run seeds, every combat room that holds a lancer or a warder is fought by a simple stand-in for her (she cannot be hurt; she
     /// walks toward the nearest enemy of the room until she is within <see cref="Closes"/> of it and shoots it with the basic shot, the
-    /// camera following her as in play), once with <see cref="RangedOpeningRules.WarderAndLancerToo"/> off and once on. Counted: each
+    /// camera following her as in play), once with <see cref="RangedOpeningRules.WarderToo"/> and <see cref="RangedOpeningRules.LancerToo"/> off and once both on. A warder throws its bolt
+    /// only when it is alone, so each room with a warder is fought a second time with every other enemy of it gone as the fight wakes. Counted: each
     /// warder's bolt and each lancer's charge begun (its AttackStarted), whether the enemy stood on his screen at that moment (no
     /// margin), and each lancer's charges a minute of the time it was alive in its awake fight. With the switch on, none begins off
     /// screen. Writes what it found ("WARDLANCE"); nobody has played it: these are numbers of a stand-in, not of his play.
@@ -28,7 +29,7 @@ namespace Roguelike.PlayModeTests
     public class WarderAndLancerOnScreenPlayTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        static readonly string[] RunSeedTexts = { "BENCH032", "WARDLANC", "LANCEWRD" };
+        static readonly string[] RunSeedTexts = { "", "WARDLANC", "LANCEWRD" }; // "": the benchmark's run (BenchmarkStage.RunSeed)
         const float Closes = 8f;          // m from the nearest enemy she walks to before she stands and shoots
         const float MostSeconds = 60f;    // game seconds a room is fought at most
         const float Speed = 3f;           // game time's speed in the fights
@@ -36,7 +37,7 @@ namespace Roguelike.PlayModeTests
         PlayerCharacter _player;
         PlayerHealth _health;
         GeneratedLevels _levels;
-        bool _before;
+        bool _warderBefore, _lancerBefore;
         Vector3 _aimAt;
         bool _shoot;
         Vector2 _move;
@@ -44,7 +45,8 @@ namespace Roguelike.PlayModeTests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            _before = RangedOpeningRules.WarderAndLancerToo;
+            _warderBefore = RangedOpeningRules.WarderToo;
+            _lancerBefore = RangedOpeningRules.LancerToo;
             Time.timeScale = 1f;
             PlayerInputDriver.ReadRealDevices = false; // before the scene loads: the first frame must not read them either
             yield return SceneManager.LoadSceneAsync("ControlRoom", LoadSceneMode.Single);
@@ -61,7 +63,8 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
-            RangedOpeningRules.WarderAndLancerToo = _before;
+            RangedOpeningRules.WarderToo = _warderBefore;
+            RangedOpeningRules.LancerToo = _lancerBefore;
             if (_player != null) _player.GetComponent<PlayerInputDriver>().InputSource = null;
             if (_health != null) _health.Untouchable = false;
             if (FloorMap.Current != null) Object.Destroy(FloorMap.Current.gameObject);
@@ -90,22 +93,24 @@ namespace Roguelike.PlayModeTests
 
         sealed class Tally
         {
-            public int Bolts, BoltsOff, Charges, ChargesOff, Rooms, Lancers, Warders;
+            public int Bolts, BoltsOff, Charges, ChargesOff, Rooms, Lancers, Warders, AloneRooms;
             public float LancerSeconds;
             public float ChargesAMinute => LancerSeconds > 0f ? Charges * 60f / LancerSeconds : 0f;
 
             public override string ToString() => string.Format(Inv,
-                "{0} rooms ({1} lancers, {2} warders): warder bolts {3}, begun off screen {4}; lancer charges {5}, begun off screen {6}; {7:0.0} lancer-seconds alive, {8:0.00} charges a minute a lancer",
-                Rooms, Lancers, Warders, Bolts, BoltsOff, Charges, ChargesOff, LancerSeconds, ChargesAMinute);
+                "{0} rooms ({1} lancers, {2} warders; {9} fought again with the warder alone): warder bolts {3}, begun off screen {4}; lancer charges {5}, begun off screen {6}; {7:0.0} lancer-seconds alive, {8:0.00} charges a minute a lancer",
+                Rooms, Lancers, Warders, Bolts, BoltsOff, Charges, ChargesOff, LancerSeconds, ChargesAMinute, AloneRooms);
         }
 
         /// <summary>Every combat room of floors 4 and 5 of the run seeds with a lancer or a warder, fought by the stand-in; the tallies by floor.</summary>
         IEnumerator FightThem(bool on, Dictionary<int, Tally> tallies)
         {
-            RangedOpeningRules.WarderAndLancerToo = on;
+            RangedOpeningRules.WarderToo = on;
+            RangedOpeningRules.LancerToo = on;
             foreach (string text in RunSeedTexts)
             {
-                Assert.That(LevelSeed.TryParse(text, out ulong run), Is.True, text);
+                ulong run = BenchmarkStage.RunSeed;
+                if (text.Length > 0) Assert.That(LevelSeed.TryParse(text, out run), Is.True, text);
                 foreach (int floor in new[] { 4, 5 })
                 {
                     if (!tallies.ContainsKey(floor)) tallies[floor] = new Tally();
@@ -122,14 +127,19 @@ namespace Roguelike.PlayModeTests
                         // Each room on a floor built afresh, the other rooms' enemies gone: one fight at a time, the same each time.
                         GeneratedLevel level = _levels.Build(seed, floor);
                         yield return Frames(2);
-                        yield return FightRoom(level, level.Layout.Rooms[order], tally);
+                        yield return FightRoom(level, level.Layout.Rooms[order], tally, false);
+                        if (!level.EnemiesByRoom[order].Any(e => e is EnemyWarder)) continue;
+                        // Again with the warder alone: its bolt is what it does alone.
+                        level = _levels.Build(seed, floor);
+                        yield return Frames(2);
+                        yield return FightRoom(level, level.Layout.Rooms[order], tally, true);
                     }
                 }
             }
             Time.timeScale = 1f;
         }
 
-        IEnumerator FightRoom(GeneratedLevel level, LevelRoom room, Tally tally)
+        IEnumerator FightRoom(GeneratedLevel level, LevelRoom room, Tally tally, bool warderAlone)
         {
             foreach (KeyValuePair<int, List<Enemy>> kv in level.EnemiesByRoom)
                 if (kv.Key != room.Order)
@@ -139,11 +149,15 @@ namespace Roguelike.PlayModeTests
             List<Enemy> own = level.EnemiesByRoom[room.Order].Where(e => e != null).ToList();
             RoomFight fight = _levels.FightOf(room);
             Assert.That(fight, Is.Not.Null, "room " + room.Letter + room.Order + " holds its fight");
-            var lancers = own.OfType<EnemyLancer>().ToList();
+            var lancers = warderAlone ? new List<EnemyLancer>() : own.OfType<EnemyLancer>().ToList();
             var warders = own.OfType<EnemyWarder>().ToList();
-            tally.Rooms++;
-            tally.Lancers += lancers.Count;
-            tally.Warders += warders.Count;
+            if (!warderAlone)
+            {
+                tally.Rooms++;
+                tally.Lancers += lancers.Count;
+                tally.Warders += warders.Count;
+            }
+            else tally.AloneRooms++;
             var handlers = new List<(Enemy, Action<EnemyReport>)>();
             foreach (Enemy e in lancers.Cast<Enemy>().Concat(warders))
             {
@@ -162,6 +176,12 @@ namespace Roguelike.PlayModeTests
             LevelDoor door = LevelGeometry.EntryDoor(layout, room);
             _player.Teleport(level.ToWorld(RoomDoorRules.PullInPlace(layout, room, door, _levels.Values.Fights.PointIn + 1.5, 0d)));
             for (int i = 0; i < 60 && !fight.On; i++) yield return null;
+            if (warderAlone)
+            {
+                foreach (Enemy e in own)
+                    if (e != null && !(e is EnemyWarder) && !e.IsDead) e.GetComponent<Damageable>().TakeHit(100000000);
+                own = own.Where(e => e is EnemyWarder).ToList();
+            }
             Time.timeScale = Speed;
             float until = Time.time + MostSeconds;
             while (Time.time < until && fight.On && own.Any(e => e != null && !e.IsDead))

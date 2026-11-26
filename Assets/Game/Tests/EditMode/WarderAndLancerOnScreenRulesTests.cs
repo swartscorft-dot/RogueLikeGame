@@ -13,7 +13,8 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSwitch_IsOnByDefault()
         {
-            Assert.That(RangedOpeningRules.WarderAndLancerToo, Is.True, "on by default (his tick: \"Ja, begge\")");
+            Assert.That(RangedOpeningRules.WarderToo, Is.True, "the warder's half on by default (his tick: \"Ja, begge\")");
+            Assert.That(RangedOpeningRules.LancerToo, Is.False, "the lancer's half off until he answers: with it on no lancer charged in the measure");
         }
 
         [Test]

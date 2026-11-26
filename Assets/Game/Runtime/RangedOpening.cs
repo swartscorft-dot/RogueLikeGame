@@ -30,11 +30,11 @@ namespace Roguelike
         public bool Allows(Enemy enemy, float distance, float reach) => Asks(enemy, distance, reach, true);
 
         /// <summary>
-        /// Work order 140 (<see cref="RangedOpeningRules.WarderAndLancerToo"/>): may the warder begin its bolt, or the lancer the wind-up
-        /// of its charge, now? Part 1 alone, his screen, asked as <see cref="Allows"/> asks it; no grace at the waking. True with the switch
-        /// off, as before.
+        /// Work order 140 (<see cref="RangedOpeningRules.WarderToo"/>, <see cref="RangedOpeningRules.LancerToo"/>, handed in as
+        /// <paramref name="on"/>): may the warder begin its bolt, or the lancer the wind-up of its charge, now? Part 1 alone, his screen,
+        /// asked as <see cref="Allows"/> asks it; no grace at the waking. True with its switch off, as before.
         /// </summary>
-        public bool AllowsSeen(Enemy enemy) => !RangedOpeningRules.WarderAndLancerToo || Asks(enemy, 0f, 0f, false);
+        public bool AllowsSeen(Enemy enemy, bool on) => !on || Asks(enemy, 0f, 0f, false);
 
         bool Asks(Enemy enemy, float distance, float reach, bool grace)
         {
@@ -80,7 +80,7 @@ namespace Roguelike
         {
             if (e == null || enemy == null || enemy.Fight?.Ranged == null || !enemy.Fight.Ranged.TellsTheLog) return;
             RangedOpening o = enemy is EnemyShooter s ? s.Opening : enemy is EnemyCaster c ? c.Opening
-                : enemy is EnemyWarder w && RangedOpeningRules.WarderAndLancerToo ? w.Opening : null; // work order 140: the warder's bolt too
+                : enemy is EnemyWarder w && RangedOpeningRules.WarderToo ? w.Opening : null; // work order 140: the warder's bolt too
             if (o == null) return;
             e.AddExtra("on_screen", OnScreen(enemy.transform.position, 0f) ? "yes" : "no");
             e.AddExtra("drew_on_screen", o.DrewOnScreen ? "yes" : "no");
