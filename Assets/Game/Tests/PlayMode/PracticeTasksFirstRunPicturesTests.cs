@@ -163,7 +163,7 @@ namespace Roguelike.PlayModeTests
                 string drew = ImguiByHand.Available ? ImguiByHand.Describe(ImguiByHand.Draw(rt)) : "the engine's IMGUI entry points were not found";
                 Save(rt, Path.Combine(_folder, name + ".png"));
                 PracticeTask t = _tasks.Run != null ? _tasks.Run.Current : null;
-                _log.Add($"{DateTime.Now:HH:mm:ss} {name}: {width}x{height} room {(_levels.CurrentRoom != null ? _levels.CurrentRoom.Kind + " " + _levels.CurrentRoom.Order : "none")} task {(t != null ? t.Kind + " \"" + t.Words + "\"" : "none")} plate {_tasks.PlateRect} targets {_tasks.Targets.Count} doors {_tasks.TeachingDoors.Count} open {_tasks.TeachingDoorOpen} clock {_levels.RunClockSeconds:0.00} text outside: [{_tasks.TextOutside()}] drawn: {drew}");
+                _log.Add($"{DateTime.Now:HH:mm:ss} {name}: {width}x{height} room {(_levels.CurrentRoom != null ? _levels.CurrentRoom.Kind + " " + _levels.CurrentRoom.Order : "none")} task {(t != null ? t.Kind + " \"" + t.Words + "\"" : "none")} plate {_tasks.PlateRect} targets {_tasks.Targets.Count} (by the light {_tasks.TargetsByTheLight}, in view {_tasks.TargetsInView}) rings {_tasks.RingsShown} doors {_tasks.TeachingDoors.Count} open {_tasks.TeachingDoorOpen} clock {_levels.RunClockSeconds:0.00} text outside: [{_tasks.TextOutside()}] drawn: {drew}");
             }
             catch (Exception e) { _log.Add(name + " failed: " + e); }
             finally

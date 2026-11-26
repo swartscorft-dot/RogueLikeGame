@@ -173,6 +173,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_tasks.Run.Tasks.Where(t => t.Kind == PracticeTaskKind.UseSkill).Select(t => _player.Skills[t.Slot].Name),
                         Is.EqualTo(new[] { "Quick Shot", "Scatter Blast", "Backstep", "Triple Tap" }), "the four a run starts with");
             Assert.That(_tasks.Targets.Count, Is.EqualTo(3), "three statues to shoot");
+            Assert.That(_tasks.TargetsInView, Is.EqualTo(3), "all three in view from her start, clear of the plate and the strip (the second round)");
+            Assert.That(_tasks.RingsShown, Is.False, "the first task (move) needs no target: no ring");
             foreach (GameObject t in _tasks.Targets)
             {
                 Assert.That(t.GetComponent<TrainingDummy>(), Is.Not.Null, "a target that does not fight back");
@@ -264,6 +266,15 @@ namespace Roguelike.PlayModeTests
             toHer.y = 0f;
             _player.Teleport(target + toHer.normalized * 3f);
             yield return Seconds(0.2f);
+            // The producer's addition: while a task waits for a hit on a statue, each statue wears its teal ring.
+            Assert.That(_tasks.RingsShown, Is.True, "the shooting task waits for a hit: the rings show");
+            foreach (GameObject s in _tasks.Targets)
+            {
+                Transform ring = s.transform.Find(PracticeTasks.RingName);
+                Assert.That(ring, Is.Not.Null, "a ring under " + s.name);
+                Assert.That(ring.gameObject.activeInHierarchy, Is.True);
+                Assert.That(ring.GetComponent<MeshRenderer>().enabled, Is.True, "drawn (her shot effects' material)");
+            }
             int index = _tasks.Run.Index;
             float end = Time.realtimeSinceStartup + 6f;
             while (_tasks.Run.Index == index && !_tasks.Run.Ticked && Time.realtimeSinceStartup < end)
@@ -286,6 +297,7 @@ namespace Roguelike.PlayModeTests
 
             SkipTo(PracticeTaskKind.GoOn);
             yield return null;
+            Assert.That(_tasks.RingsShown, Is.False, "the last plate needs no target: no ring");
             Assert.That(_tasks.TeachingDoorOpen, Is.True, "the last plate up: the door open");
             Assert.That(_tasks.PlateShown, Is.True, "the last plate shows");
             LevelRoom next = _levels.Level.Layout.Rooms[_tasks.TeachingRoom.Order + 1];
@@ -293,6 +305,30 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => !_tasks.Teaching, 3f);
             Assert.That(_tasks.LastRun.Finished, Is.True, "walking out finishes them");
             Assert.That(_tasks.DoneBefore, Is.True, "the flag (in memory for a test's)");
+        }
+
+        [UnityTest, Timeout(180000)]
+        public IEnumerator WalkingOut_SheGoesOnWithACleanSlate_NoFocusAndNoCooldownCarriedIntoTheFirstFight()
+        {
+            Make();
+            yield return StartTheRun();
+            Assert.That(_tasks.Teaching, Is.True);
+            yield return Tap(PracticeTasks.AgainKey); // ended: the door open
+            Assert.That(_tasks.TeachingDoorOpen, Is.True);
+            int quick = _player.SlotOf("Quick Shot");
+            Assert.That(quick, Is.GreaterThanOrEqualTo(0));
+            _player.FillFocus();
+            _player.SpendCooldownForTests(quick, 8f);
+            Assert.That(_player.IsFocusFull, Is.True, "focus full before she walks out");
+            Assert.That(_player.SkillCooldownRemaining(quick), Is.GreaterThan(1f), "Quick Shot cooling down before she walks out");
+            LevelRoom next = _levels.Level.Layout.Rooms[_tasks.TeachingRoom.Order + 1];
+            _player.Teleport(_levels.Level.Middle(next));
+            yield return Until(() => !_tasks.Teaching, 3f);
+            Assert.That(_tasks.Teaching, Is.False, "out of the room: the teaching is over");
+            Assert.That(_player.IsFocusFull, Is.False, "no focus carried out of the teaching");
+            Assert.That(_player.SkillCooldownRemaining(quick), Is.EqualTo(0f).Within(1e-4f), "no cooldown carried out of the teaching");
+            Vector3 aim = _player.Position + Vector3.forward * 5f;
+            Assert.That(_player.PressSkill(quick, aim), Is.EqualTo(IntentResult.Started), "the skill starts at once");
         }
 
         [UnityTest, Timeout(180000)]

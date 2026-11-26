@@ -100,6 +100,8 @@ namespace Roguelike
             bool inRoom = InTheRoomNow(levels);
             if (PracticeTaskFlag.HoldsTheClock(true, _doorOpen, inRoom)) levels.HoldRunClock();
             if (_blocksMoving) MoveBlocks(levels);
+            // The statues' rings while the task on the plate waits for a hit on one (set only when that changes).
+            ShowRings(Run != null && !Run.Over && !Run.Ticked && PracticeTaskRules.NeedsATarget(Run.Current));
             if (_doorOpen && !inRoom && levels.CurrentRoom != null)
             {
                 // Out of the room with the door open: the last plate is done, the run goes on.
@@ -183,13 +185,22 @@ namespace Roguelike
             // where she starts and clear of the plate, the run box and the strip; then anywhere in view; then anywhere at all.
             List<GroundPoint> lit = LitPlaces(level);
             List<GroundPoint> anywhere = PracticeTaskPlaces.Candidates(new GroundPoint(her.x, her.z), new GroundPoint(ahead.x, ahead.z), Values.TargetDistance);
+            TargetsByTheLight = TargetsInView = 0;
             for (int pass = 0; pass < 3 && _targets.Count < Values.Targets; pass++)
+            {
                 foreach (GroundPoint g in pass == 0 ? lit : anywhere)
                 {
                     if (_targets.Count >= Values.Targets) break;
                     TryTarget(g, pass < 2, her, start, radius, level);
                 }
+                if (pass == 0) TargetsByTheLight = _targets.Count;
+                if (pass <= 1) TargetsInView = _targets.Count; // the first two passes ask for the view
+            }
         }
+
+        /// <summary>Of the statues stood: how many by a light of the room, and how many (those included) in view from her start (for tests and pictures).</summary>
+        public int TargetsByTheLight { get; private set; }
+        public int TargetsInView { get; private set; }
 
         /// <summary>The statues' height (the model's), for the view check and the ring.</summary>
         float _targetHeight = 2.6f;
@@ -197,38 +208,40 @@ namespace Roguelike
         /// <summary>Puts a statue at <paramref name="g"/> if it can stand there (and, with <paramref name="inView"/>, is seen well from her start).</summary>
         void TryTarget(GroundPoint g, bool inView, Vector3 her, NavMeshHit start, float radius, GeneratedLevel level)
         {
-            {
-                if (!NavMesh.SamplePosition(new Vector3(g.X, 0f, g.Z), out NavMeshHit hit, SampleReach, NavMesh.AllAreas)) return;
-                Vector3 p = new Vector3(hit.position.x, 0f, hit.position.z);
-                if (new Vector2(p.x - her.x, p.z - her.z).magnitude < TargetFromHer) return;
-                if (NavMesh.Raycast(start.position, hit.position, out _, NavMesh.AllAreas)) return;
-                if (inView && !SeenWell(p, her)) return;
-                if (!InTheTeachingRoomAndClear(p, radius + Values.ClearOfProps)) return;
-                bool apart = true;
-                foreach (GameObject t in _targets)
-                    if (new Vector2(t.transform.position.x - p.x, t.transform.position.z - p.z).magnitude < Values.TargetsApart) apart = false;
-                if (!apart) return;
-                float yaw = Mathf.Atan2(her.x - p.x, her.z - p.z) * Mathf.Rad2Deg; // its front (+Z) toward her
-                LevelProp prop = LevelProp.Make(Values.TargetModel, level.ToLevel(p), Mathf.RoundToInt(yaw), Rules.PropPlace.Floor);
-                GameObject go = PropFactory.Make(prop, p, level.transform, level.WallLayer, _targetMaterial, TargetName + (_targets.Count + 1));
-                var target = go.AddComponent<Damageable>();
-                target.MaxHealth = Placeholders.DummyHealth;
-                target.Radius = radius;
-                go.AddComponent<TrainingDummy>(); // hit, it counts as the practice room's dummies; fallen, it comes back full
-                if (go.TryGetComponent(out BoxCollider box)) Carve(go, box.center, box.size);
-                if (Values.TargetsWearARing) MakeRing(go, radius);
-                _targets.Add(go);
-                Physics.SyncTransforms();
-            }
+            // Where it can stand: on the NavMesh, not on top of her, with a clear way from her, in view (the first two passes), inside
+            // the room and clear of its props and walls, and apart from the statues already stood.
+            if (!NavMesh.SamplePosition(new Vector3(g.X, 0f, g.Z), out NavMeshHit hit, SampleReach, NavMesh.AllAreas)) return;
+            Vector3 p = new Vector3(hit.position.x, 0f, hit.position.z);
+            if (new Vector2(p.x - her.x, p.z - her.z).magnitude < TargetFromHer) return;
+            if (NavMesh.Raycast(start.position, hit.position, out _, NavMesh.AllAreas)) return;
+            if (inView && !SeenWell(p, her)) return;
+            if (!InTheTeachingRoomAndClear(p, radius + Values.ClearOfProps)) return;
+            foreach (GameObject t in _targets)
+                if (new Vector2(t.transform.position.x - p.x, t.transform.position.z - p.z).magnitude < Values.TargetsApart) return;
+            // The statue, a target that does not fight back.
+            float yaw = Mathf.Atan2(her.x - p.x, her.z - p.z) * Mathf.Rad2Deg; // its front (+Z) toward her
+            LevelProp prop = LevelProp.Make(Values.TargetModel, level.ToLevel(p), Mathf.RoundToInt(yaw), Rules.PropPlace.Floor);
+            GameObject go = PropFactory.Make(prop, p, level.transform, level.WallLayer, _targetMaterial, TargetName + (_targets.Count + 1));
+            var target = go.AddComponent<Damageable>();
+            target.MaxHealth = Placeholders.DummyHealth;
+            target.Radius = radius;
+            go.AddComponent<TrainingDummy>(); // hit, it counts as the practice room's dummies; fallen, it comes back full
+            if (go.TryGetComponent(out BoxCollider box)) Carve(go, box.center, box.size);
+            if (Values.TargetsWearARing) MakeRing(go, radius);
+            _targets.Add(go);
+            Physics.SyncTransforms();
         }
 
         /// <summary>The light sources of the entrance room by their models: its braziers (the entrance's own, the generator's), and lit candles.</summary>
+        /// <summary>The places tried round a light at each distance (every 30 degrees).</summary>
+        const int LightTurns = 12;
+
         static bool GivesLight(PropModel m) => m == PropModel.Brazier || m == PropModel.GreatBrazier || m == PropModel.CandleCluster || m == PropModel.Candelabra;
 
         /// <summary>
-        /// Places round each light of the teaching room, <see cref="PracticeTasksValues.NearTheLight"/> then
-        /// <see cref="PracticeTasksValues.FarFromTheLight"/> out, every 30 degrees; taken a light at a time in turn (the first good
-        /// place by each light before a second by any), so the statues stand by different lights.
+        /// Places round each light of the teaching room, <see cref="PracticeTasksValues.NearTheLight"/>, then
+        /// <see cref="PracticeTasksValues.FarFromTheLight"/>, then <see cref="PracticeTasksValues.EdgeOfTheLight"/> out, every 30
+        /// degrees; taken a light at a time in turn, so the statues stand by different lights where they can.
         /// </summary>
         List<GroundPoint> LitPlaces(GeneratedLevel level)
         {
@@ -239,16 +252,16 @@ namespace Roguelike
             foreach (Vector3 l in lights)
             {
                 var ring = new List<GroundPoint>();
-                foreach (float r in new[] { Values.NearTheLight, Values.FarFromTheLight })
-                    for (int i = 0; i < 12; i++)
+                foreach (float r in new[] { Values.NearTheLight, Values.FarFromTheLight, Values.EdgeOfTheLight })
+                    for (int i = 0; i < LightTurns; i++)
                     {
-                        float a = i * Mathf.PI / 6f;
+                        float a = i * Mathf.PI * 2f / LightTurns;
                         ring.Add(new GroundPoint(l.x + Mathf.Cos(a) * r, l.z + Mathf.Sin(a) * r));
                     }
                 rings.Add(ring);
             }
             var list = new List<GroundPoint>();
-            for (int k = 0; k < 24; k++)
+            for (int k = 0; k < LightTurns * 3; k++)
                 foreach (List<GroundPoint> ring in rings) list.Add(ring[k]);
             return list;
         }
@@ -439,12 +452,17 @@ namespace Roguelike
                 PlaySessionRecorder.Current?.NotePracticeTasks(run.Ended ? PracticeTaskLog.Ended : PracticeTaskLog.Finished, run.Done, run.Skipped, run.Tasks.Count, Time.time - _teachBeganAt);
         }
 
-        /// <summary>She walked out with the door open: the statues and the blocks go, the run's clock runs from here.</summary>
+        /// <summary>
+        /// She walked out with the door open: the statues and the blocks go, the run's clock runs from here, and she goes on with a clean
+        /// slate (the producer's addition of the second round: no focus and no cooldown carried from the teaching into the first fight;
+        /// <see cref="PlayerCharacter.StartFresh"/>, as a run's start).
+        /// </summary>
         void FinishTeaching(GeneratedLevels levels)
         {
             PracticeTaskRun run = LastRun;
             PlaySessionRecorder.Current?.NotePracticeTasks(PracticeTaskLog.WalkedOn, run != null ? run.Done : 0, run != null ? run.Skipped : 0, run != null ? run.Tasks.Count : 0, Time.time - _teachBeganAt);
             ClearRoom();
+            if (_player != null) _player.StartFresh();
         }
 
         /// <summary>
@@ -464,6 +482,10 @@ namespace Roguelike
         void ClearRoom()
         {
             RemoveProp();
+            ShowRings(false);
+            _rings.Clear(); // each a child of its statue, gone with it
+            if (_ringMesh != null) Destroy(_ringMesh);
+            _ringMesh = null;
             foreach (RoomDoor d in _blocks)
                 if (d != null)
                 {

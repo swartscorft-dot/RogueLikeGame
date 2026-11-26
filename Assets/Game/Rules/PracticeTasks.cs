@@ -60,8 +60,11 @@ namespace Roguelike.Rules
         /// <see cref="InTheFirstRun"/>.
         /// </summary>
         public bool TargetsWearARing = true;
-        /// <summary>Metres from a brazier (the entrance room's own light) that the statues are stood, near and far.</summary>
-        public float NearTheLight = 2.2f, FarFromTheLight = 3f;
+        /// <summary>
+        /// Metres from a brazier (the entrance room's own light) that the statues are stood, near, far, and at the edge of its light (the
+        /// last when the near places are under the plate or taken: the first pictures had the third statue in a dark corner).
+        /// </summary>
+        public float NearTheLight = 2.2f, FarFromTheLight = 3f, EdgeOfTheLight = 4f;
     }
 
     /// <summary>

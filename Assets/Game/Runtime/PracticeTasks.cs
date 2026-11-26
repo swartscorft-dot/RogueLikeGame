@@ -510,6 +510,8 @@ namespace Roguelike
         const int WordsSize = 24, HeadSize = 17, FootSize = 16, CapSize = 19, FootCapSize = 15, CountSize = 21, DoneSize = 19;
         /// <summary>The line's size steps down by this, to no smaller than this, when it would not fit (the teaching room's narrower room).</summary>
         const int WordsStep = 2, WordsLeast = 20;
+        /// <summary>Layout pixels the head's dark back starts below the top of the head's line (the line is taller than its letters).</summary>
+        const float HeadBackInset = 3f;
         int _wordsSize = WordsSize;
 
         bool _laid;
@@ -520,7 +522,7 @@ namespace Roguelike
         string _step = "", _count = "";
         float _countShown = -1f;
         readonly List<float> _capW = new List<float>();
-        float _wordsW, _footSkipW, _footEndW, _againW;
+        float _wordsW, _footSkipW, _footEndW, _againW, _headW;
 
         /// <summary>The plate's rectangle in the 1080 layout while it shows (empty when not), and the small line's in the room.</summary>
         public Rect PlateRect { get; private set; }
@@ -555,6 +557,7 @@ namespace Roguelike
                 return;
             }
             _step = PracticeWords.Head + "   " + InterfaceStyle.Number(Run.Index + 1) + " / " + InterfaceStyle.Number(Run.Tasks.Count);
+            _headW = InterfaceStyle.Measure(_step, InterfaceStyle.Text(true, HeadSize, TextAnchor.MiddleLeft)).x;
             float keys = 0f;
             foreach (string k in t.Keys)
             {
@@ -622,13 +625,17 @@ namespace Roguelike
             bool ticked = Run.Ticked;
             Rect r = PlateRect;
             float pivot = r.center.y, slant = v.Slant;
+            // The head over its top left, on the prompts' dark back (the second round: it read poorly over a bright floor); the back
+            // first, so the plate's outline lies over its foot.
+            var head = new Rect(r.x + Pad, r.y - HeadSize * 1.45f - 2f, r.width, HeadSize * 1.45f);
+            QuietBack(new Rect(head.x, head.y + HeadBackInset, _headW, head.height - HeadBackInset), v);
             // The menus' plate: the inked outline (white, teal once done), a black face, a teal cut down its left edge, dots toward its right.
             InterfaceStyle.InkedPlate(r, pivot, slant, v.HeavyOutline, v.Depth * 2f, ticked ? InterfaceStyle.C(v.Teal) : InterfaceStyle.C(v.White, 0.85f), 0.8f);
             InterfaceStyle.Leaning(r, pivot, slant, InterfaceStyle.C(v.Black, 0.92f));
             InterfaceStyle.Leaning(new Rect(r.x, r.y, 6f, r.height), pivot, slant, InterfaceStyle.C(v.Teal));
             InterfaceStyle.DotsAlong(new Rect(r.x + r.width * 0.72f, r.y, r.width * 0.28f, r.height), pivot, slant, 0.15f, InterfaceStyle.C(v.Teal, 0.16f));
-            // The head over its top left: the word and which task of how many, small.
-            Label(new Rect(r.x + Pad, r.y - HeadSize * 1.45f - 2f, r.width, HeadSize * 1.45f), _step, InterfaceStyle.Text(true, HeadSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
+            // The head: the word and which task of how many, small.
+            Label(head, _step, InterfaceStyle.Text(true, HeadSize, TextAnchor.MiddleLeft), InterfaceStyle.C(v.Teal), true);
             // The keys as keys, then the line.
             float x = r.x + Pad, mid = r.y + r.height * 0.5f;
             GUIStyle cap = InterfaceStyle.Text(true, CapSize, TextAnchor.MiddleCenter);

@@ -68,6 +68,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(v.TargetModel, Is.EqualTo(PropModel.Statue), "the project's own crypt statue");
             Assert.That(v.Targets, Is.EqualTo(3));
             Assert.That(v.NearTheLight, Is.LessThan(v.FarFromTheLight), "stood by the braziers");
+            Assert.That(v.FarFromTheLight, Is.LessThan(v.EdgeOfTheLight), "then at the edge of their light");
         }
 
         [Test]
