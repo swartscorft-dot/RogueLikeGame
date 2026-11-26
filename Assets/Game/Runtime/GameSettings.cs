@@ -66,7 +66,7 @@ namespace Roguelike
         {
             s_dash = PlayerPrefs.GetInt(DashKey, SettingsRules.NoOverride);
             if (s_dash != SettingsRules.DashTowardCursor && s_dash != SettingsRules.DashTowardMovement) s_dash = SettingsRules.NoOverride;
-            s_volume = SettingsRules.VolumeStep(PlayerPrefs.GetInt(VolumeKey, SettingsRules.DefaultVolumeStep));
+            s_volume = SettingsRules.VolumeStep(PlayerPrefs.GetInt(VolumeKey, SoundLevels.FirstStartStep())); // work order 131: none saved, the first start's step
             s_numbers = FeedbackRules.StoredNumbers(PlayerPrefs.GetInt(DamageNumbersKey, FeedbackRules.NoOverride));
             s_kick = PlayerPrefs.GetInt(CameraKickKey, 1) != 0;
             s_greybox = PlayerPrefs.GetInt(GreyboxKey, 0) != 0; // work order 084
@@ -74,7 +74,7 @@ namespace Roguelike
             s_light = LightSteps.Step(PlayerPrefs.GetInt(LightKey, LightSteps.Default)); // work order 085: none stored, lamplit C
             s_angle = CameraAngles.Step(PlayerPrefs.GetInt(CameraAngleKey, CameraAngles.Default)); // work order 121: none stored, ours
             s_loaded = true;
-            AudioListener.volume = SettingsRules.Volume(s_volume);
+            AudioListener.volume = SoundLevels.ListenerVolume(s_volume); // work order 131: the step's, times the master trim
         }
 
         /// <summary>Forgets both until the next <see cref="Load"/>: the asset's dash and full volume again.</summary>
@@ -101,7 +101,7 @@ namespace Roguelike
         public static void SetVolumeStep(int step)
         {
             s_volume = SettingsRules.VolumeStep(step);
-            AudioListener.volume = SettingsRules.Volume(s_volume);
+            AudioListener.volume = SoundLevels.ListenerVolume(s_volume); // work order 131: the step's, times the master trim
             PlayerPrefs.SetInt(VolumeKey, s_volume);
             PlayerPrefs.Save();
         }

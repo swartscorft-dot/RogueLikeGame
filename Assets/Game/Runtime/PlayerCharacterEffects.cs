@@ -33,7 +33,7 @@ namespace Roguelike
             float spread = Mathf.Max(0f, values.SoundPitchSpread);
             float pitch = values.SoundPitch * (1f + Random.Range(-spread, spread));
             if (IsFocusBoosted && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch; // work order 071: for as long as the gains run
-            Sounds.Play(values.Sound, values.SoundVolume * master, pitch, values.SoundStart);
+            Sounds.Play(values.Sound, values.SoundVolume * master * SoundLevelsPlay.GainOf(values.Sound), pitch, values.SoundStart); // work order 131: its clip's gain
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace Roguelike
             AudioClip clip = own != null ? own : values.Sound;
             float pitch = values.SoundPitch * v.Pitch;
             if (IsFocusBoosted && ShotLooks != null) pitch *= ShotLooks.EmpoweredPitch; // work order 071: for as long as the gains run
-            Sounds.Play(clip, values.SoundVolume * master * v.Volume, pitch, own != null ? 0f : values.SoundStart, v);
+            Sounds.Play(clip, values.SoundVolume * master * v.Volume * SoundLevelsPlay.GainOf(clip), pitch, own != null ? 0f : values.SoundStart, v); // work order 131: its clip's gain
         }
 
         /// <summary>The basic shot's variations (work order 064): defaults in code, reachable in the Inspector while playing.</summary>
