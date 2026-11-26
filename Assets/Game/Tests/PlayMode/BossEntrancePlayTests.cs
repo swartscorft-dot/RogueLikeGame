@@ -348,6 +348,30 @@ namespace Roguelike.PlayModeTests
             Debug.Log("[130] after its end: " + full + "\n[130] after a skip: " + skipped);
         }
 
+        /// <summary>
+        /// The merge of 2026-11-26: with work order 138's six slots keys 3 and 4 hold no skill and do nothing, so they are no action
+        /// key here either; Q, a key that holds one, still ends it.
+        /// </summary>
+        [UnityTest, Timeout(180000)]
+        public IEnumerator TheKeysThatHoldNoSkill_ThreeAndFourWithSixSlots_DoNotEndIt_ASkillsKeyDoes()
+        {
+            Assert.That(_player.KeyInUse(3) || _player.KeyInUse(5), Is.False, "six slots, as the game ships: keys 3 and 4 hold nothing");
+            Floor f = null;
+            yield return BuildFloor5(x => f = x);
+            yield return WalkIn(f);
+            Assert.That(_levels.EntranceHolds, Is.True);
+            yield return Frames(3);
+            yield return Press(Key.Digit3);
+            yield return Press();
+            yield return Press(Key.Digit4);
+            yield return Press();
+            Assert.That(_levels.EntranceHolds, Is.True, "3 and 4 skip nothing");
+            yield return Press(Key.Q);
+            Assert.That(_levels.EntranceHolds, Is.False, "Q, her first skill's key, ends it");
+            Assert.That(f.Fight.On, Is.True);
+            yield return Press();
+        }
+
         [UnityTest, Timeout(180000)]
         public IEnumerator Esc_AndHerActionKey_EndItAtOnce_AndOpenNoPause()
         {

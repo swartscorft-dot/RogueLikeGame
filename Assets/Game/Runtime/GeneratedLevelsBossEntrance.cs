@@ -227,7 +227,7 @@ namespace Roguelike
             if (Pressed(b.Shoot, m, k) || KeyPressed(k, b.Dash) || KeyPressed(k, b.Focus) || KeyPressed(k, b.Interact)) return true;
             if (b.Skills != null)
                 for (int i = 0; i < b.Skills.Length; i++)
-                    if (Pressed(b.Skills[i], m, k)) return true;
+                    if ((_player == null || _player.KeyInUse(i)) && Pressed(b.Skills[i], m, k)) return true; // the merge of 2026-11-26: a key that holds no skill (3 and 4 with work order 138's six slots) is no action key
             return false;
         }
 
