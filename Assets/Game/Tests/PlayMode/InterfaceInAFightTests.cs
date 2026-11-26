@@ -580,6 +580,8 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator BackstepsBand_IsLitExactlyWhenTheJudgeCallsThePressClean_BeforeInAndAfter()
         {
+            _openingFromWas = _player.Kit.OpeningMoveCleanFrom;
+            _player.Kit.OpeningMoveCleanFrom = 0.03f; // work order 142 opened Backstep's clean part with the hop's end: this test of a press before it is given the 0.03 s before (put back in the tear-down)
             Assert.That(Slot("Backstep"), Is.GreaterThanOrEqualTo(0));
             var moments = new Func<float, float, float, float>[] { Before, In, After };
             string[] names = { "before", "in", "after" };
@@ -774,7 +776,9 @@ namespace Roguelike.PlayModeTests
         public IEnumerator WithWideWindowTaken_BackstepsWiderPart_IsShownAndJudgedAlike_JustPastTheOldPartCleanAndFurtherNot()
         {
             Assert.That(_player.KeyOfSkill(Slot("Backstep")), Is.GreaterThanOrEqualTo(0), "Backstep on a key");
-            // With no stat, today's part (0.03 to 0.23 s after the hop): a press at 0.265 s is late.
+            // With no stat, today's part (0.03 to 0.23 s after the hop): a press at 0.265 s is late. Work order 142 moved its start to
+            // 0 (KitTimingChoices): this test of Wide window's widening is given the number before.
+            Give142sOldNumbers();
             yield return BackstepWindowOpen();
             Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.03f).Within(1e-5f), "today's part");
             Assert.That(_player.RecastCleanTo, Is.EqualTo(0.23f).Within(1e-5f));

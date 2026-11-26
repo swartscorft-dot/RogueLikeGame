@@ -497,7 +497,12 @@ namespace Roguelike.PlayModeTests
         {
             int slot = Slot(skill);
             var told = new List<Told>();
-            foreach (RecastTiming kind in new[] { RecastTiming.Early, RecastTiming.Clean, RecastTiming.Late, RecastTiming.Waited })
+            // Work order 142 (KitTimingChoices.BackstepFromHopsEnd): Backstep's clean part opens with the hop's end, so a press in its
+            // window can no longer be early.
+            bool early = !(skill == "Backstep" && _player.Kit.OpeningMoveCleanFrom <= 0f);
+            RecastTiming[] kinds = early ? new[] { RecastTiming.Early, RecastTiming.Clean, RecastTiming.Late, RecastTiming.Waited }
+                                         : new[] { RecastTiming.Clean, RecastTiming.Late, RecastTiming.Waited };
+            foreach (RecastTiming kind in kinds)
                 yield return Tell(slot, press, kind, true, told);
             var log = new StringBuilder("[142] what " + skill + " press " + press + " is told (the presses before it clean; the shot landing on Dummy_A):\n");
             log.AppendLine("[142]   timing | rewarded | since ms | combo zone | ring cue | cast bar flash | sounds | words over her or the target | tones");
@@ -505,7 +510,7 @@ namespace Roguelike.PlayModeTests
                 log.AppendLine("[142]   " + t.Timing + " | " + t.Rewarded + " | " + F(Ms(t.Since)) + " | " + t.Combo + " | " + (t.RingClean ? "teal (clean)" : "grey") + " | "
                                + (t.Flashes.Length > 0 ? t.Flashes : "-") + " | " + (t.Sounds.Length > 0 ? t.Sounds : "-") + " | " + (t.Words.Length > 0 ? t.Words : "-") + " | " + (t.Tones.Length > 0 ? t.Tones : "-"));
             Debug.Log(log.ToString());
-            Assert.That(told.Select(t => t.Timing), Is.EqualTo(new[] { RecastTiming.Early, RecastTiming.Clean, RecastTiming.Late, RecastTiming.Waited }), "the four presses fell as aimed");
+            Assert.That(told.Select(t => t.Timing).ToArray(), Is.EqualTo(kinds), "the presses fell as aimed");
             foreach (Told t in told)
             {
                 bool clean = t.Timing == RecastTiming.Clean;

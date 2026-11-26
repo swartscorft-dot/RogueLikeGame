@@ -78,9 +78,14 @@ namespace Roguelike.PlayModeTests
             _clicks.Clear();
         }
 
+        // Work order 142's second round: the kit's Backstep number it moved, put back after the test that pins the one before.
+        float _openingFromWas = float.NaN;
+
         [TearDown]
         public void CleanUp()
         {
+            if (_player != null && !float.IsNaN(_openingFromWas)) _player.Kit.OpeningMoveCleanFrom = _openingFromWas;
+            _openingFromWas = float.NaN;
             PlaceholderSounds.Requested -= OnSound;
             if (_player != null) _player.Reported -= OnReport;
             if (_cue != null)
@@ -216,6 +221,8 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Backstep_WithEachCue_APressWhenTheCueSaysCleanIsClean_OneBeforeItIsNot()
         {
             int slot = Slot("Backstep");
+            _openingFromWas = _player.Kit.OpeningMoveCleanFrom;
+            _player.Kit.OpeningMoveCleanFrom = 0.03f; // work order 142 opened Backstep's clean part with the hop's end: this test of a press before it is given the 0.03 s before (put back in the tear-down)
             foreach (TimingCue cue in Cues)
             {
                 TimingCueSettings.SetCue(cue, keep: false);

@@ -162,6 +162,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Backstep_APressAt02sIsClean_At005sAndAt045sIsNot_AndTheLateOneSaysSo()
         {
+            OwnKit(k => k.OpeningMoveCleanFrom = 0.03f); // work order 142 opened Backstep's clean part with the hop's end: this test of a press before it is given the 0.03 s before
             Assume.That(_player.Kit.CleanEarly, Is.True, "the new placement as the game ships");
             // Changed deliberately by work order 064: Backstep's clean part after its hop is its own, 0.03 to 0.23 s (it was
             // the kit's 0.10 to 0.30), so the early press is at 0.01 s, not 0.05.
@@ -319,6 +320,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheBarsMarker_AgreesWithTheJudge_ThroughAHitStop_AndStandsStillInAPause()
         {
+            OwnKit(k => k.OpeningMoveCleanFrom = 0.03f); // work order 142 opened Backstep's clean part with the hop's end: this test of a press before it is given the 0.03 s before
             _levels = GeneratedLevels.Ensure();
             yield return null;
             yield return BackstepWindowOpen();

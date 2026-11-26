@@ -37,7 +37,7 @@ namespace Roguelike.Rules
         // fell before the clean part's 0.10 s. The clean part of the window after an opening move moves early by the same
         // 0.20 s width, as work order 040 moved the first one; a press that waited from the hop is still never clean. The
         // asset holds none of these, so these defaults are what the game reads. Each below 0 gives the morning's.
-        public float OpeningMoveCleanFrom = 0.03f;  // s after the hop's end that the clean part begins; below 0, CleanFrom (0.10)
+        public float OpeningMoveCleanFrom = KitTimingChoices.OpeningMoveCleanFrom; // s after the hop's end that the clean part begins (0.03 until work order 142: 0, with the hop's end; KitTimingChoices.BackstepFromHopsEnd off gives 0.03); below 0, CleanFrom (0.10)
         public float OpeningMoveCleanTo = 0.23f;    // s after it that the clean part ends; below 0, CleanTo (0.30)
         public float OpeningMoveShotStartup = 0.08f; // s from the second press to the shot; below 0, the skill's Startup (0.2)
         // (OpeningMoveCooldownBuffer, Backstep's own 0.25 s, became CooldownBuffer below in work order 066.)
