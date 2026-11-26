@@ -68,6 +68,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            Roguelike.Rules.BossValues.NoPacks = true; // work order 140: back to its default
             if (_hud != null) Object.Destroy(_hud.gameObject);
             _hud = null;
             if (_levels != null) Object.Destroy(_levels.gameObject);
@@ -125,6 +126,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator StartingARun_F5OrF6_RemovesEverythingSpawnedInThePracticeRoom_TheBossAndItsBarToo()
         {
+            Roguelike.Rules.BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             foreach (bool sameRun in new[] { false, true })
             {
                 _player.Teleport(Stand);
@@ -329,6 +331,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheCalledSwarmers_CountAsKills_AndInTheRoomsCount_AndDieWhenTheActIsCleared_NotAsHerKills()
         {
+            Roguelike.Rules.BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             _health.MaxHealth = 1000000; // nothing in this test may kill her
             _levels.StartRun(RunSeed);
             yield return null;

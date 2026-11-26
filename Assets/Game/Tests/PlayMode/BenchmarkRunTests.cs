@@ -55,7 +55,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(r.Scenarios.Count, Is.EqualTo(2));
             Assert.That(r.Scenarios[0].Scenario, Does.Contain("PracticeIdle"));
             Assert.That(r.Scenarios[1].Scenario, Does.Contain("Floor5Boss"));
-            Assert.That(r.Scenarios[1].PacksCalled, Is.EqualTo(2));
+            Assert.That(r.Scenarios[1].PacksCalled, Is.EqualTo(Roguelike.Rules.BossValues.NoPacks ? 0 : 2)); // work order 140 (changed deliberately): "Ingen flokker", none with the switch on
             Assert.That(r.Scenarios[1].Frames, Is.GreaterThan(0));
             Assert.That(r.Scenarios[1].FrameMs.Mean, Is.GreaterThan(0));
             Assert.That(r.Materials.Count, Is.GreaterThan(0));

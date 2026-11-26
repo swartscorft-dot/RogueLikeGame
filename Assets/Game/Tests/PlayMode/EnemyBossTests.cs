@@ -61,6 +61,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            BossValues.NoPacks = true; // work order 140: back to its default
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;
             if (_folder != null && Directory.Exists(_folder)) Directory.Delete(_folder, true);
@@ -509,6 +510,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AtTwoThirdsAndOneThird_SixSwarmersCome_OnceEach()
         {
+            BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             Record();
             EnemyBoss boss = SpawnBoss();
             yield return null;
@@ -583,6 +585,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator InFloor5_ItWakesAsSheEntersItsRoom_DoesNotGoHome_CallsAlongTheWalls_AndGoesWithTheFloor()
         {
+            BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             _practiceEnemy.enabled = true;
             GeneratedLevel level = _levels.Build(42UL, 5);
             yield return null;

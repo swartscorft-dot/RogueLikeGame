@@ -95,6 +95,7 @@ namespace Roguelike.PlayModeTests
         {
             Roguelike.Rules.SkillLookValues.EffectsNotShapes = true; // work order 123: back to its default
             Roguelike.Rules.HitChipsValues.On = true; // work order 127: back to its default
+            Roguelike.Rules.BossValues.NoPacks = true; // work order 140: back to its default
             CombatEffects.Spawned -= Record;
             if (_fx != null) Object.Destroy(_fx.gameObject);
             _fx = null;
@@ -435,6 +436,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheBossesCall_IsARingFromIt_AndThePackAppears_EnemiesMadeOutOfAFight_DoNot()
         {
+            Roguelike.Rules.BossValues.NoPacks = false; // work order 140 (changed deliberately): this test pins the packs of before "Ingen flokker"; TearDown puts it back
             _levels.SpawnPractice(EnemyKind.Swarmer);
             yield return Frames(3);
             Assert.That(Of(FxMoment.EnemyAppeared), Is.Empty, "made with no fight on: no arrival drawn");
