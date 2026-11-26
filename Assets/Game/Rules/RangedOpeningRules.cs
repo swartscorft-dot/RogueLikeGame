@@ -32,7 +32,7 @@ namespace Roguelike.Rules
         /// <summary>
         /// Work order 140's second part, the lancer's half: OFF by default, against his tick ("Ja, begge"), until he has answered. Built and
         /// measured (WarderAndLancerOnScreenPlayTests, floors 4 and 5 of three run seeds, a stand-in for her that walks to the nearest
-        /// enemy and shoots it): before, 2.5 (floor 4) and 4.3 (floor 5) charges a minute a lancer, 35 of 61 begun off screen; with this
+        /// enemy and shoots it): before, 2.8 (floor 4) and 5.0 (floor 5) charges a minute a lancer, 38 of 68 begun off screen; with this
         /// on, NONE in 18 lancer-minutes. The lancer keeps 12 to 16 m from her and charges from 10 to 17 m, and his screen reaches only
         /// about 7.2 m toward its bottom and 10.8 m toward its top of her (13.3 m to the sides) inside the margin, so a lancer above or below
         /// her is never on screen inside its band and holds there for ever: the different fault work order 140 warned of. On: the rule as
