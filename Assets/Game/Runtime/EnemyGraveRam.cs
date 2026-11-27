@@ -1017,14 +1017,33 @@ namespace Roguelike
                 StaggerBar bar = _self != null ? _self.Stagger : null;
                 _dazeUntil = CrashDazed ? _crashDazeUntil : bar != null && bar.IsDazed(Time.time) ? bar.DazedUntil : -1f;
             }
-            // The base tints a daze its pale blue a frame after it begins (Enemy.TintForDaze): painted over again while that shows.
-            if (dazed && BodyRenderer != null && BodyRenderer.sharedMaterial != null)
+            Renderer[] parts = Look != null ? Look.Renderers : null;
+            if (parts != null && (_partColours == null || _partColours.Length != parts.Length))
             {
+                _partColours = new Color[parts.Length];
+                for (int i = 0; i < parts.Length; i++) _partColours[i] = parts[i] != null && parts[i].sharedMaterial != null ? parts[i].sharedMaterial.color : Color.white;
+            }
+            if (dazed)
+            {
+                // Every part of its body (the skeleton's bones, its cloth, its shield, not only its largest mesh), painted over again while the
+                // base's pale daze tint, a frame after the daze begins (Enemy.TintForDaze), shows.
                 Color deep = InterfaceStyle.C(Tuning.DazedTint);
-                if (BodyRenderer.sharedMaterial.color != deep) EnemyFactory.Paint(BodyRenderer.sharedMaterial, deep);
+                if (BodyRenderer != null && BodyRenderer.sharedMaterial != null && BodyRenderer.sharedMaterial.color != deep)
+                    EnemyFactory.Paint(BodyRenderer.sharedMaterial, deep);
+                if (parts != null)
+                    for (int i = 0; i < parts.Length; i++)
+                        if (parts[i] != null && parts[i] != BodyRenderer && parts[i].sharedMaterial != null && parts[i].sharedMaterial.color != deep)
+                            EnemyFactory.Paint(parts[i].sharedMaterial, deep);
+            }
+            else if (_dazedTinted && parts != null)
+            {
+                for (int i = 0; i < parts.Length; i++)
+                    if (parts[i] != null && parts[i] != BodyRenderer && parts[i].sharedMaterial != null) EnemyFactory.Paint(parts[i].sharedMaterial, _partColours[i]);
             }
             _dazedTinted = dazed;
         }
+
+        Color[] _partColours;
 
         /// <summary>
         /// The share of the running daze still to come, 1 to 0, for its bar (round 2: "it is open now, for this long"); negative when it

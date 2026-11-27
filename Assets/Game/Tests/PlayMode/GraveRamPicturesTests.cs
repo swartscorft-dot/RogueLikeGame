@@ -264,6 +264,9 @@ namespace Roguelike.PlayModeTests
             Draw();
             Save("149-8-crash-daze", "0.5 s into the daze after its Ram met the west wall, she stepped aside (round 2: its body the deep daze blue, its bar's line the daze's time left)", r);
             CropRound("149-8-crash-daze-crop", r.Ram.transform.position + Vector3.up * 1.4f);
+            if (r.Ram.Look != null)
+                _log.Add("  its parts in the daze: " + string.Join(", ", r.Ram.Look.Renderers.Where(x => x != null && x.sharedMaterial != null)
+                                                                               .Select(x => x.name + " " + x.sharedMaterial.color + (x.enabled ? "" : " (hidden)"))));
             SaveCrop("149-10-bar-in-the-daze", (W - 900) / 2, 0, 900, 150, 2);
             yield return GraveRamTestRoom.Run(1.4f, null);
             Draw();
