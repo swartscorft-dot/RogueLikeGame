@@ -391,6 +391,58 @@ namespace Roguelike.Rules
         public const int Samples = 4;
         /// <summary>The stage texture is never larger than this on a side (pixels).</summary>
         public const int MostTexture = 4096;
+
+        // ---------------- The parts as models (work order 150) ----------------
+
+        /// <summary>
+        /// The nine parts are drawn on the stage as the models made for them in Blender (2026-11-26 and 27: the three sights, then
+        /// the six others, one shared set of materials) instead of the shapes made in code. Kristian, 2026-11-26, shown the three
+        /// sights and asked about the six others: "Ja, lag de seks og bygg inn". Off: the shapes made in code, as before work
+        /// order 150. Read each time a part is made on the stage.
+        /// </summary>
+        public static bool ModelledParts = true;
+        /// <summary>Where a part's model is looked for: Resources/Weapon/Parts/&lt;its model's name&gt; (a prefab of the model file in Art/Weapons/Parts, as the pistol's).</summary>
+        public const string PartModelFolder = "Weapon/Parts/";
+
+        /// <summary>The name of a part's model (its file in Art/Weapons/Parts and its prefab in Resources), or null for an id with none.</summary>
+        public static string PartModelName(string id)
+        {
+            switch (id)
+            {
+                case WeaponAttachments.LaserSight: return "LaserSight";
+                case WeaponAttachments.GhostRing: return "GhostRing";
+                case WeaponAttachments.ReflexSight: return "ReflexSight";
+                case WeaponAttachments.BullBarrel: return "BullBarrel";
+                case WeaponAttachments.LongBarrel: return "LongBarrel";
+                case WeaponAttachments.Compensator: return "Compensator";
+                case WeaponAttachments.RunnersGrip: return "RunnersGrip";
+                case WeaponAttachments.WeightedGrip: return "WeightedGrip";
+                case WeaponAttachments.QuickDrawGrip: return "QuickDrawGrip";
+                default: return null;
+            }
+        }
+
+        /// <summary>A part's model's path for Resources.Load (null for an id with none).</summary>
+        public static string PartModelPath(string id)
+        {
+            string name = PartModelName(id);
+            return name == null ? null : PartModelFolder + name;
+        }
+
+        /// <summary>
+        /// How far each modelled barrel reaches past the muzzle on the stage (stage units: the pistol 1 long), measured on the models
+        /// in Blender (their length out of the muzzle's face over the pistol's 1.903): the Bull Barrel 0.243, the Long Barrel 0.50
+        /// and the Compensator 0.26 of the pistol's own units. The frame's shift (<see cref="FrameShiftShare"/>) takes these while
+        /// <see cref="ModelledParts"/> is on (the shapes made in code reach 0.115, 0.26 and 0.125).
+        /// </summary>
+        public const float BullBarrelReach = 0.128f, LongBarrelReach = 0.263f, CompensatorReach = 0.135f;
+
+        /// <summary>
+        /// The models' teal glows by this share of its colour: the producer's note from the Blender pictures (2026-11-27), "about
+        /// 0.05", so that no part's teal is brighter than the pistol's own painted teal lines (at a full glow the parts' teal stood
+        /// out brighter than the pistol's, as the shapes made in code still do at <c>AccentGlow</c> 1).
+        /// </summary>
+        public const float PartTealGlow = 0.05f;
     }
 
     /// <summary>
