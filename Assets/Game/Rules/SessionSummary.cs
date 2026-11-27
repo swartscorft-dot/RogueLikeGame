@@ -263,6 +263,8 @@ namespace Roguelike.Rules
         public List<BossTrialRow> BossTrial = new List<BossTrialRow>();
         /// <summary>Work order 149: the Grave Ram's fights (SessionSummaryGraveRam.cs); none for a log without one.</summary>
         public List<GraveRamRow> GraveRam = new List<GraveRamRow>();
+        /// <summary>Work order 153: the timed chests (SessionSummaryTimedChest.cs); none for a log without one.</summary>
+        public List<TimedChestRow> TimedChests = new List<TimedChestRow>();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -499,6 +501,7 @@ namespace Roguelike.Rules
             stats.Precision = ComputePrecision(events, length); // work order 143
             stats.BossTrial = ComputeBossTrial(events); // work order 147
             stats.GraveRam = ComputeGraveRam(events); // work order 149
+            stats.TimedChests = ComputeTimedChests(events); // work order 153
             return stats;
         }
 
@@ -730,6 +733,7 @@ namespace Roguelike.Rules
             WritePrecision(sb, stats.Precision); // work order 143: only in a log with precision's extras
             WriteBossTrial(sb, stats.BossTrial); // work order 147: only in a log with a trial fight
             WriteGraveRam(sb, stats.GraveRam); // work order 149: "Elite (work order 149)", only in a log with a Grave Ram fight
+            WriteTimedChests(sb, stats.TimedChests); // work order 153: "Timed chest (work order 153)", only in a log with a timed chest
             return sb.ToString();
         }
 

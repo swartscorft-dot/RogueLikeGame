@@ -156,7 +156,8 @@ namespace Roguelike
         }
 
         /// <summary>The enemies of a room's fight in play: alive, and not switched off (its own, and the swarmers the boss called).</summary>
-        int InPlayOf(int room) => InPlay(_level.EnemiesByRoom, room) + InPlay(_level.CalledByRoom, room) + WaitingFor(room); // work order 136: and a later wave's, still to come
+        int InPlayOf(int room) => InPlay(_level.EnemiesByRoom, room) + InPlay(_level.CalledByRoom, room) + WaitingFor(room) // work order 136: and a later wave's, still to come
+                                  + TimedChestWaitingFor(room); // work order 153: and the timed chest's wave's, still to come
 
         static int InPlay(IReadOnlyDictionary<int, List<Enemy>> byRoom, int room)
         {

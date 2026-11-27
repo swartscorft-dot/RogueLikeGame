@@ -310,7 +310,9 @@ namespace Roguelike.Rules
         /// <summary>Ordinary combat rooms cleared, counted only while the attachments are on (work order 060): 0 otherwise, so every total is 029's.</summary>
         public int RoomsCleared;
         public int FromRooms(MetaValues v) => RoomsCleared * v.PerRoom;
-        public int Total(MetaValues v) => FromFloors(v) + FromElites(v) + FromBoss(v) + FromRooms(v);
+        /// <summary>Work order 153: the Echoes taken from the timed chests of the run (what was left of each when its wave died); 0 without one.</summary>
+        public int FromTimedChests;
+        public int Total(MetaValues v) => FromFloors(v) + FromElites(v) + FromBoss(v) + FromRooms(v) + FromTimedChests;
     }
 
     /// <summary>

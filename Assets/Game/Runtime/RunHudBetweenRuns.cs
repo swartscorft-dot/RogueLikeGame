@@ -208,6 +208,7 @@ namespace Roguelike
             if (e.RoomsCleared > 0) from.Add("rooms " + e.FromRooms(v).ToString(s_Inv)); // work order 060: never with the attachments off
             if (e.ElitesCleared > 0) from.Add("elite rooms " + e.FromElites(v).ToString(s_Inv));
             if (e.BossKilled) from.Add("act boss " + e.FromBoss(v).ToString(s_Inv));
+            if (e.FromTimedChests > 0) from.Add("timed chests " + e.FromTimedChests.ToString(s_Inv)); // work order 153
             _endLines.Add(string.Format(s_Inv, "{0}  +{1} this run{2},  {3} in all", v.CurrencyName, e.Total(v),
                                         from.Count > 0 ? "  (" + string.Join(", ", from) + ")" : "", e.TotalAfter));
             AddWeaponEndLine(); // work order 060: what the Echoes buy for her pistols, with the attachments on (RunHudWeapon.cs)

@@ -49,6 +49,7 @@ namespace Roguelike.Rules
         Callers, // work order 137: the rooms' callers on or off, on the Trials page (RoomTrialLines)
         BossFight, // work order 147: the boss, "Trial" or "As before", on the Trials page (BossTrialSettings), with BossValues.Trial on
         Elites, // work order 149: Unique (floor 1's Grave Ram) or As before, on the Trials page (EliteLines)
+        TimedChest, // work order 153: the timed chest on or off, on the ROOMS page after Elites (TimedChestLines)
     }
 
     /// <summary>The quality presets (work order 128): each sets the four lines under it; a hand-made mix of them reads Custom.</summary>
@@ -396,6 +397,7 @@ namespace Roguelike.Rules
                     into.Add(SettingLine.Callers);     // work order 137: the rooms' callers (RoomTrialLines)
                     if (BossValues.Trial) into.Add(SettingLine.BossFight); // work order 147, after them
                     into.Add(SettingLine.Elites);      // work order 149, after it: the line is its switch
+                    into.Add(SettingLine.TimedChest);  // work order 153, after it: the timed chest's line (TimedChestLines)
                     break;
                 default: // Trials: her trials
                     into.Add(SettingLine.Attachments);
@@ -421,7 +423,8 @@ namespace Roguelike.Rules
         /// <summary>The lines of the Rooms page (the merge of 2026-11-27, W3), named one by one: every other line past the Gameplay page's is hers.</summary>
         static bool IsRooms(SettingLine line) =>
             line == SettingLine.Greybox || line == SettingLine.Light || line == SettingLine.LineUps || line == SettingLine.Waves
-            || line == SettingLine.Callers || line == SettingLine.BossFight || line == SettingLine.Elites;
+            || line == SettingLine.Callers || line == SettingLine.BossFight || line == SettingLine.Elites
+            || line == SettingLine.TimedChest; // work order 153
     }
 
     /// <summary>Where the settings screen was opened from: Esc goes back there from its list of pages.</summary>

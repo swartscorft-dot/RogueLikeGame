@@ -164,6 +164,7 @@ namespace Roguelike
             else if (RoomTrialLines.Is(line)) done = RoomTrialSettings.ChangeLine(line, delta); // work order 135: the rooms' line-ups (and 136's waves)
             else if (BossTrialSettings.Is(line)) done = BossTrialSettings.ChangeLine(line, delta); // work order 147
             else if (EliteSettings.Is(line)) done = EliteSettings.ChangeLine(line, delta); // work order 149
+            else if (TimedChestSettings.Is(line)) done = TimedChestSettings.ChangeLine(line, delta); // work order 153
             else done = RunHud.Current != null && RunHud.MenuLineOf(line, out RunHud.MenuLine menuLine) && RunHud.Current.ChangeSetting(menuLine, delta);
             if (done) MakeRows();
             return done;
@@ -232,6 +233,13 @@ namespace Roguelike
                     {
                         _names.Add(EliteLines.Name);
                         _values.Add(EliteSettings.LineWords);
+                        _notes.Add("");
+                        _greyed.Add(false);
+                    }
+                    else if (TimedChestSettings.Is(line)) // work order 153's line, read through TimedChestSettings
+                    {
+                        _names.Add(TimedChestLines.Name);
+                        _values.Add(TimedChestSettings.LineWords);
                         _notes.Add("");
                         _greyed.Add(false);
                     }

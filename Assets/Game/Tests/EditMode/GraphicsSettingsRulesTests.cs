@@ -170,6 +170,7 @@ namespace Roguelike.Rules.Tests
                 SettingLine.Callers, // work order 137: the rooms' callers
                 SettingLine.BossFight, // work order 147's line (with BossValues.Trial on)
                 SettingLine.Elites, // work order 149's line
+                SettingLine.TimedChest, // work order 153's line, after it (changed deliberately: the ROOMS page's list with it)
             }));
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
             Assert.That(lines, Is.EqualTo(new[]

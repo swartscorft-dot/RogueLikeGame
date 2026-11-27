@@ -119,6 +119,8 @@ namespace Roguelike
                 // the benchmark plays with nobody at them, so floor 5's boss is 146's, as every benchmark before measured.
                 bool unique = EliteValues.Unique;
                 EliteValues.Unique = false;
+                bool timedChests = LevelValues.TimedChests; // work order 153: nor a timed chest, for the same reason
+                LevelValues.TimedChests = false;
                 if (levels.Values != null)
                 {
                     levels.Values.Waves = false;
@@ -138,6 +140,7 @@ namespace Roguelike
                         levels.Values.Callers = callers;
                     }
                     EliteValues.Unique = unique;
+                    LevelValues.TimedChests = timedChests;
                 }
                 if (stage.Level == null) return stage;
                 stage.Room = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Layout.ExitRoom : FullestCombatRoom(stage.Level);
