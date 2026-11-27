@@ -42,6 +42,11 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player, Is.Not.Null, "PlayerCharacter in scene");
             _player.GetComponent<PlayerInputDriver>().InputSource = () => null;
             _levels = GeneratedLevels.Ensure();
+            // The merge of 2026-11-27, W2 (changed deliberately): floor 1 of its seed as work order 032 measured it, version 24's rooms
+            // woken whole. With work order 135's line-ups and 136's waves on, its first brute is a "pack" room's (C4) and waits for its
+            // wave out of the game (switched off), so it never winds up; the rule measured here, the look of an enemy out of sight, is
+            // not the rooms'.
+            _levels.Values = new LevelValues { LineUps = false, Waves = false };
             _rig = Object.FindAnyObjectByType<CameraRig>();
             Assert.That(_rig, Is.Not.Null, "the game's camera rig");
             _targetBefore = _rig.Target;
