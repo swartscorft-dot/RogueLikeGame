@@ -13,6 +13,9 @@ namespace Roguelike
     /// Work order 136: "Waves" the same way under <see cref="WavesKey"/> (<see cref="WavesInUse"/>, read as a floor's fights are set up):
     /// off, the floors set up after it wake every room at once, as on work order 135.
     ///
+    /// Work order 137: "Callers" the same way under <see cref="CallersKey"/> (<see cref="CallersInUse"/>, read as a floor's fights are set
+    /// up): off, the floors set up after it hold no caller, as on work order 136.
+    ///
     /// Read as the game's other settings are: nothing until <see cref="GameSettings.Load"/> (the HUD does it when it starts), so a test that
     /// never makes the HUD plays with the default whatever this machine has stored, and <see cref="GameSettings.Unload"/> puts the default
     /// back. A class of its own, not lines in GameSettings.cs: it follows GameSettings' own load by <see cref="GameSettings.IsLoaded"/>.
@@ -21,10 +24,12 @@ namespace Roguelike
     {
         public const string LineUpsKey = "Roguelike.Settings.LineUps"; // work order 135: 1 on (the default, as nothing stored), 0 off
         public const string WavesKey = "Roguelike.Settings.Waves";     // work order 136: 1 on (the default, as nothing stored), 0 off
+        public const string CallersKey = "Roguelike.Settings.Callers"; // work order 137: 1 on (the default, as nothing stored), 0 off
 
         static bool s_loaded;
         static bool s_lineUps = true;
         static bool s_waves = true;
+        static bool s_callers = true;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -32,6 +37,7 @@ namespace Roguelike
             s_loaded = false;
             s_lineUps = true;
             s_waves = true;
+            s_callers = true;
         }
 
         /// <summary>Follows GameSettings: read when it has loaded, the default again when it has unloaded.</summary>
@@ -41,6 +47,7 @@ namespace Roguelike
             {
                 s_lineUps = PlayerPrefs.GetInt(LineUpsKey, 1) != 0;
                 s_waves = PlayerPrefs.GetInt(WavesKey, 1) != 0;
+                s_callers = PlayerPrefs.GetInt(CallersKey, 1) != 0;
                 s_loaded = true;
             }
             else if (!GameSettings.IsLoaded && s_loaded)
@@ -48,6 +55,7 @@ namespace Roguelike
                 s_loaded = false;
                 s_lineUps = true;
                 s_waves = true;
+                s_callers = true;
             }
         }
 
@@ -71,11 +79,24 @@ namespace Roguelike
             }
         }
 
+        /// <summary>Work order 137: the callers as chosen on the Trials page (on unless he turned them off).</summary>
+        public static bool CallersChosen
+        {
+            get
+            {
+                Follow();
+                return s_callers;
+            }
+        }
+
         /// <summary>Whether a floor built now with these values has line-ups: their switch and the page's choice both on.</summary>
         public static bool InUse(LevelValues values) => (values == null || values.LineUps) && LineUpsChosen;
 
         /// <summary>Work order 136: whether a floor set up now with these values has waves: their switch and the page's choice both on.</summary>
         public static bool WavesInUse(LevelValues values) => (values == null || (values.Waves && values.WaveRules != null)) && WavesChosen;
+
+        /// <summary>Work order 137: whether a floor set up now with these values has callers: their switch and the page's choice both on.</summary>
+        public static bool CallersInUse(LevelValues values) => (values == null || (values.Callers && values.CallerRules != null)) && CallersChosen;
 
         /// <summary>Turns the line-ups on or off and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
         public static void SetLineUps(bool on, bool keep = true)
@@ -97,9 +118,24 @@ namespace Roguelike
             PlayerPrefs.Save();
         }
 
-        /// <summary>The settings screen's line changed a step: "Line-ups" or "Waves" on or off. False for any other line.</summary>
+        /// <summary>Work order 137: turns the callers on or off and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void SetCallers(bool on, bool keep = true)
+        {
+            Follow();
+            s_callers = on;
+            if (!keep) return;
+            PlayerPrefs.SetInt(CallersKey, on ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>The settings screen's line changed a step: "Line-ups", "Waves" or "Callers" on or off. False for any other line.</summary>
         public static bool ChangeLine(SettingLine line, int delta)
         {
+            if (line == SettingLine.Callers) // work order 137
+            {
+                SetCallers(!CallersChosen);
+                return true;
+            }
             if (line == SettingLine.Waves)
             {
                 SetWaves(!WavesChosen);
@@ -111,6 +147,6 @@ namespace Roguelike
         }
 
         /// <summary>The words of the line's value now ("on", "off"): made once, never in a frame.</summary>
-        public static string LineWords(SettingLine line) => RoomTrialLines.Words(line == SettingLine.Waves ? WavesChosen : LineUpsChosen);
+        public static string LineWords(SettingLine line) => RoomTrialLines.Words(line == SettingLine.Waves ? WavesChosen : line == SettingLine.Callers ? CallersChosen : LineUpsChosen);
     }
 }

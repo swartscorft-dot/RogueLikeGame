@@ -89,7 +89,7 @@ namespace Roguelike.PlayModeTests
 
         GeneratedLevel Build(Action<LevelValues> change = null)
         {
-            _levels.Values = new LevelValues();
+            _levels.Values = new LevelValues { Callers = false }; // work order 137 (changed deliberately): the waves measured alone, no caller in a wave 1
             change?.Invoke(_levels.Values);
             GeneratedLevel level = _levels.Build(RunSeeds.FloorSeed(RunSeed, FloorNumber), FloorNumber);
             Assert.That(level, Is.Not.Null);
@@ -303,7 +303,7 @@ namespace Roguelike.PlayModeTests
             {
                 for (int floor = 2; floor <= 4; floor++)
                 {
-                    _levels.Values = new LevelValues();
+                    _levels.Values = new LevelValues { Callers = false }; // work order 137 (changed deliberately): a caller would stand in the lead's wave 1
                     GeneratedLevel level = _levels.Build(RunSeeds.FloorSeed(run, floor), floor);
                     yield return Frames(2);
                     foreach (GeneratedLevels.RoomWaves w in _levels.RoomWaveList.Where(x => x.Count == 3))

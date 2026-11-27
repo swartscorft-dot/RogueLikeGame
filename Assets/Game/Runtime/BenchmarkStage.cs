@@ -108,6 +108,8 @@ namespace Roguelike
                 // Work order 136: the scenario's room wakes whole, as before the waves, so its load is the same from build to build.
                 bool waves = levels.Values != null && levels.Values.Waves;
                 if (levels.Values != null) levels.Values.Waves = false;
+                bool callers = levels.Values != null && levels.Values.Callers; // work order 137: nor a caller, for the same reason
+                if (levels.Values != null) levels.Values.Callers = false;
                 try
                 {
                     stage.Level = levels.Build(RunSeeds.FloorSeed(RunSeed, floor), floor);
@@ -115,6 +117,7 @@ namespace Roguelike
                 finally
                 {
                     if (levels.Values != null) levels.Values.Waves = waves;
+                    if (levels.Values != null) levels.Values.Callers = callers;
                 }
                 if (stage.Level == null) return stage;
                 stage.Room = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Layout.ExitRoom : FullestCombatRoom(stage.Level);

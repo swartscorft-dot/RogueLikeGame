@@ -197,15 +197,18 @@ namespace Roguelike.PlayModeTests
             List<SettingLine> lines = _screen.Lines.ToList();
             int cue = lines.IndexOf(SettingLine.TimingCue), click = lines.IndexOf(SettingLine.TimingClick);
             // Work order 135 (changed deliberately): its "Line-ups" stands after them, on (nothing kept here); work order 136 (changed
-            // deliberately): its "Waves" after the line-ups, last on the page.
-            Assert.That(cue, Is.EqualTo(lines.Count - 4), "the cue before its click");
-            Assert.That(click, Is.EqualTo(lines.Count - 3), "its click before the line-ups");
-            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.LineUps), "work order 135's line-ups");
-            Assert.That(_screen.RowNames[lines.Count - 2], Is.EqualTo("Line-ups"));
-            Assert.That(_screen.RowValues[lines.Count - 2], Is.EqualTo(RoomTrialSettings.LineUpsChosen ? "on" : "off"));
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Waves), "work order 136's waves last");
-            Assert.That(_screen.RowNames[lines.Count - 1], Is.EqualTo("Waves"));
-            Assert.That(_screen.RowValues[lines.Count - 1], Is.EqualTo(RoomTrialSettings.WavesChosen ? "on" : "off"));
+            // deliberately): its "Waves" after the line-ups; work order 137 (changed deliberately): its "Callers" after the waves, last on the page.
+            Assert.That(cue, Is.EqualTo(lines.Count - 5), "the cue before its click");
+            Assert.That(click, Is.EqualTo(lines.Count - 4), "its click before the line-ups");
+            Assert.That(lines[lines.Count - 3], Is.EqualTo(SettingLine.LineUps), "work order 135's line-ups");
+            Assert.That(_screen.RowNames[lines.Count - 3], Is.EqualTo("Line-ups"));
+            Assert.That(_screen.RowValues[lines.Count - 3], Is.EqualTo(RoomTrialSettings.LineUpsChosen ? "on" : "off"));
+            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.Waves), "work order 136's waves");
+            Assert.That(_screen.RowNames[lines.Count - 2], Is.EqualTo("Waves"));
+            Assert.That(_screen.RowValues[lines.Count - 2], Is.EqualTo(RoomTrialSettings.WavesChosen ? "on" : "off"));
+            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Callers), "work order 137's callers last");
+            Assert.That(_screen.RowNames[lines.Count - 1], Is.EqualTo("Callers"));
+            Assert.That(_screen.RowValues[lines.Count - 1], Is.EqualTo(RoomTrialSettings.CallersChosen ? "on" : "off"));
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));
