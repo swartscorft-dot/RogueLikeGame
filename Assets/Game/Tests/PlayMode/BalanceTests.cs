@@ -424,7 +424,8 @@ namespace Roguelike.PlayModeTests
             yield return null;
             Enemy one = level.Enemies.First(e => e.Kind == EnemyKind.Brute && !e.IsElite);
             Assert.That(one.DamageScale, Is.EqualTo(0.6f).Within(1e-6f), "a floor-1 enemy deals 0.6");
-            Assert.That(level.Elite.DamageScale, Is.EqualTo(values.EliteDamageScale * 0.6f).Within(1e-5f), "its elite 1.25 x 0.6");
+            // Changed deliberately (work order 149): floor 1's elite is the Grave Ram with its switch on, its damage final (1, not the floor's).
+            Assert.That(level.Elite.DamageScale, Is.EqualTo(level.Elite is EnemyGraveRam ? 1f : values.EliteDamageScale * 0.6f).Within(1e-5f), "its elite 1.25 x 0.6, or the Ram's own");
             Assert.That(level.Enemies.Where(e => !e.IsElite).All(e => Mathf.Abs(e.DamageScale - 0.6f) < 1e-6f), Is.True, "every one of floor 1");
             yield return LandOne(one, took);
             Assume.That(took[0], Is.GreaterThan(0), "it struck her");

@@ -660,6 +660,7 @@ namespace Roguelike
             float floorScale = Values.DamageScaleOf(Layout.Floor); // work order 030, lever B
             foreach (LevelRoom room in Layout.Rooms)
             {
+                bool ram = EliteValues.HoldsTheRam(Layout.Floor, room.Elite, EliteSettings.UniqueNow); // work order 149: the Grave Ram, alone
                 for (int i = 0; i < room.EnemyPoints.Count; i++)
                 {
                     EnemyGroup group = room.GroupAt(i);
@@ -667,10 +668,12 @@ namespace Roguelike
                     LevelPoint[] places = room.PlacesAt(i);
                     for (int m = 0; m < places.Length; m++)
                     {
+                        if (ram && (!group.Elite || m > 0)) continue; // work order 149: the room's others are not made (one Ram); the layout is the same
                         string name = "Enemy_" + room.Letter + room.Order + "_" + i + (places.Length > 1 ? "_" + m : "");
-                        Enemy enemy = EnemyFactory.Make(group.Kind, ToWorld(places[m]), transform, template, name);
+                        Enemy enemy = ram ? EnemyGraveRam.Make(ToWorld(places[m]), transform, template, name, Layout.Seed)
+                                          : EnemyFactory.Make(group.Kind, ToWorld(places[m]), transform, template, name);
                         if (enemy == null) continue;
-                        enemy.HealthOverride = Values.HealthOf(group.Kind, group.Boss);
+                        if (!ram) enemy.HealthOverride = Values.HealthOf(group.Kind, group.Boss); // work order 149: the Ram's own health
                         // Work order 023: a floor's enemies take turns to attack; an elite does not (work order 030).
                         enemy.TakesTurns = !group.Elite;
                         // Work order 023: a floor's brute has the floors' Shockwave reach, from a copy of the asset's numbers.
@@ -678,12 +681,12 @@ namespace Roguelike
                         // The elite (work order 017): its kind's health for the floor times the elite's share, and the rest.
                         if (group.Elite && !group.Boss)
                         {
-                            EnemyFactory.MakeElite(enemy, Values.EliteHealthOf(group.Kind), Values.EliteDamageScale, Values.EliteSizeScale, Values.EliteStaggerShare);
+                            if (!ram) EnemyFactory.MakeElite(enemy, Values.EliteHealthOf(group.Kind), Values.EliteDamageScale, Values.EliteSizeScale, Values.EliteStaggerShare);
                             if (Elite == null) Elite = enemy;
                         }
                         // Work order 030, lever B: what a floor's enemies deal rises with the floor; an elite's own scale
-                        // multiplies with it; the act boss is not scaled.
-                        if (!group.Boss && enemy.Kind != EnemyKind.Boss) enemy.DamageScale *= floorScale;
+                        // multiplies with it; the act boss is not scaled; work order 149: nor the Grave Ram (its damage is final).
+                        if (!group.Boss && enemy.Kind != EnemyKind.Boss && !ram) enemy.DamageScale *= floorScale;
                         placed.Members.Add(enemy);
                         if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
                         list.Add(enemy);

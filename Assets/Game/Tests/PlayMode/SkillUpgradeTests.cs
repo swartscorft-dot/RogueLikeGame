@@ -55,9 +55,13 @@ namespace Roguelike.PlayModeTests
             _a.Damaged += d => _damage.Add(d);
         }
 
+        bool? _uniqueBefore; // work order 149: the switch as the one test that turns it off found it
+
         [TearDown]
         public void CleanUp()
         {
+            if (_uniqueBefore.HasValue) EliteValues.Unique = _uniqueBefore.Value;
+            _uniqueBefore = null;
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;
             if (_folder != null && Directory.Exists(_folder)) Directory.Delete(_folder, true);
@@ -224,6 +228,10 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheElite_IsLarger_Tougher_AndShownAsOne()
         {
+            // Changed deliberately (work order 149): this pins today's elite of floor 1, a gold elite brute; with the unique elites on it is
+            // the Grave Ram (GraveRamPlayTests), so here they are off.
+            _uniqueBefore = EliteValues.Unique;
+            EliteValues.Unique = false;
             _levels = GeneratedLevels.Ensure();
             GeneratedLevel level = _levels.StartRun(RunSeed);
             yield return null;
