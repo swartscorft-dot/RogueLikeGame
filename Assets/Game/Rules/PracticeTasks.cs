@@ -119,6 +119,8 @@ namespace Roguelike.Rules
         StartRun,
         /// <summary>The last plate in the first run's teaching room (the follow-up): its door is open, done when she walks out of it.</summary>
         GoOn,
+        /// <summary>Work order 143: basic shots that hit a target from <see cref="PrecisionValues.StopShotMetres"/> or more, each fired accurate after a run (with precision in use only).</summary>
+        StopAndShoot,
     }
 
     /// <summary>One task: what it asks, the skill it is about (-1 for none), its keys as shown, its line, how many it needs.</summary>
@@ -188,6 +190,8 @@ namespace Roguelike.Rules
         public bool StartMenu;
         /// <summary>The tasks run in the first run's teaching room (the follow-up): the last plate says the door leads on.</summary>
         public bool InRun;
+        /// <summary>Work order 143: precision is in use, so the teaching ends with "Stop and shoot" before its last plate.</summary>
+        public bool StopAndShoot;
     }
 
     /// <summary>
@@ -253,6 +257,11 @@ namespace Roguelike.Rules
                 list.Add(new PracticeTask { Kind = PracticeTaskKind.Duck, Keys = new[] { k.Cover }, Words = PracticeWords.Duck(k.Duck), Need = 1 });
             if (!string.IsNullOrEmpty(k.Focus))
                 list.Add(new PracticeTask { Kind = PracticeTaskKind.Focus, Keys = new[] { k.Focus }, Words = PracticeWords.Focus, Need = 1 });
+            if (k.StopAndShoot) // work order 143: at the end of the teaching, before its last plate
+                list.Add(new PracticeTask
+                {
+                    Kind = PracticeTaskKind.StopAndShoot, Keys = new[] { k.Shoot }, Words = PracticeWords.StopAndShoot, Need = Math.Max(1, PrecisionValues.Live.StopShotHits),
+                });
             if (k.InRun)
             {
                 foreach (PracticeTask t in list) t.Words = PracticeWords.InTheRun(t.Words); // the targets there are statues
@@ -287,6 +296,8 @@ namespace Roguelike.Rules
         public const string StartWithoutMenu = "That is the kit. Press the key to start a run.";
         /// <summary>The last plate in the first run's teaching room (the follow-up).</summary>
         public const string GoOn = "That is the kit. The door is open: the run goes on.";
+        /// <summary>Work order 143's task: "Stop and shoot".</summary>
+        public const string StopAndShoot = "Run, stop, then shoot the dummy from 8 m or more. Only shots fired still count.";
         /// <summary>The targets' words in the grey room, and in the first run's teaching room (the crypt's statues).</summary>
         public const string Dummy = "the dummy", Statue = "a statue";
 
@@ -392,6 +403,8 @@ namespace Roguelike.Rules
         public int Marks;
         public float Metres;
         public bool AtPracticeProp;
+        /// <summary>Work order 143: a basic shot's hit fired accurate after a run (ShotHit; its Metres the distance to the target).</summary>
+        public bool StoppedShot;
 
         public static PracticeEvent Of(PracticeEventKind kind) => new PracticeEvent { Kind = kind, Slot = -1 };
     }
@@ -404,7 +417,8 @@ namespace Roguelike.Rules
         /// a skill used by a hit, the spender's marks. A chain's presses and its clean press count without a hit.
         /// </summary>
         public static bool NeedsATarget(PracticeTask t) =>
-            t != null && (t.Kind == PracticeTaskKind.Shoot || t.Kind == PracticeTaskKind.SpendMarks || (t.Kind == PracticeTaskKind.UseSkill && t.Presses <= 1));
+            t != null && (t.Kind == PracticeTaskKind.Shoot || t.Kind == PracticeTaskKind.SpendMarks || (t.Kind == PracticeTaskKind.UseSkill && t.Presses <= 1)
+                          || t.Kind == PracticeTaskKind.StopAndShoot); // work order 143
 
         public static float Counts(PracticeTask t, PracticeEvent e)
         {
@@ -427,6 +441,8 @@ namespace Roguelike.Rules
                 case PracticeTaskKind.Focus: return e.Kind == PracticeEventKind.FocusSpent ? 1f : 0f;
                 case PracticeTaskKind.StartRun: return e.Kind == PracticeEventKind.LeftForARun ? 1f : 0f;
                 case PracticeTaskKind.GoOn: return e.Kind == PracticeEventKind.LeftTheRoom ? 1f : 0f;
+                case PracticeTaskKind.StopAndShoot: // work order 143: from afar, fired accurate after a run
+                    return e.Kind == PracticeEventKind.ShotHit && e.Slot < 0 && e.OnDummy && e.StoppedShot && e.Metres >= PrecisionValues.Live.StopShotMetres ? 1f : 0f;
                 default: return 0f;
             }
         }
