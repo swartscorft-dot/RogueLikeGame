@@ -125,6 +125,8 @@ namespace Roguelike.PlayModeTests
         protected IEnumerator ThroneRoom(ulong seed, Action<GeneratedLevel, EnemyBoss> got, bool hold = true)
         {
             BossTrialTesting.HoldChoices = hold;
+            _health.RestoreFull(); // alive (a fight before may have killed her; it cancels her standing up again)
+            _health.Untouchable = false;
             _practiceEnemy.enabled = true; // the floor's enemies are copies of it
             GeneratedLevel level = _levels.Build(seed, 5);
             _practiceEnemy.enabled = false;

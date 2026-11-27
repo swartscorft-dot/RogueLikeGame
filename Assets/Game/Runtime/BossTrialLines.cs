@@ -142,6 +142,16 @@ namespace Roguelike
             Set(l, count);
         }
 
+        /// <summary>A straight line down the middle of a strip, its width set by the caller: the strip's fill.</summary>
+        public void Band(LineRenderer l, Vector3 origin, Vector3 dir, float length)
+        {
+            if (l == null) return;
+            l.positionCount = 2;
+            l.SetPosition(0, new Vector3(origin.x, Height, origin.z));
+            Vector3 end = origin + dir * Mathf.Max(0.01f, length);
+            l.SetPosition(1, new Vector3(end.x, Height, end.z));
+        }
+
         /// <summary>A rectangle on the ground (the room's floor outlined for Ruin).</summary>
         public void Rect(LineRenderer l, Vector3 a, Vector3 b)
         {

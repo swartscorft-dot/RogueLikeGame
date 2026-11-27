@@ -826,7 +826,7 @@ namespace Roguelike
                 _spokes.Out[i] = _lines.Give(_spokes.Out[i]);
                 _spokes.In[i] = _lines.Give(_spokes.In[i]);
                 _spokes.Out[i] = _lines.Take(BossTrialLines.Red, true);
-                _spokes.In[i] = _lines.Take(BossTrialLines.Red, true);
+                _spokes.In[i] = _lines.Take(BossTrialLines.Red, false);
                 _lines.Strip(_spokes.Out[i], _spokes.Origin, _spokes.Dir[set * 6 + i], _spokes.Length[set * 6 + i], _tv.SpokeHalfWidth);
             }
         }
@@ -861,11 +861,12 @@ namespace Roguelike
             for (int i = 0; i < n; i++)
             {
                 if (_spokes.Out[i] != null) _spokes.Out[i].widthMultiplier = BossTrialLines.Width(share);
-                // The fill: an inner outline that widens from the middle line to the strip's edge, so the strip reads as filling.
+                // The fill: the same line drawn down the strip's middle, as wide as the share of the fill, so the strip fills from its
+                // middle out to its edges and is full, red, as it bursts (an outline alone, six of them crossing, read as a web).
                 if (_spokes.In[i] != null)
                 {
-                    _lines.Strip(_spokes.In[i], _spokes.Origin, _spokes.Dir[set * 6 + i], _spokes.Length[set * 6 + i], _tv.SpokeHalfWidth * share);
-                    _spokes.In[i].widthMultiplier = BossTrialLines.Thin;
+                    _lines.Band(_spokes.In[i], _spokes.Origin, _spokes.Dir[set * 6 + i], _spokes.Length[set * 6 + i]);
+                    _spokes.In[i].widthMultiplier = Mathf.Max(BossTrialLines.Thin, 2f * _tv.SpokeHalfWidth * share);
                 }
             }
         }
@@ -1346,6 +1347,9 @@ namespace Roguelike
             _ruinSeconds = _tv.RuinSecondsFor(_template);
             _ruinLine = _lines.Take(BossTrialLines.Red, true);
             _lines.Rect(_ruinLine, _roomMin, _roomMax);
+            // The room's walls are mostly off his screen: the room itself tells it, its lamps red and its body red, until Ruin strikes.
+            BossRoomLight.Answer(this, _tv.RuinLamps);
+            Tint(new Color(_tv.RuinLamps.R, _tv.RuinLamps.G, _tv.RuinLamps.B));
             // Each pillar's shadow away from it, pale: the runs of directions its line stops short of the room's edge.
             int n = _shadowClear.Length, drawn = 0, start = -1;
             bool Deep(int i) => _shadowEdge[i] - _shadowClear[i] > ShadowDepth;
@@ -1365,7 +1369,7 @@ namespace Roguelike
                         {
                             _shadowLines[drawn] = _lines.Take(BossTrialLines.Pale, true);
                             _lines.Shadow(_shadowLines[drawn], _kneel, _shadowClear, _shadowEdge, from, to);
-                            if (_shadowLines[drawn] != null) _shadowLines[drawn].widthMultiplier = BossTrialLines.Thick;
+                            if (_shadowLines[drawn] != null) _shadowLines[drawn].widthMultiplier = _tv.ShadowLineWidth;
                             drawn++;
                         }
                         from = -1;
@@ -1392,6 +1396,11 @@ namespace Roguelike
         void EndJudgement(float now)
         {
             if (_judgement == JudgementStage.Ward) EndWard();
+            if (_judgement == JudgementStage.Ruin)
+            {
+                BossRoomLight.Answer(this, _phase >= 3 ? _tv.PhaseThreeLamps : _tv.PhaseTwoLamps);
+                Tint(BodyColor);
+            }
             _judgement = JudgementStage.None;
             _ruinLine = _lines.Give(_ruinLine);
             for (int i = 0; i < _shadowLines.Length; i++) _shadowLines[i] = _lines.Give(_shadowLines[i]);

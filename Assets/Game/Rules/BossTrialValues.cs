@@ -345,6 +345,13 @@ namespace Roguelike.Rules
         /// 17.8 m at 6 m/s, 3.21 s.
         /// </summary>
         public float RuinSecondsArcade = 3.3f;
+        /// <summary>
+        /// The colour the room's lamps and its body take while Ruin is told (the agent's, from the pictures: the room's red outline runs
+        /// along its walls, mostly off his screen, so the room itself must say it); the phase's colour again after.
+        /// </summary>
+        public Rgb RuinLamps = new Rgb(1f, 0.18f, 0.12f);
+        /// <summary>m: the width of a shadow's pale outline (thicker than a telegraph's, so the safe place reads on the dark floor).</summary>
+        public float ShadowLineWidth = 0.5f;
         /// <summary>Directions round it in which the pillars' shadows are found (and drawn, and judged).</summary>
         public int ShadowSamples = 720;
         /// <summary>m round the room's middle it looks for a place to kneel that keeps its body clear of every pier (its body is 1.2 m).</summary>
