@@ -125,7 +125,7 @@ namespace Roguelike
             string kind = room.Elite ? "elite" : room.Kind.ToString().ToLowerInvariant();
             bool inside = CurrentRoom != null && CurrentRoom.Order == f.Room;
             PlaySessionRecorder.Current?.NoteRoomFight(Floor > 0 ? Floor : _level.Layout.Floor, LevelGeometry.RoomNumber(_level.Layout, room) + 1, room.Order,
-                                                       kind, RoomFightRules.Word(f.StartedBy), inside, woke);
+                                                       kind, RoomFightRules.Word(f.StartedBy), inside, woke, room.LineUp?.Name); // work order 135: the line-up it drew
             NoteRoomUseBegan(f, room, Floor > 0 ? Floor : _level.Layout.Floor, kind); // work order 097: the room as she meets it (GeneratedLevelsRoomUse.cs)
         }
 
