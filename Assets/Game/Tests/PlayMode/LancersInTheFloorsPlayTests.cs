@@ -46,7 +46,7 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             _health.Untouchable = true;
             _levels = GeneratedLevels.Ensure();
-            _levels.Values = new LevelValues();
+            _levels.Values = new LevelValues { Waves = false }; // work order 136 (changed deliberately): its rooms wake whole, as the rule it measures was built on
         }
 
         [TearDown]

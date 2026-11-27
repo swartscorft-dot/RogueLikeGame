@@ -182,7 +182,9 @@ namespace Roguelike.Rules.Tests
         // lines of brutes and shooters are allowed, but not too long; and every enemy of a pack keeps the wall's clearance.
         [Test]
         public void Validator_ReportsGuardsOnTheFirstFloor() =>
-            AssertFault(l => Combat(l, 1).EnemyGroups[0] = new EnemyGroup(EnemyKind.Guard), "guards, floor 1 at most 0");
+            // Work order 135 (changed deliberately): the room's line-up mark taken off, so the mixed room's guard rule is asked; a line-up room's
+            // guards are its line-up's (LevelLineUps.Faults: "holds a guard, and its line-up ... holds only ...").
+            AssertFault(l => { Combat(l, 1).LineUp = null; Combat(l, 1).EnemyGroups[0] = new EnemyGroup(EnemyKind.Guard); }, "guards, floor 1 at most 0");
 
         [Test]
         public void Validator_ReportsALineTooLong() =>

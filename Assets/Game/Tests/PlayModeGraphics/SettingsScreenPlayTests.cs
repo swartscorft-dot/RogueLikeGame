@@ -196,10 +196,26 @@ namespace Roguelike.PlayModeTests
             Assert.That(_screen.OpenPage(SettingsPage.Trials), Is.True);
             List<SettingLine> lines = _screen.Lines.ToList();
             int cue = lines.IndexOf(SettingLine.TimingCue), click = lines.IndexOf(SettingLine.TimingClick);
-            Assert.That(cue, Is.EqualTo(lines.Count - 4), "the cue before its click"); // work order 143: its line after them; work order 144's last
-            Assert.That(click, Is.EqualTo(lines.Count - 3), "its click before work order 143's line");
-            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.Precision), "work order 143's line after them");
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.SightOpening), "work order 144's line last");
+            // The page's order after the timing cue, each line found by its SettingLine and placed after the one before it (the
+            // merge of 2026-11-27, W2, changed deliberately: not counted from the end, as more orders add lines after these):
+            // the cue, its click, work order 143's precision and 144's sight opening (each with its switch on), then work
+            // order 135's "Line-ups" and work order 136's "Waves" (both on, nothing kept here).
+            int precision = lines.IndexOf(SettingLine.Precision), sight = lines.IndexOf(SettingLine.SightOpening);
+            int lineUps = lines.IndexOf(SettingLine.LineUps), waves = lines.IndexOf(SettingLine.Waves);
+            Assert.That(cue, Is.GreaterThan(0), "the cue on the page, after the attachments");
+            Assert.That(click, Is.EqualTo(cue + 1), "the cue before its click");
+            if (PrecisionValues.On) Assert.That(precision, Is.EqualTo(click + 1), "work order 143's line after them");
+            else Assert.That(precision, Is.EqualTo(-1), "work order 143's switch off: no precision line");
+            int beforeSight = PrecisionValues.On ? precision : click;
+            if (SightValues.On) Assert.That(sight, Is.EqualTo(beforeSight + 1), "work order 144's line after 143's");
+            else Assert.That(sight, Is.EqualTo(-1), "work order 144's switch off: no sight line");
+            int beforeLineUps = SightValues.On ? sight : beforeSight;
+            Assert.That(lineUps, Is.EqualTo(beforeLineUps + 1), "work order 135's line-ups after 144's line");
+            Assert.That(_screen.RowNames[lineUps], Is.EqualTo("Line-ups"));
+            Assert.That(_screen.RowValues[lineUps], Is.EqualTo(RoomTrialSettings.LineUpsChosen ? "on" : "off"));
+            Assert.That(waves, Is.EqualTo(lineUps + 1), "work order 136's waves after the line-ups");
+            Assert.That(_screen.RowNames[waves], Is.EqualTo("Waves"));
+            Assert.That(_screen.RowValues[waves], Is.EqualTo(RoomTrialSettings.WavesChosen ? "on" : "off"));
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));

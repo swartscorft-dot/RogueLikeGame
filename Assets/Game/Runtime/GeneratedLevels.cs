@@ -258,7 +258,18 @@ namespace Roguelike
             PlayerCharacter player = FindPlayer();
             if (player == null) return null;
             bool clocked = FloorBuildClock.Begin(); // work order 081: the build's steps, for the build-time table
-            LevelLayout layout = _labLayout ?? LevelGenerator.Generate(seed, floor, Values, exitBefore: _wayDownBefore); // work order 084: or the room lab's one room (GeneratedLevelsLab.cs); 103: in a run, the floor before's exit room
+            // Work order 135: the Trials page's "Line-ups" (RoomTrialSettings) off turns them off for this floor, the values' own kept.
+            bool lineUps = Values != null && Values.LineUps;
+            if (Values != null) Values.LineUps = RoomTrialSettings.InUse(Values);
+            LevelLayout layout;
+            try
+            {
+                layout = _labLayout ?? LevelGenerator.Generate(seed, floor, Values, exitBefore: _wayDownBefore); // work order 084: or the room lab's one room (GeneratedLevelsLab.cs); 103: in a run, the floor before's exit room
+            }
+            finally
+            {
+                if (Values != null) Values.LineUps = lineUps;
+            }
             FloorBuildClock.Step("plan: the generator");
 
             if (_level != null) Remove();

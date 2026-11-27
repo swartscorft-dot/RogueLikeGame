@@ -56,7 +56,7 @@ namespace Roguelike
                 _inReachAtWaking = distance <= reach;
             }
             bool onScreen = !r.OnScreenOnly || OnScreen(at, r.ScreenMargin);
-            bool may = RangedOpeningRules.MayBegin(r, onScreen, f.StartedAt, Time.time, _inReachAtWaking);
+            bool may = RangedOpeningRules.MayBegin(r, onScreen, Mathf.Max(f.StartedAt, _arrivedAt), Time.time, _inReachAtWaking); // work order 136: or from its arrival
             if (may) _drewOnScreen = OnScreen(at, 0f);
             return may;
         }
@@ -88,6 +88,24 @@ namespace Roguelike
 
         /// <summary>The grace's state for tests: within its reach at the waking it last saw.</summary>
         public bool InReachAtWaking => _inReachAtWaking;
+
+        float _arrivedAt = float.NegativeInfinity;
+
+        /// <summary>
+        /// Work order 136 (two waves): it arrived in its wave at <paramref name="at"/> (game time) in <paramref name="fight"/>, already on:
+        /// its second's grace runs from its arrival, whatever its distance from her ("a 1 s grace from their arrival before a first shot").
+        /// </summary>
+        public void Arrived(RoomFight fight, float at)
+        {
+            _arrivedAt = at;
+            if (fight == null) return;
+            _fight = fight;
+            _starts = fight.Starts;
+            _inReachAtWaking = true;
+        }
+
+        /// <summary>The game time it arrived in its wave (work order 136); minus infinity for one that stood in the room from the start.</summary>
+        public float ArrivedAt => _arrivedAt;
 
         public override string ToString() => string.Format(CultureInfo.InvariantCulture, "starts {0} in reach {1}", _starts, _inReachAtWaking);
     }

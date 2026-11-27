@@ -13,16 +13,18 @@ namespace Roguelike.Rules.Tests
     /// generator's version 24: the switch, the boss room's list of enemies on a thousand seeds, what left it (counted by kind, for
     /// the producer's report), every floor without the act boss version 23's field for field, the validator's rule, and version 24's
     /// pins and golden maps. With the switch off every floor is version 23's: RangedAroundTheRoomTests' version 23 pins and maps,
-    /// held to their OLD numbers with the switch named off.
+    /// held to their OLD numbers with the switch named off. Work order 135 (changed deliberately): version 24 is the line-ups named off
+    /// (LevelValues.LineUps), so every value here names them off and version 24's pins and maps keep their numbers; with the line-ups
+    /// named off these are the very floors of version 24 (LineUpsTests' switch-off pins are these).
     /// </summary>
     public class BossAloneTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-        static LevelValues On => new LevelValues();
-        static LevelValues Off => new LevelValues { BossAlone = false };
-        static LevelValues LancersOn => new LevelValues { Lancers = true };
-        static LevelValues LancersOff => new LevelValues { Lancers = false };
+        static LevelValues On => new LevelValues { LineUps = false };
+        static LevelValues Off => new LevelValues { BossAlone = false, LineUps = false };
+        static LevelValues LancersOn => new LevelValues { Lancers = true, LineUps = false };
+        static LevelValues LancersOff => new LevelValues { Lancers = false, LineUps = false };
 
         static ulong Mix(ulong h, ulong v)
         {
@@ -109,12 +111,12 @@ namespace Roguelike.Rules.Tests
         public void TheSwitch_IsOnByDefault_WithVersion24_AndOnlyOnAFloorInARow()
         {
             Assert.That(new LevelValues().BossAlone, Is.True, "on by default (work order 130, his words)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "work order 130's version");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "work order 130's version, 24; work order 135's, 25");
             Assert.That(LevelBossAlone.On(On), Is.True);
             Assert.That(LevelBossAlone.On(Off), Is.False);
             Assert.That(LevelBossAlone.On(new LevelValues { InALine = false }), Is.False, "the floors before the line are as they were");
-            Assert.That(LevelGenerator.Generate(0x130UL, 5).Version, Is.EqualTo(24));
-            Assert.That(LevelGenerator.Generate(0x130UL, 5, Off).Version, Is.EqualTo(24), "off: version 23's floor, but for the number");
+            Assert.That(LevelGenerator.Generate(0x130UL, 5, On).Version, Is.EqualTo(25));
+            Assert.That(LevelGenerator.Generate(0x130UL, 5, Off).Version, Is.EqualTo(25), "off: version 23's floor, but for the number");
         }
 
         [Test]
@@ -307,8 +309,9 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepVersion24sMaps(string seedText, bool lancers)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "the version was raised: update the golden maps and this number together");
-            string map = LevelMap.Draw(LevelGenerator.Generate(seed, 5, lancers ? LancersOn : LancersOff));
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "the version was raised: update the golden maps and this number together");
+            // Work order 135 (changed deliberately): version 25's maps are LineUpsTests'; these are version 24's, the line-ups named off, but for the number.
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, 5, lancers ? LancersOn : LancersOff)).Replace("version " + LevelGenerator.Version + " ", "version 24 ");
             string key = seedText + "/5" + (lancers ? "" : "/lancers off");
             TestContext.WriteLine("GOLDEN24 " + key + "\n" + map);
             Assert.That(GoldenVersion24.ContainsKey(key), "no golden map for " + key + "\n" + map);
@@ -316,7 +319,7 @@ namespace Roguelike.Rules.Tests
             foreach (int floor in new[] { 1, 4 })
             {
                 var named = lancers ? LancersOn : LancersOff;
-                var off = lancers ? new LevelValues { Lancers = true, BossAlone = false } : new LevelValues { Lancers = false, BossAlone = false };
+                var off = lancers ? new LevelValues { Lancers = true, BossAlone = false, LineUps = false } : new LevelValues { Lancers = false, BossAlone = false, LineUps = false };
                 Assert.That(LevelMap.Draw(LevelGenerator.Generate(seed, floor, named)), Is.EqualTo(LevelMap.Draw(LevelGenerator.Generate(seed, floor, off))), "floor " + floor);
             }
         }

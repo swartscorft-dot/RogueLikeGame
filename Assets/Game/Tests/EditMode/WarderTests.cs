@@ -267,16 +267,16 @@ namespace Roguelike.Rules.Tests
         /// Work order 079's rule with its own values: the warders on from floor 2, and the bombers off (work order 087 turned both
         /// on in the floors, the warder from floor 3 and the bomber from floor 4: ActPlanTests test the defaults).
         /// </summary>
-        static LevelValues On() => new LevelValues { Warders = true, Bombers = false, WarderFloors = new WarderFloorValues { FromFloor = 2 } };
+        static LevelValues On() => new LevelValues { Warders = true, Bombers = false, LineUps = false, WarderFloors = new WarderFloorValues { FromFloor = 2 } };
 
         /// <summary>The same with the warders off (work order 079's "off", the default until work order 087).</summary>
-        static LevelValues Off() => new LevelValues { Warders = false, Bombers = false };
+        static LevelValues Off() => new LevelValues { Warders = false, Bombers = false, LineUps = false }; // work order 135 (changed deliberately): the warders against their own off on version 24's rooms, the line-ups named off
 
         [Test]
         public void Off_OrTheActsPlanOff_NoRoomMayHoldOne()
         {
             Assert.That(new LevelValues().Warders, Is.True, "built off (work order 079), on in the floors since work order 087");
-            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false } }) // work order 087: the plan off is version 17's floors, with none
+            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false, UsableRooms = false } }) // work order 087: the plan off is version 17's floors, with none
             {
                 for (int f = 1; f <= 5; f++)
                     foreach (RoomKind k in Enum.GetValues(typeof(RoomKind)))
@@ -337,7 +337,7 @@ namespace Roguelike.Rules.Tests
         public void On_WithNoneAllowed_IsTheFloorWithThemOff(int floor)
         {
             var off = Off();
-            var none = new LevelValues { Warders = true, Bombers = false, WarderFloors = new WarderFloorValues { FromFloor = 99 } };
+            var none = new LevelValues { Warders = true, Bombers = false, LineUps = false, WarderFloors = new WarderFloorValues { FromFloor = 99 } }; // work order 135 (changed deliberately): against Off(), the line-ups named off
             for (ulong s = 0; s < 100; s++)
                 Assert.That(LevelGenerator.Generate(s, floor, none).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, off).Describe()), "seed " + s);
         }

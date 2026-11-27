@@ -54,6 +54,7 @@ namespace Roguelike
                 _fightList.Add(fight);
                 foreach (Enemy e in list) if (e != null) e.Fight = fight;
             }
+            SetUpRoomWaves(); // work order 136: the rooms' waves, their later waves out of the game until they come (GeneratedLevelsRoomWaves.cs)
             SetUpRoomDoors(); // work order 086: the doors that close behind her (GeneratedLevelsRoomDoors.cs)
             if (_fightList.Count == 0) return;
             _fightsOf = _level;
@@ -72,6 +73,7 @@ namespace Roguelike
             _fightRoomIn = null;
             _fightDoor = null;
             ForgetRoomDoors(); // work order 086
+            ForgetRoomWaves(); // work order 136
         }
 
         /// <summary>A swarmer the boss calls belongs to the boss's room's fight at once (work order 070): it comes for her awake.</summary>
@@ -111,6 +113,7 @@ namespace Roguelike
                 f.End();
                 NoteRoomUseEnded(f, herAlive, alive); // work order 097 (GeneratedLevelsRoomUse.cs)
             }
+            TickRoomWaves(); // work order 136: the next waves, after the fights and before the doors (GeneratedLevelsRoomWaves.cs)
             TickRoomDoors(); // work order 086: after the fights, the doors that close behind her and open as the room is cleared
         }
 
@@ -118,14 +121,18 @@ namespace Roguelike
         void RoomFightStarted(RoomFight f)
         {
             LevelRoom room = f.Room >= 0 && f.Room < _level.Layout.Rooms.Count ? _level.Layout.Rooms[f.Room] : null;
-            int woke = AliveOf(f.Room);
+            int woke = AliveOf(f.Room) - WaitingFor(f.Room); // work order 136: a later wave's enemies are not in the room yet (0 with the waves off)
             RoomFightValues values = Values.Fights;
             if (values != null && values.Cue && values.CueGain > 0f && !PlaceholderSounds.RoomsOn) PlaceholderSounds.Current?.AskFor(values.CueSound, values.CueGain); // work order 113: on, the room's own swell, once a room
             if (room == null) return;
             string kind = room.Elite ? "elite" : room.Kind.ToString().ToLowerInvariant();
             bool inside = CurrentRoom != null && CurrentRoom.Order == f.Room;
-            PlaySessionRecorder.Current?.NoteRoomFight(Floor > 0 ? Floor : _level.Layout.Floor, LevelGeometry.RoomNumber(_level.Layout, room) + 1, room.Order,
-                                                       kind, RoomFightRules.Word(f.StartedBy), inside, woke);
+            if (_wavesOn) // work order 136: and its number of waves (GeneratedLevelsRoomWaves.cs)
+                PlaySessionRecorder.Current?.NoteRoomFightWithWaves(Floor > 0 ? Floor : _level.Layout.Floor, LevelGeometry.RoomNumber(_level.Layout, room) + 1, room.Order,
+                                                                    kind, RoomFightRules.Word(f.StartedBy), inside, woke, room.LineUp?.Name, WaveCountOf(room));
+            else
+                PlaySessionRecorder.Current?.NoteRoomFight(Floor > 0 ? Floor : _level.Layout.Floor, LevelGeometry.RoomNumber(_level.Layout, room) + 1, room.Order,
+                                                           kind, RoomFightRules.Word(f.StartedBy), inside, woke, room.LineUp?.Name); // work order 135: the line-up it drew
             NoteRoomUseBegan(f, room, Floor > 0 ? Floor : _level.Layout.Floor, kind); // work order 097: the room as she meets it (GeneratedLevelsRoomUse.cs)
         }
 

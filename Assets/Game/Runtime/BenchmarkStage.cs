@@ -105,7 +105,17 @@ namespace Roguelike
             else
             {
                 int floor = scenario == BenchmarkScenario.Floor1Combat ? 1 : 5;
-                stage.Level = levels.Build(RunSeeds.FloorSeed(RunSeed, floor), floor);
+                // Work order 136: the scenario's room wakes whole, as before the waves, so its load is the same from build to build.
+                bool waves = levels.Values != null && levels.Values.Waves;
+                if (levels.Values != null) levels.Values.Waves = false;
+                try
+                {
+                    stage.Level = levels.Build(RunSeeds.FloorSeed(RunSeed, floor), floor);
+                }
+                finally
+                {
+                    if (levels.Values != null) levels.Values.Waves = waves;
+                }
                 if (stage.Level == null) return stage;
                 stage.Room = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Layout.ExitRoom : FullestCombatRoom(stage.Level);
                 stage.Stand = stage.Room != null ? StandFor(stage.Level, stage.Room) : OnNavMesh(stage.Level.PlayerStart);

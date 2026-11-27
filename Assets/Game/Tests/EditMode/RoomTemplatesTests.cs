@@ -289,8 +289,8 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void AThousandSeeds_TheTemplateRooms_KeepTheirRules_TheirMarksAndTheirShare(int floor)
         {
-            var on = new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 104 (changed deliberately): 058's share, with the first set on every floor; with the floors' character floor 1 has three combat templates and its share is lower
-            var off = new LevelValues { Templates = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false };
+            var on = new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 104 (changed deliberately): 058's share, with the first set on every floor; with the floors' character floor 1 has three combat templates and its share is lower
+            var off = new LevelValues { Templates = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
             TemplateValues tv = on.TemplateRules;
             PropValues pv = on.PropRules;
             const int seeds = 1000; // a thousand, not the order's two thousand: the EditMode suite is long already (work order 058's report)
@@ -547,7 +547,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_TwoThousandFloors_AreVersion14s_FieldForField()
         {
-            var off = new LevelValues { Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 103: nor exit rooms of their own; 059: version 14 had no passages; 072: nor the second set; 087: nor the act's plan
+            var off = new LevelValues { Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 103: nor exit rooms of their own; 059: version 14 had no passages; 072: nor the second set; 087: nor the act's plan
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 2000; s++)
             {

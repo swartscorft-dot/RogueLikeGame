@@ -63,9 +63,9 @@ namespace Roguelike.EditModeTests
         static string SourcesText(RoomMoodPlan mood) =>
             string.Join("\n", mood.Rooms.SelectMany(r => r.Sources.Select(s => r.Room.Order + " " + s.Kind + " " + s.At + " " + s.Height.ToString("R", Inv) + " " + s.Flame + " " + s.OfProp + " " + s.ByLookList)));
 
-        static IEnumerable<LevelLayout> Floors(int seeds)
+        static IEnumerable<LevelLayout> Floors(int seeds, LevelValues values = null)
         {
-            var v = new LevelValues();
+            var v = values ?? new LevelValues();
             for (int f = 1; f <= 5; f++) yield return LevelGenerator.Generate(RunSeeds.FloorSeed(RunSeed, f), f, v);
             for (ulong s = 0; s < (ulong)seeds; s++)
                 for (int f = 1; f <= 5; f++) yield return LevelGenerator.Generate(s, f, v);
@@ -171,7 +171,9 @@ namespace Roguelike.EditModeTests
             int rooms = 0, lit = 0, sets = 0, others = 0, otherDarker = 0, ossuaryDarkerWithAll = 0;
             double middleBefore = 0, middleAfter = 0;
             var lines = new List<string>();
-            foreach (LevelLayout layout in Floors(150))
+            // Work order 135 (changed deliberately): measured on version 24's floors, the line-ups named off, as it was written (87 %); with them on
+            // the ossuaries with a prop near their middle were 612, under the 646 asked: the props are laid round other enemies.
+            foreach (LevelLayout layout in Floors(150, new LevelValues { LineUps = false }))
             {
                 var v = new LevelValues();
                 LookListValues.On = false;

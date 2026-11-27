@@ -67,7 +67,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void EachPreset_IsTheGeneratorsOwnDraw_ForItsFloorsRooms_OverAHundredSeeds()
         {
-            var v = new LevelValues();
+            var v = new LevelValues { LineUps = false }; // work order 135 (changed deliberately): the lab's presets are today's mixes, version 24's rooms; the line-ups are not in the lab
             // Changed deliberately (work order 108): the floors' own presets, one a floor; after them "floor 4 with a lancer", which
             // the floors do not hold yet (LancerTests holds it to its rule).
             Assert.That(RoomLab.Mixes.Where(m => m.Lancers == 0).Select(m => m.Floor), Is.EqualTo(Enumerable.Range(1, v.FloorsPerAct)), "one preset a floor, in order");

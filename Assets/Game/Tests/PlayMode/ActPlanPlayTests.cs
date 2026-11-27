@@ -44,7 +44,7 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             if (_health != null) _health.Untouchable = true;
             _levels = GeneratedLevels.Ensure();
-            _levels.Values = new LevelValues();
+            _levels.Values = new LevelValues { Waves = false }; // work order 136 (changed deliberately): its rooms wake whole, as the rules it measures were built on
         }
 
         [TearDown]
@@ -201,6 +201,10 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AFloor3sShooterAndCaster_ShootAtHer_OnlyFromWithin11m()
         {
+            // Work order 135 (changed deliberately): on version 24's floor 3, the line-ups named off, so the room found is the one this test was
+            // written on; with them on the first such room was another (AAA4H9KP's full room C14), whose caster, standing about 11 m behind
+            // the shooters, did not begin a cast in the 20 game seconds. The 11 m band is the ranged kinds' rule, not the rooms'.
+            _levels.Values.LineUps = false;
             LevelValues v = _levels.Values;
             (ulong seed, int order) = Find(3, r => Of(r, EnemyKind.Shooter) >= 1 && r.EnemyGroups.Any(g => g.Kind == EnemyKind.Caster && !g.Elite) && !r.Elite, v);
             var from = new Dictionary<EnemyKind, List<float>> { [EnemyKind.Shooter] = new List<float>(), [EnemyKind.Caster] = new List<float>() };

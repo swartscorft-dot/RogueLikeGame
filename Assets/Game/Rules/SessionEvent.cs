@@ -128,6 +128,12 @@ namespace Roguelike.Rules
         // it with its tier ("Hot Barrel II"), floor, fired (how often it worked), added (what it added) and unit (what added counts:
         // damage, seconds of cooldown, marks). The floor reward of three kinds' reward_offer has kinds, and its reward_take kind.
         public const string BasicShotUse = "basic_shot_use";
+        // Work order 136 (two waves): a wave of a room's fight. Name "start" as it starts (wave 1 at the waking): floor, room (as the run
+        // box counts), order, wave (from 1), waves (of the room), kinds ("swarmer 6, brute 2"), count, since (s since the waking), before_alive
+        // (of the wave before, alive as it started; "" for wave 1), arrivals (each enemy that came at once: "metres from her|screen x|screen y",
+        // the screen from 0 to 1, bottom left 0 0, joined by ";"; "" for wave 1, which stands where the room put it), waiting (of its enemies,
+        // how many found no point and wait). Name "arrival" for those that came after waiting: the same, since its wave's start in "waited".
+        public const string RoomWave = "room_wave";
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>

@@ -635,6 +635,36 @@ namespace Roguelike.Rules
         // (the generator's version 24): the act boss's room holds the boss and nobody else as she enters (LevelBossAlone); the swarmers
         // the boss calls in its fight are its own and stay. Off: every floor is version 23's, field for field, but for the version.
         public bool BossAlone = true;
+
+        // ---------------- Line-ups (work order 135, 2026-11-27) ----------------
+
+        // Kristian, 2026-11-25, after about two and a half hours of play: "og hvert rom er slik: man kommer inn, skyter de små først, så
+        // cahrgerne, og så ranged. det er veldig likt hver gang. dette må gjøres noe. større variasjon", and asked the same evening "may a
+        // room hold only two kinds, the full mix kept for one big room a floor?", he ticked "Ja" (from floor 1; neighbours never the same
+        // line-up). ON (the generator's version 25): every combat room of a floor but one is filled from one line-up of two kinds, a lead
+        // and a partner, its counts spending the weight today's room has (LevelLineUps, the numbers in LineUpRules); one combat room a
+        // floor, never the first, keeps today's full mix; two neighbouring combat rooms never draw the same line-up. The exit room, the
+        // boss alone and the elite are as before. Off: every floor is version 24's, field for field, but for the version. The settings
+        // screen's Trials page turns it off for the floors built after (RoomTrialSettings in the game). Second round (the producer, 2026-11-27:
+        // the weight wins): a line-up room may hold more brutes and shooters than a mixed room's three, and two guards or casters, made for
+        // work order 136's two waves; with 136's switch off and this one on such a room wakes all at once and can be much harder than
+        // today's: a trial state, not the default.
+        public bool LineUps = true;
+        public LineUpValues LineUpRules = new LineUpValues();
+
+        // ---------------- Two waves (work order 136, 2026-11-27) ----------------
+
+        // Kristian's ticks of 2026-11-25, asked with the warning that the first rush gets smaller: waves "Ja, i de fleste rom", and the
+        // second wave "Når halve første er død"; on 2026-11-27, after a run without them: "jeg trodde vi hadde implimentert hades
+        // fremgangsmåten i hvert rom". ON: every combat room with a line-up brings its enemies in two waves (its lead as wave 1, placed
+        // and woken as before; its partner as wave 2), but floor 1's first combat room (one) and each floor's last combat room before its
+        // exit (three); the next wave comes the moment half of the one before is dead, each of its enemies at a point of the room in his
+        // view 7 to 11 m from her and never below her on his screen, after a second's disc (RoomWaveRules, the numbers in WaveRules). The
+        // doors stay shut and the room is not cleared until the last wave is dead. A rule of the fight read as the floor is set up (from
+        // each room's place on it), not of the generator: no floor and no pinned fingerprint changes. Off: every room wakes as on work
+        // order 135, field for field. The settings screen's Trials page turns it off for the floors built after (RoomTrialSettings).
+        public bool Waves = true;
+        public RoomWaveValues WaveRules = new RoomWaveValues();
     }
 
     /// <summary>

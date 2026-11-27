@@ -166,10 +166,16 @@ namespace Roguelike.Rules.Tests
                 SettingLine.Attachments, SettingLine.Greybox, SettingLine.Light, SettingLine.ToonLook, SettingLine.BetweenRuns, SettingLine.CameraAngle,
                 SettingLine.TimingCue, SettingLine.TimingClick, // the merge of 2026-11-26: work order 134's two lines
                 SettingLine.Precision, // work order 143's line (with its switch on)
-                SettingLine.SightOpening, // work order 144's line, last (with its switch on)
+                SettingLine.SightOpening, // work order 144's line (with its switch on)
+                SettingLine.LineUps, // work order 135 (changed deliberately): the rooms' line-ups, after 143's and 144's (the merge of 2026-11-27, W2)
+                SettingLine.Waves, // work order 136 (changed deliberately): the rooms' waves, last
             }));
+            // With the camera angle off the page is the same list without that one line, every other line in its order
+            // (the merge of 2026-11-27, W2: named by the list, not by a count from the end, as more orders add lines after these).
+            var withAngle = new List<SettingLine>(lines);
+            withAngle.Remove(SettingLine.CameraAngle);
             SettingsPages.Lines(SettingsPage.Trials, false, lines);
-            Assert.That(lines.GetRange(lines.Count - 4, 2), Is.EqualTo(new[] { SettingLine.TimingCue, SettingLine.TimingClick }), "with the camera angle off, still last before work order 143's and 144's lines");
+            Assert.That(lines, Is.EqualTo(withAngle), "with the camera angle off, every other line in its place");
             Assert.That(lines, Has.No.Member(SettingLine.CameraAngle), "work order 121's switch off: no camera angle line");
             foreach (SettingsPage page in SettingsPages.All)
             {
