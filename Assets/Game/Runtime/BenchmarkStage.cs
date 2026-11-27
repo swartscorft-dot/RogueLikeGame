@@ -26,7 +26,8 @@ namespace Roguelike
     ///
     /// Every scenario is the same each time: the floors are those of <see cref="RunSeed"/> (floor n's seed is
     /// <see cref="RunSeeds.FloorSeed"/> of it and n), built alone outside a run with <see cref="GeneratedLevels.Build"/>
-    /// (so no reward, chest or heal comes up), and the room is the combat room with the most enemies (the first of them
+    /// (so no reward, chest or heal comes up) and with the line-ups (work order 135) and the waves (work order 136) off, so
+    /// their rooms are version 24's and wake whole (the merge of 2026-11-27, W2), and the room is the combat room with the most enemies (the first of them
     /// in the floor's order when two hold as many; not the elite room), or floor 5's exit room. She stands where the
     /// fight is (<see cref="StandFor"/>): the place of the room, on its NavMesh, nearest to the farthest of its enemies,
     /// and clear of each of them (the boss too), so that every one of them is within its leash and comes for her when
@@ -106,15 +107,26 @@ namespace Roguelike
             {
                 int floor = scenario == BenchmarkScenario.Floor1Combat ? 1 : 5;
                 // Work order 136: the scenario's room wakes whole, as before the waves, so its load is the same from build to build.
+                // The merge of 2026-11-27 (W2), for the same reason: its floors are built with work order 135's line-ups off, version 24's
+                // rooms field for field, so the fullest room and its enemies are those every benchmark before measured.
                 bool waves = levels.Values != null && levels.Values.Waves;
-                if (levels.Values != null) levels.Values.Waves = false;
+                bool lineUps = levels.Values != null && levels.Values.LineUps;
+                if (levels.Values != null)
+                {
+                    levels.Values.Waves = false;
+                    levels.Values.LineUps = false;
+                }
                 try
                 {
                     stage.Level = levels.Build(RunSeeds.FloorSeed(RunSeed, floor), floor);
                 }
                 finally
                 {
-                    if (levels.Values != null) levels.Values.Waves = waves;
+                    if (levels.Values != null)
+                    {
+                        levels.Values.Waves = waves;
+                        levels.Values.LineUps = lineUps;
+                    }
                 }
                 if (stage.Level == null) return stage;
                 stage.Room = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Layout.ExitRoom : FullestCombatRoom(stage.Level);

@@ -98,6 +98,11 @@ namespace Roguelike.PlayModeTests
             LevelRoom room = _stage.Room;
             Assert.That(room.Kind, Is.EqualTo(RoomKind.Combat));
             Assert.That(room.Elite, Is.False);
+            // The merge of 2026-11-27, W2: the benchmark's floors are version 24's rooms, work order 135's line-ups off for its build, so the
+            // load it measures is the one measured before them (on, floor 1's fullest room was a line-up room and her stand came 2.745 m
+            // from a swarmer's middle, under the 2.799 the stand's own rule keeps; the room's other enemies stood elsewhere).
+            Assert.That(level.Layout.Rooms.Where(r => r.LineUp != null), Is.Empty, "no line-up room on the benchmark's floor");
+            Assert.That(GeneratedLevels.Current.Values.LineUps, Is.True, "the values' own switch put back after the build");
             int most = level.Layout.Rooms.Where(r => r.Kind == RoomKind.Combat && !r.Elite)
                                          .Max(r => level.EnemiesByRoom.TryGetValue(r.Order, out var l) ? l.Count : 0);
             Assert.That(level.EnemiesByRoom[room.Order].Count, Is.EqualTo(most), "the fullest combat room");
@@ -126,6 +131,7 @@ namespace Roguelike.PlayModeTests
             StandsWithinEveryLeash();
             yield return Frames(3);
             Assert.That(_stage.Level.Layout.Floor, Is.EqualTo(5));
+            Assert.That(_stage.Level.Layout.Rooms.Where(r => r.LineUp != null), Is.Empty, "version 24's rooms (the merge of 2026-11-27, W2)");
             Assert.That(_stage.Room, Is.SameAs(BenchmarkStage.FullestCombatRoom(_stage.Level)));
             Assert.That(_stage.Level.RoomAt(_player.Position), Is.SameAs(_stage.Room));
             Assert.That(_stage.Fighting.Count, Is.GreaterThan(0));
