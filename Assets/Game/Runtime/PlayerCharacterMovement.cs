@@ -339,9 +339,14 @@ namespace Roguelike
         /// jump (a shot on the move, the backpedal cap, a skill's slide, the ease back up after a skill), so the lowest
         /// of them does too, whichever follows which.
         /// </summary>
-        float CurrentSpeedShare(FeelValues feel)
+        float CurrentSpeedShare(FeelValues feel) => CurrentSpeedShare(feel, Time.time);
+
+        /// <summary>
+        /// The same at a moment <paramref name="now"/> (work order 152: the law follows the eases at each of its small steps inside
+        /// the frame). The backpedal cap is as it stands this frame.
+        /// </summary>
+        float CurrentSpeedShare(FeelValues feel, float now)
         {
-            float now = Time.time;
             float share = Mathf.Min(_backpedalCap.Share,
                                     _easing
                                         ? MovingShot.SpeedShare(_easeFrom, now - _easeStartedAt, _easeFiredAfter,

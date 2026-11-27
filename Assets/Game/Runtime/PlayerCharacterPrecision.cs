@@ -142,7 +142,9 @@ namespace Roguelike
             Vector3 dashDir = Flat(_dashTo - _dashFrom);
             dashDir = dashDir.sqrMagnitude > 1e-6f ? dashDir.normalized : Vector3.zero;
             _wasDashing = _dashing;
-            if (_pmode == PrecisionMode.Inertia) InertiaBody(dt, dashEnded ? dashDir * run : (Vector3?)null);
+            IPrecisionCurve curve = CapCurveThisFrame(); // work order 152: null with its switch off
+            bool lawRan = false;
+            if (_pmode == PrecisionMode.Inertia) lawRan = InertiaBody(dt, dashEnded ? dashDir * run : (Vector3?)null, curve);
 
             // Her real velocity this frame; in a dash nothing follows it, and it exits at run speed along it.
             Vector3 real = Flat(Velocity);
@@ -156,31 +158,49 @@ namespace Roguelike
                 {
                     CounterStrafes++;
                     _lastCounterStrafeAt = now;
-                    if (_pmode == PrecisionMode.Meter) _momentum = 0f; // a counter-tap empties it at once
+                    if (_pmode == PrecisionMode.Meter)
+                    {
+                        _momentum = 0f; // a counter-tap empties it at once
+                        if (SameAtEveryFrameRate) _watch.Note(PrecisionRules.MeterShare(0f, AccurateShareNow)); // work order 152: its instant is in the wind-up
+                    }
                     Report(new PlayerReport { Kind = PlayerReportKind.CounterStrafed, Share = _motion.magnitude / run });
                 }
                 float realShare = real.magnitude / run;
                 float settle = Modifiers != null ? Modifiers.Stats.PrecisionSettle : 1f;
-                if (_pmode == PrecisionMode.Meter) _momentum = PrecisionRules.MeterStep(_momentum, realShare, dt, v, AccurateShareNow, settle);
+                if (_pmode == PrecisionMode.Meter)
+                {
+                    _momentum = SameAtEveryFrameRate
+                        ? PrecisionMoment.MeterFrame(_momentum, realShare, curve, dt, v, AccurateShareNow, settle, ref _watch)
+                        : PrecisionRules.MeterStep(_momentum, realShare, dt, v, AccurateShareNow, settle);
+                    lawRan = true;
+                }
                 else if (_pmode == PrecisionMode.Ghost)
                 {
                     if (dashEnded) _ghostVelocity = real;
                     float gx = _ghostVelocity.x, gz = _ghostVelocity.z;
-                    PrecisionRules.GhostFrame(ref gx, ref gz, real.x, real.z, dt, v, settle);
+                    if (SameAtEveryFrameRate) PrecisionMoment.GhostFrame(ref gx, ref gz, real.x, real.z, curve, dt, run, v, settle, ref _watch);
+                    else PrecisionRules.GhostFrame(ref gx, ref gz, real.x, real.z, dt, v, settle);
                     _ghostVelocity = new Vector3(gx, 0f, gz);
+                    lawRan = true;
                 }
             }
             _heldBefore = _moveInput;
             _precisionShare = _pmode == PrecisionMode.Meter ? PrecisionRules.MeterShare(_momentum, AccurateShareNow)
                             : _pmode == PrecisionMode.Ghost ? _ghostVelocity.magnitude / run
                             : Flat(Velocity).magnitude / run;
+            if (SameAtEveryFrameRate && !lawRan) _watch.Pass(dt, _precisionShare); // work order 152: a step the law did not run
+            _lawSteppedAt = Time.frameCount;
             if (dt > 0f && _precisionShare >= v.StopShotRunShare) _ranAt = now;
             // Her lowest while a basic shot winds up (only frames in which time ran: a hit stop's frames read standing).
             if (_windUp && _actionKind == ActionKind.BasicShot && !_action.HitResolved && dt > 0f) _lowestInWindUp = Mathf.Min(_lowestInWindUp, _precisionShare);
         }
 
-        /// <summary>Inertia: her body by the law, toward the way and cap the frame asked for, or coasting; handed to the agent.</summary>
-        void InertiaBody(float dt, Vector3? dashExit)
+        /// <summary>
+        /// Inertia: her body by the law, toward the way and cap the frame asked for, or coasting; handed to the agent. Work order
+        /// 152 (its switch on): the law follows the cap's <paramref name="curve"/> through the step and the wind-up is watched in it.
+        /// True when the law ran.
+        /// </summary>
+        bool InertiaBody(float dt, Vector3? dashExit, IPrecisionCurve curve)
         {
             if (dashExit.HasValue) _bodyVelocity = dashExit.Value;
             bool free = _agent.isOnNavMesh && !_dashing && !_jumping && !_held.IsHeld && !_keyMoving && !_inCover && !_duck.IsDown
@@ -188,10 +208,15 @@ namespace Roguelike
             if (!free)
             {
                 if (!_dashing) _bodyVelocity = Flat(Velocity);
-                return;
+                return false;
             }
             float vx = _bodyVelocity.x, vz = _bodyVelocity.z;
-            if (_wishThisFrame) PrecisionRules.InertiaFrame(ref vx, ref vz, _wishDir.x, _wishDir.z, _wishSpeed, dt, PV);
+            if (SameAtEveryFrameRate)
+            {
+                if (_wishThisFrame) PrecisionMoment.InertiaFrame(ref vx, ref vz, _wishDir.x, _wishDir.z, _wishSpeed, curve, dt, RunSpeedNow, PV, ref _watch);
+                else PrecisionMoment.InertiaFrame(ref vx, ref vz, 0f, 0f, 0f, null, dt, RunSpeedNow, PV, ref _watch);
+            }
+            else if (_wishThisFrame) PrecisionRules.InertiaFrame(ref vx, ref vz, _wishDir.x, _wishDir.z, _wishSpeed, dt, PV);
             else PrecisionRules.InertiaFrame(ref vx, ref vz, 0f, 0f, 0f, dt, PV);
             _bodyVelocity = new Vector3(vx, 0f, vz);
             float speed = _bodyVelocity.magnitude;
@@ -199,7 +224,7 @@ namespace Roguelike
             {
                 _bodyVelocity = Vector3.zero;
                 if (_agent.hasPath || _agent.velocity.sqrMagnitude > 0f) Halt();
-                return;
+                return true;
             }
             // As MoveAlong steers her: a little way ahead, now along her body's own way at its own speed.
             Vector3 way = _bodyVelocity / speed;
@@ -207,6 +232,7 @@ namespace Roguelike
             _agent.SetDestination(transform.position + way * SteerLookAhead);
             _agent.speed = speed;
             _agent.velocity = _bodyVelocity;
+            return true;
         }
 
         /// <summary>m/s under which Inertia's body stands.</summary>
@@ -220,6 +246,7 @@ namespace Roguelike
             _shareAtPress = _precisionShare;
             _lowestInWindUp = _precisionShare;
             _ranAtPress = _ranAt;
+            WatchWindUp(); // work order 152: watched on the law's time line to the moment its wind-up ends
         }
 
         /// <summary>
@@ -233,7 +260,8 @@ namespace Roguelike
                 LastPrecisionShot = default;
                 return;
             }
-            float share = _windUp ? Mathf.Min(_lowestInWindUp, _precisionShare) : _precisionShare;
+            // Work order 152 (its switch on): the lowest of the wind-up on the law's time line, the moment it ends included.
+            if (!WatchedShare(out float share)) share = _windUp ? Mathf.Min(_lowestInWindUp, _precisionShare) : _precisionShare;
             _windUp = false;
             float cone = ConeFor(share);
             GroundPoint origin = GroundPosition;

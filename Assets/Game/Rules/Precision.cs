@@ -120,6 +120,16 @@ namespace Roguelike.Rules
         public float StopShotRunWithin = 0.6f;
         /// <summary>Hits that must count.</summary>
         public int StopShotHits = 3;
+
+        /// <summary>
+        /// Work order 152's switch (the grips' analyst's finding of 2026-11-27: "a shot reads her speed as it stood at the end of the
+        /// frame before the shot goes off, so the cone depends on the frame rate"; held fire on the move, stock gun, 16.3° then
+        /// 13.9° at 60 fps, 14.5° then 12.1° at 144, the law's own 13.9° then 11.2°). On: the law follows the speed it aims for at
+        /// each of its small steps and a shot reads its share at the moment its wind-up ends, inside the frame
+        /// (<see cref="PrecisionMoment"/>), so the same press at the same moment gives the same cone on every machine; Inertia,
+        /// the meter and the ghost alike. Off: work order 143's frame, number for number.
+        /// </summary>
+        public static bool SameAtEveryFrameRate = true;
     }
 
     /// <summary>The rules of work order 143's precision: the cone, the three ways her speed reaches it, the draw. No engine.</summary>
