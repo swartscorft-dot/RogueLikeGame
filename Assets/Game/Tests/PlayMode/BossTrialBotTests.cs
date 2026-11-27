@@ -68,7 +68,7 @@ namespace Roguelike.PlayModeTests
                 foreach (Kind bot in new[] { Kind.Stands, Kind.Circles, Kind.Answers })
                 {
                     if (bot != Kind.Answers && f >= 2) continue; // the two faults on two floors; the answers on all four
-                    for (int seed = 0; seed < (bot == Kind.Answers ? 2 : 1); seed++)
+                    for (int seed = 0; seed < (bot == Kind.Answers ? 3 : 1); seed++) // twelve answering fights over both rooms
                     {
                         Result r = null;
                         yield return Fight(floors[f], 147 + 31 * f + seed, bot, x => r = x);
@@ -83,7 +83,11 @@ namespace Roguelike.PlayModeTests
             foreach (Kind bot in new[] { Kind.Stands, Kind.Circles, Kind.Answers })
             {
                 List<Result> rs = s_All.Where(x => x.Bot == bot).ToList();
-                sb.Append("  ").Append(bot).Append(": ").Append(rs.Count(x => x.Died)).Append(" of ").Append(rs.Count).Append(" died, mean length ")
+                List<Result> won = rs.Where(x => x.Killed).ToList();
+                sb.Append("  ").Append(bot).Append(": won ").Append(won.Count).Append(", ")
+                  .Append(won.Count > 0 ? "won fights " + won.Min(x => x.Length).ToString("0", CultureInfo.InvariantCulture) + " to " + won.Max(x => x.Length).ToString("0", CultureInfo.InvariantCulture) + " s, " : "")
+                  .Append("reached phase 3 in ").Append(rs.Count(x => x.Phases[3] > 0f || x.Killed)).Append(", ")
+                  .Append(rs.Count(x => x.Died)).Append(" of ").Append(rs.Count).Append(" died, mean length ")
                   .Append(rs.Average(x => x.Length).ToString("0.0", CultureInfo.InvariantCulture)).Append(" s, mean hits ")
                   .Append(rs.Average(x => x.HitsTaken).ToString("0.0", CultureInfo.InvariantCulture)).Append(", wards failed ")
                   .Append(rs.Sum(x => x.WardsFailed)).Append(", broken ").Append(rs.Sum(x => x.WardsBroken)).Append('\n');
@@ -248,7 +252,8 @@ namespace Roguelike.PlayModeTests
                     Vector3 toBoss = (Boss - Me).normalized;
                     _axis = toBoss;
                     _way = ClearSide(Vector3.Cross(Vector3.up, toBoss), 8f);
-                    _back = ClearSide(-toBoss * 0.55f + Vector3.Cross(Vector3.up, toBoss) * 0.85f, 6f);
+                    Vector3 l = (-toBoss * 0.55f + Vector3.Cross(Vector3.up, toBoss) * 0.85f).normalized, r = (-toBoss * 0.55f - Vector3.Cross(Vector3.up, toBoss) * 0.85f).normalized;
+                    _back = Open(l, 6f) >= Open(r, 6f) ? l : r; // back and to the more open side
                 }
                 // What strikes soonest first: the attack being told (after her reaction), the ring, Ruin; then a Grave Mark on her; then
                 // a seed near her; then stand and shoot.
@@ -275,11 +280,22 @@ namespace Roguelike.PlayModeTests
                 // One way for the whole run of circles (turning back runs into the led ones); a quarter turn only where the floor ends.
                 if (_boss.MarksLive > 0 && _boss.NextMark(out Vector3 mark, out float burst, out float radius))
                 {
-                    if (_marksSeen == 0) { _marksSeen = 1; _markAt = Now; _markWay = ClearSide(Vector3.Cross(Vector3.up, (Boss - Me).normalized), 10f); }
+                    if (_marksSeen == 0)
+                    {
+                        _marksSeen = 1;
+                        _markAt = Now;
+                        Vector3 side = Vector3.Cross(Vector3.up, (Boss - Me).normalized);
+                        _markWay = Open(side, 12f) >= Open(-side, 12f) ? side : -side; // the more open side
+                    }
                     if (Now - _markAt >= React && ((Me - Flat(mark)).magnitude < radius + 1.2f || a == BossTrialAttack.GraveMarks))
                     {
-                        if (NavMesh.Raycast(Her.Position, Her.Position + _markWay * 1.5f, out _, NavMesh.AllAreas))
-                            _markWay = ClearSide(Vector3.Cross(Vector3.up, _markWay), 4f);
+                        // Round 2, the research's answer: change direction, a quarter turn to the more open side, where the floor ahead
+                        // runs out (not into the wall, and never straight back into the circles laid ahead of her).
+                        if (Open(_markWay, 2.5f) < 2.5f)
+                        {
+                            Vector3 turn = Vector3.Cross(Vector3.up, _markWay);
+                            _markWay = Open(turn, 10f) >= Open(-turn, 10f) ? turn : -turn;
+                        }
                         _shooting = false;
                         Her.Steer(_markWay);
                         return;
@@ -294,7 +310,7 @@ namespace Roguelike.PlayModeTests
             void Hold()
             {
                 float d = (Boss - Me).magnitude;
-                if (d < 6.5f) { Her.Steer(ClearSide(-(Boss - Me).normalized, 4f)); return; }
+                if (d < 6.5f) { Her.Steer(OpenAway()); return; } // the one habit: away from it, but not into a corner
                 if (d > 12f) { GoTo(Boss); return; }
                 Her.Stop();
             }
@@ -405,6 +421,33 @@ namespace Roguelike.PlayModeTests
             }
 
             /// <summary>The way, or its opposite, whose line has walkable ground for <paramref name="metres"/>.</summary>
+            /// <summary>m of walkable floor straight along a way from her, up to <paramref name="most"/>.</summary>
+            float Open(Vector3 way, float most)
+            {
+                Vector3 to = Her.Position + Flat(way).normalized * most;
+                return NavMesh.Raycast(Her.Position, to, out NavMeshHit hit, NavMesh.AllAreas) ? Flat(hit.position - Her.Position).magnitude : most;
+            }
+
+            /// <summary>
+            /// Round 2: the way to back off that any player takes, not into a corner: of sixteen ways that do not close on the boss, the
+            /// one with the most open floor ahead, with a little weight to straight away.
+            /// </summary>
+            Vector3 OpenAway()
+            {
+                Vector3 away = (Me - Boss).normalized, best = away;
+                float bestScore = float.NegativeInfinity;
+                for (int k = 0; k < 16; k++)
+                {
+                    float a = k * Mathf.PI / 8f;
+                    var w = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                    float along = Vector3.Dot(w, away);
+                    if (along < -0.1f) continue;
+                    float score = Open(w, 8f) + 2f * along;
+                    if (score > bestScore) { bestScore = score; best = w; }
+                }
+                return best;
+            }
+
             Vector3 ClearSide(Vector3 way, float metres)
             {
                 way = Flat(way).normalized;

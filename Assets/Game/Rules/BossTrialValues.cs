@@ -123,6 +123,12 @@ namespace Roguelike.Rules
         /// whole body is on his screen. It walks until it is.
         /// </summary>
         public float OnScreenMargin = 1.2f;
+        /// <summary>
+        /// Layout px (of a view 1080 high) to spare between what must be SEEN (its whole body, a seed and its circle) and the view's edges
+        /// and the interface's plates (the producer's second round of work order 147: a Charge began with the boss under her health
+        /// plate, Grave Marks with it half off the top edge). Every attack's beginning and every seed's place ask it.
+        /// </summary>
+        public float SeenMarginPx = 24f;
         /// <summary>s from the end of a recovery to the next wind-up, by phase (7.1: 0.9, 0.7, 0.45). Index 0 is unused.</summary>
         public float[] Gap = { 0.9f, 0.9f, 0.7f, 0.45f };
         /// <summary>Wind-ups are this many times as long, by phase (7.2: x0.9 in phase 2, x0.85 in phase 3). Index 0 is unused.</summary>
@@ -185,6 +191,13 @@ namespace Roguelike.Rules
         public float WaveFlight = 14f;
         /// <summary>s its whole path is drawn on the floor as it leaves (7.2: "drawn for 0.3 s", its path is not drawn today).</summary>
         public float WaveDrawn = 0.3f;
+        /// <summary>
+        /// s after the strike that the Wave's path is drawn (the second round: drawn at the strike it was lost under the Cleave's own red
+        /// and white flash, 0.2 s): the path shows from then for <see cref="WaveDrawn"/>; the wave itself is 1.5 m out by then.
+        /// </summary>
+        public float WavePathAfter = 0.15f;
+        /// <summary>The Wave's own look: its path and its front, filled, in an orange apart from the telegraphs' red and the ward's gold.</summary>
+        public Rgb WaveColour = new Rgb(1f, 0.55f, 0.1f);
 
         // ---------------- 2. Charge ----------------
 
@@ -293,8 +306,13 @@ namespace Roguelike.Rules
         /// <summary>s from its landing to its burst, phase 1 (7.2: 4.0 s).</summary>
         public float SeedFill = 4.0f;
         public float SeedFillFloor = 3.2f;
-        /// <summary>m across the grey sphere (7.2: 0.5 m). Her shot's line must touch it.</summary>
-        public float SeedSize = 0.5f;
+        /// <summary>
+        /// m across the grey sphere, drawn and hit alike (7.2: 0.5 m; the second round: 0.75 m, as 0.5 m read as a speck on the dark
+        /// floor in the pictures, and it is a thing to shoot). Her shot's line must touch it.
+        /// </summary>
+        public float SeedSize = 0.75f;
+        /// <summary>The sphere's grey: light, to read on the dark floor (the first pictures' 0.62 grey was lost on it).</summary>
+        public Rgb SeedColour = new Rgb(0.88f, 0.88f, 0.92f);
         /// <summary>m over the ground of the sphere's middle.</summary>
         public float SeedHeight = 0.45f;
         /// <summary>Basic shots that break one (7.2: three).</summary>
@@ -350,8 +368,20 @@ namespace Roguelike.Rules
         /// along its walls, mostly off his screen, so the room itself must say it); the phase's colour again after.
         /// </summary>
         public Rgb RuinLamps = new Rgb(1f, 0.18f, 0.12f);
-        /// <summary>m: the width of a shadow's pale outline (thicker than a telegraph's, so the safe place reads on the dark floor).</summary>
+        /// <summary>m: the width of a shadow's pale outline once Ruin is told (thicker than a telegraph's, so the safe place reads on the dark floor).</summary>
         public float ShadowLineWidth = 0.5f;
+        /// <summary>
+        /// m: the width of the same outline, dim, from the moment the ward rises (the second round: he has the ward's 8 s to see where
+        /// shelter is, wherever he stands, and to place himself); it turns bright (<see cref="ShadowLineWidth"/>) when Ruin is told.
+        /// </summary>
+        public float ShadowDimWidth = 0.15f;
+        /// <summary>
+        /// Wedges of red fill drawn over the floor round it while Ruin is told, each from it out to where its line is first stopped
+        /// (so the shadows stay clear): the floor he can see shows Ruin, not only the outline at the walls (the second round).
+        /// </summary>
+        public int RuinFanWedges = 120;
+        /// <summary>Of each wedge's width: filled, the rest left dark, so the floor reads as hatched red, not one red sheet.</summary>
+        public float RuinFanFill = 0.7f;
         /// <summary>Directions round it in which the pillars' shadows are found (and drawn, and judged).</summary>
         public int ShadowSamples = 720;
         /// <summary>m round the room's middle it looks for a place to kneel that keeps its body clear of every pier (its body is 1.2 m).</summary>

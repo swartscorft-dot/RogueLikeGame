@@ -1,8 +1,10 @@
+using System;
 using System.Collections;
 using NUnit.Framework;
 using Roguelike.Rules;
 using UnityEngine;
 using UnityEngine.TestTools;
+using Object = UnityEngine.Object;
 
 namespace Roguelike.PlayModeTests
 {
@@ -13,14 +15,41 @@ namespace Roguelike.PlayModeTests
     /// </summary>
     public class BossTrialRoomTests : BossTrialHarness
     {
-        [UnityTest, Timeout(300000)]
-        public IEnumerator TheCharge_BaitedInFrontOfAPier_CrashesIntoIt_DazedTwoSecondsTakingHalfAgainMore()
+        static readonly string[] Templates = { "throne-nave", "throne-arcade" };
+
+        /// <summary>
+        /// Floor 5 built for each candidate seed until its throne room is of that template (by its name, not by luck): his floor and the
+        /// three of work order 146's measure hold both. The room's boss alone awake, as <see cref="BossTrialHarness.ThroneRoom"/>.
+        /// </summary>
+        IEnumerator RoomOf(string template, Action<GeneratedLevel, EnemyBoss> got)
         {
-            foreach (ulong floor in new[] { Floors[0], Floors[1] })
+            Assert.That(LevelSeed.TryParse(HisFloor, out ulong his), Is.True);
+            var seeds = new System.Collections.Generic.List<ulong>(Floors) { his };
+            foreach (ulong seed in seeds)
             {
                 GeneratedLevel level = null;
                 EnemyBoss boss = null;
-                yield return ThroneRoom(floor, (l, b) => { level = l; boss = b; });
+                yield return ThroneRoom(seed, (l, b) => { level = l; boss = b; });
+                if (boss.TrialTemplate == template)
+                {
+                    got(level, boss);
+                    yield break;
+                }
+                Object.Destroy(level.gameObject);
+                yield return null;
+                yield return null;
+            }
+            Assert.Fail("no floor of the candidates has a " + template);
+        }
+
+        [UnityTest, Timeout(300000)]
+        public IEnumerator TheCharge_BaitedInFrontOfAPier_CrashesIntoIt_DazedTwoSecondsTakingHalfAgainMore()
+        {
+            foreach (string template in Templates)
+            {
+                GeneratedLevel level = null;
+                EnemyBoss boss = null;
+                yield return RoomOf(template, (l, b) => { level = l; boss = b; });
                 Vector3 mid = Flat(boss.TrialRoomMiddle);
                 Assert.That(Pier(boss, mid, out Vector3 face, out Vector3 dir), Is.True, boss.TrialTemplate + ": a pier seen from the middle");
                 // She 2.5 m in front of the pier's face, the boss 11 m behind her on the same line.
@@ -57,9 +86,11 @@ namespace Roguelike.PlayModeTests
         [UnityTest, Timeout(300000)]
         public IEnumerator TheShockwave_StopsAtAPier_ItsShadowIsTheWalkedAnswer()
         {
+          foreach (string template in Templates)
+          {
             GeneratedLevel level = null;
             EnemyBoss boss = null;
-            yield return ThroneRoom(Floors[0], (l, b) => { level = l; boss = b; });
+            yield return RoomOf(template, (l, b) => { level = l; boss = b; });
             boss.Body.TakeHit(boss.Body.CurrentHealth - (int)(boss.Body.MaxHealth * 0.6f));
             yield return Run(boss.TrialValues.TransitionSeconds + 0.2f, Stand);
             Vector3 mid = Flat(boss.TrialRoomMiddle);
@@ -75,19 +106,21 @@ namespace Roguelike.PlayModeTests
             yield return Run(4f, Stand);
             Assert.That(Landed(BossTrialValues.Slam), Is.EqualTo(0));
             Assert.That(boss.RingSheltered(behind) || Landed(BossTrialValues.Shockwave) == 0, Is.True);
-            Assert.That(Landed(BossTrialValues.Shockwave), Is.EqualTo(0), "the pier stopped the ring");
+            Assert.That(Landed(BossTrialValues.Shockwave), Is.EqualTo(0), template + ": the pier stopped the ring");
             Object.Destroy(level.gameObject);
             yield return null;
+            yield return null;
+          }
         }
 
         [UnityTest, Timeout(300000)]
         public IEnumerator Ruin_HitsHerInTheOpen_NotInAPillarsShadow_AndJudgementKneelsClearOfEveryPier()
         {
-            foreach (ulong floor in new[] { Floors[0], Floors[1] })
+            foreach (string template in Templates)
             {
                 GeneratedLevel level = null;
                 EnemyBoss boss = null;
-                yield return ThroneRoom(floor, (l, b) => { level = l; boss = b; });
+                yield return RoomOf(template, (l, b) => { level = l; boss = b; });
                 _health.Untouchable = true;
                 for (int round = 0; round < 2; round++)
                 {
@@ -95,6 +128,8 @@ namespace Roguelike.PlayModeTests
                     Assert.That(boss.TrialBegin(BossTrialAttack.Judgement), Is.True);
                     yield return Run(12f, Stand, () => boss.Judgement == EnemyBoss.JudgementStage.Ward);
                     Assert.That(boss.Judgement, Is.EqualTo(EnemyBoss.JudgementStage.Ward), boss.TrialTemplate + ": it kneels");
+                    yield return null;
+                    Assert.That(boss.ShadowsDrawn, Is.GreaterThanOrEqualTo(2), "the shadows drawn, dim, from the ward's rise");
                     Vector3 k = Flat(boss.transform.position);
                     for (int a = 0; a < 16; a++)
                     {

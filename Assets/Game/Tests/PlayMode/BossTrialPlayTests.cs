@@ -51,7 +51,7 @@ namespace Roguelike.PlayModeTests
         {
             EnemyBoss boss = null;
             yield return PracticeBoss(b => boss = b);
-            Assert.That(boss.Body.MaxHealth, Is.EqualTo(45000), "the trial fight at full health, as F8 starts it");
+            Assert.That(boss.Body.MaxHealth, Is.EqualTo(boss.TrialValues.Health), "the trial fight at full health, as F8 starts it");
             Assert.That(boss.TrialPhase, Is.EqualTo(1));
             Assert.That(boss.Values.Attacks.Length, Is.EqualTo(6));
             Assert.That(System.Array.Exists(boss.Values.Attacks, a => a.Name == BossValues.Spin), Is.False, "no Spin");
@@ -107,7 +107,7 @@ namespace Roguelike.PlayModeTests
                 if (Time.time - began < React) Stand();
                 else if (Flat(_player.Position - boss.transform.position).magnitude < boss.TrialValues.CleaveLength + 1.5f) Walk(away);
                 else Stand();
-                if (shownAtLeave < 0 && boss.State == EnemyState.Recover) shownAtLeave = boss.TrialLines.Shown;
+                if (boss.State == EnemyState.Recover) shownAtLeave = Mathf.Max(shownAtLeave, boss.TrialLines.Shown); // its path shows 0.15 s after the strike
             });
             Assert.That(Landed(BossTrialValues.Cleave), Is.EqualTo(0), "back out of the cone");
             Assert.That(Landed(BossTrialValues.Wave), Is.EqualTo(1), "but on the Wave's line");
@@ -316,6 +316,10 @@ namespace Roguelike.PlayModeTests
             Assert.That(boss.Seed(First(boss), out Vector3 seed, out _, out _), Is.True);
             Assert.That(Flat(seed - _player.Position).magnitude, Is.InRange(boss.TrialValues.SeedNear - 0.6f, boss.TrialValues.SeedFar + 1.6f), "4 to 7 m from her");
             Assert.That(Enemy.All.Count, Is.EqualTo(1), "seeds are not enemies");
+            for (int i = 0; i < boss.SeedSlots; i++)
+                if (boss.Seed(i, out Vector3 s0, out _, out _))
+                    Assert.That(BossTrialScreen.Seen(s0, boss.TrialValues.SeedCircle, boss.TrialValues.SeedHeight, boss.TrialValues.SeenMarginPx) && BossTrialScreen.Unhidden(s0, boss.TrialValues.SeedHeight),
+                                Is.True, "each seed and its circle seen, clear of her plates, not behind anything");
             Assert.That(OnFloor(seed + Side(seed - boss.transform.position) * 1f, 1.5f, out Vector3 beside), Is.True);
             _player.Teleport(beside);
             yield return Run(boss.TrialValues.SeedFill + 0.5f, Stand);
@@ -449,17 +453,25 @@ namespace Roguelike.PlayModeTests
                 Assert.Inconclusive("no open floor 15 m below the boss in the practice room");
             _player.Teleport(below);
             yield return Run(0.3f, Stand);
-            Assert.That(RangedOpening.OnScreen(boss.transform.position, boss.TrialValues.OnScreenMargin), Is.False, "off his screen");
+            Assert.That(boss.TrialSeen, Is.False, "off his screen");
             float woke = Time.time;
             var began = new List<(float t, bool seen)>();
             boss.Reported += r =>
             {
-                if (r.Kind == EnemyReportKind.AttackStarted) began.Add((Time.time, RangedOpening.OnScreen(boss.transform.position, boss.TrialValues.OnScreenMargin)));
+                if (r.Kind == EnemyReportKind.AttackStarted) began.Add((Time.time, boss.TrialSeen));
             };
             yield return Run(12f, Stand);
             Assert.That(began.Count, Is.GreaterThanOrEqualTo(2), "it walks into view and fights");
             Assert.That(began[0].t - woke, Is.GreaterThanOrEqualTo(1f), "nothing while it walked into view");
             foreach ((float t, bool seen) b in began) Assert.That(b.seen, Is.True, "an attack began at " + b.t + " with its body off his screen");
+            // Under the top-left plate (her health and focus) is not seen, though inside the camera's view (the second round).
+            Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.07f, 0.9f, 0f));
+            Assert.That(new Plane(Vector3.up, Vector3.zero).Raycast(ray, out float enter), Is.True);
+            Vector3 underPlate = ray.GetPoint(enter);
+            Assert.That(BossTrialScreen.Seen(underPlate, boss.Tuning.BodyRadius, boss.Tuning.BodyHeight, boss.TrialValues.SeenMarginPx), Is.False, "under her plate");
+            Ray mid = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.6f, 0f));
+            new Plane(Vector3.up, Vector3.zero).Raycast(mid, out enter);
+            Assert.That(BossTrialScreen.Seen(mid.GetPoint(enter), boss.Tuning.BodyRadius, boss.Tuning.BodyHeight, boss.TrialValues.SeenMarginPx), Is.True, "in the open middle of his screen");
         }
 
         // ---------------- The hurt guard ----------------

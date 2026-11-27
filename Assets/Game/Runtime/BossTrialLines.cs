@@ -27,10 +27,14 @@ namespace Roguelike
         readonly MaterialPropertyBlock _block = new MaterialPropertyBlock();
         readonly Vector3[] _points = new Vector3[MostPoints];
 
-        public BossTrialLines(LineRenderer template, Transform parent, int ready)
+        readonly AnimationCurve _width;
+
+        /// <summary>A pool of copies of the telegraph line; with <paramref name="width"/>, each line takes that width along it (Ruin's wedges: 0 at its middle, full at its end).</summary>
+        public BossTrialLines(LineRenderer template, Transform parent, int ready, AnimationCurve width = null)
         {
             _template = template;
             _parent = parent;
+            _width = width;
             for (int i = 0; i < ready; i++) Make();
         }
 
@@ -48,6 +52,7 @@ namespace Roguelike
             go.transform.localScale = Vector3.one;
             var l = go.GetComponent<LineRenderer>();
             l.useWorldSpace = true;
+            if (_width != null) l.widthCurve = _width;
             l.enabled = false;
             _all.Add(l);
             _free.Add(l);

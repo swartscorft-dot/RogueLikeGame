@@ -80,6 +80,8 @@ namespace Roguelike
         public float TrialSecondsSinceDash => float.IsNegativeInfinity(_lastDashPress) ? -1f : Time.time - _lastDashPress;
         /// <summary>The trial's drawings (for tests: none is made in a frame once warm).</summary>
         public BossTrialLines TrialLines => _lines;
+        /// <summary>Is its whole body seen on his screen: inside the view and clear of the interface's plates (<see cref="BossTrialScreen.Seen"/>)?</summary>
+        public bool TrialSeen => _tv == null || BossTrialScreen.Seen(transform.position, Tuning.BodyRadius, Tuning.BodyHeight, _tv.SeenMarginPx);
         /// <summary>The middle of its room (the throne room's floor; round its home in the practice room).</summary>
         public Vector3 TrialRoomMiddle => _roomMiddle;
         /// <summary>When the last recovery (or transition, or Judgement) ended.</summary>
@@ -432,7 +434,7 @@ namespace Roguelike
             var s = new BossTrialSituation
             {
                 Now = now, Phase = _phase, WokeAt = _trialWoke, LastEnded = _lastEnded, Distance = distance,
-                OnScreen = RangedOpening.OnScreen(transform.position, _tv.OnScreenMargin),
+                OnScreen = TrialSeen, // its whole body seen: in the view and clear of her plates (the second round)
                 LastBigEnded = _lastBigEnded, LastDashOnly = _lastDashOnly,
             };
             if (!BossTrialChooser.Ready(s, _tv)) return null;
@@ -595,12 +597,13 @@ namespace Roguelike
 
         sealed class Band
         {
-            public bool Live, Spared, Landed, Avoided;
+            public bool Live, Spared, Landed, Avoided, PathShown;
             public Vector3 From, Dir;
             public float Start, Flight, Before;
             public LineRenderer Path, Front;
         }
         readonly Band _wave = new Band();
+        Color WaveColour => new Color(_tv.WaveColour.R, _tv.WaveColour.G, _tv.WaveColour.B);
 
         void SendTrialWave(EnemyAttackDefinition cleave)
         {
@@ -617,22 +620,30 @@ namespace Roguelike
             _wave.Start = Time.time;
             _wave.Before = 0f;
             _wave.Flight = Mathf.Min(_tv.WaveFlight, Cover.ClearDistance(from, dir, _tv.WaveFlight, Tuning.SightHeight));
-            _wave.Path = _lines.Take(BossTrialLines.Red, true);
-            _lines.Strip(_wave.Path, from, dir, _wave.Flight, _tv.WaveWidth * 0.5f);
-            if (_wave.Path != null) _wave.Path.widthMultiplier = BossTrialLines.Thick;
-            _wave.Front = _lines.Take(BossTrialLines.Red, true);
+            _wave.Path = null; // drawn a moment after the strike (TickWave)
+            _wave.PathShown = false;
+            _wave.Front = _lines.Take(WaveColour, false);
         }
 
         void TickWave(float now)
         {
             if (!_wave.Live) return;
             float since = now - _wave.Start;
-            if (_wave.Path != null && since >= _tv.WaveDrawn) _wave.Path = _lines.Give(_wave.Path);
+            if (!_wave.PathShown && since >= _tv.WavePathAfter)
+            {
+                _wave.PathShown = true;
+                _wave.Path = _lines.Take(WaveColour, true);
+                _lines.Strip(_wave.Path, _wave.From, _wave.Dir, _wave.Flight, _tv.WaveWidth * 0.5f);
+                if (_wave.Path != null) _wave.Path.widthMultiplier = BossTrialLines.Thick;
+            }
+            if (_wave.Path != null && since >= _tv.WavePathAfter + _tv.WaveDrawn) _wave.Path = _lines.Give(_wave.Path);
             float at = Mathf.Min(_wave.Flight, since * _tv.WaveSpeed);
             if (_wave.Front != null)
             {
-                _lines.Strip(_wave.Front, _wave.From + _wave.Dir * Mathf.Max(0f, at - _tv.WaveDepth), _wave.Dir, _tv.WaveDepth * 2f, _tv.WaveWidth * 0.5f);
-                _wave.Front.widthMultiplier = BossTrialLines.Thick;
+                // Its front filled: a band across its whole width, as deep as the part that hits (a thing coming, not an outline).
+                Vector3 side = Vector3.Cross(Vector3.up, _wave.Dir) * (_tv.WaveWidth * 0.5f), mid = _wave.From + _wave.Dir * at;
+                _lines.Band(_wave.Front, mid - side, side.normalized, _tv.WaveWidth);
+                _wave.Front.widthMultiplier = _tv.WaveDepth * 2f;
             }
             if (!_wave.Spared && !_wave.Landed)
             {
@@ -812,7 +823,12 @@ namespace Roguelike
                     GroundPoint d = BossTrialRules.SpokeDirection(a, set, i, _tv);
                     var dir = new Vector3(d.X, 0f, d.Z);
                     _spokes.Dir[set * 6 + i] = dir;
-                    _spokes.Length[set * 6 + i] = Cover.ClearDistance(_spokes.Origin, dir, _tv.SpokeReach, Tuning.SightHeight);
+                    // Stopped where it first meets a wall or pier along its middle or either edge (the second round: a strip whose middle
+                    // missed a pier was drawn over it), and drawn and judged so.
+                    Vector3 edge = Vector3.Cross(Vector3.up, dir) * (_tv.SpokeHalfWidth * 0.95f);
+                    _spokes.Length[set * 6 + i] = Mathf.Min(Cover.ClearDistance(_spokes.Origin, dir, _tv.SpokeReach, Tuning.SightHeight),
+                        Mathf.Min(Cover.ClearDistance(_spokes.Origin + edge, dir, _tv.SpokeReach, Tuning.SightHeight),
+                                  Cover.ClearDistance(_spokes.Origin - edge, dir, _tv.SpokeReach, Tuning.SightHeight)));
                 }
             DrawSpokeSet(0);
             PoseSlam(0f, true); // it plants its weapon: the crouch of the slam, held
@@ -939,10 +955,9 @@ namespace Roguelike
                 EndRing();
                 return;
             }
-            // Two circles moving, its inner and outer edge, each broken where a pillar or wall stops it.
-            int used = 0;
-            used = DrawRingCircle(r - half, used);
-            used = DrawRingCircle(r + half, used);
+            // One filled band as wide as the part that hits, broken where a pillar or wall stops it (the second round: two thin circles
+            // read like the landing's own flash; the ring is what still threatens, so it is the clearer of the two).
+            int used = DrawRingCircle(r, 0);
             for (int i = used; i < _ring.Arcs.Length; i++) if (_ring.Arcs[i] != null) _ring.Arcs[i].enabled = false;
         }
 
@@ -980,7 +995,7 @@ namespace Roguelike
             if (l == null) return;
             l.enabled = true;
             l.loop = whole;
-            l.widthMultiplier = BossTrialLines.Thick;
+            l.widthMultiplier = _tv.RingThickness;
             _lines.Arc(l, _ring.Middle, radius, from, to, _ring.Clear.Length);
         }
 
@@ -1006,7 +1021,6 @@ namespace Roguelike
         }
         readonly SeedThing[] _seeds = new SeedThing[6];
         MaterialPropertyBlock _seedBlock;
-        static readonly Color s_SeedGrey = new Color(0.62f, 0.62f, 0.64f);
 
         /// <summary>Seeds on the ground now, and seed <paramref name="i"/>'s place and burst (for tests and the bot).</summary>
         public int SeedsLive
@@ -1045,7 +1059,11 @@ namespace Roguelike
                     if (!NavMesh.SamplePosition(at, out NavMeshHit hit, _tv.SeedFindGround, NavMesh.AllAreas) || Mathf.Abs(hit.position.y) > 0.5f) continue;
                     at = Flat(hit.position);
                     if (Vector3.Distance(at, Flat(Player.Position)) < _tv.SeedNear - 0.5f) continue;
-                    if (!RangedOpening.OnScreen(at, 0.5f)) continue; // in view
+                    // Seen (the second round): its sphere and its whole circle in view and clear of her plates, not behind a pier from his
+                    // camera, its circle on open floor (no wall or pier inside it).
+                    if (!BossTrialScreen.Seen(at, _tv.SeedCircle, _tv.SeedHeight + _tv.SeedSize * 0.5f, _tv.SeenMarginPx)) continue;
+                    if (!BossTrialScreen.Unhidden(at, _tv.SeedHeight)) continue;
+                    if (!Clear(at, _tv.SeedCircle)) continue;
                     if (TooNearASeed(at)) continue;
                     if (PlaceSeed(at, now, fill)) placed++;
                     break;
@@ -1081,8 +1099,9 @@ namespace Roguelike
                 s.Sphere.transform.SetParent(transform.parent, true);
                 if (_seedBlock == null) _seedBlock = new MaterialPropertyBlock();
                 _seedBlock.Clear();
-                _seedBlock.SetColor("_BaseColor", s_SeedGrey);
-                _seedBlock.SetColor("_Color", s_SeedGrey);
+                var grey = new Color(_tv.SeedColour.R, _tv.SeedColour.G, _tv.SeedColour.B);
+                _seedBlock.SetColor("_BaseColor", grey);
+                _seedBlock.SetColor("_Color", grey);
                 s.Sphere.GetComponent<Renderer>().SetPropertyBlock(_seedBlock);
             }
             s.Sphere.transform.position = at + Vector3.up * _tv.SeedHeight;
@@ -1179,6 +1198,8 @@ namespace Roguelike
         float _ruinSeconds;
 
         public JudgementStage Judgement => _judgement;
+        /// <summary>s left to break the ward while it stands, else 0 (shown on its bar).</summary>
+        public float WardTimeLeft => _judgement == JudgementStage.Ward && _tv != null ? Mathf.Max(0f, _tv.WardSeconds - (Time.time - _stageAt)) : 0f;
         /// <summary>The ward's damage taken so far, of <see cref="BossTrialValues.Ward"/>.</summary>
         public int WardTaken => _ward;
         public Vector3 KneelPlace => _kneel;
@@ -1323,6 +1344,7 @@ namespace Roguelike
                 _shadowEdge[i] = edge;
                 _shadowClear[i] = Cover.ClearDistance(_kneel, new Vector3(d.X, 0f, d.Z), edge + 1f, Tuning.SightHeight);
             }
+            DrawShadows(_tv.ShadowDimWidth); // dim from the ward's rise: 8 s to see where shelter is
             NoteTrial(BossTrialLog.Ward, BossTrialValues.Judgement, "began", "yes", "ward", Int(_tv.Ward));
         }
 
@@ -1333,6 +1355,7 @@ namespace Roguelike
             NoteTrial(BossTrialLog.Ward, BossTrialValues.Judgement, "broken", "yes", "seconds", Text(since));
             _judgement = JudgementStage.Dazed;
             _stageAt = now;
+            for (int i = 0; i < _shadowLines.Length; i++) _shadowLines[i] = _lines.Give(_shadowLines[i]); // no Ruin: no shelter to show
             PoseSlam(0f, false);
             DazeTrial(_tv.WardDaze);
         }
@@ -1350,7 +1373,16 @@ namespace Roguelike
             // The room's walls are mostly off his screen: the room itself tells it, its lamps red and its body red, until Ruin strikes.
             BossRoomLight.Answer(this, _tv.RuinLamps);
             Tint(new Color(_tv.RuinLamps.R, _tv.RuinLamps.G, _tv.RuinLamps.B));
-            // Each pillar's shadow away from it, pale: the runs of directions its line stops short of the room's edge.
+            // The shadows, drawn dim since the ward rose, turn bright; the floor he can see is hatched red out to where each line is stopped.
+            for (int i = 0; i < _shadowsDrawn; i++) if (_shadowLines[i] != null) _shadowLines[i].widthMultiplier = _tv.ShadowLineWidth;
+            DrawRuinFan();
+            int drawn = _shadowsDrawn;
+            NoteTrial(BossTrialLog.Ruin, BossTrialValues.Ruin, "seconds", Text(_ruinSeconds), "shadows", Int(drawn), "in_shadow", InRuinShadow(Player.Position) ? "yes" : "no");
+        }
+
+        /// <summary>Each pillar's shadow away from it, pale: the runs of directions its line stops short of the room's edge.</summary>
+        void DrawShadows(float width)
+        {
             int n = _shadowClear.Length, drawn = 0, start = -1;
             bool Deep(int i) => _shadowEdge[i] - _shadowClear[i] > ShadowDepth;
             for (int i = 0; i < n; i++) if (!Deep(i)) { start = i; break; }
@@ -1369,7 +1401,7 @@ namespace Roguelike
                         {
                             _shadowLines[drawn] = _lines.Take(BossTrialLines.Pale, true);
                             _lines.Shadow(_shadowLines[drawn], _kneel, _shadowClear, _shadowEdge, from, to);
-                            if (_shadowLines[drawn] != null) _shadowLines[drawn].widthMultiplier = _tv.ShadowLineWidth;
+                            if (_shadowLines[drawn] != null) _shadowLines[drawn].widthMultiplier = width;
                             drawn++;
                         }
                         from = -1;
@@ -1377,7 +1409,37 @@ namespace Roguelike
                 }
             }
             _shadowsDrawn = drawn;
-            NoteTrial(BossTrialLog.Ruin, BossTrialValues.Ruin, "seconds", Text(_ruinSeconds), "shadows", Int(drawn), "in_shadow", InRuinShadow(Player.Position) ? "yes" : "no");
+        }
+
+        BossTrialLines _fan;
+        readonly LineRenderer[] _fanLines = new LineRenderer[256];
+
+        /// <summary>
+        /// Ruin over the floor he can see (the second round): red wedges from it out to where each wedge's lines are first stopped (the
+        /// nearest stop within the wedge, so no wedge paints a shadow), hatched so the floor shows between them.
+        /// </summary>
+        void DrawRuinFan()
+        {
+            if (_fan == null) _fan = new BossTrialLines(Telegraph, transform.parent, 0, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            int wedges = Mathf.Clamp(_tv.RuinFanWedges, 8, _fanLines.Length), n = _shadowClear.Length;
+            for (int w = 0; w < wedges; w++)
+            {
+                int from = w * n / wedges, to = (w + 1) * n / wedges;
+                float reach = float.PositiveInfinity;
+                for (int i = from; i < to; i++) reach = Mathf.Min(reach, _shadowClear[i]);
+                if (float.IsInfinity(reach) || reach < 0.5f) continue;
+                float angle = (from + to) * 0.5f / n * Mathf.PI * 2f;
+                var dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                _fanLines[w] = _fan.Take(BossTrialLines.Red, false);
+                _fan.Band(_fanLines[w], _kneel, dir, reach);
+                if (_fanLines[w] != null) _fanLines[w].widthMultiplier = 2f * reach * Mathf.Tan(Mathf.PI / wedges) * _tv.RuinFanFill;
+            }
+        }
+
+        void EndRuinFan()
+        {
+            if (_fan == null) return;
+            for (int i = 0; i < _fanLines.Length; i++) _fanLines[i] = _fan.Give(_fanLines[i]);
         }
 
         /// <summary>m: a direction's line must stop this far short of the room's edge for the ground behind to be drawn as a shadow.</summary>
@@ -1403,6 +1465,7 @@ namespace Roguelike
             }
             _judgement = JudgementStage.None;
             _ruinLine = _lines.Give(_ruinLine);
+            EndRuinFan();
             for (int i = 0; i < _shadowLines.Length; i++) _shadowLines[i] = _lines.Give(_shadowLines[i]);
             if (_tvHeldStagger != null && _self.Stagger == null) _self.Stagger = _tvHeldStagger;
             _tvHeldStagger = null;
@@ -1461,6 +1524,7 @@ namespace Roguelike
             if (_trialOn) EndTrialFight(BossFightEvents.Removed);
             for (int i = 0; i < _seeds.Length; i++) if (_seeds[i] != null && _seeds[i].Sphere != null) Destroy(_seeds[i].Sphere);
             _lines?.DestroyAll();
+            _fan?.DestroyAll();
         }
 
         // ---------------- The record (7.9) ----------------

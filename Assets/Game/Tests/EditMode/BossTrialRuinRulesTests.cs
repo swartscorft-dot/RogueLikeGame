@@ -65,6 +65,57 @@ namespace Roguelike.Tests
             Assert.That(v.RuinSecondsFor(null), Is.EqualTo(v.RuinSeconds));
         }
 
+        /// <summary>m his camera shows of the ground round her (research R3's metrics): to each side, above her and below her.</summary>
+        const float ViewSide = 13.3f, ViewUp = 11.3f, ViewDown = 7.7f;
+
+        /// <summary>
+        /// The second round: the shadows are drawn (dim) from the moment the ward rises. With the room as drawn (the door at his screen's
+        /// bottom), from how many places within 10 m of the middle is a shadow on his screen, and is any shadow one he could not have
+        /// seen from anywhere near the boss?
+        /// </summary>
+        [TestCase("throne-nave")]
+        [TestCase("throne-arcade")]
+        public void WithTheShadowsDrawnFromTheWardsRise_AShadowIsOnHisScreen_FromWhereHeStands(string name)
+        {
+            RoomTemplate t = Template(name);
+            List<GroundRect> blocks = RuinShadows.Blocks(t, Cell, out GroundRect room);
+            var middle = new GroundPoint((room.X0 + room.X1) * 0.5f, (room.Z0 + room.Z1) * 0.5f);
+            float[] clear = RuinShadows.Table(middle, blocks, room, new BossTrialValues().ShadowSamples);
+            var shadow = new List<GroundPoint>();
+            var places = new List<GroundPoint>();
+            float body = new BossValues().BodyRadius;
+            for (float x = room.X0 + 0.25f; x < room.X1; x += 0.5f)
+                for (float z = room.Z0 + 0.25f; z < room.Z1; z += 0.5f)
+                {
+                    bool open = true;
+                    foreach (GroundRect b in blocks) if (b.Contains(x, z, HerRadius)) { open = false; break; }
+                    if (!open) continue;
+                    var p = new GroundPoint(x, z);
+                    if (RuinShadows.InShadow(clear, middle, p)) shadow.Add(p);
+                    else if (p.DistanceTo(middle) <= Within && p.DistanceTo(middle) >= body + HerRadius) places.Add(p);
+                }
+            bool InView(GroundPoint her, GroundPoint q) => Math.Abs(q.X - her.X) <= ViewSide && q.Z - her.Z <= ViewUp && her.Z - q.Z <= ViewDown;
+            int blind = 0;
+            GroundPoint worst = default;
+            foreach (GroundPoint her in places)
+            {
+                bool any = false;
+                foreach (GroundPoint q in shadow) if (InView(her, q)) { any = true; break; }
+                if (!any) { blind++; worst = her; }
+            }
+            int unseen = 0;
+            foreach (GroundPoint q in shadow)
+            {
+                bool seen = false;
+                foreach (GroundPoint her in places) if (InView(her, q)) { seen = true; break; }
+                if (!seen) unseen++;
+            }
+            TestContext.WriteLine(name + ": " + places.Count + " places within 10 m; from " + blind + " of them no shadow is on his screen"
+                                  + (blind > 0 ? " (e.g. " + worst + ")" : "") + "; " + unseen + " of " + shadow.Count + " shadow cells never on his screen from anywhere within 10 m");
+            Assert.That(shadow.Count, Is.GreaterThan(0));
+            Assert.That(unseen, Is.LessThan(shadow.Count), "some shelter can be seen from near the boss");
+        }
+
         [Test]
         public void AShadow_IsBehindAPier_AwayFromTheBoss_AndJudgedByTheSameTable()
         {
