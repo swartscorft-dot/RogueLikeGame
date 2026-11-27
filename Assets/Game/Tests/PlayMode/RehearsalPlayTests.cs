@@ -507,6 +507,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_menu.Open(MenuScreen.Main), Is.True);
             yield return null;
             Assert.That(_menu.MainLines, Does.Contain(MainLine.Rehearsal), "the entry: what is gone is dropped, the rest kept");
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("A Skill Long Gone is not a skill of hers now: left out")); // a warning, never an error
             Assert.That(_menu.PickMain(MainLine.Rehearsal), Is.True, "the rehearsal starts");
             yield return Frames(3);
             Assert.That(_levels.InRehearsal, Is.True);
