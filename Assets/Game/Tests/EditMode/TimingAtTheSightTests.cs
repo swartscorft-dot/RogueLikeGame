@@ -280,14 +280,15 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void TheSetting_FourCues_BarOnlyByDefault_SteppingRoundAndBack_TheClickOnWithAnyCueButTheBar()
         {
-            Assert.That(TimingCues.Names, Is.EqualTo(new[] { "Bar only", "Cylinder", "Ring", "Hammer" }), "the order's values");
+            Assert.That(TimingCues.Names, Is.EqualTo(new[] { "Bar only", "Cylinder", "Ring", "Hammer", "Sight" }), "the order's values, and work order 144's sight last");
             Assert.That(TimingCues.Count, Is.EqualTo(Enum.GetValues(typeof(TimingCue)).Length));
             Assert.That(TimingCues.Default, Is.EqualTo(TimingCue.BarOnly), "today's, until he has chosen");
             Assert.That(TimingCues.Next(TimingCue.BarOnly), Is.EqualTo(TimingCue.Cylinder));
             Assert.That(TimingCues.Next(TimingCue.Cylinder), Is.EqualTo(TimingCue.Ring));
             Assert.That(TimingCues.Next(TimingCue.Ring), Is.EqualTo(TimingCue.Hammer));
-            Assert.That(TimingCues.Next(TimingCue.Hammer), Is.EqualTo(TimingCue.BarOnly), "and round");
-            Assert.That(TimingCues.Previous(TimingCue.BarOnly), Is.EqualTo(TimingCue.Hammer));
+            Assert.That(TimingCues.Next(TimingCue.Hammer), Is.EqualTo(TimingCue.Sight), "work order 144's sight after the hammer");
+            Assert.That(TimingCues.Next(TimingCue.Sight), Is.EqualTo(TimingCue.BarOnly), "and round");
+            Assert.That(TimingCues.Previous(TimingCue.BarOnly), Is.EqualTo(TimingCue.Sight));
             Assert.That(TimingCues.Step(7), Is.EqualTo(TimingCue.BarOnly), "a stored value that is no cue: the default");
             Assert.That(TimingCues.Step(-1), Is.EqualTo(TimingCue.BarOnly));
             Assert.That(TimingCues.Step(2), Is.EqualTo(TimingCue.Ring), "a stored cue comes back as it was saved");
@@ -346,9 +347,9 @@ namespace Roguelike.Rules.Tests
                 forward.Add(TimingCueLines.CueWords(c));
                 c = TimingCueLines.Stepped(c, 1);
             }
-            Assert.That(forward, Is.EqualTo(new[] { "Bar only", "Cylinder", "Ring", "Hammer" }), "the four names");
+            Assert.That(forward, Is.EqualTo(new[] { "Bar only", "Cylinder", "Ring", "Hammer", "Sight" }), "the five names (work order 144's sight last)");
             Assert.That(c, Is.EqualTo(TimingCue.BarOnly), "round and back");
-            Assert.That(TimingCueLines.Stepped(TimingCue.BarOnly, -1), Is.EqualTo(TimingCue.Hammer), "a step back");
+            Assert.That(TimingCueLines.Stepped(TimingCue.BarOnly, -1), Is.EqualTo(TimingCue.Sight), "a step back");
             Assert.That(TimingCueLines.Stepped(TimingCue.Ring, -1), Is.EqualTo(TimingCue.Cylinder));
             Assert.That(TimingCueLines.ClickWords(true), Is.EqualTo("on"));
             Assert.That(TimingCueLines.ClickWords(false), Is.EqualTo("off"));

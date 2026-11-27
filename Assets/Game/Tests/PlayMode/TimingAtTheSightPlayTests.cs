@@ -539,14 +539,15 @@ namespace Roguelike.PlayModeTests
             Assert.That(Key, Is.Not.EqualTo(GeneratedLevels.HairTriggerKey).And.Not.EqualTo(GeneratedLevels.SteadyHandKey).And.Not.EqualTo(GeneratedLevels.TodaysFocusKey), "not the run's keys");
             Assert.That(Key, Is.Not.EqualTo(b.Interact), "not the chest's");
             var seen = new List<TimingCue>();
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < TimingCues.Offered; i++) // work order 144: five with the sight's switch on
             {
                 _cue.PressStepKey(false);
                 seen.Add(TimingCueSettings.CueChosen);
                 Assert.That(_cue.NameShowing, Is.True, "the name shows");
                 Assert.That(_cue.NameText, Does.Contain(TimingCues.Names[(int)TimingCueSettings.CueChosen].ToUpperInvariant()));
             }
-            Assert.That(seen, Is.EqualTo(new[] { TimingCue.Cylinder, TimingCue.Ring, TimingCue.Hammer, TimingCue.BarOnly }), "round and back");
+            Assert.That(seen, Is.EqualTo(SightValues.On ? new[] { TimingCue.Cylinder, TimingCue.Ring, TimingCue.Hammer, TimingCue.Sight, TimingCue.BarOnly }
+                                                        : new[] { TimingCue.Cylinder, TimingCue.Ring, TimingCue.Hammer, TimingCue.BarOnly }), "round and back");
             _cue.PressStepKey(false);
             Assert.That(TimingCueSettings.SoundNow, Is.True);
             _cue.PressStepKey(true);

@@ -19,6 +19,8 @@ namespace Roguelike.Rules
         Ring = 2,
         /// <summary>Nothing at the sight: her pistols' muzzles light up step by step, brightest while the press is clean.</summary>
         Hammer = 3,
+        /// <summary>Work order 144: the sight's arm climbs from its pin at one rate; its catch is under the teeth zone exactly while the press is clean (<see cref="SightArm"/>). Only with the sight's switch on.</summary>
+        Sight = 4,
     }
 
     /// <summary>
@@ -94,23 +96,26 @@ namespace Roguelike.Rules
     /// </summary>
     public static class TimingCues
     {
-        public const int Count = 4;
+        public const int Count = 5;
         /// <summary>The step a player gets who has none stored: today's, the bar only (the order: until he has chosen).</summary>
         public const TimingCue Default = TimingCue.BarOnly;
         /// <summary>The words of each on a menu's line and at the sight.</summary>
-        public static readonly string[] Names = { "Bar only", "Cylinder", "Ring", "Hammer" };
+        public static readonly string[] Names = { "Bar only", "Cylinder", "Ring", "Hammer", "Sight" };
+
+        /// <summary>The cues offered now: all of them, or without work order 144's sight (the last) with its switch off.</summary>
+        public static int Offered => SightValues.On ? Count : Count - 1;
 
         /// <summary>The sound's stored value: none stored (its default follows the cue), off, on.</summary>
         public const int SoundNotStored = -1, SoundOff = 0, SoundOn = 1;
 
         /// <summary>A stored value made a cue: anything that is not one is the default.</summary>
-        public static TimingCue Step(int stored) => stored >= 0 && stored < Count ? (TimingCue)stored : Default;
+        public static TimingCue Step(int stored) => stored >= 0 && stored < Offered ? (TimingCue)stored : Default;
 
-        /// <summary>The cue after this one: Bar only, Cylinder, Ring, Hammer and back.</summary>
-        public static TimingCue Next(TimingCue cue) => (TimingCue)(((int)Step((int)cue) + 1) % Count);
+        /// <summary>The cue after this one: Bar only, Cylinder, Ring, Hammer, Sight (with work order 144's switch on) and back.</summary>
+        public static TimingCue Next(TimingCue cue) => (TimingCue)(((int)Step((int)cue) + 1) % Offered);
 
         /// <summary>The cue before this one.</summary>
-        public static TimingCue Previous(TimingCue cue) => (TimingCue)(((int)Step((int)cue) + Count - 1) % Count);
+        public static TimingCue Previous(TimingCue cue) => (TimingCue)(((int)Step((int)cue) + Offered - 1) % Offered);
 
         /// <summary>A stored sound value made one: anything else is none stored.</summary>
         public static int StoredSound(int stored) => stored == SoundOff || stored == SoundOn ? stored : SoundNotStored;
