@@ -13,6 +13,22 @@ namespace Roguelike.Rules.Tests
     /// </summary>
     public class TripleTapRhythmRulesTests
     {
+        // Work order 142's second round moved two defaults (KitTimingChoices): these tests pin the numbers before it, so they
+        // are given them here, and put back after.
+        [SetUp]
+        public void TheNumbersBefore142()
+        {
+            KitTimingChoices.LastPressAt036 = false;
+            KitTimingChoices.BackstepFromHopsEnd = false;
+        }
+
+        [TearDown]
+        public void PutBack142()
+        {
+            KitTimingChoices.LastPressAt036 = true;
+            KitTimingChoices.BackstepFromHopsEnd = true;
+        }
+
         const int Slot = 7;
 
         static SkillDefinition Skill(string name) => SkillDefaults.Create().First(s => s.Name == name);

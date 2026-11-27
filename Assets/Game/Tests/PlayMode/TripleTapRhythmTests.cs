@@ -125,7 +125,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(PressAndCompare("second"), Is.EqualTo(IntentResult.Started));
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.RecastWindowSeconds, Is.EqualTo(0.80f).Within(1e-5f), "the third press's window: the beat");
-            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f));
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(KitTimingChoices.LastPressCleanFrom).Within(1e-5f)); // work order 142: 0.36 (0.42 before)
             Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f));
             yield return UntilSince(0.54f);
             Assert.That(PressAndCompare("third"), Is.EqualTo(IntentResult.Started));
@@ -180,7 +180,10 @@ namespace Roguelike.PlayModeTests
 
         [UnityTest] public IEnumerator TheThirdPress_At005_IsAShot_Early() => Third(0.05f, RecastTiming.Early);
         [UnityTest] public IEnumerator TheThirdPress_At020_IsAShot_Early_TheMorningsCleanTimeIsNotCleanAnyMore() => Third(0.20f, RecastTiming.Early);
-        [UnityTest] public IEnumerator TheThirdPress_At040_IsAShot_Early() => Third(0.40f, RecastTiming.Early);
+        // Work order 142's second round (KitTimingChoices.LastPressAt036, his tick of 2026-11-26): the last press is clean from 0.36 s,
+        // so 0.40 s, early until then, is clean; 0.33 s is early.
+        [UnityTest] public IEnumerator TheThirdPress_At033_IsAShot_Early() => Third(0.33f, RecastTiming.Early);
+        [UnityTest] public IEnumerator TheThirdPress_At040_IsClean_SinceWorkOrder142() => Third(0.40f, RecastTiming.Clean);
         [UnityTest] public IEnumerator TheThirdPress_At050_IsClean() => Third(0.50f, RecastTiming.Clean);
         [UnityTest] public IEnumerator TheThirdPress_At070_IsAShot_Late() => Third(0.70f, RecastTiming.Late);
         [UnityTest] public IEnumerator TheThirdPress_At085_IsNoShot_TheWindowRanOut() => Third(0.85f, RecastTiming.Missed);

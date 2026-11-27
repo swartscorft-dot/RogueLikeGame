@@ -162,6 +162,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Backstep_APressAt02sIsClean_At005sAndAt045sIsNot_AndTheLateOneSaysSo()
         {
+            OwnKit(k => k.OpeningMoveCleanFrom = 0.03f); // work order 142 opened Backstep's clean part with the hop's end: this test of a press before it is given the 0.03 s before
             Assume.That(_player.Kit.CleanEarly, Is.True, "the new placement as the game ships");
             // Changed deliberately by work order 064: Backstep's clean part after its hop is its own, 0.03 to 0.23 s (it was
             // the kit's 0.10 to 0.30), so the early press is at 0.01 s, not 0.05.
@@ -196,12 +197,13 @@ namespace Roguelike.PlayModeTests
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the second press");
             yield return Until(() => _player.IsRecastWindowOpen, 2f);
-            Assert.That(_player.RecastCleanFrom, Is.EqualTo(0.42f).Within(1e-5f), "the clean part from 0.42 s...");
+            // Work order 142's second round (KitTimingChoices.LastPressAt036, his tick of 2026-11-26): from 0.36 s, 0.42 s before.
+            Assert.That(_player.RecastCleanFrom, Is.EqualTo(KitTimingChoices.LastPressCleanFrom).Within(1e-5f), "the clean part from 0.36 s...");
             Assert.That(_player.RecastCleanTo, Is.EqualTo(0.66f).Within(1e-5f), "...to 0.66 s after the window opened");
             yield return Until(() => _player.RecastSinceOpened >= 0.2f, 2f);
             Assert.That(_player.RecastPressWouldBeClean, Is.False, "0.2 s: this morning's clean time is early now");
             yield return Until(() => _player.RecastSinceOpened >= 0.54f, 2f);
-            Assume.That(_player.RecastSinceOpened, Is.InRange(0.42f, 0.66f));
+            Assume.That(_player.RecastSinceOpened, Is.InRange(KitTimingChoices.LastPressCleanFrom, 0.66f));
             Assert.That(_player.RecastPressWouldBeClean, Is.True);
             Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started), "the last press");
             Assert.That(_recasts.Last().Clean, Is.True, "clean");
@@ -318,6 +320,7 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheBarsMarker_AgreesWithTheJudge_ThroughAHitStop_AndStandsStillInAPause()
         {
+            OwnKit(k => k.OpeningMoveCleanFrom = 0.03f); // work order 142 opened Backstep's clean part with the hop's end: this test of a press before it is given the 0.03 s before
             _levels = GeneratedLevels.Ensure();
             yield return null;
             yield return BackstepWindowOpen();

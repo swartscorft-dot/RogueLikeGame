@@ -37,7 +37,7 @@ namespace Roguelike.Rules
         // fell before the clean part's 0.10 s. The clean part of the window after an opening move moves early by the same
         // 0.20 s width, as work order 040 moved the first one; a press that waited from the hop is still never clean. The
         // asset holds none of these, so these defaults are what the game reads. Each below 0 gives the morning's.
-        public float OpeningMoveCleanFrom = 0.03f;  // s after the hop's end that the clean part begins; below 0, CleanFrom (0.10)
+        public float OpeningMoveCleanFrom = KitTimingChoices.OpeningMoveCleanFrom; // s after the hop's end that the clean part begins (0.03 until work order 142: 0, with the hop's end; KitTimingChoices.BackstepFromHopsEnd off gives 0.03); below 0, CleanFrom (0.10)
         public float OpeningMoveCleanTo = 0.23f;    // s after it that the clean part ends; below 0, CleanTo (0.30)
         public float OpeningMoveShotStartup = 0.08f; // s from the second press to the shot; below 0, the skill's Startup (0.2)
         // (OpeningMoveCooldownBuffer, Backstep's own 0.25 s, became CooldownBuffer below in work order 066.)
@@ -64,7 +64,7 @@ namespace Roguelike.Rules
         public float QuickPressCleanFrom = 0.12f;  // s after the shot that a quick press's clean part begins (the producer's guess was 0.10); below 0, CleanFrom
         public float QuickPressCleanTo = 0.30f;    // s after the shot that it ends (the producer's guess was 0.28); below 0, CleanTo
         public float LastPressWindow = 0.80f;      // s after the shot before it that the last press's window stays open; below 0, the skill's RecastWindow
-        public float LastPressCleanFrom = 0.42f;   // s after that shot that the last press's clean part begins: the beat; below 0, CleanFrom
+        public float LastPressCleanFrom = KitTimingChoices.LastPressCleanFrom; // s after that shot that the last press's clean part begins: the beat (0.42 until work order 142, his tick of 2026-11-26: 0.36; KitTimingChoices.LastPressAt036 off gives 0.42); below 0, CleanFrom
         public float LastPressCleanTo = 0.66f;     // s after it that it ends; below 0, CleanTo
 
         // Work order 138 (Kristian, 2026-11-25: "Jeg tror også vi har litt for mange spell slots. Kanskje fjerne 2 spell slots";

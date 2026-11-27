@@ -269,8 +269,9 @@ namespace Roguelike
             float x = track.x + track.width * ComboBlade;
             InterfaceStyle.Leaning(new Rect(Mathf.Max(track.x, x - 46f), track.y + 3f, Mathf.Min(46f, x - track.x), track.height - 6f), pivot, s, InterfaceStyle.C(v.White, 0.16f * a));
             var blade = new Rect(x - 3f, track.y - 12f, 6f, track.height + 24f);
-            InterfaceStyle.Leaning(new Rect(blade.x - 2f, blade.y - 2f, blade.width + 4f, blade.height + 4f), pivot, 0.35f, InterfaceStyle.C(v.Black, a));
-            InterfaceStyle.Leaning(blade, pivot, 0.35f, InterfaceStyle.C(v.White, a));
+            float lean = DrawnEdges.BladeLean(s, DrawnEdges.On); // work order 142: as the zones lean, so its edge and theirs agree at every height (0.35 before: 2 px apart at the track's top and foot)
+            InterfaceStyle.Leaning(new Rect(blade.x - 2f, blade.y - 2f, blade.width + 4f, blade.height + 4f), pivot, lean, InterfaceStyle.C(v.Black, a));
+            InterfaceStyle.Leaning(blade, pivot, lean, InterfaceStyle.C(v.White, a));
 
             // The label: a black plate with a teal cut, the name in the heavy italic, a red double slash after it.
             float lp = label.center.y;

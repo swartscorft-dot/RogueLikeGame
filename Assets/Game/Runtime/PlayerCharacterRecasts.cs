@@ -139,8 +139,26 @@ namespace Roguelike
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
             bool clean = _chain.NextIsLast
                 ? JudgeRecast(slot, now, buffered) == RecastPress.Clean
-                : hasClean && _chain.InCleanPart(slot, now, ChainCleanPart, buffered);
-            return RecastRhythm.TimingOf(_chain.SinceOpened(now), ChainCleanPart, clean, buffered, hasClean);
+                : hasClean && _chain.InCleanPart(slot, now, JudgedCleanPart, buffered);
+            return RecastRhythm.TimingOf(_chain.SinceOpened(now), JudgedCleanPart, clean, buffered, hasClean);
+        }
+
+        // Work order 142 (RecastGrace): the frame's grace while a press is judged (PressSkill), 0 at every other moment, so what is
+        // drawn and "a press now would be clean" keep the clean part as it is.
+        float _graceNow;
+
+        /// <summary>The clean part a press is judged by: <see cref="ChainCleanPart"/>, its end moved by the frame's grace while a press is judged.</summary>
+        CleanPart JudgedCleanPart => RecastGrace.Graced(ChainCleanPart, _graceNow);
+
+        /// <summary>True when a press judged clean now would not be without the frame's grace (for the play session's log).</summary>
+        bool CleanOnlyByGrace(int slot, float now, bool buffered, RecastTiming timing)
+        {
+            if (timing != RecastTiming.Clean || _graceNow <= 0f) return false;
+            float grace = _graceNow;
+            _graceNow = 0f;
+            RecastTiming without = _chain.NextIsLast && JudgeRecast(slot, now, buffered) == RecastPress.Clean ? RecastTiming.Clean : TimingOfRecast(slot, now, buffered);
+            _graceNow = grace;
+            return without != RecastTiming.Clean;
         }
 
         /// <summary>
@@ -152,7 +170,7 @@ namespace Roguelike
         RecastPress JudgeRecast(int slot, float now, bool buffered = false)
         {
             bool hasClean = RecastChain.HasCleanPress(Skills[slot]);
-            RecastPress judged = _chain.Judge(slot, now, ChainCleanPart, hasClean, buffered); // work order 064: after a hop, its own; 067: widened
+            RecastPress judged = _chain.Judge(slot, now, JudgedCleanPart, hasClean, buffered); // work order 064: after a hop, its own; 067: widened; 142: a press's frame of grace
             return _chainPrimed && _chain.Slot == slot ? FocusModeRules.Primed(judged, _chain.NextIsLast, hasClean) : judged;
         }
 
@@ -175,6 +193,7 @@ namespace Roguelike
             float since = _chain.SinceOpened(now);
             RecastTiming timing = clean ? RecastTiming.Clean : TimingOfRecast(slot, now, buffered);
             bool late = timing == RecastTiming.Late;
+            bool grace = CleanOnlyByGrace(slot, now, buffered, timing); // work order 142
             // Work order 064: whether this press fell in its window's clean part, the last press or not (a full clean chain).
             bool inRhythm = timing == RecastTiming.Clean; // work order 067: the one clean part
             _chain.Recast(inRhythm, timing);
@@ -185,6 +204,7 @@ namespace Roguelike
             {
                 Kind = PlayerReportKind.RecastPressed, Slot = slot, Shot = _chain.Shots, Clean = clean, Focus = focus, Late = late,
                 Timing = timing, Seconds = since, // work order 069
+                Grace = grace, // work order 142
             });
             if (_actionKind == ActionKind.Skill)
             {

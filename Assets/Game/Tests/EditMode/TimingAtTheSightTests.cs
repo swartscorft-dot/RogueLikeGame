@@ -17,6 +17,22 @@ namespace Roguelike.Rules.Tests
     /// </summary>
     public class TimingAtTheSightTests
     {
+        // Work order 142's second round moved two defaults (KitTimingChoices): these tests pin the numbers before it, so they
+        // are given them here, and put back after.
+        [SetUp]
+        public void TheNumbersBefore142()
+        {
+            KitTimingChoices.LastPressAt036 = false;
+            KitTimingChoices.BackstepFromHopsEnd = false;
+        }
+
+        [TearDown]
+        public void PutBack142()
+        {
+            KitTimingChoices.LastPressAt036 = true;
+            KitTimingChoices.BackstepFromHopsEnd = true;
+        }
+
         const int Slot = 7;
         const float Sample = 0.001f;     // s between sampled times: every millisecond of every window
         const float Before = 0.25f;      // s sampled before a window opens (the shot before in its startup)

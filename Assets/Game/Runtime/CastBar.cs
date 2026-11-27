@@ -251,7 +251,7 @@ namespace Roguelike
             {
                 case PlayerReportKind.RecastPressed:
                     ComboPressed(r); // work order 068: its zone on the combo bar, before the flash takes the bar's view
-                    StartFlash(CastBarRules.OfPress(r.Clean));
+                    StartFlash(CastBarRules.OfPress(CleanPressAnswers.AnsweredClean(r.Clean, r.Timing))); // work order 142: as judged, not only the rewarded press
                     break;
                 case PlayerReportKind.SkillFired when skill != null && skill.Input == SkillInput.Charge && !skill.NoCharge:
                     StartFlash(r.Clean ? CastBarFlash.Clean : CastBarFlash.Plain); // Clean: a perfect release
