@@ -43,7 +43,7 @@ namespace Roguelike.Rules
         public float RingOuter = 32f;          // px: ... to here (RING_R 29, RING_W 6): the inside clear to 26 px, as 134's band left it
         public float Outline = 1.5f;           // px of near-black outline round the brackets, the dot and the head (OUTLINE)
         public float BracketSpan = 74f;        // degrees each of the four brackets spans, centred top, right, bottom, left (gaps of 16)
-        public float BracketLineAlpha = 80f / 255f; // the brackets' dim teal line's opacity (the producer's pick of round 2b, "dim line")
+        public float BracketLineAlpha = 120f / 255f; // the brackets' teal line's opacity: 80 in the producer's pick of round 2b ("dim line"), too faint on the dark blue floors he plays on; 120 with the gunmetal a step lighter is the least that is seen at a glance there while the pointer's ring stays the brightest thing (work order 144, round 2: capturesdrackets)
         public float LineInset = 1.25f;        // px from the band's inner edge to the teal line's middle (TEAL_R 27.25)
         public float LineWidth = 2f;           // px: the teal line (the pointer's ring, and each bracket's dim line)
         public float PointerOutline = 1f;      // px of dark outline either side of the pointer's ring (TEAL_OL)
@@ -75,7 +75,7 @@ namespace Roguelike.Rules
 
         // ---------------- Colours (compose.py; 0 to 255 there) ----------------
         public Rgba Dark = new Rgba(14f / 255f, 14f / 255f, 18f / 255f);         // the outlines
-        public Rgba Gunmetal = new Rgba(64f / 255f, 70f / 255f, 78f / 255f);     // the brackets
+        public Rgba Gunmetal = new Rgba(96f / 255f, 105f / 255f, 117f / 255f);   // the brackets (and the whole ring's segments): a step lighter than part A's (64, 70, 78), which sank into the dark floors (round 2)
         public Rgba Bronze = new Rgba(205f / 255f, 152f / 255f, 82f / 255f);     // the arm, the pin, the teeth while a press is timed
         public Rgba BronzeDim = new Rgba(150f / 255f, 112f / 255f, 64f / 255f);  // the teeth too late
         public Rgba Teal = new Rgba(0.05f, 0.95f, 0.88f);                        // the ring, the dot, the teeth and pin at "now" (InterfaceValues.Teal)

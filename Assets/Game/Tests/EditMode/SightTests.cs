@@ -160,7 +160,11 @@ namespace Roguelike.Rules.Tests
             Assert.That(V.DotRadius + V.Outline, Is.EqualTo(4f), "the dot 8 px across with its outline: the floor round it open to 24.5 px");
             Assert.That(V.PinAngle, Is.EqualTo(150f));
             Assert.That(V.Rate, Is.EqualTo(100f));
-            Assert.That(V.BracketLineAlpha * 255f, Is.EqualTo(80f).Within(1e-3f));
+            Assert.That(V.BracketLineAlpha * 255f, Is.EqualTo(120f).Within(1e-3f), "round 2: 120 of 255 (80 was too faint on the dark floors)");
+            Assert.That(V.Gunmetal.R * 255f, Is.EqualTo(96f).Within(1e-3f), "round 2: the gunmetal a step lighter than part A's 64, 70, 78");
+            Assert.That(V.Gunmetal.G * 255f, Is.EqualTo(105f).Within(1e-3f));
+            Assert.That(V.Gunmetal.B * 255f, Is.EqualTo(117f).Within(1e-3f));
+            Assert.That(V.BracketLineAlpha, Is.LessThan(V.Teal.A), "the brackets' line stays under the pointer's own full teal");
             Assert.That(V.RackOuter * 2f, Is.EqualTo(98f), "about 98 px across while a press is timed");
             Assert.That(V.Late.R, Is.Not.EqualTo(new InterfaceValues().Red.R), "the dull red is not the enemies' warning red");
         }
