@@ -490,6 +490,7 @@ namespace Roguelike
                 if (!died) _endLines.Add(string.Format(s_Inv, "Health left  {0} / {1}", record.HealthLeft, record.MaxHealth));
                 AddBetweenRunsEndLines(); // work order 029: nothing with the switch off
                 _endLines.Add("Run seed  " + record.Seed);
+                AddRehearsalEndLines(died); // work order 148: a rehearsal's title and its fight's lines (RunHudRehearsal.cs)
                 EndLinesMade++; // work order 078
                 _endLaidOut = false;
             }
@@ -656,7 +657,7 @@ namespace Roguelike
         /// The end screen's second and third buttons (work order 066): "F6  same run" and "F7 / Esc  practice" while the
         /// developer's keys are on, as before; "Same run" (a click) and "Esc  practice" while they are off.
         /// </summary>
-        public static string EndSameRunButton => DeveloperKeys.On ? s_EndSameRun : "Same run";
+        public static string EndSameRunButton => RehearsalEndButton(1) ?? (DeveloperKeys.On ? s_EndSameRun : "Same run"); // work order 148: a rehearsal's "Main menu"
         public static string EndPracticeButton => DeveloperKeys.On ? s_EndPractice : "Esc  practice";
 
         List<string> _pauseKeys, _pauseStats;

@@ -28,7 +28,7 @@ namespace Roguelike
         static readonly string s_MenuPrompt = "Enter  main menu";
 
         /// <summary>The end screen's first answer: Enter goes to the main menu while the start menu is installed (work order 114), else a new run as before.</summary>
-        public static string EndNewRunButton => StartMenu.Current != null ? "Enter  main menu" : "Enter  new run";
+        public static string EndNewRunButton => RehearsalEndButton(0) ?? (StartMenu.Current != null ? "Enter  main menu" : "Enter  new run"); // work order 148: a rehearsal's "Enter  again"
 
         /// <summary>The practice room's prompt: Enter brings the main menu back while the start menu is installed (work order 114), else F5's as before.</summary>
         string StartPromptNow => StartMenu.Current != null ? s_MenuPrompt : s_StartPrompt;

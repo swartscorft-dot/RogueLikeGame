@@ -65,6 +65,7 @@ namespace Roguelike
             start.AddExtra("line_ups", RoomTrialSettings.InUse(GeneratedLevels.Current?.Values) ? "true" : "false"); // work order 135: on for the floors built as the session starts (each room's own on its room_fight)
             start.AddExtra("waves", RoomTrialSettings.WavesInUse(GeneratedLevels.Current?.Values) ? "true" : "false"); // work order 136: on for the floors set up as the session starts (each room's own "waves" on its room_fight)
             start.AddExtra("callers", RoomTrialSettings.CallersInUse(GeneratedLevels.Current?.Values) ? "true" : "false"); // work order 137: on for the floors set up as the session starts (each caller's calls in caller_call)
+            if (WritesRehearsal) start.AddExtra(RehearsalField, "true"); // work order 148: a rehearsal's session (PlaySessionRecorderRehearsal.cs)
             Add(start);
 
             IReadOnlyList<SkillDefinition> skills = player.Skills;

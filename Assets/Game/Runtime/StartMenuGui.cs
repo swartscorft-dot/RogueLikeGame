@@ -60,7 +60,7 @@ namespace Roguelike
         static readonly bool[] s_CharacterHintCap = { true, true, false };
 
         public static readonly string[] TabWords = { "START RUN", "UPGRADES", "STATS" };
-        public static readonly string[] MainWords = { "START RUN", "UPGRADES", "STATS", "QUIT", "SETTINGS" }; // SETTINGS: work order 128
+        public static readonly string[] MainWords = { "START RUN", "UPGRADES", "STATS", "QUIT", "SETTINGS", "REHEARSAL" }; // SETTINGS: work order 128; REHEARSAL: work order 148 ("Rehearsal: the boss")
         public const string BackWords = "BACK", NextWords = "RUN LOADOUT  >", EchoesWord = "ECHOES", TrialOffWord = "trial off", QuestionMark = "?";
 
         /// <summary>The view's width in the layout (1080 high).</summary>
