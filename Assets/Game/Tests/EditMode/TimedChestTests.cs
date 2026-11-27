@@ -42,7 +42,10 @@ namespace Roguelike.Rules.Tests
             Assert.That(C.DecayShare, Is.EqualTo(0.01f), "1 % of the whole");
             Assert.That(C.DecayEvery, Is.EqualTo(1f), "a second");
             Assert.That(C.Least, Is.EqualTo(0.1f), "never under 10 %");
-            Assert.That(C.WaveShare.Skip(2), Is.All.EqualTo(1f), "the order's 60 % tuned toward its target by the bot's numbers: the room's own count again");
+            Assert.That(C.WaveShare.Skip(2), Is.All.EqualTo(1.5f), "the order's 60 %, tuned toward its target by the bot's numbers: 1.5, the producer's round 2");
+            Assert.That(C.OverSize, Is.EqualTo(2 * 18), "the number over it twice the prompts' size");
+            Assert.That(C.PoolReach, Is.LessThan(new MoodValues().GoldReach), "its pool smaller than the vault chest's");
+            Assert.That(C.PoolStrength, Is.LessThan(new MoodValues().GoldPool), "and fainter");
             Assert.That(C.OpenWords, Is.EqualTo("Open: a fight, the reward shrinks"), "the order's prompt");
             Assert.That(TimedChestRules.Whole(1, C), Is.EqualTo(0), "none on floor 1");
             for (int floor = 2; floor <= 5; floor++) Assert.That(TimedChestRules.Whole(floor, C), Is.GreaterThan(0), "floor " + floor);
@@ -208,8 +211,8 @@ namespace Roguelike.Rules.Tests
                     Assert.That(lead, Is.EqualTo(leads == 0 ? 0 : Math.Max(1, (int)Math.Round(leads * share, MidpointRounding.AwayFromZero))));
                     Assert.That(partner, Is.EqualTo(partners == 0 ? 0 : Math.Max(1, (int)Math.Round(partners * share, MidpointRounding.AwayFromZero))));
                     Assert.That(lead + partner, Is.GreaterThan(0));
-                    Assert.That(lead, Is.LessThanOrEqualTo(leads), "never more than the room's own");
-                    Assert.That(partner, Is.LessThanOrEqualTo(partners));
+                    Assert.That(lead, Is.LessThanOrEqualTo((int)Math.Ceiling(leads * share) + 1), "its share of the room's own");
+                    Assert.That(partner, Is.LessThanOrEqualTo((int)Math.Ceiling(partners * share) + 1));
                 }
             Assert.That(rooms, Is.GreaterThan(100));
             var full = new LevelRoom { Kind = RoomKind.Combat, LineUp = new LineUp { Full = true } };
@@ -249,6 +252,25 @@ namespace Roguelike.Rules.Tests
             Assert.That(TimedChestRules.Left(13, 0d, C), Is.EqualTo(1), "never under the floor's own");
             Assert.That(TimedChestRules.Left(0, 1d, C), Is.EqualTo(0));
             Assert.That(TimedChestRules.Left(100, 0.735d, C), Is.EqualTo(74));
+        }
+
+        [Test]
+        public void ThePercentShown_TicksDownByOneEachSecondAfter9s_AndTheEchoesShownAreThoseOfIt()
+        {
+            Assert.That(TimedChestRules.Percent(TimedChestRules.Share(0d, C)), Is.EqualTo(100));
+            Assert.That(TimedChestRules.Percent(TimedChestRules.Share(8.9d, C)), Is.EqualTo(100), "whole until 9 s");
+            int before = 100;
+            for (int s = 10; s <= 99; s++)
+            {
+                int now = TimedChestRules.Percent(TimedChestRules.Share(s + 0.5d, C));
+                Assert.That(now, Is.EqualTo(before - 1), "one less at " + s + " s");
+                before = now;
+            }
+            Assert.That(before, Is.EqualTo(10), "the floor");
+            Assert.That(TimedChestRules.Percent(TimedChestRules.Share(300d, C)), Is.EqualTo(10));
+            for (int p = 10; p <= 100; p++)
+                Assert.That(TimedChestRules.LeftAt(13, p / 100d + 1e-7, C), Is.EqualTo(TimedChestRules.Left(13, p / 100d, C)), "the Echoes of " + p + " %");
+            Assert.That(TimedChestRules.LeftAt(13, 0.5d, C), Is.EqualTo(7), "6.5 rounds up");
         }
 
         // ---------------- The ROOMS page ----------------

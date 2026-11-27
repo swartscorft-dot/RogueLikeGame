@@ -130,7 +130,26 @@ namespace Roguelike.PlayModeTests
                     r += c.r; g += c.g; bl += c.b;
                     n++;
                 }
-            return n == 0 ? "the chest off screen" : string.Format(Inv, "the chest at ({0:0},{1:0}) px, mean ({2:0.000}, {3:0.000}, {4:0.000})", (a.x + b.x) * 0.5f, H - (a.y + b.y) * 0.5f, r / n, g / n, bl / n);
+            return n == 0 ? "the chest off screen" : string.Format(Inv, "the chest at ({0:0},{1:0}) px, mean ({2:0.000}, {3:0.000}, {4:0.000}); {5}", (a.x + b.x) * 0.5f, H - (a.y + b.y) * 0.5f, r / n, g / n, bl / n,
+                                                                    FloorColour(cam, at));
+        }
+
+        /// <summary>The floor's mean colour beside the chest, 1.6 to 2.6 m from its middle on its four sides (its pool reaches 1.8 m): what its shape reads against.</summary>
+        string FloorColour(Camera cam, Vector3 at)
+        {
+            double r = 0, g = 0, bl = 0;
+            int n = 0;
+            foreach (Vector3 dir in new[] { Vector3.right, Vector3.left, Vector3.forward, Vector3.back })
+                for (float d = 1.6f; d <= 2.61f; d += 0.25f)
+                {
+                    Vector3 s = cam.WorldToScreenPoint(at + dir * d + Vector3.up * 0.02f);
+                    int x = (int)s.x, y = (int)s.y;
+                    if (s.z <= 0f || x < 0 || y < 0 || x >= W || y >= H) continue;
+                    Color c = _read.GetPixel(x, y);
+                    r += c.r; g += c.g; bl += c.b;
+                    n++;
+                }
+            return n == 0 ? "the floor beside it off screen" : string.Format(Inv, "the floor beside it mean ({0:0.000}, {1:0.000}, {2:0.000})", r / n, g / n, bl / n);
         }
 
         void Save(string name, string what, Vector3 focus)
@@ -192,6 +211,12 @@ namespace Roguelike.PlayModeTests
             }
             GeneratedLevels.RoomDoors d = _levels.DoorsOf(room);
             yield return Until(() => (d == null || !d.Shut) && t.State == GeneratedLevels.TimedChestState.Openable, 4f);
+
+            // (e) The room cleared, she in its middle: the chest in its pool of warm light, seen from there.
+            _player.Teleport(middle);
+            yield return GameTime(2.5f); // the corpses gone, the doors sunk
+            Save("153-e-openable-seen-from-the-middle", where + ", the room cleared, she in its middle: the chest openable in its pool of light", _player.Position);
+
             Vector3 toward = new Vector3(middle.x - t.Place.x, 0f, middle.z - t.Place.z);
             _player.Teleport(OnNavMesh(t.Place + (toward.sqrMagnitude > 1e-4f ? toward.normalized : Vector3.forward) * 1.4f));
             yield return GameTime(2.5f); // the corpses gone, the doors sunk

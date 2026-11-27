@@ -77,8 +77,12 @@ namespace Roguelike
             internal Vector3[] OnMesh;
             internal sbyte[] OnMeshKnown; // 0 not asked, 1 on it, -1 not
             internal LevelRandom Rng;
-            internal GUIContent[] Numbers, Takes, Hud;
+            internal GUIContent[] Over, Takes, Hud; // by the percent shown, 0 to 100 (the producer's round 2)
             internal GUIContent Open;
+            /// <summary>Its pool of warm light on the floor while it is lit (the producer's round 2); null while unlit.</summary>
+            public MeshRenderer Pool;
+            internal Mesh PoolMesh;
+            internal Material PoolMaterial;
 
             /// <summary>The seconds its reward has fallen for: from the opening to now, or to its wave's last kill.</summary>
             public float Seconds(float now) => OpenedAt < 0f ? 0f : (WonAt >= 0f ? WonAt : now) - OpenedAt;
@@ -93,7 +97,7 @@ namespace Roguelike
 
         /// <summary>The share of its whole the chest's reward holds now (1 before it is opened), and its Echoes now.</summary>
         public double TimedChestShare => _timedChest == null ? 0d : TimedChestRules.Share(_timedChest.Seconds(Time.time), Values.TimedChestRules);
-        public int TimedChestEchoes => _timedChest == null ? 0 : TimedChestRules.Left(_timedChest.Whole, TimedChestShare, Values.TimedChestRules);
+        public int TimedChestEchoes => _timedChest == null ? 0 : TimedChestRules.LeftAt(_timedChest.Whole, TimedChestShare, Values.TimedChestRules); // as shown and as paid
 
         /// <summary>From <see cref="SetUpRoomFights"/>, after the callers, the waves and the doors: the floor's chest, if the rules give it one.</summary>
         void SetUpTimedChest()
@@ -173,21 +177,71 @@ namespace Roguelike
             obstacle.center = new Vector3(0f, obstacle.size.y * 0.5f, 0f);
             obstacle.carving = true;
             obstacle.carveOnlyStationary = true;
+            // The cave rule: drawn with its room, as every piece of the floor is (a renderer made after the floor was built: the doors' way).
+            if (_level.Cave != null)
+                foreach (Renderer r in t.Object.GetComponentsInChildren<Renderer>(true)) _level.Cave.TrackDoor(r, t.Room.Order, t.Room.Order);
         }
+
+        /// <summary>
+        /// Its pool of warm light (the producer's round 2): lit while it can be opened, through its fight and while its reward waits; gone
+        /// once taken or lost. The room mood's own pool (<see cref="MoodShapes.Pool"/>: added light on the floor, full at its middle and
+        /// nothing at its rim) in the vault chest's gold, under the room's own mood root when the mood is on (so it is the room's, shown and
+        /// rebuilt with it; made again by the chest's step if a rebuild took it), else under the floor's root; the cave rule draws it with its
+        /// room. No light component: the rooms' budget of real lights is as it was. Made once a lighting, never in a frame of nothing changing.
+        /// </summary>
+        void LightTheChest(TimedChest t, bool on)
+        {
+            TimedChestValues c = Values.TimedChestRules;
+            if (!on || c.PoolStrength <= 0f || c.PoolReach <= 0f)
+            {
+                if (t.Pool != null) Destroy(t.Pool.gameObject);
+                t.Pool = null;
+                return;
+            }
+            if (t.Pool != null) return;
+            if (t.PoolMesh == null)
+            {
+                var b = new MoodShapes.Build();
+                Rgb gold = Values.Mood != null ? Values.Mood.GoldColour : c.GlowTint;
+                MoodShapes.Pool(b, new Vector3(t.Place.x, PoolHeight, t.Place.z), c.PoolReach, MoodShapes.Linear(gold, c.PoolStrength), PoolSegments, out _, out _);
+                t.PoolMesh = b.ToMesh("TimedChest_Pool", false);
+            }
+            if (t.PoolMaterial == null) t.PoolMaterial = MoodShapes.MakeUnlit("TimedChest_Pool", MoodShapes.Blend.Add, null, PoolQueue);
+            RoomMood.RoomParts parts = _level.Mood != null ? _level.Mood.Of(t.Room.Order) : null;
+            Transform parent = parts != null && parts.Root != null ? parts.Root.transform : _level.transform;
+            var go = new GameObject("TimedChest_Pool_" + t.Room.Order) { layer = CryptKit.Layer };
+            go.transform.SetParent(parent, false);
+            go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            go.AddComponent<MeshFilter>().sharedMesh = t.PoolMesh;
+            t.Pool = go.AddComponent<MeshRenderer>();
+            t.Pool.sharedMaterial = t.PoolMaterial;
+            t.Pool.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            t.Pool.receiveShadows = false;
+            if (_level.Cave != null) _level.Cave.TrackDoor(t.Pool, t.Room.Order, t.Room.Order);
+        }
+
+        /// <summary>m over the floor the pool is drawn at (the mood's pools stand 0.03 m up); its segments (the mood's sources' 16); its draw order (the mood's glow's).</summary>
+        const float PoolHeight = 0.03f;
+        const int PoolSegments = 16, PoolQueue = 3001;
+
+        /// <summary>Lit: it can be opened, its fight is on, or its reward waits.</summary>
+        static bool Lit(TimedChest t) => t.State == TimedChestState.Openable || t.State == TimedChestState.Fighting || t.State == TimedChestState.Won;
 
         /// <summary>Every word the chest and the HUD show, made once for its whole: nothing is made while its number counts.</summary>
         void MakeChestWords(TimedChest t, TimedChestValues c)
         {
-            t.Numbers = new GUIContent[t.Whole + 1];
-            t.Takes = new GUIContent[t.Whole + 1];
-            t.Hud = new GUIContent[t.Whole + 1];
+            // By the percent shown (the producer's round 2: the share beside the Echoes she would take now, rounded as paid).
+            t.Over = new GUIContent[101];
+            t.Takes = new GUIContent[101];
+            t.Hud = new GUIContent[101];
             string currency = MetaValues != null ? MetaValues.CurrencyName : "Echoes";
-            for (int n = 0; n <= t.Whole; n++)
+            for (int p = 0; p <= 100; p++)
             {
-                string number = n.ToString(CultureInfo.InvariantCulture);
-                t.Numbers[n] = new GUIContent(number);
-                t.Takes[n] = new GUIContent(c.TakeWords + " " + number + " " + currency);
-                t.Hud[n] = new GUIContent(c.HudWords + "   " + number + " " + currency);
+                string echoes = TimedChestRules.Left(t.Whole, p / 100d, c).ToString(CultureInfo.InvariantCulture) + " " + currency;
+                string share = p.ToString(CultureInfo.InvariantCulture) + " %";
+                t.Over[p] = new GUIContent(share + c.Between + echoes);
+                t.Takes[p] = new GUIContent(c.TakeWords + " " + echoes);
+                t.Hud[p] = new GUIContent(c.HudWords + "   " + share + c.Between + echoes);
             }
             t.Open = new GUIContent(c.OpenWords);
         }
@@ -198,16 +252,17 @@ namespace Roguelike
             Material m = t.Material;
             if (m == null) return;
             TimedChestValues c = Values.TimedChestRules;
-            bool glow = t.State == TimedChestState.Openable || t.State == TimedChestState.Won;
-            bool dim = t.State == TimedChestState.Shut || t.State == TimedChestState.Taken || t.State == TimedChestState.Lost;
+            bool glow = Lit(t); // the producer's round 2: aglow with its pool through its fight too, so he sees where the reward is
+            bool dim = !glow;
+            LightTheChest(t, glow);
             Color shade = dim ? new Color(c.DimShade, c.DimShade, c.DimShade, 1f) : Color.white;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", shade);
             m.color = shade;
             if (!m.HasProperty("_EmissionColor")) return;
-            if (glow)
+            if (glow || c.ShutLight > 0f)
             {
                 if (m.HasProperty("_EmissionMap") && m.GetTexture("_EmissionMap") == null) m.SetTexture("_EmissionMap", PropFactory.Texture(PropModel.Chest)); // its own picture glows, not a flat colour
-                Color lit = CryptKit.Glowing(c.GlowTint, c.Glow);
+                Color lit = glow ? CryptKit.Glowing(c.GlowTint, c.Glow) : CryptKit.Glowing(new Rgb(1f, 1f, 1f), c.ShutLight); // shut: its shape read, no colour
                 m.SetColor("_EmissionColor", QualitySettings.activeColorSpace == ColorSpace.Linear ? lit.gamma : lit);
                 m.EnableKeyword("_EMISSION");
             }
@@ -230,6 +285,10 @@ namespace Roguelike
             for (int i = 0; i < t.Arriving.Count; i++)
                 if (t.Arriving[i].Disc != null) Destroy(t.Arriving[i].Disc.gameObject);
             t.Arriving.Clear();
+            if (t.Pool != null) Destroy(t.Pool.gameObject);
+            t.Pool = null;
+            if (t.PoolMesh != null) Destroy(t.PoolMesh);
+            if (t.PoolMaterial != null) Destroy(t.PoolMaterial);
             if (t.Material != null) Destroy(t.Material);
         }
 
@@ -318,7 +377,7 @@ namespace Roguelike
         /// <summary>She takes what is left: into the run's Echoes (in a meta run), told to the recorder; the chest is done and dim.</summary>
         void TakeTimedChest(TimedChest t)
         {
-            int left = TimedChestRules.Left(t.Whole, TimedChestRules.Share(t.Seconds(Time.time), Values.TimedChestRules), Values.TimedChestRules);
+            int left = TimedChestRules.LeftAt(t.Whole, TimedChestRules.Share(t.Seconds(Time.time), Values.TimedChestRules), Values.TimedChestRules); // what the chest showed
             t.Taken = left;
             t.State = TimedChestState.Taken;
             ShowChest(t);
@@ -338,6 +397,7 @@ namespace Roguelike
             TimedChest t = _timedChest;
             if (t == null || _level == null) return;
             float now = Time.time;
+            if (t.Pool == null && Lit(t) && t.Object != null) LightTheChest(t, true); // a rebuild of the room's mood took its pool: made again
             switch (t.State)
             {
                 case TimedChestState.Shut:
@@ -496,8 +556,15 @@ namespace Roguelike
         // ---------------- What it shows (work order 153) ----------------
 
         /// <summary>
-        /// From the floors' OnGUI: over the chest its number (or the prompt, in reach), and on the HUD its line while its fight is on and its
-        /// reward waits. Every word was made with the chest (<see cref="MakeChestWords"/>): nothing is made here.
+        /// From the floors' OnGUI: over the chest its share and Echoes (or the prompt, in reach), and on the HUD its line while its fight is
+        /// on and its reward waits. Every word was made with the chest (<see cref="MakeChestWords"/>): nothing is made here.
+        ///
+        /// The producer's round 2: the line in the size of the HUD's own names (the boss's name, <c>InterfaceValues.BossNameSize</c>), under
+        /// the top plate at its left (<see cref="TimedChestValues.HudUnderPlate"/>), where it covers the screen's top left corner: farther from
+        /// her than an arrival's 11 m, so never over a disc, and no bar of a combat room stands there (the top centre was chosen against: the
+        /// waves' discs come up the screen from her, and round 1's picture had one under the line there). The number over the chest twice the
+        /// prompts' size (<see cref="TimedChestValues.OverSize"/>); the prompt above the chest, reaching away from her on screen so it never
+        /// lies across her body.
         /// </summary>
         void DrawTimedChest(bool kinetic, float scale)
         {
@@ -505,34 +572,52 @@ namespace Roguelike
             Camera cam = Camera.main;
             if (t == null || t.Object == null || cam == null || Choice != ChoiceKind.None || Ending != EndKind.None) return;
             if (t.State == TimedChestState.Shut || t.State == TimedChestState.Taken || t.State == TimedChestState.Lost) return;
-            int n = Mathf.Clamp(TimedChestEchoes, 0, t.Whole);
-            Vector3 screen = cam.WorldToScreenPoint(t.Place + Vector3.up * Values.TimedChestRules.LabelHeight);
+            TimedChestValues c = Values.TimedChestRules;
+            int p = Mathf.Clamp(TimedChestRules.Percent(TimedChestShare), 0, 100);
+            Vector3 screen = cam.WorldToScreenPoint(t.Place + Vector3.up * c.LabelHeight);
             bool inReach = TimedChestInReach() == t;
             Color colorBefore = GUI.color;
             Matrix4x4 before = GUI.matrix;
             float layoutScale = kinetic ? Mathf.Max(1e-4f, InterfaceStyle.Scale) : scale;
-            float viewWidth = kinetic ? InterfaceStyle.BeginLayout(out Matrix4x4 _) : InterfaceStyle.ScreenWidth / scale;
+            if (kinetic) InterfaceStyle.BeginLayout(out Matrix4x4 _);
             if (screen.z > 0f)
             {
                 float x = screen.x / layoutScale, y = (InterfaceStyle.ScreenHeight - screen.y) / layoutScale;
-                if (inReach) DrawChestPromptLine(x, y, t.State == TimedChestState.Openable ? t.Open : t.Takes[n], kinetic);
-                else if (t.State != TimedChestState.Openable) DrawChestLine(x, y, t.Numbers[n], kinetic);
+                if (inReach)
+                {
+                    Vector3 her = cam.WorldToScreenPoint(_player.Position);
+                    int away = her.x / layoutScale > x ? -1 : 1; // she stands right of it on screen: the prompt reaches left of it, and the other way
+                    DrawChestPromptLine(x, y, t.State == TimedChestState.Openable ? t.Open : t.Takes[p], kinetic, away);
+                }
+                else if (t.State != TimedChestState.Openable) DrawChestLine(x, y, t.Over[p], kinetic, c.OverSize, 0);
             }
             if (t.State == TimedChestState.Fighting || t.State == TimedChestState.Won)
-                DrawChestLine(viewWidth * 0.5f, (kinetic ? InterfaceStyle.V.LayoutHeight : SkillBar.LayoutHeight) * HudLineAt, t.Hud[n], kinetic);
+            {
+                InterfaceValues v = InterfaceStyle.V;
+                if (kinetic)
+                {
+                    float top = (v.TopPlate ? InterfacePlate.Whole(v).Bottom : 0f) + c.HudUnderPlate;
+                    DrawChestLine(v.HealthPlateX, top + v.BossNameSize * 0.8f, t.Hud[p], true, v.BossNameSize, 1);
+                }
+                else DrawChestLine(PlainHudLeft, PlainHudTop, t.Hud[p], false, 0, 1);
+            }
             GUI.color = colorBefore;
             GUI.matrix = before;
         }
 
-        /// <summary>Where the HUD's line of the chest stands, as a share of the layout's height from its top (under the run's own lines at the top).</summary>
-        const float HudLineAt = 0.12f;
+        /// <summary>Without the kinetic skin: the HUD's line's left and middle in the plain layout (720 high), under the plain health readout.</summary>
+        const float PlainHudLeft = 10f, PlainHudTop = 96f;
 
         GUIStyle _chestStyle;
         GUIContent _chestKey;
         Key _chestKeyOf = Key.None;
 
-        /// <summary>The prompt: the interact key on its plate and the words after it (as the treasure chest's, <see cref="InterfaceStyle.Prompt"/>), from contents made once.</summary>
-        void DrawChestPromptLine(float x, float y, GUIContent words, bool kinetic)
+        /// <summary>
+        /// The prompt: the interact key on its plate and the words after it (as the treasure chest's, <see cref="InterfaceStyle.Prompt"/>), from
+        /// contents made once, its middle line at <paramref name="y"/>; it starts at <paramref name="x"/> and reaches right
+        /// (<paramref name="away"/> 1) or ends there and reaches left (-1).
+        /// </summary>
+        void DrawChestPromptLine(float x, float y, GUIContent words, bool kinetic, int away)
         {
             Key key = InteractKey;
             if (_chestKey == null || key != _chestKeyOf)
@@ -543,9 +628,9 @@ namespace Roguelike
             if (!kinetic)
             {
                 if (_promptStyle == null) _promptStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
-                float w = _promptStyle.CalcSize(words).x + 50f;
-                GUI.Box(new Rect(x - w * 0.5f - 20f, y - 14f, 40f, 26f), _chestKey, _promptStyle);
-                GUI.Box(new Rect(x - w * 0.5f + 22f, y - 14f, w - 22f, 26f), words, _promptStyle);
+                float w = _promptStyle.CalcSize(words).x + 50f, left0 = away > 0 ? x : x - w;
+                GUI.Box(new Rect(left0, y - 14f, 40f, 26f), _chestKey, _promptStyle);
+                GUI.Box(new Rect(left0 + 42f, y - 14f, w - 42f, 26f), words, _promptStyle);
                 return;
             }
             InterfaceValues v = InterfaceStyle.V;
@@ -553,7 +638,7 @@ namespace Roguelike
             float wordsWidth = style.CalcSize(words).x;
             float h = v.PromptSize * 1.45f, keyW = Mathf.Max(v.PromptKeyWidth, style.CalcSize(_chestKey).x + 10f);
             float width = keyW + 8f + wordsWidth + 12f;
-            var back = new Rect(x - width * 0.5f, y - h * 0.5f, width, h);
+            var back = new Rect(away > 0 ? x : x - width, y - h * 0.5f, width, h);
             InterfaceStyle.Slanted(back, InterfaceStyle.C(v.Back));
             var plate = new Rect(back.x + 3f, back.y + 3f, keyW, h - 6f);
             InterfaceStyle.Slanted(plate, InterfaceStyle.C(v.White));
@@ -561,23 +646,36 @@ namespace Roguelike
             InterfaceStyle.Label(new Rect(back.x + keyW + 9f, back.y, wordsWidth + 4f, h), words, style, InterfaceStyle.C(v.White), true);
         }
 
-        /// <summary>A line of words over a faint slanted back with a teal rule under it (as <see cref="InterfaceStyle.Line"/>), from a content made once.</summary>
-        void DrawChestLine(float x, float top, GUIContent words, bool kinetic)
+        /// <summary>
+        /// A line of words over a faint slanted back with a teal rule under it (as <see cref="InterfaceStyle.Line"/>), from a content made once,
+        /// in type <paramref name="size"/> (layout pixels), its middle line at <paramref name="middle"/>; centred on <paramref name="x"/>
+        /// (<paramref name="anchor"/> 0) or starting there (1).
+        /// </summary>
+        void DrawChestLine(float x, float middle, GUIContent words, bool kinetic, int size, int anchor)
         {
             if (!kinetic)
             {
                 if (_chestStyle == null) _chestStyle = new GUIStyle(GUI.skin.box) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
                 float w = _chestStyle.CalcSize(words).x + 24f;
-                GUI.Box(new Rect(x - w * 0.5f, top - 13f, w, 26f), words, _chestStyle);
+                GUI.Box(new Rect(anchor == 0 ? x - w * 0.5f : x, middle - 13f, w, 26f), words, _chestStyle);
                 return;
             }
             InterfaceValues v = InterfaceStyle.V;
-            GUIStyle style = InterfaceStyle.Text(true, v.PromptSize, TextAnchor.MiddleCenter);
-            float width = style.CalcSize(words).x + 30f, h = v.PromptSize * 1.6f;
-            var r = new Rect(x - width * 0.5f, top - h * 0.5f, width, h);
+            GUIStyle style = InterfaceStyle.Text(true, size, TextAnchor.MiddleCenter);
+            float width = style.CalcSize(words).x + 30f, h = size * 1.6f;
+            var r = new Rect(anchor == 0 ? x - width * 0.5f : x, middle - h * 0.5f, width, h);
             InterfaceStyle.Slanted(r, InterfaceStyle.C(v.Back));
             InterfaceStyle.Rule(r.x + 6f, r.yMax - v.RuleThickness, r.width - 12f);
             InterfaceStyle.Label(r, words, style, InterfaceStyle.C(v.White), true);
+        }
+
+        /// <summary>For the tests: where the HUD's line of the chest stands now, in layout pixels of a view 1080 high (the kinetic skin), and its size.</summary>
+        public Rect TimedChestHudLineForTests()
+        {
+            InterfaceValues v = InterfaceStyle.V;
+            TimedChestValues c = Values.TimedChestRules;
+            float top = (v.TopPlate ? InterfacePlate.Whole(v).Bottom : 0f) + c.HudUnderPlate;
+            return new Rect(v.HealthPlateX, top, 0f, v.BossNameSize * 1.6f);
         }
 
         /// <summary>For the tests: one step of the chest, as a frame takes it.</summary>

@@ -235,8 +235,14 @@ namespace Roguelike.PlayModeTests
             Assert.That(level.EnemiesByRoom[t.Room.Order].Count, Is.EqualTo(t.Room.EnemyCount), "it changes nothing of its room's fight");
             Renderer r = t.Object.GetComponentInChildren<Renderer>();
             Assert.That(t.State, Is.EqualTo(GeneratedLevels.TimedChestState.Shut));
-            if (r != null) Assert.That(r.sharedMaterial.IsKeywordEnabled("_EMISSION"), Is.False, "shut: no glow");
-            if (r != null) Assert.That(r.sharedMaterial.color.r, Is.EqualTo(_levels.Values.TimedChestRules.DimShade).Within(1e-4), "shut: dim");
+            TimedChestValues cv = _levels.Values.TimedChestRules;
+            if (r != null) Assert.That(r.sharedMaterial.color.r, Is.EqualTo(cv.DimShade).Within(1e-4), "shut: its shade");
+            if (r != null && cv.ShutLight > 0f) Assert.That(r.sharedMaterial.GetColor("_EmissionColor").b, Is.GreaterThan(0f), "shut: its shape lit faintly, uncoloured");
+            Assert.That(t.Pool, Is.Null, "shut: no pool of light");
+            // The cave rule owns the chest: it belongs to its room (the doors' way for a renderer made after the floor).
+            if (level.Cave != null)
+                foreach (Renderer cr in t.Object.GetComponentsInChildren<Renderer>(true))
+                    Assert.That(level.Cave.OwnersOf(cr), Is.EquivalentTo(new[] { t.Room.Order }), "the cave rule owns " + cr.name);
 
             // Beside it before the room is cleared: no key opens it.
             yield return BesideIt(level, t);
@@ -248,6 +254,13 @@ namespace Roguelike.PlayModeTests
             Assert.That(t.State, Is.EqualTo(GeneratedLevels.TimedChestState.Openable), "the room cleared and its doors open: it can be opened");
             if (r != null) Assert.That(r.sharedMaterial.IsKeywordEnabled("_EMISSION"), Is.True, "it glows faintly");
             if (r != null) Assert.That(r.sharedMaterial.color.r, Is.EqualTo(1f).Within(1e-4));
+            Assert.That(t.Pool, Is.Not.Null, "it stands in its pool of warm light");
+            Assert.That(t.Pool.GetComponent<MeshFilter>().sharedMesh.bounds.extents.x, Is.EqualTo(cv.PoolReach).Within(0.05f), "the pool's radius");
+            Assert.That(t.Pool.GetComponentInParent<Light>(), Is.Null, "a pool of the mood's kind: no light component of its own");
+            Assert.That(t.Object.GetComponentsInChildren<Light>(true), Is.Empty);
+            if (level.Mood != null) Assert.That(t.Pool.transform.parent, Is.SameAs(level.Mood.Of(t.Room.Order).Root.transform), "the room mood owns it: under its room's root");
+            if (level.Cave != null) Assert.That(level.Cave.OwnersOf(t.Pool), Is.EquivalentTo(new[] { t.Room.Order }), "the cave rule owns it");
+            if (level.Cave != null) Assert.That(t.Pool.forceRenderingOff, Is.False, "drawn: she is in its room");
 
             // Walking past it opens nothing: she stands beside it, and goes on.
             yield return BesideIt(level, t);
@@ -353,6 +366,9 @@ namespace Roguelike.PlayModeTests
             double share = _levels.TimedChestShare;
             Assert.That(share, Is.EqualTo(TimedChestRules.Share(Time.time - t.OpenedAt, c)).Within(1e-9));
             Assert.That(share, Is.InRange(0.95d, 0.97d), "4 s after it began to fall: 4 % less");
+            Assert.That(TimedChestRules.Percent(share), Is.EqualTo((int)Math.Round(share * 100)), "the percent shown");
+            Assert.That(_levels.TimedChestEchoes, Is.EqualTo(TimedChestRules.Left(t.Whole, TimedChestRules.Percent(share) / 100d, c)), "the Echoes shown are those of the percent shown");
+            Assert.That(t.Pool, Is.Not.Null, "its pool through its fight: he sees where the reward is");
             Time.timeScale = 1f;
 
             // The last kill freezes it.
@@ -374,6 +390,8 @@ namespace Roguelike.PlayModeTests
             Assert.That(_levels.Interact(), Is.True, "the same key takes it");
             Assert.That(t.State, Is.EqualTo(GeneratedLevels.TimedChestState.Taken));
             Assert.That(t.Taken, Is.EqualTo(left));
+            yield return null;
+            Assert.That(t.Pool == null, Is.True, "its pool gone as its reward is taken");
             Assert.That(_levels.Earnings.FromTimedChests, Is.EqualTo(left));
             Assert.That(_levels.Earnings.Total(_levels.MetaValues), Is.EqualTo(before + left), "her run's Echoes rose by exactly that");
             Assert.That(_levels.UseTimedChest(), Is.False, "taken once");
@@ -514,6 +532,19 @@ namespace Roguelike.PlayModeTests
                 PlayerPrefs.Save();
                 Object.Destroy(screen.gameObject);
             }
+        }
+
+        /// <summary>The producer's round 2: the HUD's line in the boss's name's size, under the top plate at its left, clear of it.</summary>
+        [Test]
+        public void TheHudLine_StandsUnderTheTopPlate_AtItsLeft_InTheHudsNameSize()
+        {
+            InterfaceValues v = InterfaceStyle.V;
+            Rect line = _levels.TimedChestHudLineForTests();
+            Assert.That(line.height, Is.EqualTo(v.BossNameSize * 1.6f).Within(1e-3f), "the boss's name's size, not a prompt's");
+            Assert.That(v.BossNameSize, Is.GreaterThan(v.PromptSize));
+            Assert.That(line.x, Is.EqualTo(v.HealthPlateX), "at the plate's left");
+            if (v.TopPlate) Assert.That(line.y, Is.GreaterThanOrEqualTo(InterfacePlate.Whole(v).Bottom + 1f), "under the plate, clear of it");
+            Assert.That(line.y + line.height, Is.LessThan(v.LayoutHeight * 0.25f), "at the top of the screen");
         }
 
         // ---------------- Nothing made a frame ----------------

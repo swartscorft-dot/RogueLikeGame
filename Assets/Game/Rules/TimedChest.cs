@@ -59,10 +59,11 @@ namespace Roguelike.Rules
         /// unused, 1 to 5; a floor past the table reads its last): 0.6 of each (the order's "about 60 %"), each kind rounded and at least one.
         /// So the count grows with the floor's rooms. Tuned toward the order's target (a practised clear leaves 70 to 90 %, a slow one 40 to
         /// 60 %), not the decay: at 0.6 the test bot (TimedChestBotPlayTests, a kill every 2 s and every 4 s) cleared in 6 to 20 s and 8 to
-        /// 28 s, leaving 89 to 100 % and 81 to 100 %; the count that reaches the target is about twice that. 1.0: the room's own count
-        /// again, the first step toward it (his to tune).
+        /// 28 s, leaving 89 to 100 % and 81 to 100 %; at 1.0 (the room's own count again) a practised clear left a median 91 % and a
+        /// slow one 78 %: no pressure; about 2.0 reaches the target at two to three times the room's damage. 1.5: the middle (the
+        /// producer's round 2; 1.0, 1.5 or 2.0 is his to choose).
         /// </summary>
-        public float[] WaveShare = { 0f, 0f, 1f, 1f, 1f, 1f };
+        public float[] WaveShare = { 0f, 0f, 1.5f, 1.5f, 1.5f, 1.5f };
         /// <summary>s from the opening to its wave's first discs (0: at once; each enemy still waits its 1 s disc, 136's rule).</summary>
         public float FirstDiscsAfter = 0f;
 
@@ -84,7 +85,13 @@ namespace Roguelike.Rules
 
         // ---- How it looks (the order: "shut and dim" until it can be opened; "glows faintly once it can be opened"; nothing else points at it)
         /// <summary>Its colour's shade while shut (the room's fight not cleared) and once its reward is taken or lost: the model's own painted colour times this (0.45 in the first pictures was nearly black in a dark corner).</summary>
-        public float DimShade = 0.6f;
+        public float DimShade = 1f;
+        /// <summary>
+        /// While shut and once done, its own painted picture lit faintly in white (no colour, no pool): the producer's round 2, "unlit,
+        /// but not nearly black": at <see cref="DimShade"/> 0.6 with nothing of its own its mean on screen was 0.015 to 0.05 in a dark
+        /// corner. 0: as round 1.
+        /// </summary>
+        public float ShutLight = 0.12f;
         /// <summary>The colour of its faint glow while it can be opened and while its reward waits, as picked: the elite's warm gold, apart from the props' cyan glow.</summary>
         public Rgb GlowTint = new Rgb(1f, 0.78f, 0.3f);
         /// <summary>
@@ -94,13 +101,28 @@ namespace Roguelike.Rules
         public float Glow = 0.35f;
         /// <summary>m over its middle the number and the prompt are drawn (the treasure room's chest's prompt stands 1.4 m over it).</summary>
         public float LabelHeight = 1.4f;
+        /// <summary>The size of the number over it, in layout pixels of a view 1080 high: twice the prompts' (<c>InterfaceValues.PromptSize</c> 18), the producer's round 2.</summary>
+        public int OverSize = 36;
+        /// <summary>
+        /// The pool of warm light on the floor round it while it can be opened, through its fight and while its reward waits (the producer's
+        /// round 2: "it stands in a warm pool of light ... of the kind the room's lamps and braziers make"): the room mood's own pool
+        /// (<c>MoodShapes.Pool</c>, added light on the floor) in the gold the vault's chest's pool is drawn in (<c>MoodValues.GoldColour</c>),
+        /// smaller and fainter than that one (<c>MoodValues.GoldReach</c> 2.4 m, <c>GoldPool</c> 0.3): its radius in metres and its strength.
+        /// Gone when its reward is taken or lost. 0 strength: none.
+        /// </summary>
+        public float PoolReach = 1.8f;
+        public float PoolStrength = 0.22f;
+        /// <summary>Layout pixels (a view 1080 high) between the bottom of the top plate (her health and focus) and the HUD's line of the chest, which stands under it at its left.</summary>
+        public float HudUnderPlate = 14f;
 
         /// <summary>Its prompt to open it (the order's words).</summary>
         public string OpenWords = "Open: a fight, the reward shrinks";
         /// <summary>Its prompt once its wave is dead, before the Echoes left ("Take 11 Echoes").</summary>
         public string TakeWords = "Take";
-        /// <summary>The HUD's line before the Echoes it holds now ("TIMED CHEST   11 Echoes").</summary>
+        /// <summary>The HUD's line before the share and the Echoes it holds now ("TIMED CHEST   100 %  ·  13 Echoes").</summary>
         public string HudWords = "TIMED CHEST";
+        /// <summary>Between the share and the Echoes on the HUD's line and over it.</summary>
+        public string Between = "  \u00B7  ";
     }
 
     /// <summary>
@@ -316,6 +338,12 @@ namespace Roguelike.Rules
             double steps = c.DecayEvery > 0f ? Math.Floor((seconds - c.DecayAfter) / c.DecayEvery + 1e-9) : seconds - c.DecayAfter;
             return Math.Max(least, 1d - Math.Max(0d, c.DecayShare) * steps);
         }
+
+        /// <summary>The share as the whole percent shown beside the Echoes (the producer's round 2): 100 at the opening, one less each second after 9 s, 10 at the floor.</summary>
+        public static int Percent(double share) => (int)Math.Round(Math.Max(0d, Math.Min(1d, share)) * 100d, MidpointRounding.AwayFromZero);
+
+        /// <summary>The Echoes shown and paid at a share: those of its whole percent (<see cref="Percent"/>), so the number shown beside the percent is the one paid.</summary>
+        public static int LeftAt(int whole, double share, TimedChestValues c) => Left(whole, Percent(share) / 100d, c);
 
         /// <summary>The Echoes a share of <paramref name="whole"/> is: rounded (half away from 0), never under the least share's own (rounded) nor 0.</summary>
         public static int Left(int whole, double share, TimedChestValues c)
