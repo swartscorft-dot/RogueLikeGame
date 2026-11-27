@@ -149,8 +149,33 @@ namespace Roguelike
 
         // ---------------- Its attacks ----------------
 
-        protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values) =>
-            _phases.Choose(_tactics, distance, Sees(Player.Position), values, Tuning.Phases); // work order 106: the tactics' own until the break
+        protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values)
+        {
+            bool sees = Sees(Player.Position);
+            if (!BossValues.NeverParked) return _phases.Choose(_tactics, distance, sees, values, Tuning.Phases); // work order 106: the tactics' own until the break
+            return _phases.Choose(_tactics, distance, sees, sees && ChargeReachesHer(distance, values), values, Tuning.Phases); // work order 146
+        }
+
+        /// <summary>
+        /// Work order 146 (<see cref="BossValues.NeverParked"/>): would a charge begun now, straight at her, reach her where she stands,
+        /// its line cut as <see cref="OnWindupStarted"/> will cut it? Asked only while she is in a charge's band; true otherwise.
+        /// </summary>
+        bool ChargeReachesHer(float distance, EnemyValues values)
+        {
+            EnemyAttackDefinition charge = null;
+            foreach (EnemyAttackDefinition a in values.Attacks)
+                if (a != null && a.Rush > 0f && distance >= a.MinDistance && distance <= a.MaxDistance) { charge = a; break; }
+            return charge == null || ChargeReachesHer(charge, distance);
+        }
+
+        bool ChargeReachesHer(EnemyAttackDefinition charge, float distance)
+        {
+            Vector3 d = Flat(Player.Position - transform.position);
+            float length = d.magnitude;
+            if (length < 1e-3f) return true;
+            float reach = ChargeLengthFrom(transform.position, d / length, charge.Length);
+            return BossTactics.ChargeReachesHer(charge.Length, reach, distance, charge.HalfWidth, Placeholders.PlayerRadius);
+        }
 
         /// <summary>Does it see that point, with no wall or tall prop between at its sight height (as the shooter does)?</summary>
         public bool Sees(Vector3 point)
@@ -239,6 +264,8 @@ namespace Roguelike
             EnemyAttackDefinition next = null;
             foreach (EnemyAttackDefinition a in Values.Attacks)
                 if (a != null && a.Rush > 0f) { next = a; break; }
+            // Work order 146: nor the second one, when its line, as cut, would stop short of her (it stands its recovery, then chooses).
+            if (BossValues.NeverParked && next != null && !ChargeReachesHer(next, Flat(Player.Position - transform.position).magnitude)) return;
             _chaining = true;
             BeginWindup(next, Player.Position);
             _chaining = false;

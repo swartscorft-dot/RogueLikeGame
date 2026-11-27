@@ -91,16 +91,23 @@ namespace Roguelike.Rules
         /// The attack for this distance: before the break the tactics' own (work order 014's choice, untouched); in phase two the
         /// slam when it is due and fits, else the tactics' choice; each attack given counts as a choice.
         /// </summary>
-        public EnemyAttackDefinition Choose(BossTactics tactics, float distance, bool seesHer, EnemyValues values, BossFinaleValues f)
+        public EnemyAttackDefinition Choose(BossTactics tactics, float distance, bool seesHer, EnemyValues values, BossFinaleValues f) =>
+            Choose(tactics, distance, seesHer, true, values, f);
+
+        /// <summary>
+        /// As above, with the charge held back when <paramref name="chargeReaches"/> is false (work order 146,
+        /// <see cref="BossTactics.ChargeReachesHer"/>): the slam asks only its own sight, as before.
+        /// </summary>
+        public EnemyAttackDefinition Choose(BossTactics tactics, float distance, bool seesHer, bool chargeReaches, EnemyValues values, BossFinaleValues f)
         {
-            if (!Broken) return tactics.Choose(distance, seesHer, values);
+            if (!Broken) return tactics.Choose(distance, seesHer, chargeReaches, values);
             if (SlamDue(f) && SlamFits(distance, seesHer, f))
             {
                 Choices++;
                 Slams++;
                 return f.Slam;
             }
-            EnemyAttackDefinition a = tactics.Choose(distance, seesHer, values);
+            EnemyAttackDefinition a = tactics.Choose(distance, seesHer, chargeReaches, values);
             if (a != null) Choices++;
             return a;
         }
