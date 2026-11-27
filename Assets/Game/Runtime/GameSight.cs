@@ -82,6 +82,7 @@ namespace Roguelike
         public int Builds { get; private set; }
 
         static bool s_arrowHidden;
+        static bool s_noShader;
 
         PlayerCharacter _player;
         PlayerHealth _health;
@@ -112,6 +113,7 @@ namespace Roguelike
         {
             Current = null;
             ConeForPictures = null;
+            s_noShader = false;
             if (s_arrowHidden) Cursor.visible = true;
             s_arrowHidden = false;
         }
@@ -184,7 +186,8 @@ namespace Roguelike
             }
             PlayerCharacter p = _player;
             Shown = SightValues.On && p != null && (_health == null || _health.IsAlive) && !ScreenHolds();
-            Arrow(Shown && _focused);
+            // The arrow is hidden only where the sight can be drawn: with no shader for it (a build without the engine's own), the arrow stays.
+            Arrow(Shown && _focused && Ready());
             if (!Shown)
             {
                 Timing = ZoneShown = Now = Late = CatchInZone = false;
@@ -323,8 +326,14 @@ namespace Roguelike
         {
             if (_material == null)
             {
+                if (s_noShader) return false;
                 Shader shader = Shader.Find("Hidden/Internal-Colored");
-                if (shader == null) return false;
+                if (shader == null)
+                {
+                    s_noShader = true;
+                    Debug.LogWarning("GameSight: no Hidden/Internal-Colored shader; the Windows arrow stays (work order 144)");
+                    return false;
+                }
                 _material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
                 _material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
                 _material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
