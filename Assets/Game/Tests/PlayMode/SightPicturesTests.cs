@@ -285,6 +285,125 @@ namespace Roguelike.PlayModeTests
             _player.StartFresh();
         }
 
+        // ---------------- Round 2: the brackets on dark floors ----------------
+
+        /// <summary>A look at the brackets: their teal line's opacity (of 255) and, for the last, the gunmetal a step lighter.</summary>
+        struct BracketLook
+        {
+            public string Name;
+            public float LineAlpha;
+            public bool LighterGunmetal;
+        }
+
+        static readonly BracketLook[] BracketLooks =
+        {
+            new BracketLook { Name = "a080", LineAlpha = 80f },
+            new BracketLook { Name = "a120", LineAlpha = 120f },
+            new BracketLook { Name = "a160", LineAlpha = 160f },
+            new BracketLook { Name = "g-a120", LineAlpha = 120f, LighterGunmetal = true },
+        };
+
+        /// <summary>The gunmetal a step lighter (the producer's round 2 of work order 144, the default since): about half again as bright as part A's.</summary>
+        static readonly Rgba LighterGunmetal = new Rgba(96f / 255f, 105f / 255f, 117f / 255f);
+        /// <summary>Part A's gunmetal (round 1's default), for the other looks.</summary>
+        static readonly Rgba PartAGunmetal = new Rgba(64f / 255f, 70f / 255f, 78f / 255f);
+
+        /// <summary>This frame at 12 and 24 degrees in every look (the cone changes between pictures, so the sight's mesh is filled again for each).</summary>
+        void Looks(string name)
+        {
+            SightValues v = SightValues.Live;
+            float alphaWas = v.BracketLineAlpha;
+            Rgba gunWas = v.Gunmetal;
+            try
+            {
+                foreach (BracketLook look in BracketLooks)
+                {
+                    v.BracketLineAlpha = look.LineAlpha / 255f;
+                    v.Gunmetal = look.LighterGunmetal ? LighterGunmetal : PartAGunmetal;
+                    Shot(name + "-open12-" + look.Name, 12f);
+                    Shot(name + "-open24-" + look.Name, 24f);
+                }
+            }
+            finally
+            {
+                v.BracketLineAlpha = alphaWas;
+                v.Gunmetal = gunWas;
+            }
+        }
+
+        /// <summary>At rest and at "now" (Triple Tap's last press in the middle of its clean part), each in every look.</summary>
+        IEnumerator LooksOn(string ground, Func<Vector3> target)
+        {
+            int tap = Slot("Triple Tap");
+            yield return Until(() => _player.Action == ActionKind.None && !HitStop.IsActive && _player.RecastSlot < 0, 3f);
+            yield return Frames(3);
+            Looks(ground + "-rest");
+            _player.PressSkill(tap, target());
+            yield return Until(() => _player.IsRecastWindowOpen && _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 3f);
+            _player.PressSkill(tap, target());
+            yield return Until(() => _player.RecastShots == 2 && _player.IsRecastWindowOpen && _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f, 3f);
+            Looks(ground + "-now");
+            yield return Until(() => _player.RecastSlot < 0 && _player.Action == ActionKind.None && !HitStop.IsActive, 3f);
+            _player.StartFresh();
+        }
+
+        /// <summary>
+        /// The producer's round 2 (the brackets too faint on the dark blue floor): open 12 and 24 at rest and at "now", the
+        /// brackets' line at 80 (as built), 120 and 160 of 255 and the gunmetal a step lighter with the line at 120, on the floor-5
+        /// fight's dark floor (10 m east), the practice room's light floor and over the fight (the cursor on an enemy about 8 m
+        /// away), into the folder's "brackets" folder.
+        /// </summary>
+        [UnityTest, Timeout(1800000)]
+        public IEnumerator Brackets_DarkLightAndFight_TheLineAt80_120_160_AndTheGunmetalLighter()
+        {
+            _folder = Path.Combine(_folder, "brackets");
+            Directory.CreateDirectory(_folder);
+            Time.captureDeltaTime = PictureStep;
+            _log.Add($"{DateTime.Now:yyyy-MM-dd HH:mm} work order 144, round 2: the brackets' looks {string.Join(", ", Array.ConvertAll(BracketLooks, l => l.Name))}");
+            int tap = Slot("Triple Tap");
+            _player.EquipSkill(tap);
+            Func<Vector3> east = () => _player.Position + new Vector3(10f, 0f, 0f);
+
+            _player.StartFresh();
+            _player.Teleport(NearA);
+            for (int i = 0; i < 20; i++) yield return null;
+            _aim = east;
+            yield return LooksOn("light", east);
+
+            _stage = BenchmarkStage.Begin(BenchmarkScenario.Floor5Combat);
+            Assume.That(_stage, Is.Not.Null);
+            _driver.InputSource = Feed;
+            _aim = east;
+            yield return Frames(90);
+            _player.StartFresh();
+            yield return LooksOn("dark", east);
+
+            // Over the fight: the enemy nearest 8 m from her.
+            Enemy target = null;
+            float best = float.MaxValue;
+            foreach (Enemy e in _stage.Fighting)
+            {
+                if (e == null || e.IsDead) continue;
+                float off = Mathf.Abs(Vector3.Distance(e.transform.position, _player.Position) - 8f);
+                if (off < best) { best = off; target = e; }
+            }
+            Assume.That(target, Is.Not.Null, "an enemy to aim at");
+            Vector3 last = target.transform.position + Vector3.up * 1.1f;
+            Func<Vector3> chest = () =>
+            {
+                if (target != null && !target.IsDead) last = target.transform.position + Vector3.up * 1.1f;
+                return last;
+            };
+            _aim = chest;
+            yield return Frames(10);
+            yield return LooksOn("fight", chest);
+            _log.Add(string.Format(Inv, "over the fight: a {0} {1:0.0} m from her", target != null ? target.Kind.ToString() : "gone enemy",
+                                   target != null ? Vector3.Distance(target.transform.position, _player.Position) : 0f));
+            _stage.End();
+            _stage = null;
+            Time.captureDeltaTime = 0f;
+        }
+
         [UnityTest, Timeout(1800000)]
         public IEnumerator Pictures_ThreeGrounds_RestOpenedTheWholeRing_TripleTapsLastPressAndBackstep()
         {
