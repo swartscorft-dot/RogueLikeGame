@@ -38,7 +38,7 @@ namespace Roguelike.Tests
                 Assert.That(BossTrialValues.IsOn(a), Is.True, a + "'s own switch");
             Assert.That(BossTrialValues.GraveMarksLead, Is.True, "the research's first version: led");
             Assert.That(BossTrialValues.SeedsCanBeShot, Is.True, "the research's first version: shootable");
-            Assert.That(V.Health, Is.EqualTo(45000));
+            Assert.That(V.Health, Is.EqualTo(52000), "7.1's 45,000, raised by the bots (the second round)");
             Assert.That(V.PhaseTwoBelow, Is.EqualTo(0.65f));
             Assert.That(V.PhaseThreeBelow, Is.EqualTo(0.30f));
             Assert.That(V.TransitionSeconds, Is.EqualTo(2.5f));

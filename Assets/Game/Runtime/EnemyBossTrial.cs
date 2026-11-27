@@ -13,7 +13,7 @@ namespace Roguelike
     /// mechanics og ting å dodge. nå sto jeg basicly bare stille og høyre cklikket." In use only when <see cref="BossTrialSettings.InUse"/>
     /// as it is made; else nothing here runs and the boss is work order 146's, field for field.
     ///
-    /// The frame: 45,000 health, three phases (100 to 65 %, 65 to 30 %, 30 to 0 %), each line crossed by a hit that counts, then 2.5 s
+    /// The frame: 52,000 health (section 7.1 said 45,000; raised by the bots), three phases (100 to 65 %, 65 to 30 %, 30 to 0 %), each line crossed by a hit that counts, then 2.5 s
     /// it stands untouchable, grey, roaring, its room's lamps recoloured; nothing begins before 2 s after its waking, nor while its body
     /// is off his screen (it walks until it is in view), nor within the phase's gap after a recovery. Today's anger, its Spin and its
     /// packs are not part of it.

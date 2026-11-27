@@ -88,8 +88,12 @@ namespace Roguelike.Rules
 
         // ---------------- 7.1, the numbers that frame it ----------------
 
-        /// <summary>Its health (section 7.1: 18,000 today). 45,000 / (700 a second x 0.55 of the time) is about 117 s of shooting.</summary>
-        public int Health = 45000;
+        /// <summary>
+        /// Its health (18,000 today). Section 7.1 says 45,000 (45,000 / (700 a second x 0.55 of the time) is about 117 s of shooting).
+        /// Raised by the producer's second round, health being the lever for the fight's length: at 45,000 the answering bot (0.25 s to
+        /// react, his 700 a second) won 9 of 12 fights in 90 to 118 s, under the aim of about half won in 110 to 190 s.
+        /// </summary>
+        public int Health = 52000;
         /// <summary>Phase 2 begins when its health share falls under this (7.1: 100 to 65 %, 65 to 30 %, 30 to 0 %).</summary>
         public float PhaseTwoBelow = 0.65f;
         /// <summary>Phase 3 begins under this share.</summary>
