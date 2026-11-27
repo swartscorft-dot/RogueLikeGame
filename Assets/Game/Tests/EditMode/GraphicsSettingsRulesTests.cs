@@ -160,18 +160,24 @@ namespace Roguelike.Rules.Tests
             Assert.That(lines, Is.EqualTo(new[] { SettingLine.Volume, SettingLine.Music, SettingLine.MusicVolume }));
             SettingsPages.Lines(SettingsPage.Gameplay, true, lines);
             Assert.That(lines, Is.EqualTo(new[] { SettingLine.DashDirection, SettingLine.DamageNumbers, SettingLine.CameraKick, SettingLine.CameraDistance }));
+            // The merge of 2026-11-27, W3 (changed deliberately): two trials pages, hers (TRIALS) and the rooms' (ROOMS).
+            SettingsPages.Lines(SettingsPage.Rooms, true, lines);
+            Assert.That(lines, Is.EqualTo(new[]
+            {
+                SettingLine.Greybox, SettingLine.Light, // the floors' look, from the Trials page
+                SettingLine.LineUps, // work order 135: the rooms' line-ups
+                SettingLine.Waves, // work order 136: the rooms' waves
+                SettingLine.Callers, // work order 137: the rooms' callers
+                SettingLine.BossFight, // work order 147's line (with BossValues.Trial on)
+                SettingLine.Elites, // work order 149's line
+            }));
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
             Assert.That(lines, Is.EqualTo(new[]
             {
-                SettingLine.Attachments, SettingLine.Greybox, SettingLine.Light, SettingLine.ToonLook, SettingLine.BetweenRuns, SettingLine.CameraAngle,
+                SettingLine.Attachments, SettingLine.ToonLook, SettingLine.BetweenRuns, SettingLine.CameraAngle,
                 SettingLine.TimingCue, SettingLine.TimingClick, // the merge of 2026-11-26: work order 134's two lines
                 SettingLine.Precision, // work order 143's line (with its switch on)
                 SettingLine.SightOpening, // work order 144's line (with its switch on)
-                SettingLine.LineUps, // work order 135 (changed deliberately): the rooms' line-ups, after 143's and 144's (the merge of 2026-11-27, W2)
-                SettingLine.Waves, // work order 136 (changed deliberately): the rooms' waves
-                SettingLine.Callers, // work order 137 (changed deliberately): the rooms' callers
-                SettingLine.BossFight, // work order 147's line (with BossValues.Trial on)
-                SettingLine.Elites, // work order 149's line
             }));
             // With the camera angle off the page is the same list without that one line, every other line in its order
             // (the merge of 2026-11-27, W2: named by the list, not by a count from the end, as more orders add lines after these).

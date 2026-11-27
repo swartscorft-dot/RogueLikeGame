@@ -183,6 +183,8 @@ namespace Roguelike.Rules.Tests
             // orders 135's and 136's lines come after it, so it is no longer the last.
             SettingLine before = PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick;
             Assert.That(lines.IndexOf(SettingLine.SightOpening), Is.EqualTo(lines.IndexOf(before) + 1), "work order 144's line after " + before);
+            var withoutSight = new List<SettingLine>(lines); // the page as it was before work order 144, for the switch off below
+            withoutSight.Remove(SettingLine.SightOpening);
             Assert.That(SettingsPages.PageOf(SettingLine.SightOpening), Is.EqualTo(SettingsPage.Trials));
             Assert.That(SightLines.PointerStays(-1), Is.True, "none stored: the switch's own");
             Assert.That(SightLines.PointerStays(0), Is.False);
@@ -205,8 +207,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(cue, Is.EqualTo(TimingCue.BarOnly));
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
             Assert.That(lines, Has.No.Member(SettingLine.SightOpening), "off: no line");
-            Assert.That(lines.IndexOf(SettingLine.LineUps), Is.EqualTo(lines.IndexOf(PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick) + 1),
-                "the page as before: the line-ups follow the line before the sight's (the merge of 2026-11-27, W2)");
+            Assert.That(lines, Is.EqualTo(withoutSight), "the page as before: every other line in its place (the merge of 2026-11-27, W3, changed deliberately: the rooms' lines on the Rooms page)");
         }
     }
 }

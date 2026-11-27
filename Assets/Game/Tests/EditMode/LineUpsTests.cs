@@ -116,14 +116,13 @@ namespace Roguelike.Rules.Tests
         public void TheTrialsPage_EndsWithTheLineUpsLine()
         {
             var lines = new List<SettingLine>();
-            SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            // The merge of 2026-11-27, W2 (changed deliberately): after work order 144's line (143's with 144's off, 134's click with
-            // both off), work order 136's "Waves" after it; found by their lines, not counted from the end.
-            SettingLine before = SightValues.On ? SettingLine.SightOpening : PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick;
-            Assert.That(lines.IndexOf(SettingLine.LineUps), Is.EqualTo(lines.IndexOf(before) + 1), "after " + before);
+            SettingsPages.Lines(SettingsPage.Rooms, true, lines);
+            // The merges of 2026-11-27, W2 and W3 (changed deliberately): on the Rooms page after the floors' light, work order 136's
+            // "Waves" after it; found by their lines, not counted from the end.
+            Assert.That(lines.IndexOf(SettingLine.LineUps), Is.EqualTo(lines.IndexOf(SettingLine.Light) + 1), "after the light");
             Assert.That(lines.IndexOf(SettingLine.Waves), Is.EqualTo(lines.IndexOf(SettingLine.LineUps) + 1), "work order 136's waves after it");
             Assert.That(lines.IndexOf(SettingLine.Callers), Is.EqualTo(lines.IndexOf(SettingLine.Waves) + 1), "work order 137's callers after them");
-            Assert.That(SettingsPages.PageOf(SettingLine.LineUps), Is.EqualTo(SettingsPage.Trials));
+            Assert.That(SettingsPages.PageOf(SettingLine.LineUps), Is.EqualTo(SettingsPage.Rooms)); // the merge of 2026-11-27, W3 (changed deliberately): the rooms' trials on their own page, ROOMS
             Assert.That(RoomTrialLines.Is(SettingLine.LineUps), Is.True);
             Assert.That(RoomTrialLines.Is(SettingLine.TimingClick), Is.False);
             Assert.That(RoomTrialLines.Name(SettingLine.LineUps), Is.EqualTo("Line-ups"));

@@ -23,7 +23,12 @@ namespace Roguelike.Rules
     }
 
     /// <summary>The four pages of the settings screen, in the order shown (work order 128: "fordele de på grafikk instillinger/lyd osv").</summary>
-    public enum SettingsPage { Graphics, Sound, Gameplay, Trials }
+    /// <summary>
+    /// The settings screen's pages. Trials holds her trials (the lines that change her hands, her shot and her look); Rooms, added at the
+    /// end by the merge of 2026-11-27 (W3, the producer's ruling: a second trials page, no rows shrunk further), the trials of the rooms
+    /// and their enemies, which with work orders 137, 147 and 149 would have made the one page fifteen lines long.
+    /// </summary>
+    public enum SettingsPage { Graphics, Sound, Gameplay, Trials, Rooms }
 
     /// <summary>
     /// Every line of the settings screen. The first eleven are the graphics settings (work order 128's table, the producer's choice
@@ -352,14 +357,17 @@ namespace Roguelike.Rules
     /// <summary>Which lines stand on which page, in order (work order 128's list).</summary>
     public static class SettingsPages
     {
-        public static readonly SettingsPage[] All = { SettingsPage.Graphics, SettingsPage.Sound, SettingsPage.Gameplay, SettingsPage.Trials };
-        public static readonly string[] Words = { "GRAPHICS", "SOUND", "GAMEPLAY", "TRIALS" };
+        public static readonly SettingsPage[] All = { SettingsPage.Graphics, SettingsPage.Sound, SettingsPage.Gameplay, SettingsPage.Trials, SettingsPage.Rooms };
+        public static readonly string[] Words = { "GRAPHICS", "SOUND", "GAMEPLAY", "TRIALS", "ROOMS" };
 
         /// <summary>
         /// A page's lines. Sound: what exists today (the master volume, the music on or off and its volume; no effects volume: no
         /// one place sets every effect's loudness). Trials: the trials and the developer's tools, and work order 121's camera angle
         /// (he likes ours best: off the main list, the other three still here) while its switch is on, then work order 134's timing
-        /// cue and its click (the merge of 2026-11-26).
+        /// cue and its click (the merge of 2026-11-26). The merge of 2026-11-27 (W3) split the trials in two: Trials keeps hers (her
+        /// weapon's attachments, her toon look, between runs, the camera angle, the timing cue and click, Precision, the sight's
+        /// opening); Rooms takes the floors' and their enemies' (the greybox, the light, the line-ups, the waves, the callers, the boss,
+        /// the elites). A line's page is <see cref="PageOf"/>; a new line goes at the end of its own page.
         /// </summary>
         public static void Lines(SettingsPage page, bool cameraAngles, List<SettingLine> into)
         {
@@ -380,22 +388,24 @@ namespace Roguelike.Rules
                     into.Add(SettingLine.CameraKick);
                     into.Add(SettingLine.CameraDistance);
                     break;
-                default:
-                    into.Add(SettingLine.Attachments);
-                    into.Add(SettingLine.Greybox);
+                case SettingsPage.Rooms: // the merge of 2026-11-27 (W3): the trials of the floors and their enemies
+                    into.Add(SettingLine.Greybox);     // the floors' look as boxes and their light, from the Trials page
                     into.Add(SettingLine.Light);
+                    into.Add(SettingLine.LineUps);     // work order 135: the rooms' line-ups (RoomTrialLines)
+                    into.Add(SettingLine.Waves);       // work order 136: the rooms' waves (RoomTrialLines)
+                    into.Add(SettingLine.Callers);     // work order 137: the rooms' callers (RoomTrialLines)
+                    if (BossValues.Trial) into.Add(SettingLine.BossFight); // work order 147, after them
+                    into.Add(SettingLine.Elites);      // work order 149, after it: the line is its switch
+                    break;
+                default: // Trials: her trials
+                    into.Add(SettingLine.Attachments);
                     into.Add(SettingLine.ToonLook);
                     into.Add(SettingLine.BetweenRuns);
                     if (cameraAngles) into.Add(SettingLine.CameraAngle);
                     into.Add(SettingLine.TimingCue);   // the merge of 2026-11-26: work order 134's cue at the sight,
-                    into.Add(SettingLine.TimingClick); // and its cocking click, last on the page (TimingCueLines)
+                    into.Add(SettingLine.TimingClick); // and its cocking click (TimingCueLines)
                     if (PrecisionValues.On) into.Add(SettingLine.Precision); // work order 143, after them
                     if (SightValues.On) into.Add(SettingLine.SightOpening); // work order 144, after it
-                    into.Add(SettingLine.LineUps);     // work order 135: the rooms' line-ups (RoomTrialLines), after them (the merge of 2026-11-27, W2)
-                    into.Add(SettingLine.Waves);       // work order 136: the rooms' waves (RoomTrialLines)
-                    into.Add(SettingLine.Callers);     // work order 137: the rooms' callers (RoomTrialLines)
-                    if (BossValues.Trial) into.Add(SettingLine.BossFight); // work order 147, after them
-                    into.Add(SettingLine.Elites); // work order 149, after it: the line is its switch
                     break;
             }
         }
@@ -405,7 +415,13 @@ namespace Roguelike.Rules
             line <= SettingLine.ShowFrameRate ? SettingsPage.Graphics
             : line <= SettingLine.MusicVolume ? SettingsPage.Sound
             : line <= SettingLine.CameraDistance ? SettingsPage.Gameplay
+            : IsRooms(line) ? SettingsPage.Rooms
             : SettingsPage.Trials;
+
+        /// <summary>The lines of the Rooms page (the merge of 2026-11-27, W3), named one by one: every other line past the Gameplay page's is hers.</summary>
+        static bool IsRooms(SettingLine line) =>
+            line == SettingLine.Greybox || line == SettingLine.Light || line == SettingLine.LineUps || line == SettingLine.Waves
+            || line == SettingLine.Callers || line == SettingLine.BossFight || line == SettingLine.Elites;
     }
 
     /// <summary>Where the settings screen was opened from: Esc goes back there from its list of pages.</summary>

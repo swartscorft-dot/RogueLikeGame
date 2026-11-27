@@ -107,12 +107,16 @@ namespace Roguelike
         /// <summary>A row's type size at <see cref="_rowScale"/>, rounded down so the words never outgrow the smaller row.</summary>
         int RowWords(int size) => _rowScale >= 1f ? size : Mathf.Max(1, Mathf.FloorToInt(size * _rowScale));
 
-        /// <summary>
-        /// The share a page of <paramref name="lines"/> rows is drawn at (the merge of 2026-11-27, W2): 1 while its last row ends
-        /// <see cref="SettingsScreenLook.KeysClear"/> above the keys' line, else the share of the rows' height and gaps that does.
-        /// </summary>
         /// <summary>A hair under the exact share, so that the float sum of the rows never lands a fraction of a pixel past the room.</summary>
         const float ScaleShave = 0.9999f;
+
+        /// <summary>
+        /// The share a page of <paramref name="lines"/> rows is drawn at (the merge of 2026-11-27, W2): 1 while its last row ends
+        /// <see cref="SettingsScreenLook.KeysClear"/> above the keys' line, else the share of the rows' height and gaps that does. Since
+        /// the merge of 2026-11-27 (W3) every page fits at its full size (the rooms' trials have a page of their own): this stays as the
+        /// guard for a page that is ever too long, and the pages' test asks for 1.
+        /// </summary>
+        public static float RowScaleFor(int lines) => RowScaleFor(lines, InterfaceStyle.V.Menus.Start);
 
         static float RowScaleFor(int lines, StartMenuValues s)
         {

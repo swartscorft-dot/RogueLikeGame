@@ -48,8 +48,11 @@ namespace Roguelike.Tests
             }
             finally { EliteValues.Unique = before; }
             var lines = new List<SettingLine>();
-            SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Elites), "last on the Trials page");
+            // The merge of 2026-11-27, W3 (changed deliberately): on the Rooms page, right after work order 147's boss line (137's
+            // callers with the boss trial off); found by its line, not counted from the end.
+            SettingsPages.Lines(SettingsPage.Rooms, true, lines);
+            Assert.That(lines.IndexOf(SettingLine.Elites), Is.EqualTo(lines.IndexOf(BossValues.Trial ? SettingLine.BossFight : SettingLine.Callers) + 1), "after the boss's line");
+            Assert.That(SettingsPages.PageOf(SettingLine.Elites), Is.EqualTo(SettingsPage.Rooms));
         }
 
         // ---------------- Its numbers ----------------

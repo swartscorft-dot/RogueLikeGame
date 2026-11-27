@@ -313,12 +313,12 @@ namespace Roguelike.Rules.Tests
         public void TheTrialsPage_EndsWithTheWavesLine_AfterTheLineUps()
         {
             var lines = new List<SettingLine>();
-            SettingsPages.Lines(SettingsPage.Trials, true, lines);
+            SettingsPages.Lines(SettingsPage.Rooms, true, lines); // the merge of 2026-11-27, W3 (changed deliberately): the rooms' trials on their own page, ROOMS
             // The merge of 2026-11-27, W2 (changed deliberately): found by their lines, not counted from the end, as more orders add lines.
             Assert.That(lines, Has.Member(SettingLine.Waves));
             Assert.That(lines.IndexOf(SettingLine.Waves), Is.EqualTo(lines.IndexOf(SettingLine.LineUps) + 1), "the waves right after the line-ups");
             Assert.That(lines.IndexOf(SettingLine.Callers), Is.EqualTo(lines.IndexOf(SettingLine.Waves) + 1), "work order 137's callers after the waves");
-            Assert.That(SettingsPages.PageOf(SettingLine.Waves), Is.EqualTo(SettingsPage.Trials));
+            Assert.That(SettingsPages.PageOf(SettingLine.Waves), Is.EqualTo(SettingsPage.Rooms));
             Assert.That(RoomTrialLines.Is(SettingLine.Waves), Is.True);
             Assert.That(RoomTrialLines.Name(SettingLine.Waves), Is.EqualTo("Waves"));
             Assert.That(RoomTrialLines.Name(SettingLine.LineUps), Is.EqualTo("Line-ups"));

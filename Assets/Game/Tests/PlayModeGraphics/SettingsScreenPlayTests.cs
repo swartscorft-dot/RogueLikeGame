@@ -197,11 +197,10 @@ namespace Roguelike.PlayModeTests
             List<SettingLine> lines = _screen.Lines.ToList();
             int cue = lines.IndexOf(SettingLine.TimingCue), click = lines.IndexOf(SettingLine.TimingClick);
             // The page's order after the timing cue, each line found by its SettingLine and placed after the one before it (the
-            // merge of 2026-11-27, W2, changed deliberately: not counted from the end, as more orders add lines after these):
-            // the cue, its click, work order 143's precision and 144's sight opening (each with its switch on), then work
-            // order 135's "Line-ups", work order 136's "Waves" and work order 137's "Callers" (all on, nothing kept here).
+            // merge of 2026-11-27, W2, changed deliberately: not counted from the end): the cue, its click, work order 143's precision
+            // and 144's sight opening (each with its switch on). The merge of 2026-11-27, W3 (changed deliberately): the rooms' lines
+            // stand on the ROOMS page, asked at the end of this test.
             int precision = lines.IndexOf(SettingLine.Precision), sight = lines.IndexOf(SettingLine.SightOpening);
-            int lineUps = lines.IndexOf(SettingLine.LineUps), waves = lines.IndexOf(SettingLine.Waves);
             Assert.That(cue, Is.GreaterThan(0), "the cue on the page, after the attachments");
             Assert.That(click, Is.EqualTo(cue + 1), "the cue before its click");
             if (PrecisionValues.On) Assert.That(precision, Is.EqualTo(click + 1), "work order 143's line after them");
@@ -209,22 +208,8 @@ namespace Roguelike.PlayModeTests
             int beforeSight = PrecisionValues.On ? precision : click;
             if (SightValues.On) Assert.That(sight, Is.EqualTo(beforeSight + 1), "work order 144's line after 143's");
             else Assert.That(sight, Is.EqualTo(-1), "work order 144's switch off: no sight line");
-            int beforeLineUps = SightValues.On ? sight : beforeSight;
-            Assert.That(lineUps, Is.EqualTo(beforeLineUps + 1), "work order 135's line-ups after 144's line");
-            Assert.That(_screen.RowNames[lineUps], Is.EqualTo("Line-ups"));
-            Assert.That(_screen.RowValues[lineUps], Is.EqualTo(RoomTrialSettings.LineUpsChosen ? "on" : "off"));
-            Assert.That(waves, Is.EqualTo(lineUps + 1), "work order 136's waves after the line-ups");
-            Assert.That(_screen.RowNames[waves], Is.EqualTo("Waves"));
-            Assert.That(_screen.RowValues[waves], Is.EqualTo(RoomTrialSettings.WavesChosen ? "on" : "off"));
-            int callers = lines.IndexOf(SettingLine.Callers);
-            Assert.That(callers, Is.EqualTo(waves + 1), "work order 137's callers after the waves");
-            Assert.That(_screen.RowNames[callers], Is.EqualTo("Callers"));
-            Assert.That(_screen.RowValues[callers], Is.EqualTo(RoomTrialSettings.CallersChosen ? "on" : "off"));
-            int boss = lines.IndexOf(SettingLine.BossFight); // work order 147's line after the callers, with BossValues.Trial on
-            if (BossValues.Trial) Assert.That(boss, Is.EqualTo(callers + 1), "work order 147's boss line after the callers");
-            else Assert.That(boss, Is.EqualTo(-1), "work order 147's switch off: no boss line");
-            int elites = lines.IndexOf(SettingLine.Elites);
-            Assert.That(elites, Is.EqualTo((BossValues.Trial ? boss : callers) + 1), "work order 149's elites line after them");
+            foreach (SettingLine room in new[] { SettingLine.Greybox, SettingLine.Light, SettingLine.LineUps, SettingLine.Waves, SettingLine.Callers, SettingLine.BossFight, SettingLine.Elites })
+                Assert.That(lines, Has.No.Member(room), room + " is on the ROOMS page");
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));
@@ -256,6 +241,29 @@ namespace Roguelike.PlayModeTests
             Assert.That(_screen.Pick(click), Is.True);
             Assert.That(TimingCueSettings.SoundNow, Is.True, "and on again");
             Assert.That(_screen.RowValues[click], Is.EqualTo("on"));
+
+            // The ROOMS page (the merge of 2026-11-27, W3): the floors' greybox and light, then work order 135's "Line-ups", 136's
+            // "Waves", 137's "Callers", 147's "Boss" (with BossValues.Trial on) and 149's "Elites", each after the one before it.
+            Assert.That(_screen.OpenPage(SettingsPage.Rooms), Is.True);
+            lines = _screen.Lines.ToList();
+            int lineUps = lines.IndexOf(SettingLine.LineUps), waves = lines.IndexOf(SettingLine.Waves), callers = lines.IndexOf(SettingLine.Callers);
+            Assert.That(lines.IndexOf(SettingLine.Light), Is.EqualTo(lines.IndexOf(SettingLine.Greybox) + 1), "the floors' light after their greybox");
+            Assert.That(lineUps, Is.EqualTo(lines.IndexOf(SettingLine.Light) + 1), "work order 135's line-ups after the light");
+            Assert.That(_screen.RowNames[lineUps], Is.EqualTo("Line-ups"));
+            Assert.That(_screen.RowValues[lineUps], Is.EqualTo(RoomTrialSettings.LineUpsChosen ? "on" : "off"));
+            Assert.That(waves, Is.EqualTo(lineUps + 1), "work order 136's waves after the line-ups");
+            Assert.That(_screen.RowNames[waves], Is.EqualTo("Waves"));
+            Assert.That(_screen.RowValues[waves], Is.EqualTo(RoomTrialSettings.WavesChosen ? "on" : "off"));
+            Assert.That(callers, Is.EqualTo(waves + 1), "work order 137's callers after the waves");
+            Assert.That(_screen.RowNames[callers], Is.EqualTo("Callers"));
+            Assert.That(_screen.RowValues[callers], Is.EqualTo(RoomTrialSettings.CallersChosen ? "on" : "off"));
+            int boss = lines.IndexOf(SettingLine.BossFight);
+            if (BossValues.Trial) Assert.That(boss, Is.EqualTo(callers + 1), "work order 147's boss line after the callers");
+            else Assert.That(boss, Is.EqualTo(-1), "work order 147's switch off: no boss line");
+            Assert.That(lines.IndexOf(SettingLine.Elites), Is.EqualTo((BossValues.Trial ? boss : callers) + 1), "work order 149's elites line after them");
+            foreach (SettingLine hers in new[] { SettingLine.Attachments, SettingLine.TimingCue, SettingLine.Precision, SettingLine.SightOpening })
+                Assert.That(lines, Has.No.Member(hers), hers + " is on the TRIALS page");
+            Assert.That(_screen.TextOutside(), Is.Empty, "every word of the ROOMS page inside its shape");
 
             GameSettings.Unload();
             Assert.That(TimingCueSettings.CueChosen, Is.EqualTo(TimingCue.BarOnly), "unloaded: the default (read between, as the cue does every frame)");
@@ -377,6 +385,8 @@ namespace Roguelike.PlayModeTests
             Rect trials = _screen.HitRect(SettingsScreen.HitKind.Tab, (int)SettingsPage.Trials);
             Assert.That(_screen.ClickAt(trials.center), Is.True);
             Assert.That(_screen.Page, Is.EqualTo(SettingsPage.Trials), "a tab goes to its page");
+            Assert.That(_screen.ClickAt(_screen.HitRect(SettingsScreen.HitKind.Tab, (int)SettingsPage.Rooms).center), Is.True);
+            Assert.That(_screen.Page, Is.EqualTo(SettingsPage.Rooms), "the ROOMS tab too (the merge of 2026-11-27, W3)");
             Assert.That(_screen.ClickAt(_screen.HitRect(SettingsScreen.HitKind.Tab, (int)SettingsPage.Graphics).center), Is.True);
             int glow = _screen.Lines.ToList().IndexOf(SettingLine.Glow);
             Rect less = _screen.HitRect(SettingsScreen.HitKind.Less, glow);
@@ -426,34 +436,33 @@ namespace Roguelike.PlayModeTests
         }
 
         /// <summary>
-        /// The merge of 2026-11-27, W2: a page whose lines would run into the keys' line draws its rows smaller by one share, the
-        /// least that keeps SettingsScreenLook.KeysClear above it (the Trials page's twelve lines of work orders 134, 143, 144, 135
-        /// and 136); a page that fits (the Graphics page's eleven) is drawn at its full size, as before.
+        /// The merge of 2026-11-27, W3 (changed deliberately, the producer's ruling): every page is drawn at its full size at 1920 by 1080
+        /// and 1280 by 720, the TRIALS and ROOMS pages too; the guard of W2 stays (a page whose lines would run into the keys' line is
+        /// drawn smaller by the least share that keeps SettingsScreenLook.KeysClear above it: twelve lines at 0.948, as the one Trials
+        /// page of W2 was).
         /// </summary>
         [UnityTest]
-        public IEnumerator APageLongerThanTheRoom_DrawsItsRowsSmaller_APageThatFits_AtFullSize()
+        public IEnumerator EveryPage_FitsAtFullSize_AndALongerPageWouldBeDrawnSmaller()
         {
             yield return PausedInARun();
             _hud.PickMenuLine(RunHud.MenuLine.Settings);
             foreach (Vector2Int size in Sizes)
             {
                 InterfaceStyle.ScreenForPictures = size;
-                Assert.That(_screen.OpenPage(SettingsPage.Graphics), Is.True);
-                Assert.That(_screen.RowScale, Is.EqualTo(1f), size + ": the Graphics page at its full size");
-                Assert.That(_screen.OpenPage(SettingsPage.Trials), Is.True);
-                int lines = _screen.Lines.Count;
+                foreach (SettingsPage page in SettingsPages.All)
+                {
+                    Assert.That(_screen.OpenPage(page), Is.True);
+                    Assert.That(_screen.RowScale, Is.EqualTo(1f), size + ": " + page + "'s " + _screen.Lines.Count + " lines at the full size");
+                    Assert.That(_screen.TextOutside(), Is.Empty, size + ": " + page + ", every word inside its shape");
+                }
+                _screen.Escape();
                 SettingsScreenLook look = SettingsScreenValues.Look;
                 StartMenuValues s = InterfaceStyle.V.Menus.Start;
                 float room = InterfaceStyle.V.LayoutHeight - s.HintBottom - s.HintHeight - look.KeysClear - look.RowsTop;
-                float full = lines * (look.RowHeight + look.RowGap) - look.RowGap;
-                if (full <= room) Assert.That(_screen.RowScale, Is.EqualTo(1f), size + ": " + lines + " lines fit");
-                else
-                {
-                    Assert.That(_screen.RowScale, Is.LessThan(1f), size + ": " + lines + " lines do not fit at the full size");
-                    Assert.That(_screen.RowScale * full, Is.LessThanOrEqualTo(room).And.GreaterThan(room - 1f), size + ": the least share that fits");
-                }
-                Assert.That(_screen.TextOutside(), Is.Empty, size + ": every word inside its shape");
-                _screen.Escape();
+                float twelve = 12 * (look.RowHeight + look.RowGap) - look.RowGap;
+                Assert.That(twelve, Is.GreaterThan(room), "twelve lines do not fit at the full size");
+                Assert.That(SettingsScreen.RowScaleFor(12) * twelve, Is.LessThanOrEqualTo(room).And.GreaterThan(room - 1f), size + ": the guard's least share that fits");
+                Assert.That(SettingsScreen.RowScaleFor(11), Is.EqualTo(1f), "eleven lines fit, as the Graphics page's do");
             }
         }
 
