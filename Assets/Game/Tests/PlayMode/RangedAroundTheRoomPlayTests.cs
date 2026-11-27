@@ -44,7 +44,7 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             _health.Untouchable = true;
             _levels = GeneratedLevels.Ensure();
-            _levels.Values = new LevelValues();
+            _levels.Values = new LevelValues { Waves = false }; // work order 136 (changed deliberately): its rooms wake whole, as the rule it measures was built on
         }
 
         [TearDown]
@@ -234,7 +234,7 @@ namespace Roguelike.PlayModeTests
         public IEnumerator AShooterInReach_OffScreen_BeginsNoDraw_UntilTheCameraShowsIt()
         {
             string line = null;
-            yield return OffScreenThenOn(new LevelValues(), (where, shooter, began, f) =>
+            yield return OffScreenThenOn(new LevelValues { Waves = false }, (where, shooter, began, f) =>
             {
                 Assert.That(f[0], Is.True, where + ": off the camera's view the whole first part");
                 Assert.That(f[1], Is.True, where + ": and in its reach");
