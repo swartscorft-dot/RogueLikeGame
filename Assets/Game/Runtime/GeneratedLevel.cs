@@ -804,5 +804,42 @@ namespace Roguelike
             public EnemyGroup Group;
             public readonly List<Enemy> Members = new List<Enemy>();
         }
+
+        // ---------------- Work order 137: the caller and the swarmers it calls ----------------
+
+        /// <summary>
+        /// An enemy made after the floor was built joins it (work order 137): among <see cref="Enemies"/>, and either one of its room's own
+        /// (<paramref name="roomsOwn"/>: the caller, which the room's doors, its clearing and its "enemies left" count) or one of the
+        /// <see cref="Called"/> (a swarmer it calls: not its room's, so neither its doors nor its clearing wait for it, and not in
+        /// <see cref="CalledByRoom"/>, the boss's packs' count). Told as the boss's called are (<see cref="EnemyCalled"/>), so the floor's
+        /// light on enemies and the run's count of kills hear it; whoever made it sets its fight after.
+        /// </summary>
+        public void Join(Enemy e, LevelRoom room, bool roomsOwn)
+        {
+            if (e == null) return;
+            _enemies.Add(e);
+            if (roomsOwn && room != null)
+            {
+                if (!_enemiesByRoom.TryGetValue(room.Order, out List<Enemy> list)) _enemiesByRoom[room.Order] = list = new List<Enemy>();
+                list.Add(e);
+            }
+            else _called.Add(e);
+            EnemyCalled?.Invoke(e);
+        }
+
+        /// <summary>
+        /// An enemy the floor placed is taken out of it before its fight begins (work order 137: a partner that gives way for a caller):
+        /// out of every list of the floor's, and destroyed. It never woke, so nothing reports it.
+        /// </summary>
+        public void Leave(Enemy e)
+        {
+            if (e == null) return;
+            _enemies.Remove(e);
+            _called.Remove(e);
+            foreach (List<Enemy> list in _enemiesByRoom.Values) list.Remove(e);
+            foreach (PlacedGroup g in _groups) g.Members.Remove(e);
+            e.gameObject.SetActive(false);
+            Destroy(e.gameObject);
+        }
     }
 }

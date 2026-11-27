@@ -53,6 +53,14 @@ namespace Roguelike
         /// the bomber's ember, the warder's green and the angry boss's orange (1, 0.55, 0.32).
         /// </summary>
         public static readonly Color LancerTint = new Color(0.72f, 0.18f, 0.2f);
+        /// <summary>
+        /// The caller's colour (work order 137): its capsule's and the tint over the caster's model it wears, from its values
+        /// (<see cref="CallerValues.Tint"/>, a hot magenta), so it reads apart from the caster (untinted) and the warder (green) at a glance.
+        /// </summary>
+        public static Color CallerTint => ColorOf(new CallerValues().Tint);
+
+        /// <summary>A colour of the rules (<see cref="Rgb"/>) as the engine's.</summary>
+        public static Color ColorOf(Rgb c) => new Color(c.R, c.G, c.B);
 
         /// <summary>
         /// One enemy of a kind, standing at <paramref name="at"/> (on the ground), under <paramref name="parent"/>.
@@ -154,6 +162,16 @@ namespace Roguelike
                     color = LancerTint;
                     go.transform.localScale = Vector3.one * Mathf.Max(0.1f, l.Tuning.Shown);
                     enemy = l;
+                    break;
+                }
+                case EnemyKind.Caller:
+                {
+                    // Work order 137: the caster's size and model, in its own tint.
+                    var c = go.AddComponent<EnemyCaller>();
+                    radius = c.BodyRadius;
+                    height = c.BodyHeight;
+                    color = ColorOf(c.Calls.Tint);
+                    enemy = c;
                     break;
                 }
                 case EnemyKind.Boss:

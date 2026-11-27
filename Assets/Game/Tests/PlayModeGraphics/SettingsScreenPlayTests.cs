@@ -199,7 +199,7 @@ namespace Roguelike.PlayModeTests
             // The page's order after the timing cue, each line found by its SettingLine and placed after the one before it (the
             // merge of 2026-11-27, W2, changed deliberately: not counted from the end, as more orders add lines after these):
             // the cue, its click, work order 143's precision and 144's sight opening (each with its switch on), then work
-            // order 135's "Line-ups" and work order 136's "Waves" (both on, nothing kept here).
+            // order 135's "Line-ups", work order 136's "Waves" and work order 137's "Callers" (all on, nothing kept here).
             int precision = lines.IndexOf(SettingLine.Precision), sight = lines.IndexOf(SettingLine.SightOpening);
             int lineUps = lines.IndexOf(SettingLine.LineUps), waves = lines.IndexOf(SettingLine.Waves);
             Assert.That(cue, Is.GreaterThan(0), "the cue on the page, after the attachments");
@@ -216,6 +216,10 @@ namespace Roguelike.PlayModeTests
             Assert.That(waves, Is.EqualTo(lineUps + 1), "work order 136's waves after the line-ups");
             Assert.That(_screen.RowNames[waves], Is.EqualTo("Waves"));
             Assert.That(_screen.RowValues[waves], Is.EqualTo(RoomTrialSettings.WavesChosen ? "on" : "off"));
+            int callers = lines.IndexOf(SettingLine.Callers);
+            Assert.That(callers, Is.EqualTo(waves + 1), "work order 137's callers after the waves");
+            Assert.That(_screen.RowNames[callers], Is.EqualTo("Callers"));
+            Assert.That(_screen.RowValues[callers], Is.EqualTo(RoomTrialSettings.CallersChosen ? "on" : "off"));
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));

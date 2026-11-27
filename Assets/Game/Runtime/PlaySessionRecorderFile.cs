@@ -64,6 +64,7 @@ namespace Roguelike
             start.AddExtra("things_that_fly", ThingsThatFly.On ? "true" : "false"); // work order 036: the switch as it stood
             start.AddExtra("line_ups", RoomTrialSettings.InUse(GeneratedLevels.Current?.Values) ? "true" : "false"); // work order 135: on for the floors built as the session starts (each room's own on its room_fight)
             start.AddExtra("waves", RoomTrialSettings.WavesInUse(GeneratedLevels.Current?.Values) ? "true" : "false"); // work order 136: on for the floors set up as the session starts (each room's own "waves" on its room_fight)
+            start.AddExtra("callers", RoomTrialSettings.CallersInUse(GeneratedLevels.Current?.Values) ? "true" : "false"); // work order 137: on for the floors set up as the session starts (each caller's calls in caller_call)
             Add(start);
 
             IReadOnlyList<SkillDefinition> skills = player.Skills;

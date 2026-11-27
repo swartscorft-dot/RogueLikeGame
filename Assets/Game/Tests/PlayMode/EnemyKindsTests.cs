@@ -357,6 +357,7 @@ namespace Roguelike.PlayModeTests
             _practiceEnemy.enabled = true;
             // Work order 012: the kinds come from the description's groups (drawn per floor), not a fixed plan; floor 5
             // has the act boss.
+            _levels.Values.Callers = false; // work order 137 (changed deliberately): the plan's kinds alone (a caller's room gives some of its partners way)
             GeneratedLevel level = _levels.Build(42UL, 5);
             yield return null;
             foreach (LevelRoom r in level.Layout.Rooms)

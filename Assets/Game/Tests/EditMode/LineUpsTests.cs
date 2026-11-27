@@ -122,6 +122,7 @@ namespace Roguelike.Rules.Tests
             SettingLine before = SightValues.On ? SettingLine.SightOpening : PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick;
             Assert.That(lines.IndexOf(SettingLine.LineUps), Is.EqualTo(lines.IndexOf(before) + 1), "after " + before);
             Assert.That(lines.IndexOf(SettingLine.Waves), Is.EqualTo(lines.IndexOf(SettingLine.LineUps) + 1), "work order 136's waves after it");
+            Assert.That(lines.IndexOf(SettingLine.Callers), Is.EqualTo(lines.IndexOf(SettingLine.Waves) + 1), "work order 137's callers after them");
             Assert.That(SettingsPages.PageOf(SettingLine.LineUps), Is.EqualTo(SettingsPage.Trials));
             Assert.That(RoomTrialLines.Is(SettingLine.LineUps), Is.True);
             Assert.That(RoomTrialLines.Is(SettingLine.TimingClick), Is.False);

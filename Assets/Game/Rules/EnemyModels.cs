@@ -231,12 +231,25 @@ namespace Roguelike.Rules
             Clips = Brute.Clips,
         };
 
-        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber, Warder, Lancer };
+        /// <summary>
+        /// The caller (work order 137, 2026-11-27: "the caster's body and animations in another tint, no new model, no new texture file"):
+        /// it wears the caster's, the hooded skeleton, as made (the same file, height and clips, so the look measures it as the caster's),
+        /// tinted by its factory (<see cref="CallerValues.Tint"/>), at the caster's size. Its call plays the caster's big cast.
+        /// </summary>
+        public static readonly EnemyModelSpec Caller = new EnemyModelSpec
+        {
+            Kind = EnemyKind.Caller, Name = Caster.Name, Height = Caster.Height, HasStagger = true, Glow = Caster.Glow,
+            WalkStride = Caster.WalkStride, RunStride = Caster.RunStride,
+            AttackClips = new[] { CallerValues.Call, "CastBig" },
+            Clips = Caster.Clips,
+        };
+
+        public static readonly EnemyModelSpec[] All = { Brute, Swarmer, Shooter, Guard, Boss, Caster, Bomber, Warder, Lancer, Caller };
 
         public static EnemyModelSpec Of(EnemyKind kind) =>
             kind == EnemyKind.Swarmer ? Swarmer : kind == EnemyKind.Shooter ? Shooter : kind == EnemyKind.Guard ? Guard
             : kind == EnemyKind.Boss ? Boss : kind == EnemyKind.Caster ? Caster : kind == EnemyKind.Bomber ? Bomber
-            : kind == EnemyKind.Warder ? Warder : kind == EnemyKind.Lancer ? Lancer : Brute; // work order 079; 108 the lancer
+            : kind == EnemyKind.Warder ? Warder : kind == EnemyKind.Lancer ? Lancer : kind == EnemyKind.Caller ? Caller : Brute; // work order 079; 108 the lancer; 137 the caller
 
         /// <summary>
         /// The clip's own name in a take name as an exporter writes it: "Armature|Idle" is "Idle". The part after the

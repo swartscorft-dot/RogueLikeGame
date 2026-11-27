@@ -111,10 +111,12 @@ namespace Roguelike
                 // rooms field for field, so the fullest room and its enemies are those every benchmark before measured.
                 bool waves = levels.Values != null && levels.Values.Waves;
                 bool lineUps = levels.Values != null && levels.Values.LineUps;
+                bool callers = levels.Values != null && levels.Values.Callers; // work order 137: nor a caller, for the same reason
                 if (levels.Values != null)
                 {
                     levels.Values.Waves = false;
                     levels.Values.LineUps = false;
+                    levels.Values.Callers = false;
                 }
                 try
                 {
@@ -126,6 +128,7 @@ namespace Roguelike
                     {
                         levels.Values.Waves = waves;
                         levels.Values.LineUps = lineUps;
+                        levels.Values.Callers = callers;
                     }
                 }
                 if (stage.Level == null) return stage;
