@@ -87,6 +87,13 @@ namespace Roguelike.PlayModeTests
             Assert.That(chain.Count(r => r.LineUp.Full), Is.EqualTo(1), "one full room");
             foreach (LevelRoom r in chain.Where(LevelLineUps.Fills))
             {
+                if (r.Elite && level.Elite is EnemyGraveRam)
+                {
+                    // The merge of 2026-11-27, W3 (changed deliberately): with work order 149's unique elite on, floor 1's elite room keeps
+                    // its line-up in the layout but makes the Grave Ram alone (149's rule), none of its two kinds.
+                    Assert.That(level.EnemiesByRoom[r.Order], Is.EqualTo(new Enemy[] { level.Elite }), r.Letter + "" + r.Order + ": the Ram alone");
+                    continue;
+                }
                 var kinds = level.EnemiesByRoom[r.Order].Where(e => e != null && !e.IsElite).Select(e => e.Kind).Distinct().ToList();
                 Assert.That(kinds, Is.EquivalentTo(new[] { r.LineUp.Lead, r.LineUp.Partner }), r.Letter + "" + r.Order + " (" + r.LineUp.Name + ")");
             }

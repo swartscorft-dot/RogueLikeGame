@@ -479,6 +479,7 @@ namespace Roguelike.PlayModeTests
                 Assert.That(boss.InTrial, Is.True, "the throne room's boss is the trial boss");
                 RoomFight fight = _levels.FightOf(_levels.Level.Layout.ExitRoom);
                 yield return WalkInAndWakeTheFight(fight);
+                for (int i = 0; i < 120 && !boss.IsAwake; i++) yield return null; // as BossTrialHarness.ThroneRoom waits for it
                 Assert.That(boss.IsAwake, Is.True, "woken by the ordinary entrance and fight");
                 HurtGuard guard = _player.GetComponent<HurtGuard>();
                 Assert.That(guard, Is.Not.Null, "the hurt guard on her as the trial fight woke");
