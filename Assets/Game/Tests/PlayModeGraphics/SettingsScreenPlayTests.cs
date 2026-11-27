@@ -220,6 +220,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(callers, Is.EqualTo(waves + 1), "work order 137's callers after the waves");
             Assert.That(_screen.RowNames[callers], Is.EqualTo("Callers"));
             Assert.That(_screen.RowValues[callers], Is.EqualTo(RoomTrialSettings.CallersChosen ? "on" : "off"));
+            int boss = lines.IndexOf(SettingLine.BossFight); // work order 147's line after the callers, with BossValues.Trial on
+            if (BossValues.Trial) Assert.That(boss, Is.EqualTo(callers + 1), "work order 147's boss line after the callers");
+            else Assert.That(boss, Is.EqualTo(-1), "work order 147's switch off: no boss line");
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));

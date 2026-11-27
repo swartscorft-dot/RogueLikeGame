@@ -170,6 +170,7 @@ namespace Roguelike.Rules.Tests
                 SettingLine.LineUps, // work order 135 (changed deliberately): the rooms' line-ups, after 143's and 144's (the merge of 2026-11-27, W2)
                 SettingLine.Waves, // work order 136 (changed deliberately): the rooms' waves
                 SettingLine.Callers, // work order 137 (changed deliberately): the rooms' callers
+                SettingLine.BossFight, // work order 147's line (with BossValues.Trial on)
             }));
             // With the camera angle off the page is the same list without that one line, every other line in its order
             // (the merge of 2026-11-27, W2: named by the list, not by a count from the end, as more orders add lines after these).

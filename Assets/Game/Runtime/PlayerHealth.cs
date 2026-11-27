@@ -80,6 +80,7 @@ namespace Roguelike
         public int TakeHit(int damage)
         {
             if (!IsAlive || damage <= 0 || Untouchable) return 0;
+            if (HurtGuard.Holds(this)) return 0; // work order 147: the trial boss's hurt guard (HurtGuard.cs)
             if (_player.IsInvulnerable)
             {
                 HitsAvoided++;
@@ -91,6 +92,7 @@ namespace Roguelike
             if (applied > 0)
             {
                 HitsTaken++;
+                HurtGuard.Took(this); // work order 147
                 Damaged?.Invoke(applied);
                 if (!_health.IsDead) _player.TookHit(applied); // work order 092: hurt while sprinting, a small stagger
             }

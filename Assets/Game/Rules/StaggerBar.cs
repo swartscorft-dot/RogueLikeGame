@@ -85,5 +85,20 @@ namespace Roguelike.Rules
             _dazedUntil = float.NegativeInfinity;
             Current = _values.Max;
         }
+
+        /// <summary>
+        /// Dazed now for <paramref name="seconds"/>, as an emptied bar is (its damage raised by <see cref="StaggerValues.DazedDamageMultiplier"/>,
+        /// no stagger taken, full again at the end), whatever is left in it (work order 147: the trial boss's crash and its broken ward).
+        /// A daze already running that lasts longer is kept.
+        /// </summary>
+        public void DazeFor(float seconds, float now)
+        {
+            if (seconds <= 0f) return;
+            float until = now + seconds;
+            if (_dazed && _dazedUntil >= until) return;
+            Current = 0f;
+            _dazed = true;
+            _dazedUntil = until;
+        }
     }
 }

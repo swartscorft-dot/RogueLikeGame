@@ -42,6 +42,7 @@ namespace Roguelike.Rules
         LineUps, // work order 135: the rooms' line-ups on or off, on the Trials page (RoomTrialLines); the merge of 2026-11-27 (W2) put it after 143's and 144's
         Waves, // work order 136: the rooms' waves on or off, on the Trials page (RoomTrialLines)
         Callers, // work order 137: the rooms' callers on or off, on the Trials page (RoomTrialLines)
+        BossFight, // work order 147: the boss, "Trial" or "As before", on the Trials page (BossTrialSettings), with BossValues.Trial on
     }
 
     /// <summary>The quality presets (work order 128): each sets the four lines under it; a hand-made mix of them reads Custom.</summary>
@@ -391,7 +392,8 @@ namespace Roguelike.Rules
                     if (SightValues.On) into.Add(SettingLine.SightOpening); // work order 144, after it
                     into.Add(SettingLine.LineUps);     // work order 135: the rooms' line-ups (RoomTrialLines), after them (the merge of 2026-11-27, W2)
                     into.Add(SettingLine.Waves);       // work order 136: the rooms' waves (RoomTrialLines)
-                    into.Add(SettingLine.Callers);     // work order 137: the rooms' callers (RoomTrialLines), last
+                    into.Add(SettingLine.Callers);     // work order 137: the rooms' callers (RoomTrialLines)
+                    if (BossValues.Trial) into.Add(SettingLine.BossFight); // work order 147, after them
                     break;
             }
         }

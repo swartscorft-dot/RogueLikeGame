@@ -55,8 +55,8 @@ namespace Roguelike
         float _rushStart;
 
         public override EnemyKind Kind => EnemyKind.Boss;
-        /// <summary>Its values; angry, a copy with the shorter windups.</summary>
-        public override EnemyValues Values => _angry ?? Tuning.Enemy;
+        /// <summary>Its values; angry, a copy with the shorter windups. Work order 147: the trial fight's, its phase's wind-ups.</summary>
+        public override EnemyValues Values => _tv != null ? _tvValues[Mathf.Clamp(_phase, 1, 3)] : _angry ?? Tuning.Enemy;
         public StaggerBar Stagger => StaggerNow; // work order 106: also while it roars, when the bar is held aside
         public bool IsAngry => _tactics.Angry;
         public int PacksCalled => _tactics.Calls;
@@ -74,9 +74,16 @@ namespace Roguelike
 
         protected override void Awake()
         {
+            TrialAwake(); // work order 147: before Enemy's Awake reads its values
             base.Awake();
             _self.Stagger = new StaggerBar(Tuning.Stagger);
             if (GetComponent<BossHealthBar>() == null) gameObject.AddComponent<BossHealthBar>();
+        }
+
+        protected override void Start()
+        {
+            base.Start();
+            TrialStart(); // work order 147: the trial's health, at full in the practice room too
         }
 
         protected override void Update()
@@ -85,12 +92,14 @@ namespace Roguelike
             {
                 _rushing = false;
                 FinaleDead(); // work order 106
+                TrialDead(); // work order 147
             }
             else
             {
                 Wake();
                 Temper();
                 FinaleTick(); // work order 106: the roar, a slam the brain dropped, the fight's line
+                TrialTick(); // work order 147: its phases, Judgement, every pattern on the ground
             }
             base.Update();
         }
@@ -105,6 +114,11 @@ namespace Roguelike
         /// <summary>Its anger and its calls, by the health it has left.</summary>
         void Temper()
         {
+            if (_tv != null)
+            {
+                TrialTemper(); // work order 147: no anger, no break at half, no packs; its own three phases
+                return;
+            }
             float share = HealthShare;
             if (_tactics.BecomesAngry(share, Tuning))
             {
@@ -151,6 +165,7 @@ namespace Roguelike
 
         protected override EnemyAttackDefinition ChooseAttack(float distance, EnemyValues values)
         {
+            if (_tv != null) return TrialChoose(distance); // work order 147
             bool sees = Sees(Player.Position);
             if (!BossValues.NeverParked) return _phases.Choose(_tactics, distance, sees, values, Tuning.Phases); // work order 106: the tactics' own until the break
             return _phases.Choose(_tactics, distance, sees, sees && ChargeReachesHer(distance, values), values, Tuning.Phases); // work order 146
@@ -187,7 +202,8 @@ namespace Roguelike
 
         protected override void OnWindupStarted(EnemyAttackDefinition attack)
         {
-            if (attack == Tuning.Phases.Slam) BeginSlam(); // work order 106
+            if (IsSlam(attack)) BeginSlam(); // work order 106; 147's too
+            if (_tv != null) TrialWindupStarted(attack); // work order 147
             if (attack.Rush <= 0f) return;
             _chargeReach = ChargeLengthFrom(transform.position, AimDirection(), attack.Length);
             if (!_chaining) _chargesLeft = IsAngry ? Mathf.Max(1, Tuning.AngryCharges) : 1;
@@ -218,7 +234,8 @@ namespace Roguelike
 
         protected override bool StrikesItself(EnemyAttackDefinition attack)
         {
-            if (_slamming && attack == Tuning.Phases.Slam) LandSlam(); // work order 106: it lands, and the ring is struck from there
+            if (_tv != null && TrialStrikesItself(attack)) return true; // work order 147: a pattern strikes itself
+            if (_slamming && IsSlam(attack)) LandSlam(); // work order 106: it lands, and the ring is struck from there
             if (attack.Rush <= 0f) return false;
             _rush = attack;
             _rushing = true;
@@ -233,8 +250,9 @@ namespace Roguelike
 
         protected override void AfterMove()
         {
-            SendWave(); // work order 036
+            if (_tv == null) SendWave(); // work order 036 (147: the trial sends its own)
             SlamStep(); // work order 106
+            if (_tv != null) TrialAfterMove(); // work order 147
             if (!_rushing) return;
             HoldRecovery(); // it stands its whole recovery where it stops
             float s = Mathf.Min(_chargeReach, (Time.time - _rushStart) * _rush.Rush);
@@ -259,6 +277,12 @@ namespace Roguelike
             _rushing = false;
             if (!_rushHit) Land(_rush, false);
             if (_agent.isOnNavMesh) _agent.velocity = Vector3.zero;
+            if (_tv != null)
+            {
+                _chargesLeft = 0;
+                TrialChargeEnded(); // work order 147: a crash dazes it; no second charge
+                return;
+            }
             if (--_chargesLeft <= 0 || Player == null || (PlayerHealth != null && !PlayerHealth.IsAlive)) return;
             // Angry: a second charge at once, aimed at where she stands now, with its own windup and telegraph.
             EnemyAttackDefinition next = null;
@@ -277,6 +301,7 @@ namespace Roguelike
             _rushing = false;
             _chargesLeft = 0;
             if (_slamming) EndSlam(transform.position); // work order 106: dazed in the air, it comes down where it is
+            if (_tv != null) TrialOnDaze(); // work order 147
         }
 
         protected override Vector3 LookVelocity => _rushing && _rush != null ? _rushDir * _rush.Rush : base.LookVelocity;

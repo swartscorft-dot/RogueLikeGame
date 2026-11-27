@@ -81,7 +81,7 @@ namespace Roguelike
         {
             if (_roarPending && !IsDazed) StartRoar();
             if (_roarUntil >= 0f && Time.time >= _roarUntil) EndRoar();
-            if (_slamming && (State != EnemyState.Windup || Attack != Tuning.Phases.Slam)) EndSlam(transform.position);
+            if (_slamming && (State != EnemyState.Windup || !IsSlam(Attack))) EndSlam(transform.position);
             NoteFightIfOver();
         }
 
@@ -116,7 +116,8 @@ namespace Roguelike
             _heldStagger = null;
         }
 
-        protected override bool MayAttack(Vector3 toPlayer, float distance) => !IsRoaring && base.MayAttack(toPlayer, distance);
+        protected override bool MayAttack(Vector3 toPlayer, float distance) =>
+            !IsRoaring && (_tv == null || TrialMayAttack()) && base.MayAttack(toPlayer, distance); // work order 147: not through a transition or Judgement
 
         protected override void Chase(Vector3 toPlayer, float distance)
         {
@@ -126,6 +127,7 @@ namespace Roguelike
                 Face(toPlayer); // it roars at her
                 return;
             }
+            if (_tv != null && TrialChase(toPlayer)) return; // work order 147: its transitions and Judgement
             base.Chase(toPlayer, distance);
         }
 
@@ -151,7 +153,7 @@ namespace Roguelike
         {
             if (!_slamming) return;
             EnemyAttackDefinition a = Attack;
-            if (State != EnemyState.Windup || a != Tuning.Phases.Slam)
+            if (State != EnemyState.Windup || !IsSlam(a))
             {
                 EndSlam(transform.position);
                 return;
@@ -211,6 +213,7 @@ namespace Roguelike
             _wokeAt = Time.time;
             _slamsStruck = _slamsLanded = _slamsAvoided = 0;
             _wasAwake = true;
+            TrialWoke(); // work order 147
         }
 
         void OnOwnReport(EnemyReport r)
@@ -231,7 +234,7 @@ namespace Roguelike
         void NoteFight(string how)
         {
             _wasAwake = false;
-            if (!BossValues.Finale || _wokeAt < 0f) return;
+            if (!BossValues.Finale || _wokeAt < 0f || _tv != null) return; // work order 147: the trial writes its own line
             float end = Time.time;
             bool broke = _phases.Broken;
             float breakAt = broke ? Mathf.Max(_brokeAt, _wokeAt) : end; // broken in an earlier fight: phase two from its waking
@@ -244,6 +247,7 @@ namespace Roguelike
             // Taken away awake (the floor left, the practice spawns cleared): its body may be gone first, so only a death seen says otherwise.
             if (_wasAwake && (_self == null || _self.IsAlive)) NoteFight(BossFightEvents.Removed);
             if (_listening) Reported -= OnOwnReport;
+            TrialDestroyed(); // work order 147
             base.OnDestroy();
         }
     }

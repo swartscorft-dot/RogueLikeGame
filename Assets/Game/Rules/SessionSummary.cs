@@ -259,6 +259,8 @@ namespace Roguelike.Rules
         public MusicStats Music = new MusicStats();
         /// <summary>Work order 143: precision's shots, cone misses and counter-strafes (SessionSummaryPrecision.cs); none for a log without them.</summary>
         public PrecisionStats Precision = new PrecisionStats();
+        /// <summary>Work order 147: the trial boss's fights (SessionSummaryBossTrial.cs); none for a log without them.</summary>
+        public List<BossTrialRow> BossTrial = new List<BossTrialRow>();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -493,6 +495,7 @@ namespace Roguelike.Rules
             stats.Lancers = ComputeLancers(events); // work order 108
             stats.Music = ComputeMusic(events, length); // work order 116
             stats.Precision = ComputePrecision(events, length); // work order 143
+            stats.BossTrial = ComputeBossTrial(events); // work order 147
             return stats;
         }
 
@@ -722,6 +725,7 @@ namespace Roguelike.Rules
             WriteRoomUse(sb, stats.RoomUse); // work order 097: its own block, at the end
             WriteNewSkills(sb, stats.NewSkills); // work order 109: only in a log with one of the three in it
             WritePrecision(sb, stats.Precision); // work order 143: only in a log with precision's extras
+            WriteBossTrial(sb, stats.BossTrial); // work order 147: only in a log with a trial fight
             return sb.ToString();
         }
 

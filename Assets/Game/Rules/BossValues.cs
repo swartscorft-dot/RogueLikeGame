@@ -138,6 +138,17 @@ namespace Roguelike.Rules
         /// put it back.
         /// </summary>
         public static bool NeverParked = true;
+
+        /// <summary>
+        /// Work order 147, ON by default: the hard boss, stage 1 in grey boxes. Kristian, 2026-11-27: "bossen skal være veldig vanskelig.
+        /// masse mechanics og ting å dodge. nå sto jeg basicly bare stille og høyre cklikket", and ticked "Research, så bygg i gråboks" and
+        /// "Flere forsøk forventet". On (and the Trials page's "Boss" line on "Trial", its default): the trial fight, three phases and
+        /// seven attacks to dodge (<see cref="BossTrialValues"/>, EnemyBossTrial.cs); in the throne room and as the practice room's boss
+        /// (F8), at full health. Off, or the line on "As before": the boss is work order 146's, field for field. With nobody at the keys
+        /// (every test, the benchmark) the trial is in use only when a test asks for it (BossTrialSettings.ForTests), so every older test
+        /// meets the boss as before. One switch for the whole game, so it is static; tests set it and put it back.
+        /// </summary>
+        public static bool Trial = true;
     }
 
     /// <summary>
