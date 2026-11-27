@@ -186,6 +186,7 @@ namespace Roguelike
             Note = "";
             Selected = 0;
             if (next == MenuScreen.Main) StartMenuFlow.MainLines(ShowQuit, SettingsScreenValues.On, _main); // work order 128: SETTINGS with its switch
+            if (next == MenuScreen.Main) RehearsalLine(); // work order 148: "Rehearsal: the boss" while a build is stored (StartMenuRehearsal.cs)
             if (next == MenuScreen.Stats) RunHud.Current?.MakeMenuStats(this);
             _laidOut = false;
             Hold();
@@ -238,6 +239,7 @@ namespace Roguelike
         {
             if (Screen != MenuScreen.Main || !_main.Contains(line)) return false;
             Selected = _main.IndexOf(line);
+            if (line == MainLine.Rehearsal) return PickRehearsal(); // work order 148 (StartMenuRehearsal.cs)
             if (line == MainLine.Settings) return SettingsScreen.Ensure().Open(SettingsFrom.StartMenu); // work order 128: the settings screen over the main menu
             if (line == MainLine.Quit)
             {
@@ -492,7 +494,7 @@ namespace Roguelike
         /// <summary>A run started or ended (not the room lab's): the records are told and written. A bool and a reference compared in a frame that changes nothing.</summary>
         void KeepRecords(GeneratedLevels levels)
         {
-            RunRecord now = levels.InRun && !levels.InLab ? levels.Record : null;
+            RunRecord now = levels.InRun && !levels.InLab && !levels.InRehearsal ? levels.Record : null; // work order 148: nor a rehearsal
             if (ReferenceEquals(now, _counting)) return;
             RunRecords r = Records;
             if (_counting != null) RecordsRules.NoteEnded(r, _counting.Outcome, _counting.Floor, _counting.Kills, _counting.Seconds);

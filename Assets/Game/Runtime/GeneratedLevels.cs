@@ -319,6 +319,7 @@ namespace Roguelike
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
+            RehearsalOver(); // work order 148: she leaves the rehearsals, if she was in them (GeneratedLevelsRehearsal.cs)
             if (_level == null) return;
             PlayerCharacter player = FindPlayer();
             if (player != null) player.Teleport(_practiceSpotKnown ? _practiceSpot : Vector3.zero);
@@ -360,6 +361,7 @@ namespace Roguelike
             CloseChoice();
             CloseScreens();
             if (InRun) EndRun("left", "Left the run on floor " + Floor + RoomWords() + "   run " + RunSeedText);
+            RehearsalOver(); // work order 148: a real run: she leaves the rehearsals, if she was in them (GeneratedLevelsRehearsal.cs)
             ClearSpawned(); // what the practice room spawned, of every kind, never follows her into a run (the review of 2026-11-20, work order 026)
             RunSeed = runSeed;
             InRun = true;
@@ -431,6 +433,7 @@ namespace Roguelike
             if (!InRun) return;
             InRun = false;
             LastRunLine = line;
+            RehearsalRunEnds(how); // work order 148: a rehearsal ends; a real run's build is kept, its upgrades still on (GeneratedLevelsRehearsal.cs)
             LabRunEnded(how); // work order 084: the room lab's run, told as the lab's
             RecordEnd(how);
             BetweenRunsRunEnded(); // work order 029: what the run earned is kept, with the switch on

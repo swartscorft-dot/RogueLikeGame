@@ -62,6 +62,7 @@ namespace Roguelike
             AddEnemyFields(start, "guard.", guard.Enemy);
             AddFields(start, "guard.stagger.", guard.Stagger);
             start.AddExtra("things_that_fly", ThingsThatFly.On ? "true" : "false"); // work order 036: the switch as it stood
+            if (WritesRehearsal) start.AddExtra(RehearsalField, "true"); // work order 148: a rehearsal's session (PlaySessionRecorderRehearsal.cs)
             Add(start);
 
             IReadOnlyList<SkillDefinition> skills = player.Skills;

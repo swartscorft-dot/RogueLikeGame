@@ -7,7 +7,7 @@ namespace Roguelike.Rules
     public enum MenuScreen { None, Main, Character, Loadout, Upgrades, Stats }
 
     /// <summary>The main menu's lines, in the order shown (work order 114, his words: "start run ... En annen fane er upgrades. Stats og annet morro").</summary>
-    public enum MainLine { StartRun, Upgrades, Stats, Quit, Settings } // Settings: work order 128 (shown between STATS and QUIT)
+    public enum MainLine { StartRun, Upgrades, Stats, Quit, Settings, Rehearsal } // Settings: work order 128 (shown between STATS and QUIT); Rehearsal: work order 148 (under START RUN, while a build is stored)
 
     /// <summary>
     /// The start menu's numbers and words (work order 114, 2026-11-24). Kristian: "Hvi kan godt også lage en start og main menu i

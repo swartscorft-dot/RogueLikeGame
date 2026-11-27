@@ -84,6 +84,7 @@ namespace Roguelike
         public bool AnswerEndScreen(EndAnswer answer)
         {
             if (Ending == EndKind.None) return false;
+            if (AnswerRehearsalEnd(answer)) return true; // work order 148: a rehearsal's end: Again, the main menu, the practice room (GeneratedLevelsRehearsal.cs)
             switch (answer)
             {
                 case EndAnswer.NewRun: if (!StartMenu.TakeEndScreen(this)) StartNewRun(); break; // work order 114: with the start menu, its main menu
