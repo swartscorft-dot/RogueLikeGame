@@ -702,10 +702,11 @@ namespace Roguelike
         /// <summary>
         /// The laser's lens (the Blender file's LaserRed): a deep red lit from inside, with no light highlight and no reflection of
         /// its own (a grey shine on it read as pink). The code-made dot's colour and glow ran to pink on the model's lens in the
-        /// first pictures, and at a glow of 0.9 red with a gloss its brightest pixels still came out salmon (255, 101, 124 of 255):
-        /// the glow lower and the shine off, so its red is red.
+        /// first pictures, and at a glow of 0.9 red with a gloss its brightest pixels still came out salmon (255, 101, 124 of 255);
+        /// at 0.75 with the shine off, raspberry (246, 66, 84 at the ninetieth hundredth): the glow lower again and pure red, with
+        /// no green or blue in it at all.
         /// </summary>
-        static readonly Color ModelDot = new Color(0.45f, 0.02f, 0.04f), ModelDotGlow = new Color(0.75f, 0.02f, 0.05f);
+        static readonly Color ModelDot = new Color(0.42f, 0f, 0.01f), ModelDotGlow = new Color(0.62f, 0f, 0.01f);
         /// <summary>The reflex sight's pane (the Blender file's Glass: a pale teal, about a third opaque) and how glossy it is.</summary>
         static readonly Color ModelGlass = new Color(0.55f, 0.85f, 0.9f, 0.3f);
         const float ModelGlassSmoothness = 0.9f;
