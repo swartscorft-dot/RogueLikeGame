@@ -44,10 +44,12 @@ namespace Roguelike.Rules
         /// <summary>m between the points tried for its place (a grid over the room's open floor).</summary>
         public double PlaceStep = 0.5;
         /// <summary>
-        /// m inside the edge of the default camera's view from the room's middle its place stands at least. 1 m (a chest is low) put it, in
-        /// the first pictures, against the top edge of the screen with its number over it cut close; 2 m keeps it and its number inside.
+        /// m inside the edge of the default camera's view from the room's middle its place stands at least. 1 m and 2 m (a chest is low)
+        /// both left it, in the pictures of rounds 1 and 2, a tenth of the screen's height below its top edge with its number over it close
+        /// to the edge: the default view the rule measures (28 m away) reaches further north than the game's camera at its nearest step.
+        /// 3.5 m keeps it further in where a room allows (every floor from 2 still has one; that room's place was already 3.5 m in).
         /// </summary>
-        public double ViewMargin = 2.0;
+        public double ViewMargin = 3.5;
         /// <summary>m: its place must be on the floor's NavMesh within this of where the rule put it (as an arrival's, <see cref="RoomWaveValues.OnNavMeshWithin"/>).</summary>
         public float OnNavMeshWithin = 0.3f;
 
@@ -55,9 +57,12 @@ namespace Roguelike.Rules
         /// <summary>
         /// The share of the room's own lead and of its own partner (as the floor placed them) its wave brings, by the floor's number (index 0
         /// unused, 1 to 5; a floor past the table reads its last): 0.6 of each (the order's "about 60 %"), each kind rounded and at least one.
-        /// So the count grows with the floor's rooms. Tune toward the order's target (a practised clear leaves 70 to 90 %), not the decay.
+        /// So the count grows with the floor's rooms. Tuned toward the order's target (a practised clear leaves 70 to 90 %, a slow one 40 to
+        /// 60 %), not the decay: at 0.6 the test bot (TimedChestBotPlayTests, a kill every 2 s and every 4 s) cleared in 6 to 20 s and 8 to
+        /// 28 s, leaving 89 to 100 % and 81 to 100 %; the count that reaches the target is about twice that. 1.0: the room's own count
+        /// again, the first step toward it (his to tune).
         /// </summary>
-        public float[] WaveShare = { 0f, 0f, 0.6f, 0.6f, 0.6f, 0.6f };
+        public float[] WaveShare = { 0f, 0f, 1f, 1f, 1f, 1f };
         /// <summary>s from the opening to its wave's first discs (0: at once; each enemy still waits its 1 s disc, 136's rule).</summary>
         public float FirstDiscsAfter = 0f;
 

@@ -42,7 +42,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(C.DecayShare, Is.EqualTo(0.01f), "1 % of the whole");
             Assert.That(C.DecayEvery, Is.EqualTo(1f), "a second");
             Assert.That(C.Least, Is.EqualTo(0.1f), "never under 10 %");
-            Assert.That(C.WaveShare.Skip(2), Is.All.EqualTo(0.6f), "about 60 % of the room's own fight");
+            Assert.That(C.WaveShare.Skip(2), Is.All.EqualTo(1f), "the order's 60 % tuned toward its target by the bot's numbers: the room's own count again");
             Assert.That(C.OpenWords, Is.EqualTo("Open: a fight, the reward shrinks"), "the order's prompt");
             Assert.That(TimedChestRules.Whole(1, C), Is.EqualTo(0), "none on floor 1");
             for (int floor = 2; floor <= 5; floor++) Assert.That(TimedChestRules.Whole(floor, C), Is.GreaterThan(0), "floor " + floor);
@@ -185,7 +185,7 @@ namespace Roguelike.Rules.Tests
         // ---------------- Its wave ----------------
 
         [Test]
-        public void ItsWave_SixTenthsOfEachOfTheRoomsTwoKinds_AtLeastOneEach()
+        public void ItsWave_ItsShareOfEachOfTheRoomsTwoKinds_AtLeastOneEach()
         {
             var v = new LevelValues();
             int rooms = 0;
@@ -204,8 +204,9 @@ namespace Roguelike.Rules.Tests
                         Assert.That(partnerKind, Is.EqualTo(room.LineUp.Partner));
                     }
                     int leads = TimedChestRules.CountOf(room, leadKind), partners = partnerKind == leadKind ? 0 : TimedChestRules.CountOf(room, partnerKind);
-                    Assert.That(lead, Is.EqualTo(leads == 0 ? 0 : Math.Max(1, (int)Math.Round(leads * 0.6, MidpointRounding.AwayFromZero))));
-                    Assert.That(partner, Is.EqualTo(partners == 0 ? 0 : Math.Max(1, (int)Math.Round(partners * 0.6, MidpointRounding.AwayFromZero))));
+                    double share = TimedChestRules.WaveShareOf(floor, C);
+                    Assert.That(lead, Is.EqualTo(leads == 0 ? 0 : Math.Max(1, (int)Math.Round(leads * share, MidpointRounding.AwayFromZero))));
+                    Assert.That(partner, Is.EqualTo(partners == 0 ? 0 : Math.Max(1, (int)Math.Round(partners * share, MidpointRounding.AwayFromZero))));
                     Assert.That(lead + partner, Is.GreaterThan(0));
                     Assert.That(lead, Is.LessThanOrEqualTo(leads), "never more than the room's own");
                     Assert.That(partner, Is.LessThanOrEqualTo(partners));
