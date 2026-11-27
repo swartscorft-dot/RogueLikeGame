@@ -64,7 +64,7 @@ namespace Roguelike.PlayModeTests
         {
             Time.captureDeltaTime = 0f;
             EliteValues.Unique = _uniqueBefore;
-            EliteHurtGuard.Clear();
+            HurtGuard.Clear(_health); // one guard since the merge of 2026-11-27, W3
             if (_health != null) _health.Untouchable = false;
             if (Camera.main != null) Camera.main.ResetAspect();
             if (_levels != null) Object.Destroy(_levels.gameObject);

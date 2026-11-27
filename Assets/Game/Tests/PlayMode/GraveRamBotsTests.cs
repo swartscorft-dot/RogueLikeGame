@@ -98,7 +98,7 @@ namespace Roguelike.PlayModeTests
         {
             Time.captureDeltaTime = 0f;
             EliteValues.Unique = _uniqueBefore;
-            EliteHurtGuard.Clear();
+            HurtGuard.Clear(_health); // one guard since the merge of 2026-11-27, W3
             if (_player != null) _player.Steer(Vector3.zero);
             if (_health != null)
             {
@@ -182,7 +182,7 @@ namespace Roguelike.PlayModeTests
             _health.MaxHealth = Placeholders.PlayerHealth;
             _health.RestoreFull();
             _health.Untouchable = false;
-            EliteHurtGuard.Clear();
+            HurtGuard.Clear(_health); // one guard since the merge of 2026-11-27, W3
             // Her damage raised to the research's rate (the bot's assumption): each hit of hers on the Ram deals Boost times, the stagger bar's
             // dazed share counted once.
             float boost = Boost;

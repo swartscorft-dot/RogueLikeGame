@@ -80,8 +80,7 @@ namespace Roguelike
         public int TakeHit(int damage)
         {
             if (!IsAlive || damage <= 0 || Untouchable) return 0;
-            if (HurtGuard.Holds(this)) return 0; // work order 147: the trial boss's hurt guard (HurtGuard.cs)
-            if (EliteHurtGuard.Holds(this)) return 0; // work order 149: the Grave Ram's hurt guard (EliteHurtGuard.cs); 147's boss guard is to be folded in here
+            if (HurtGuard.Holds(this)) return 0; // work orders 147 and 149: the hurt guard of the trial boss and the Grave Ram, one guard since the merge of 2026-11-27, W3 (HurtGuard.cs)
             if (_player.IsInvulnerable)
             {
                 HitsAvoided++;
@@ -93,7 +92,7 @@ namespace Roguelike
             if (applied > 0)
             {
                 HitsTaken++;
-                HurtGuard.Took(this); // work order 147
+                HurtGuard.Took(this); // work order 147: in the trial fight every hit that hurts her starts the guard
                 Damaged?.Invoke(applied);
                 if (!_health.IsDead) _player.TookHit(applied); // work order 092: hurt while sprinting, a small stagger
             }

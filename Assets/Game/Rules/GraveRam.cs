@@ -236,11 +236,9 @@ namespace Roguelike.Rules
         /// <summary>s it takes to stand up again after a lean.</summary>
         public float RaiseSeconds = 0.3f;
 
-        // ---------------- The hurt guard (R6 7.1; work order 147 builds the boss's) ----------------
-        /// <summary>s after a hit of the Ram's in which nothing hurts her again (R6 7.1: 0.8 s).</summary>
-        public float HurtGuardSeconds = 0.8f;
-        /// <summary>s of one flicker of her body while it lasts: hidden for half of it, shown for the other half.</summary>
-        public float HurtGuardFlicker = 0.1f;
+        // ---------------- The hurt guard (R6 7.1) ----------------
+        // Its 0.8 s and its flicker are HurtGuardRule.Seconds and FlickerHalf since the merge of 2026-11-27 (W3): one guard, the trial
+        // boss's of work order 147 and the Ram's, begun by a hit of the Ram's (Runtime/HurtGuard.cs).
 
         [NonSerialized] EnemyAttackDefinition[] _calm, _angry;
 
@@ -390,17 +388,6 @@ namespace Roguelike.Rules
             float share = v.LeanShare <= 1e-4f ? 1e-4f : v.LeanShare;
             float p = windupProgress / share;
             return p < 0f ? 0f : p > 1f ? 1f : p;
-        }
-
-        /// <summary>Is the hurt guard on, <paramref name="since"/> s after the hit that began it (none: negative)?</summary>
-        public static bool Guards(float since, GraveRamValues v) => since >= 0f && since < v.HurtGuardSeconds;
-
-        /// <summary>Is her body shown at this moment of the guard (hidden for the first half of each flicker)?</summary>
-        public static bool GuardShows(float since, GraveRamValues v)
-        {
-            if (!Guards(since, v) || v.HurtGuardFlicker <= 1e-4f) return true;
-            float k = since / v.HurtGuardFlicker;
-            return k - (float)Math.Floor(k) >= 0.5f;
         }
     }
 

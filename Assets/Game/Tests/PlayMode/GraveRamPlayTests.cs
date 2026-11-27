@@ -70,7 +70,7 @@ namespace Roguelike.PlayModeTests
         {
             Time.captureDeltaTime = 0f;
             EliteValues.Unique = _uniqueBefore;
-            EliteHurtGuard.Clear();
+            HurtGuard.Clear(_health); // one guard since the merge of 2026-11-27, W3
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;
             if (_folder != null && Directory.Exists(_folder)) Directory.Delete(_folder, true);
@@ -335,7 +335,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(before - _health.Current, Is.EqualTo(14), "standing: 14");
 
             // Again, she walking straight out a quarter second after its tell began, from against its body (the worst place).
-            EliteHurtGuard.Clear();
+            HurtGuard.Clear(_health); // one guard since the merge of 2026-11-27, W3
             yield return GraveRamTestRoom.Run(4f, () => r.Ram.State == EnemyState.Chase);
             yield return GraveRamTestRoom.Run(1.2f, null, () => _player.Teleport(her)); // its gap
             r.Ram.Tactics.Began(r.Ram.Tuning.RamAttack, Time.time); // the last was a Ram: the Stomp may come again
@@ -384,7 +384,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(before - _health.Current, Is.EqualTo(16), "standing: the first and the third (8 each); the hurt guard spared the second");
             Assert.That(r.Ram.Guarded, Is.EqualTo(1));
 
-            EliteHurtGuard.Clear();
+            HurtGuard.Clear(_health); // one guard since the merge of 2026-11-27, W3
             yield return GraveRamTestRoom.Run(4.5f, null, () => _player.Teleport(her)); // it walks round meanwhile
             yield return r.Put(ram); // back where it threw from, its throw's rest nearly over
             yield return GraveRamTestRoom.Run(4f, () => r.Ram.State == EnemyState.Windup && r.Ram.Attack != null && r.Ram.Attack.Name == GraveRamValues.Stones, () => _player.Teleport(her));
@@ -486,18 +486,18 @@ namespace Roguelike.PlayModeTests
             yield return Place(r, her, ram);
             yield return GraveRamTestRoom.Run(8f, () => r.Ram.MetHer > 0, () => _player.Teleport(her));
             Assume.That(r.Ram.MetHer, Is.EqualTo(1));
-            Assert.That(EliteHurtGuard.Holds(_health), Is.True, "the guard on");
+            Assert.That(HurtGuard.Guarding(_health), Is.True, "the guard on"); // one guard since the merge of 2026-11-27, W3 (changed deliberately)
             Assert.That(_health.TakeHit(10), Is.EqualTo(0), "a hit at once does nothing");
-            var flicker = _player.GetComponent<EliteHurtGuard>();
+            var flicker = _player.GetComponent<HurtGuard>();
             Assert.That(flicker, Is.Not.Null);
             bool hidden = false, shown = false;
-            yield return GraveRamTestRoom.Run(0.7f, null, () => { hidden |= flicker.Hidden; shown |= !flicker.Hidden; });
+            yield return GraveRamTestRoom.Run(0.7f, null, () => { hidden |= flicker.FlickerHidden; shown |= !flicker.FlickerHidden; });
             Assert.That(hidden && shown, Is.True, "her body flickers");
             Assert.That(_health.TakeHit(10), Is.EqualTo(0), "0.7 s on, still guarded");
             yield return GraveRamTestRoom.Run(0.15f, null);
-            Assert.That(EliteHurtGuard.Holds(_health), Is.False);
+            Assert.That(HurtGuard.Guarding(_health), Is.False);
             Assert.That(_health.TakeHit(10), Is.EqualTo(10), "past 0.8 s a hit lands");
-            Assert.That(flicker.Hidden, Is.False, "and she is shown");
+            Assert.That(flicker.FlickerHidden, Is.False, "and she is shown");
         }
 
         // ---------------- Phase 2 ----------------

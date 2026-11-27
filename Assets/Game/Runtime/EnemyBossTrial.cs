@@ -220,7 +220,7 @@ namespace Roguelike
             if (PlayerHealth != null)
             {
                 _guard = HurtGuard.On(PlayerHealth);
-                _guard.SetActive(true, _tv);
+                _guard.SetActive(true);
             }
             BeginRecord(now);
         }
@@ -1507,7 +1507,7 @@ namespace Roguelike
                 _standUntil = -1f;
                 if (_self != null) _self.Untouchable = false;
             }
-            if (_guard != null) _guard.SetActive(false, null);
+            if (_guard != null) _guard.SetActive(false);
             ListenToHer(false);
             WriteFight(how);
         }

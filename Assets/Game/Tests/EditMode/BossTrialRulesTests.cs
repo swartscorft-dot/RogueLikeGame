@@ -46,7 +46,7 @@ namespace Roguelike.Tests
             Assert.That(V.FirstAttackAfter, Is.EqualTo(2f));
             Assert.That(V.Gap.Skip(1), Is.EqualTo(new[] { 0.9f, 0.7f, 0.45f }));
             Assert.That(V.DashOnlyEvery, Is.EqualTo(10f));
-            Assert.That(V.HurtGuardSeconds, Is.EqualTo(0.8f));
+            Assert.That(HurtGuardRule.Seconds, Is.EqualTo(0.8f)); // one value with work order 149's since the merge of 2026-11-27, W3 (changed deliberately)
             Assert.That(V.JudgementAt, Is.EqualTo(new[] { 0.30f, 0.15f }));
             Assert.That(V.Ward, Is.EqualTo(4000));
             Assert.That(V.WardSeconds, Is.EqualTo(8f));
@@ -372,17 +372,18 @@ namespace Roguelike.Tests
         [Test]
         public void TheHurtGuard_HoldsForPointEightSeconds_OnlyInTheTrialFight_AndFlickers()
         {
+            // The merge of 2026-11-27, W3 (changed deliberately): the one guard's rule, its length and flicker HurtGuardRule's own.
             var g = new HurtGuardRule();
-            g.Took(1f, V.HurtGuardSeconds);
+            g.Took(1f);
             Assert.That(g.Holds(1.1f), Is.False, "not active: no guard outside the trial fight");
             g.Active = true;
-            g.Took(1f, V.HurtGuardSeconds);
+            g.Took(1f);
             Assert.That(g.Holds(1.79f), Is.True);
             Assert.That(g.Holds(1.81f), Is.False);
-            Assert.That(BossTrialRules.FlickerHidden(1.01f, 1f, V), Is.False, "shown first");
-            Assert.That(BossTrialRules.FlickerHidden(1.08f, 1f, V), Is.True, "then hidden");
-            Assert.That(BossTrialRules.FlickerHidden(1.15f, 1f, V), Is.False);
-            Assert.That(BossTrialRules.FlickerHidden(1.81f, 1f, V), Is.False, "shown after it");
+            Assert.That(HurtGuardRule.FlickerHidden(1.01f, 1f), Is.False, "shown first");
+            Assert.That(HurtGuardRule.FlickerHidden(1.08f, 1f), Is.True, "then hidden");
+            Assert.That(HurtGuardRule.FlickerHidden(1.15f, 1f), Is.False);
+            Assert.That(HurtGuardRule.FlickerHidden(1.81f, 1f), Is.False, "shown after it");
             g.Clear();
             Assert.That(g.Holds(1.5f), Is.False);
         }

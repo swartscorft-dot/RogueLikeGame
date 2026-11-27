@@ -5,19 +5,21 @@ using UnityEngine;
 namespace Roguelike
 {
     /// <summary>
-    /// The hurt guard on her (work order 147, section 7.1 of research R6): after a hit of the trial boss or its patterns she cannot be
-    /// hit again for <see cref="BossTrialValues.HurtGuardSeconds"/>, so two patterns that overlap cannot take most of her health at once.
-    /// Only in the trial fight: the trial boss puts this on her as it wakes and switches it on (<see cref="HurtGuardRule.Active"/>), and
-    /// off as its fight ends. It is told by a flicker of her body: the game flashes no body of hers on a hit (a hit draws a spark on
-    /// her, CombatEffects), so the flicker hides her own meshes every other <see cref="BossTrialValues.HurtFlickerHalf"/> through the
+    /// The hurt guard on her (research R6 7.1), ONE guard for its two sources since the merge of 2026-11-27 (W3), which folded work order
+    /// 147's HurtGuard and work order 149's EliteHurtGuard into this class and one check: after a hit that hurt her she cannot be hurt
+    /// again for <see cref="HurtGuardRule.Seconds"/>, so two attacks that overlap cannot take most of her health at once.
+    ///
+    /// Its sources, each behind its own order's switch: work order 147's trial boss switches it on as it wakes and off as its fight ends
+    /// (<see cref="SetActive"/>; with BossValues.Trial off no trial boss wakes), and while it is on every hit that hurts her starts it
+    /// (<see cref="Took"/>); work order 149's Grave Ram starts it by a hit of its own that hurt her (<see cref="Begin"/>; with
+    /// EliteValues.Unique off no Ram stands). It is told by a flicker of her body: the game flashes no body of hers on a hit (a hit draws
+    /// a spark on her, CombatEffects), so the flicker hides her own meshes every other <see cref="HurtGuardRule.FlickerHalf"/> through the
     /// guard, and shows them again at its end. Its one hook is in <see cref="PlayerHealth.TakeHit"/>.
     /// </summary>
     [RequireComponent(typeof(PlayerHealth))]
     public sealed class HurtGuard : MonoBehaviour
     {
         public readonly HurtGuardRule Rule = new HurtGuardRule();
-        /// <summary>The numbers it runs by: the trial boss's.</summary>
-        public BossTrialValues Values = new BossTrialValues();
 
         readonly List<Renderer> _hidden = new List<Renderer>();
         readonly List<Renderer> _body = new List<Renderer>();
@@ -28,7 +30,7 @@ namespace Roguelike
         public bool Holding => Rule.Holds(Time.time);
         /// <summary>True while her body is hidden by the flicker (for tests).</summary>
         public bool FlickerHidden => _showingHidden;
-        /// <summary>Hits it held off this fight.</summary>
+        /// <summary>Hits it held off since the trial fight began (work order 147's count).</summary>
         public int HeldOff { get; private set; }
 
         /// <summary>The guard on her, made when missing.</summary>
@@ -39,25 +41,43 @@ namespace Roguelike
             return g;
         }
 
-        /// <summary>Does the guard hold off a hit on her now? (<see cref="PlayerHealth.TakeHit"/>'s hook.)</summary>
+        /// <summary>Does the guard hold off a hit on her now? (<see cref="PlayerHealth.TakeHit"/>'s one hook: the hit is counted held off.)</summary>
         public static bool Holds(PlayerHealth health)
         {
-            if (health == null || !health.TryGetComponent(out HurtGuard g) || !g.Rule.Active || !g.Rule.Holds(Time.time)) return false;
+            if (health == null || !health.TryGetComponent(out HurtGuard g) || !g.Rule.Holds(Time.time)) return false;
             g.HeldOff++;
             return true;
         }
 
+        /// <summary>Is the guard on her now? Counts nothing (work order 149's Ram asks it for its own count of the hits it spared).</summary>
+        public static bool Guarding(PlayerHealth health) =>
+            health != null && health.TryGetComponent(out HurtGuard g) && g.Rule.Holds(Time.time);
+
         /// <summary>A hit took health from her (<see cref="PlayerHealth.TakeHit"/>'s hook): the guard starts, in the trial fight.</summary>
         public static void Took(PlayerHealth health)
         {
-            if (health == null || !health.TryGetComponent(out HurtGuard g) || !g.Rule.Active) return;
-            g.Rule.Took(Time.time, g.Values.HurtGuardSeconds);
+            if (health == null || !health.TryGetComponent(out HurtGuard g)) return;
+            g.Rule.Took(Time.time);
         }
 
-        /// <summary>The trial fight began or ended: the guard is on only through it.</summary>
-        public void SetActive(bool on, BossTrialValues values)
+        /// <summary>A hit of a source of its own hurt her now (work order 149: the Grave Ram's): the guard begins, again from now.</summary>
+        public static void Begin(PlayerHealth health)
         {
-            if (values != null) Values = values;
+            HurtGuard g = On(health);
+            if (g != null) g.Rule.Begin(Time.time);
+        }
+
+        /// <summary>Ends a guard running on her at once and shows her (a test, a new run).</summary>
+        public static void Clear(PlayerHealth health)
+        {
+            if (health == null || !health.TryGetComponent(out HurtGuard g)) return;
+            g.Rule.Clear();
+            g.Show();
+        }
+
+        /// <summary>The trial fight began or ended: its hits start the guard only through it; its end ends a guard running.</summary>
+        public void SetActive(bool on)
+        {
             Rule.Active = on;
             if (!on)
             {
@@ -69,7 +89,7 @@ namespace Roguelike
 
         void Update()
         {
-            bool hide = Rule.Active && BossTrialRules.FlickerHidden(Time.time, Rule.Began, Values);
+            bool hide = Rule.Holds(Time.time) && HurtGuardRule.FlickerHidden(Time.time, Rule.Began);
             if (hide == _showingHidden) return;
             if (hide) Hide();
             else Show();

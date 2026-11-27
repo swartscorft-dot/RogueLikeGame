@@ -170,25 +170,28 @@ namespace Roguelike.Rules
         public static bool Crashed(float reach, float length, float nearestAhead, float bodyRadius, BossTrialValues v) =>
             reach < length - 1e-3f && nearestAhead <= bodyRadius + v.CrashSlack + 1e-4f;
 
-        // ---------------- The hurt guard ----------------
-
-        /// <summary>Is her body hidden at this moment of a guard begun at <paramref name="began"/>: the flicker's every other half.</summary>
-        public static bool FlickerHidden(float now, float began, BossTrialValues v)
-        {
-            if (v.HurtFlickerHalf <= 0f || now < began || now >= began + v.HurtGuardSeconds) return false;
-            return ((int)((now - began) / v.HurtFlickerHalf) & 1) == 1;
-        }
-
         static int Clamp(int i, int lo, int hi) => i < lo ? lo : i > hi ? hi : i;
         static float Clamp01(float f) => f < 0f ? 0f : f > 1f ? 1f : f;
     }
 
     /// <summary>
-    /// The hurt guard on her side (work order 147, 7.1): after a hit of the trial boss or its patterns she cannot be hit again for
-    /// <see cref="BossTrialValues.HurtGuardSeconds"/>. Only in the trial fight: on while one is awake. With no engine in it.
+    /// The hurt guard on her side, ONE rule for its two sources (the merge of 2026-11-27, W3, folding work order 147's HurtGuard and
+    /// work order 149's EliteHurtGuard, the same rule of research R6 7.1 at the same place in PlayerHealth.TakeHit): after a hit that
+    /// hurt her she cannot be hurt again for <see cref="Seconds"/>, and her body flickers (<see cref="FlickerHidden"/>). Work order 147:
+    /// while a trial fight is on (<see cref="Active"/>) every hit that hurts her starts it (<see cref="Took"/>). Work order 149: a hit of the
+    /// Grave Ram's starts it (<see cref="Begin"/>). Each order's switch decides whether its source gives it: with BossValues.Trial off no
+    /// trial boss wakes and nothing is active; with EliteValues.Unique off no Ram stands. With no engine in it.
     /// </summary>
     public sealed class HurtGuardRule
     {
+        /// <summary>s after a hit in which nothing hurts her again (R6 7.1: 0.8 s; work orders 147 and 149 both chose it, now one value).</summary>
+        public const float Seconds = 0.8f;
+        /// <summary>
+        /// s of each half of her body's flicker through the guard: shown, hidden, shown (work order 147's 0.07 s; 149's flicker of 0.1 s,
+        /// hidden first, was folded into it at the merge of 2026-11-27, W3).
+        /// </summary>
+        public const float FlickerHalf = 0.07f;
+
         float _until = float.NegativeInfinity;
 
         /// <summary>When the guard running began; meaningless when none runs.</summary>
@@ -199,12 +202,25 @@ namespace Roguelike.Rules
         /// <summary>Does the guard hold off a hit now?</summary>
         public bool Holds(float now) => now < _until;
 
-        /// <summary>A hit landed now: the guard starts (only with <see cref="Active"/> on).</summary>
-        public void Took(float now, float seconds)
+        /// <summary>A hit landed now: the guard starts (only with <see cref="Active"/> on: work order 147's trial fight).</summary>
+        public void Took(float now)
         {
-            if (!Active || seconds <= 0f) return;
+            if (!Active) return;
+            Begin(now);
+        }
+
+        /// <summary>A source of its own gave it now, whether or not a trial fight is on (work order 149: a hit of the Grave Ram's).</summary>
+        public void Begin(float now)
+        {
             Began = now;
-            _until = now + seconds;
+            _until = now + Seconds;
+        }
+
+        /// <summary>Is her body hidden at this moment of a guard begun at <paramref name="began"/>: the flicker's every other half.</summary>
+        public static bool FlickerHidden(float now, float began)
+        {
+            if (FlickerHalf <= 0f || now < began || now >= began + Seconds) return false;
+            return ((int)((now - began) / FlickerHalf) & 1) == 1;
         }
 
         /// <summary>No guard: the fight over.</summary>

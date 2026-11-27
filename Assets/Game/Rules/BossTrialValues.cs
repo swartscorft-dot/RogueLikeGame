@@ -169,10 +169,8 @@ namespace Roguelike.Rules
         /// <summary>Its walking speed, as today's (3 m/s).</summary>
         public float MoveSpeed = 3f;
 
-        /// <summary>s she is untouchable by it after a hit of it or its patterns (7.1, the hurt guard; Hades' 1.3 s after 25 %).</summary>
-        public float HurtGuardSeconds = 0.8f;
-        /// <summary>s of each half of her body's flicker through the guard: shown, hidden, shown.</summary>
-        public float HurtFlickerHalf = 0.07f;
+        // The hurt guard's 0.8 s (7.1; Hades' 1.3 s after 25 %) and its flicker are HurtGuardRule.Seconds and FlickerHalf since the merge
+        // of 2026-11-27 (W3): one guard for the trial boss and work order 149's Grave Ram.
 
         // ---------------- 1. Cleave and Wave ----------------
 

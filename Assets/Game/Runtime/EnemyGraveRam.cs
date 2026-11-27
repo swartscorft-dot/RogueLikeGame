@@ -33,7 +33,7 @@ namespace Roguelike
     /// drawn by a pool of three outlines made as it wakes. At half its health it roars (<see cref="GraveRamValues.RoarSeconds"/>,
     /// rearing back; it cannot be staggered then, her damage counts), and phase 2 begins.
     ///
-    /// A hit of its gives her the hurt guard (<see cref="EliteHurtGuard"/>). Its bar is <see cref="GraveRamBar"/>; its line in the log
+    /// A hit of its gives her the hurt guard (<see cref="HurtGuard"/>, one with work order 147's since the merge of 2026-11-27, W3). Its bar is <see cref="GraveRamBar"/>; its line in the log
     /// is told once as its fight ends (<see cref="GraveRamEvents"/>). Its frames allocate nothing.
     /// </summary>
     [RequireComponent(typeof(Damageable), typeof(NavMeshAgent))]
@@ -954,9 +954,9 @@ namespace Roguelike
                 if (e.Attack == GraveRamValues.Ram) _ramDamage += e.Damage;
                 else if (e.Attack == GraveRamValues.Stomp) _stompDamage += e.Damage;
                 else if (e.Attack == GraveRamValues.Stones) _stonesDamage += e.Damage;
-                EliteHurtGuard.Begin(PlayerHealth, Tuning);
+                HurtGuard.Begin(PlayerHealth);
             }
-            else if (e.Outcome == StrikeOutcome.NoEffect && EliteHurtGuard.Spared(PlayerHealth)) _guarded++;
+            else if (e.Outcome == StrikeOutcome.NoEffect && HurtGuard.Guarding(PlayerHealth)) _guarded++;
         }
 
         void OnHurt(int amount)

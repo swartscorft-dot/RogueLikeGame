@@ -374,15 +374,19 @@ namespace Roguelike.Tests
         [Test]
         public void TheHurtGuard_HoldsPointEightSeconds_AndFlickers()
         {
-            var v = new GraveRamValues();
-            Assert.That(v.HurtGuardSeconds, Is.EqualTo(0.8f));
-            Assert.That(GraveRamRules.Guards(-1f, v), Is.False, "none begun");
-            Assert.That(GraveRamRules.Guards(0f, v), Is.True);
-            Assert.That(GraveRamRules.Guards(0.79f, v), Is.True);
-            Assert.That(GraveRamRules.Guards(0.8f, v), Is.False);
-            Assert.That(GraveRamRules.GuardShows(0.02f, v), Is.False, "hidden at the start of a flicker");
-            Assert.That(GraveRamRules.GuardShows(0.07f, v), Is.True, "shown in its second half");
-            Assert.That(GraveRamRules.GuardShows(0.9f, v), Is.True, "shown once it is over");
+            // The merge of 2026-11-27, W3 (changed deliberately): the Ram's guard is the one guard of work order 147's rule; a hit of
+            // the Ram's begins it with no trial fight on; its flicker is the one flicker (shown first, then hidden, every 0.07 s).
+            Assert.That(HurtGuardRule.Seconds, Is.EqualTo(0.8f));
+            var g = new HurtGuardRule();
+            Assert.That(g.Holds(0f), Is.False, "none begun");
+            g.Begin(10f);
+            Assert.That(g.Active, Is.False, "no trial fight: the Ram's own hit begins it");
+            Assert.That(g.Holds(10f), Is.True);
+            Assert.That(g.Holds(10.79f), Is.True);
+            Assert.That(g.Holds(10.8f), Is.False);
+            Assert.That(HurtGuardRule.FlickerHidden(10.1f, 10f), Is.True, "hidden in a flicker's second half");
+            Assert.That(HurtGuardRule.FlickerHidden(10.02f, 10f), Is.False, "shown in its first");
+            Assert.That(HurtGuardRule.FlickerHidden(10.9f, 10f), Is.False, "shown once it is over");
         }
 
         // ---------------- The summary ----------------
