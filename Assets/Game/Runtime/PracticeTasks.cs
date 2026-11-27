@@ -256,6 +256,7 @@ namespace Roguelike
                 Focus = b.Focus != Key.None ? Name(b.Focus) : "",
                 Start = menu ? StartKeyWithMenu : Name(GeneratedLevels.NewLevelKey), StartMenu = menu,
                 InRun = Teaching,
+                StopAndShoot = PrecisionSettings.ModeNow != PrecisionMode.Off, // work order 143
             };
         }
 
@@ -383,6 +384,11 @@ namespace Roguelike
                     e = PracticeEvent.Of(r.Slot < 0 ? PracticeEventKind.ShotHit : PracticeEventKind.SkillHit);
                     e.Slot = r.Slot;
                     e.OnDummy = OnDummy(r.Target);
+                    if (r.Slot < 0 && r.Target != null) // work order 143's "Stop and shoot": how far, and fired accurate after a run
+                    {
+                        e.Metres = r.Target.GroundPosition.DistanceTo(_player.GroundPosition);
+                        e.StoppedShot = _player.LastPrecisionShot.StoppedAfterARun;
+                    }
                     break;
                 case PlayerReportKind.DashStarted:
                     e = PracticeEvent.Of(PracticeEventKind.Dashed);

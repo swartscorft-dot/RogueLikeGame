@@ -218,7 +218,7 @@ namespace Roguelike
                 if (now >= _nextSample)
                 {
                     _nextSample = now + MoveSampleSeconds;
-                    Add(new SessionEvent(Now(), SessionEventTypes.Move) { Moving = _player.IsMoving });
+                    Add(new SessionEvent(Now(), SessionEventTypes.Move) { Moving = _player.BodyMoving }); // work order 143: her body (Off: IsMoving)
                 }
                 FollowFight(); // work order 097: her place in a room's fight (PlaySessionRecorderRoomUse.cs)
 

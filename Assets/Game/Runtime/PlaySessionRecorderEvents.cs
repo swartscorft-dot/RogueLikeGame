@@ -54,6 +54,7 @@ namespace Roguelike
                 double t = Now();
                 if (RecordSprint(r, t)) return; // work order 092 (PlaySessionRecorderSprint.cs)
                 if (RecordNewSkills(r, t)) return; // work order 109 (PlaySessionRecorderNewSkills.cs)
+                if (RecordPrecision(r, t)) return; // work order 143 (PlaySessionRecorderPrecision.cs)
                 switch (r.Kind)
                 {
                     case PlayerReportKind.SkillPressed:
@@ -161,8 +162,12 @@ namespace Roguelike
                         Add(new SessionEvent(t, SessionEventTypes.ShotStart, SessionWords.BasicShot) { Moving = r.Moving });
                         break;
                     case PlayerReportKind.ShotFired:
-                        Add(new SessionEvent(t, SessionEventTypes.ShotFired, SessionWords.BasicShot) { Hit = r.Landed });
+                    {
+                        var e = new SessionEvent(t, SessionEventTypes.ShotFired, SessionWords.BasicShot) { Hit = r.Landed };
+                        AddPrecision(e); // work order 143: its precision, with precision in use (PlaySessionRecorderPrecision.cs)
+                        Add(e);
                         break;
+                    }
                     case PlayerReportKind.DashPressed:
                     {
                         var e = new SessionEvent(t, SessionEventTypes.DashPress, SessionWords.Dash) { Result = Word(r.Result) };

@@ -159,6 +159,7 @@ namespace Roguelike
             bool done;
             if (GraphicsRules.IsGraphics(line)) done = GraphicsChoices.Change(line, delta);
             else if (TimingCueLines.Is(line)) done = TimingCueSettings.ChangeLine(line, delta);
+            else if (PrecisionSettings.Is(line)) done = PrecisionSettings.ChangeLine(line, delta); // work order 143
             else done = RunHud.Current != null && RunHud.MenuLineOf(line, out RunHud.MenuLine menuLine) && RunHud.Current.ChangeSetting(menuLine, delta);
             if (done) MakeRows();
             return done;
@@ -192,6 +193,13 @@ namespace Roguelike
                     {
                         _names.Add(TimingCueLines.Name(line));
                         _values.Add(TimingCueSettings.LineWords(line));
+                        _notes.Add("");
+                        _greyed.Add(false);
+                    }
+                    else if (PrecisionSettings.Is(line)) // work order 143's line, read through PrecisionSettings
+                    {
+                        _names.Add(PrecisionLines.Name);
+                        _values.Add(PrecisionSettings.LineWords);
                         _notes.Add("");
                         _greyed.Add(false);
                     }

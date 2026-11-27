@@ -131,6 +131,7 @@ namespace Roguelike
             _agent.SetDestination(transform.position + direction * SteerLookAhead);
             // Start at once, as the movement always has: the agent would otherwise wait a frame for its path.
             _agent.velocity = direction * speed;
+            NoteWish(direction, speed); // work order 143: under Inertia the way and speed her body aims for
         }
 
         /// <summary>

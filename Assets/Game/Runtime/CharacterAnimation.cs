@@ -212,7 +212,7 @@ namespace Roguelike
             // A shot on the move keeps the legs going: the shooting gait while it slows her (or the run, when the
             // body turned for a target behind), with the arms aimed on top. So does a skill's slide (decision 0004).
             // A light skill on the move does the same (decision 0005): she runs under it.
-            bool acting = Player.Action != ActionKind.None && !Player.IsShootingOnTheMove && !(Player.IsInLightSkill && Player.IsMoving);
+            bool acting = Player.Action != ActionKind.None && !Player.IsShootingOnTheMove && !(Player.IsInLightSkill && Player.BodyMoving); // work order 143: her body (Off: IsMoving)
             // After a shot or a skill the arms stay up for a moment, at the live cursor, while it stays in front of the
             // body and she does not dash (decision 0004). Standing, the body keeps the Shoot stance meanwhile, so it
             // does not flip Shoot, Idle, Shoot between shots clicked slower than the fire rate.

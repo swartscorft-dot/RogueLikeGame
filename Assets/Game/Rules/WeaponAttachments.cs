@@ -77,6 +77,8 @@ namespace Roguelike.Rules
         public float FirstShotStartupScale = 1f;
         /// <summary>Work order 110: one of its five parts, in the store only with <see cref="MetaValues.MoreParts"/> on.</summary>
         public bool MorePart;
+        /// <summary>Work order 143: the share this part cuts the basic shot's moving cone by (her Precision; the Laser Sight's 40 %). Read only while precision is in use.</summary>
+        public float MovingConeCut;
 
         public WeaponAttachment() { }
 
@@ -139,7 +141,7 @@ namespace Roguelike.Rules
         {
             new WeaponAttachment(LaserSight, "Laser Sight", WeaponKind.Pistols, WeaponSlot.Sight, 30,
                                  "A red beam on her pistols. Reach 12 m.", "The shot's line is narrower: aim truer.") // work order 102: it was "A line shows where the shot would end. Reach 12 m."
-                { ReachAdd = 2f, HalfWidthScale = 0.7f, ShowsLine = true },
+                { ReachAdd = 2f, HalfWidthScale = 0.7f, ShowsLine = true, MovingConeCut = 0.4f }, // work order 143: −40 % moving cone (research r4 C4.1: its narrower line makes moving misses likelier)
             new WeaponAttachment(GhostRing, "Ghost Ring", WeaponKind.Pistols, WeaponSlot.Sight, 30,
                                  "A wider shot, forgiving up close.", "Reach 8 m.")
                 { HalfWidthScale = 1.6f, ReachAdd = -2f },
@@ -207,6 +209,8 @@ namespace Roguelike.Rules
         public float CritChanceAdd;
         /// <summary>Work order 110: the first basic shot's startup after a dash or a skill, times this (scales multiply).</summary>
         public float FirstShotStartupScale = 1f;
+        /// <summary>Work order 143: the parts' cuts of the moving cone, added (her Precision; capped in <see cref="HerStats.Precision"/>).</summary>
+        public float MovingConeCut;
         /// <summary>The names of the parts fitted, in the table's order.</summary>
         public readonly List<string> Parts = new List<string>();
 
@@ -224,6 +228,7 @@ namespace Roguelike.Rules
             ShowsLine = false;
             CritChanceAdd = 0f; // work order 110
             FirstShotStartupScale = 1f;
+            MovingConeCut = 0f; // work order 143
             Parts.Clear();
         }
 
@@ -242,6 +247,7 @@ namespace Roguelike.Rules
             ShowsLine |= p.ShowsLine;
             CritChanceAdd += p.CritChanceAdd; // work order 110
             FirstShotStartupScale *= p.FirstShotStartupScale;
+            MovingConeCut += p.MovingConeCut; // work order 143
         }
 
         /// <summary>The basic shot's reach from the feel's: the parts' metres added, never under <see cref="LeastReach"/>.</summary>

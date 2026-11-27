@@ -194,6 +194,7 @@ namespace Roguelike.EditorTools
             SessionState.SetString(KLogs, "");
             SessionState.SetString(KBefore, "");
             SessionState.SetString(KWarnings, "");
+            SessionState.SetString(KPrecision, ""); // work order 143's second round
             lock (s_lock)
             {
                 s_logs.Clear();
@@ -345,8 +346,51 @@ namespace Roguelike.EditorTools
 
         static readonly Stack<IEnumerator> s_stack = new Stack<IEnumerator>();
 
+        // ---------------- Work order 143's second round: walking, stopping, reversing, firing on the move ----------------
+
+        const string KPrecision = "Roguelike.PlayStartCheck.Precision"; // the precision mode the check played in
+        static float s_slidAfterLetGo = -1f;
+        static int s_movingShots;
+        static int s_counterStrafes = -1;
+
+        static IEnumerator TheMomentum(Vector3 up)
+        {
+            s_slidAfterLetGo = -1f;
+            s_movingShots = 0;
+            int shotsBefore = s_her.BasicShotsFired, movingBefore = s_her.ShotsOnTheMove, counterBefore = s_her.CounterStrafes;
+            // A run up, firing on the move.
+            yield return RunShooting(up, 0.6f, up);
+            // The keys let go: how far she goes on.
+            Vector3 at = s_her.Position;
+            s_her.Steer(Vector3.zero, false);
+            yield return GameSeconds(0.4f);
+            s_slidAfterLetGo = Flat(s_her.Position - at).magnitude;
+            // A run up again, then the opposite key held: she stops and runs back, firing all the while.
+            yield return RunShooting(up, 0.5f, up);
+            yield return RunShooting(-up, 0.6f, up);
+            s_her.Steer(Vector3.zero, false);
+            yield return GameSeconds(0.4f);
+            s_movingShots = s_her.ShotsOnTheMove - movingBefore;
+            s_counterStrafes = s_her.CounterStrafes - counterBefore;
+            Note(string.Format(Inv, "precision {0}: ran, let go and went on {1:0.00} m in 0.4 s; ran, reversed; {2} basic shots, {3} on the move; counter-strafes {4}",
+                               PrecisionLines.WordsOf(s_her.PrecisionModeNow), s_slidAfterLetGo, s_her.BasicShotsFired - shotsBefore, s_movingShots, s_counterStrafes));
+        }
+
+        static IEnumerator RunShooting(Vector3 way, float seconds, Vector3 aimWay)
+        {
+            float until = Time.time + seconds;
+            double guard = RealNow() + 10.0;
+            while (Time.time < until && RealNow() < guard)
+            {
+                s_her.Steer(way, true);
+                s_her.Shoot(s_her.Position + aimWay * 6f);
+                yield return null;
+            }
+        }
+
         static void Leave()
         {
+            PrecisionSettings.ForTests = null; // work order 143's second round
             s_stack.Clear();
             s_steps = null;
             Phase = 3;
@@ -375,6 +419,10 @@ namespace Roguelike.EditorTools
             s_dash = "not tried";
             s_dashEnded = false;
 
+            // Work order 143's second round: the check plays in the precision mode a player gets by default (the stored choice's
+            // default, Inertia), not the Off that a game with nobody at the keys falls back to; set after Play's start reset it.
+            PrecisionSettings.ForTests = PrecisionValues.On ? PrecisionLines.Stored(-1) : PrecisionMode.Off;
+            SessionState.SetString(KPrecision, PrecisionLines.WordsOf(PrecisionSettings.ModeNow));
             s_her = Object.FindAnyObjectByType<PlayerCharacter>();
             if (s_her == null)
             {
@@ -478,6 +526,10 @@ namespace Roguelike.EditorTools
                 yield return GameSeconds(0.45f);
             }
             Note(string.Format(Inv, "shot asked {0} times: {1} basic shots went off", s_shotsAsked, s_her.BasicShotsFired - s_shotsBefore));
+
+            // Work order 143's second round: her body in the mode she plays in: a run, the keys let go (she slides on under Inertia),
+            // a run, the opposite key held (a counter-strafe, and she runs back), firing on the move all the while.
+            yield return TheMomentum(up);
 
             // Dashes toward a point to her right, and waits for the dash to end.
             int dashesBefore = s_her.DashesStarted;
@@ -811,6 +863,11 @@ namespace Roguelike.EditorTools
             Check(s_steered > LeastMetresSteered, "she moved when steered", string.Format(Inv, "{0:0.00} m (more than {1:0} m wanted)", s_steered, LeastMetresSteered));
             Check(s_shotsAsked > 0 && shots > 0, "a shot went off when asked", string.Format(Inv, "{0} of {1} asked", shots, s_shotsAsked));
             Check(s_dashEnded, "the dash ended", s_dash);
+            // Work order 143's second round: in the mode a player gets, her body moved by it and shots went off on the move.
+            bool inertia = s_her != null && s_her.PrecisionModeNow == PrecisionMode.Inertia;
+            Check(s_movingShots > 0, "basic shots went off on the move, running and reversing", string.Format(Inv, "{0} on the move", s_movingShots));
+            Check(!inertia || s_slidAfterLetGo > 0.1f, "under Inertia she went on a little after the keys were let go",
+                  string.Format(Inv, "precision {0}: {1:0.00} m", s_her != null ? PrecisionLines.WordsOf(s_her.PrecisionModeNow) : "?", s_slidAfterLetGo));
             Check(gameSeconds > LeastGameSeconds && frames > 0, "the game's clock ran",
                   string.Format(Inv, "{0:0.00} game seconds over {1} frames, time scale {2}", gameSeconds, frames, Time.timeScale));
         }
@@ -984,8 +1041,8 @@ namespace Roguelike.EditorTools
             bool passed = fault.Length == 0;
             int checks = report.Split('\n').Count(l => l.TrimStart().StartsWith("PASS ", StringComparison.Ordinal));
             string verdict = passed
-                ? string.Format(Inv, "PlayStart: PASSED ({0} checks, {1} logs, {2})", checks, logs.Length, SessionState.GetString(KOptions, ""))
-                : "PlayStart: FAILED: " + fault;
+                ? string.Format(Inv, "PlayStart: PASSED ({0} checks, {1} logs, {2}; precision {3})", checks, logs.Length, SessionState.GetString(KOptions, ""), SessionState.GetString(KPrecision, "?"))
+                : "PlayStart: FAILED (precision " + SessionState.GetString(KPrecision, "?") + "): " + fault;
 
             var text = new StringBuilder();
             text.AppendLine(verdict);

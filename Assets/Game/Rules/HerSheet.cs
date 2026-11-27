@@ -250,6 +250,15 @@ namespace Roguelike.Rules
             Add(SheetGroup.Fortune, "Luck", s.Luck.ToString("0.#", s_Inv), s.Luck, "0.#", "", s.On && shares[0] <= 1e-6);
             Add(SheetGroup.Fortune, "Rare or better", OfferTexts.Pct(1.0 - shares[0]), (1.0 - shares[0]) * 100.0, "0.#", " %");
 
+            // Work order 143: her Precision, the spread at a run with its cut, while precision is in use.
+            if (PrecisionValues.ModeNow != PrecisionMode.Off)
+            {
+                PrecisionValues pv = PrecisionValues.Live;
+                float cut = s.Precision;
+                Add(SheetGroup.BasicShot, PrecisionLines.Name, PrecisionLines.SheetWords(pv.FullCone, PrecisionRules.AfterCut(pv.FullCone, cut, pv)), cut * 100.0, "0", " %",
+                    cut >= pv.MostCut - 1e-5f);
+            }
+
             // Work order 138: each basic-shot upgrade she holds, its tier its value (what it does is on its card and in the old look's lines).
             RunBasicShotUpgrades shot = m.BasicShot;
             foreach (BasicShotUpgradeKind k in shot.Held)

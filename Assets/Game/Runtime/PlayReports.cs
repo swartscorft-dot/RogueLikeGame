@@ -48,6 +48,8 @@ namespace Roguelike
         RicochetJumped, // Slot, Target (the one it jumped to), Shot (which hit of the use: 2, 3)
         SmokeLanded,    // Slot, At (the cloud's middle), Seconds (how long it stands)
         DeadeyeFired,   // Slot, Shot (how many marked enemies it shot at)
+        // Work order 143.
+        CounterStrafed, // Share: a move key pressed against her motion above 35 % of run speed (PrecisionRules.IsCounterStrafe)
     }
 
     public enum SkillEnding { RanOut, CancelledByDash, Cancelled }
@@ -113,6 +115,8 @@ namespace Roguelike
         public bool NoTarget;         // SkillPressed: rejected because Deadeye had no marked enemy in sight
         // Work order 142.
         public bool Grace;            // RecastPressed: clean only by the frame of grace at the end of its clean part (RecastGrace)
+        // Work order 143.
+        public float Share;           // CounterStrafed: her motion's share of run speed at the press
     }
 
     /// <summary>
