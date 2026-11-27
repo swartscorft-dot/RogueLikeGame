@@ -255,13 +255,24 @@ namespace Roguelike.PlayModeTests
         {
             string line = null;
             var off = new LevelValues { RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
-            yield return OffScreenThenOn(off, (where, shooter, began, f) =>
+            // The merge of 2026-11-27, W3 (changed deliberately): the room it finds first is floor 1's elite room, which with work order
+            // 149's unique elite on holds the Grave Ram alone and no shooter; "as before" is with it off.
+            bool unique = EliteValues.Unique;
+            EliteValues.Unique = false;
+            try
             {
-                Assert.That(shooter.Fight.Ranged, Is.Null, where + ": the fight has no such rule");
-                Assert.That(f[0] && f[1], Is.True, where + ": off screen in its reach");
-                Assert.That(f[4], Is.True, where + ": with the switch off it draws off screen, as before");
-                line = "RANGEDPLAY switch off " + where + ": drew off screen " + began.Count + " time(s)";
-            });
+                yield return OffScreenThenOn(off, (where, shooter, began, f) =>
+                {
+                    Assert.That(shooter.Fight.Ranged, Is.Null, where + ": the fight has no such rule");
+                    Assert.That(f[0] && f[1], Is.True, where + ": off screen in its reach");
+                    Assert.That(f[4], Is.True, where + ": with the switch off it draws off screen, as before");
+                    line = "RANGEDPLAY switch off " + where + ": drew off screen " + began.Count + " time(s)";
+                });
+            }
+            finally
+            {
+                EliteValues.Unique = unique;
+            }
             Debug.Log(line);
             TestContext.WriteLine(line);
         }
