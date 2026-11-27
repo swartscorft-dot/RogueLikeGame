@@ -58,7 +58,7 @@ namespace Roguelike.Tests
         public void ItsNumbers_AreResearchFiveTwos()
         {
             var v = new GraveRamValues();
-            Assert.That(v.Health, Is.EqualTo(10000));
+            Assert.That(v.Health, Is.EqualTo(17000), "R7's 10,000 raised in the producer's round 2: standing still must not win");
             Assert.That(v.Shown, Is.EqualTo(1.6f));
             Assert.That(v.PhaseTwoBelow, Is.EqualTo(0.5f));
             Assert.That(v.RoarSeconds, Is.EqualTo(1.5f));
@@ -133,6 +133,17 @@ namespace Roguelike.Tests
                 Assert.That(a[1].Windup, Is.GreaterThanOrEqualTo(GraveRamRules.TellFloor(a[1], v) - 1e-5f), "the Stomp, phase two " + two);
                 Assert.That(v.StoneBurst(two), Is.GreaterThanOrEqualTo(GraveRamRules.TellFloor(v.StonesAttack, v)), "a stone, phase two " + two);
             }
+        }
+
+        [Test]
+        public void ItsDazedTint_IsADeepBlue_FarFromItsAshWhite()
+        {
+            var v = new GraveRamValues();
+            Rgba w = v.Tint, d = v.DazedTint;
+            Assert.That(w.R - d.R, Is.GreaterThan(0.5f), "far less red than ash white");
+            Assert.That(d.B - d.R, Is.GreaterThan(0.6f), "plainly blue");
+            Assert.That(d.B, Is.GreaterThan(0.9f));
+            Assert.That(v.StoneWallSlack, Is.EqualTo(Placeholders.PlayerRadius), "a stone's outline stops at the wall's face: the walkable ground keeps her middle her radius off it");
         }
 
         // ---------------- The Ram's run, crash and strip ----------------

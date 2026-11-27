@@ -63,14 +63,26 @@ namespace Roguelike.Rules
         public float BodyHeight = 2.9f;
         /// <summary>Its tint: ash white, cool, clear of telegraph red, counter blue, anger orange, the lamps' green and the elite's gold (R7 5.1, a look choice for him).</summary>
         public Rgba Tint = new Rgba(0.86f, 0.86f, 0.84f);
+        /// <summary>
+        /// Its body's tint while dazed (the producer's round 2: the game's pale daze blue, 0.55 0.75 1, barely showed on ash white in
+        /// the crash's picture): a deep saturated blue, far from ash white, the dazed stars' blue made strong. Any daze (a crash, her
+        /// stagger, Stopping Shot): each is its opening.
+        /// </summary>
+        public Rgba DazedTint = new Rgba(0.18f, 0.42f, 1f);
         /// <summary>m/s it walks (a brute's 3.5, the settings asset's).</summary>
         public float MoveSpeed = 3.5f;
         /// <summary>m over the ground of the line it sees her along (the shooter's, the lancer's, the boss's): walls, shut doors and tall props.</summary>
         public float SightHeight = 0.5f;
 
         // ---------------- Health, stagger, phases ----------------
-        /// <summary>Its health: 10,000 (R7 5.2: 10,000 / (450 x 0.55), about 40 s practised; / (450 x 0.35), about 63 s on a first try). Final, not scaled by the floor.</summary>
-        public int Health = 10000;
+        /// <summary>
+        /// Its health: 17,000. Final, not scaled by the floor. R7 5.2 had 10,000 (10,000 / (450 x 0.55), about 40 s practised); the
+        /// producer's round 2 (standing still must not win) raised it by 1,000s with the bots on five knights-apse floors: at 10,000 the
+        /// bot that stands and shoots won 4 of 5; at 16,000 it died on all five with the Ram at 26 to 38 % but the sidestepping bot kept
+        /// 40 or more health on only 3 of 5; at 17,000 it dies on all five with the Ram at 27 to 39 %, and the sidestepping bot wins 4
+        /// of 5 with 40 to 68 left. The bots shoot 80 to 100 % of the time; at a player's 55 % this is about 69 s.
+        /// </summary>
+        public int Health = 17000;
         /// <summary>
         /// Its stagger bar, as today's elite brute's (half the guard's: <see cref="LevelValues.EliteStaggerShare"/> of 100 points, its daze
         /// 4 s at 1.5 times the damage). Her stagger skills empty it as any bar's.
@@ -194,6 +206,11 @@ namespace Roguelike.Rules
         public float StonesRest = 6f;
         /// <summary>m beyond which she must be (R7 5.2: "beyond 6 m").</summary>
         public float StonesBeyond = 6f;
+        /// <summary>
+        /// m past the walkable ground's end a stone's outline reaches at most: the walkable ground keeps her middle this far off a wall
+        /// (the NavMesh agent's radius, her footprint), so the outline stops at the wall's face and is never drawn under it (round 2).
+        /// </summary>
+        public float StoneWallSlack = 0.5f;
 
         // ---------------- The telegraph floor (R6 section 5) ----------------
         /// <summary>s to react, then her walk at <see cref="HerSpeed"/>, then <see cref="TellSlack"/>: the shortest tell she can walk out of.</summary>

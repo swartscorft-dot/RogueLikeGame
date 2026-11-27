@@ -30,7 +30,7 @@ namespace Roguelike.PlayModeTests
         const float React = 0.25f;     // s from a tell's start to her answer (the order's sidestepping bot)
         const float Rate = 450f;       // her damage a second fought alone on floor 1, full uptime (R7 5.1: a guess)
         const float MostSeconds = 180f;
-        const int Fights = 3;          // fights a bot, each in its own knights-apse floor
+        const int Fights = 5;          // fights a bot, each in its own knights-apse floor (the producer's round 2: at least five)
         const ulong From = 0x149A0UL;
         const string Captures = @"C:\Users\kriss\.claude-automation\runner\captures\149";
 
@@ -53,6 +53,10 @@ namespace Roguelike.PlayModeTests
             public readonly Dictionary<string, int> Hits = new Dictionary<string, int>();
             public int Rams, Crashes, Missed, Met, Stomps, Throws, Staggered;
             public string Moves = "";
+            /// <summary>The Ram's health in this fight, and the share of it left at the end.</summary>
+            public int RamHealth;
+            public float Gap, Daze;
+            public float RamLeft;
         }
 
         static readonly List<Result> s_results = new List<Result>();
@@ -127,23 +131,54 @@ namespace Roguelike.PlayModeTests
         static IEnumerable<Bot> AllBots() => new[] { Bot.StandsStill, Bot.Sidesteps, Bot.Baits };
 
         [UnityTest, Timeout(3000000)]
-        public IEnumerator ABot_FightsTheRam_ThreeTimes([ValueSource(nameof(AllBots))] Bot bot)
+        public IEnumerator ABot_FightsTheRam_OnFiveFloors([ValueSource(nameof(AllBots))] Bot bot)
         {
             foreach (ulong seed in Seeds())
             {
                 Result res = null;
-                yield return Fight(bot, seed, x => res = x);
+                yield return Fight(bot, seed, 0, x => res = x);
                 Assert.That(res.Won || res.Died || res.Seconds >= MostSeconds - 0.1f, Is.True, "the fight ended");
                 s_results.Add(res);
             }
-            Write();
+            Write(s_results, "bots");
         }
 
-        IEnumerator Fight(Bot bot, ulong seed, Action<Result> got)
+        const string SweepVariable = "ROGUELIKE_SWEEP_149";
+        static readonly List<Result> s_sweep = new List<Result>();
+
+        /// <summary>
+        /// The producer's round 2: each bot on the five floors at each of the Ram's healths named in ROGUELIKE_SWEEP_149 (for example
+        /// "10000,12000,14000"), the bots' table by health and floor to captures\149\bots-sweep.txt. Ignored without it.
+        /// </summary>
+        [UnityTest, Timeout(6000000)]
+        public IEnumerator ABot_AtEachHealth_OnFiveFloors([ValueSource(nameof(AllBots))] Bot bot)
+        {
+            string healths = Environment.GetEnvironmentVariable(SweepVariable);
+            if (string.IsNullOrEmpty(healths)) Assert.Ignore("the sweep runs only when " + SweepVariable + " names the healths (work order 149)");
+            foreach (string h in healths.Split(','))
+            {
+                string[] parts = h.Trim().Split('/'); // "health" or "health/gap"
+                int health = int.Parse(parts[0], CultureInfo.InvariantCulture);
+                float gap = parts.Length > 1 ? float.Parse(parts[1], CultureInfo.InvariantCulture) : -1f;
+                float daze = parts.Length > 2 ? float.Parse(parts[2], CultureInfo.InvariantCulture) : -1f; // "health/gap/crash daze"
+                foreach (ulong seed in Seeds())
+                {
+                    Result res = null;
+                    yield return Fight(bot, seed, health, x => res = x, gap, daze);
+                    s_sweep.Add(res);
+                }
+            }
+            Write(s_sweep, "bots-sweep");
+        }
+
+        IEnumerator Fight(Bot bot, ulong seed, int health, Action<Result> got, float gap = -1f, float daze = -1f)
         {
             GraveRamTestRoom r = null;
             yield return GraveRamTestRoom.Build(_levels, _practiceEnemy, _player, seed, x => r = x, wake: false);
-            var res = new Result { Bot = bot, Seed = LevelSeed.ToText(seed) };
+            if (health > 0) r.Ram.Body.SetMaxHealth(health); // the sweep's health, before the fight wakes
+            if (gap >= 0f) r.Ram.Tuning.Gap = gap; // the sweep's phase-1 gap
+            if (daze >= 0f) r.Ram.Tuning.CrashDaze = daze; // the sweep's crash daze
+            var res = new Result { Bot = bot, Seed = LevelSeed.ToText(seed), RamHealth = r.Ram.Body.MaxHealth, Gap = r.Ram.Tuning.Gap, Daze = r.Ram.Tuning.CrashDaze };
             _health.MaxHealth = Placeholders.PlayerHealth;
             _health.RestoreFull();
             _health.Untouchable = false;
@@ -201,6 +236,7 @@ namespace Roguelike.PlayModeTests
             res.Missed = r.Ram.Missed;
             res.Met = r.Ram.MetHer;
             res.DealtRate = res.Seconds > 0f ? dealt / res.Seconds : 0f;
+            res.RamLeft = r.Ram.HealthShare;
             res.Moves = string.Format(CultureInfo.InvariantCulture, "dazed by her shots' stagger {11}; held {0:0.0} s, to a place {1:0.0} s, to her {2:0.0} s; looks {3}, found {4}; turned down: ground {5}, not straight {6}, band {7}, sight {8}, screen {9}, short {10}",
                 r.Ram.HoldSeconds, r.Ram.ToSpotSeconds, r.Ram.ToHerSeconds, r.Ram.SeekLooks, r.Ram.SeekFinds, r.Ram.SeekRejects[0], r.Ram.SeekRejects[1],
                 r.Ram.SeekRejects[2], r.Ram.SeekRejects[3], r.Ram.SeekRejects[4], r.Ram.SeekRejects[5], res.Staggered);
@@ -248,10 +284,11 @@ namespace Roguelike.PlayModeTests
             {
                 float now = Time.time;
                 Vector3 her = GraveRamTestRoom.Flat(Her.Position), ram = GraveRamTestRoom.Flat(Ram.transform.position);
-                // Every frame she shoots at its middle (her real shot: her cone, cover, the pistol's own rate).
+                // Every frame she shoots at its middle (her real shot: her cone, cover, the pistol's own rate), but while she walks out of a
+                // tell (round 2: shooting slows her walk, and a player stops to step out).
                 Vector3 aim = ram + Vector3.up * 1.2f;
                 Her.AimAt(aim);
-                Her.Shoot(aim);
+                if (!(_going && _dodging)) Her.Shoot(aim);
                 if (_bot == Bot.StandsStill)
                 {
                     Her.Steer(Vector3.zero);
@@ -272,7 +309,7 @@ namespace Roguelike.PlayModeTests
                 if (_seen != null && now - _seenAt >= React)
                 {
                     if (_seen.Name == GraveRamValues.Ram) Answer(StepOutOfStrip(her));
-                    else if (_seen.Name == GraveRamValues.Stomp) Answer(ram + Away(ram, her) * (_seen.Radius + Placeholders.PlayerRadius + 0.6f));
+                    else if (_seen.Name == GraveRamValues.Stomp) Out(ram, her, _seen.Radius + Placeholders.PlayerRadius + 0.6f);
                 }
                 if (_stoneAt >= 0f && now - _stoneAt >= React)
                 {
@@ -283,7 +320,7 @@ namespace Roguelike.PlayModeTests
                         Vector3 c = GraveRamTestRoom.Flat(s.Center);
                         if (Vector3.Distance(c, her) < Ram.Tuning.StonesAttack.Radius + Placeholders.PlayerRadius + 0.2f)
                         {
-                            Answer(c + Away(c, her) * (Ram.Tuning.StonesAttack.Radius + Placeholders.PlayerRadius + 0.8f));
+                            Out(c, her, Ram.Tuning.StonesAttack.Radius + Placeholders.PlayerRadius + 0.8f);
                             break;
                         }
                     }
@@ -302,12 +339,29 @@ namespace Roguelike.PlayModeTests
                 else Her.Steer(Vector3.zero);
             }
 
+            bool _dodging;
+
             void Answer(Vector3 to, bool quiet = false)
             {
                 if (!GraveRamTestRoom.OnFloor(to, 1.2f, out Vector3 at)) return;
                 if (quiet && _going) return;
                 _goal = GraveRamTestRoom.Flat(at);
                 _going = true;
+                _dodging = !quiet;
+            }
+
+            /// <summary>Out of a circle round <paramref name="c"/> to <paramref name="reach"/> from it: straight away, or turned up to 90 degrees each way where a wall is in the way.</summary>
+            void Out(Vector3 c, Vector3 her, float reach)
+            {
+                Vector3 away = Away(c, her);
+                foreach (float turn in new[] { 0f, 45f, -45f, 90f, -90f, 135f, -135f })
+                {
+                    Vector3 to = c + Quaternion.Euler(0f, turn, 0f) * away * reach;
+                    if (!GraveRamTestRoom.OnFloor(to, 0.4f, out Vector3 at) || NavMesh.Raycast(her, at, out NavMeshHit _, NavMesh.AllAreas)) continue;
+                    Answer(at);
+                    return;
+                }
+                Answer(c + away * reach);
             }
 
             static Vector3 Away(Vector3 from, Vector3 her)
@@ -355,34 +409,33 @@ namespace Roguelike.PlayModeTests
             }
         }
 
-        void Write()
+        void Write(List<Result> results, string name)
         {
             if (!Directory.Exists(Captures)) return;
             var inv = CultureInfo.InvariantCulture;
-            var csv = new List<string> { "bot,seed,seconds,won,died,health_left,dealt_per_s,hits_ram,hits_stomp,hits_stones,rams,crashes,missed,met,stomps,throws" };
-            foreach (Result r in s_results)
-            {
-                r.Hits.TryGetValue(GraveRamValues.Ram, out int hr);
-                r.Hits.TryGetValue(GraveRamValues.Stomp, out int hs);
-                r.Hits.TryGetValue(GraveRamValues.Stones, out int ht);
-                csv.Add(string.Join(",", r.Bot, r.Seed, r.Seconds.ToString("0.0", inv), r.Won ? 1 : 0, r.Died ? 1 : 0, r.Health, r.DealtRate.ToString("0", inv),
-                                    hr, hs, ht, r.Rams, r.Crashes, r.Missed, r.Met, r.Stomps, r.Throws));
-            }
-            File.WriteAllLines(Path.Combine(Captures, "bots.csv"), csv);
+            var csv = new List<string> { "bot,ram_health,seed,seconds,won,died,health_left,ram_left,dealt_per_s,hits_ram,hits_stomp,hits_stones,rams,crashes,missed,met,stomps,throws" };
+            foreach (Result r in results)
+                csv.Add(string.Join(",", r.Bot, r.RamHealth, r.Seed, r.Seconds.ToString("0.0", inv), r.Won ? 1 : 0, r.Died ? 1 : 0, r.Health, r.RamLeft.ToString("0.00", inv),
+                                    r.DealtRate.ToString("0", inv), H(r, GraveRamValues.Ram), H(r, GraveRamValues.Stomp), H(r, GraveRamValues.Stones),
+                                    r.Rams, r.Crashes, r.Missed, r.Met, r.Stomps, r.Throws));
+            File.WriteAllLines(Path.Combine(Captures, name + ".csv"), csv);
             var text = new List<string> { "A bot's numbers (work order 149), not a player's. Her damage raised to " + Rate.ToString("0", inv) + " a second at full uptime (x" + Boost.ToString("0.00", inv) + " her bare pistol)." };
-            foreach (Bot b in AllBots())
-            {
-                List<Result> rs = s_results.Where(x => x.Bot == b).ToList();
-                if (rs.Count == 0) continue;
-                text.Add(b + ": " + rs.Count(x => x.Won) + " of " + rs.Count + " won; " + rs.Count(x => x.Died) + " died; fight "
-                         + string.Join(", ", rs.Select(x => x.Seconds.ToString("0", inv) + " s" + (x.Died ? " (died)" : x.Won ? "" : " (time)")))
-                         + "; hits Ram/Stomp/Stones " + string.Join(", ", rs.Select(x => H(x, GraveRamValues.Ram) + "/" + H(x, GraveRamValues.Stomp) + "/" + H(x, GraveRamValues.Stones)))
-                         + "; crashes " + string.Join(", ", rs.Select(x => x.Crashes + " of " + x.Rams))
-                         + "; her damage a second " + string.Join(", ", rs.Select(x => x.DealtRate.ToString("0", inv) + " (" + (x.DealtRate / Rate * 100f).ToString("0", inv) + " % of full uptime)")) + "; health left " + string.Join(", ", rs.Select(x => x.Health)));
-            }
+            foreach (var set in results.Select(x => (x.RamHealth, x.Gap, x.Daze)).Distinct())
+                foreach (Bot b in AllBots())
+                {
+                    List<Result> rs = results.Where(x => x.Bot == b && x.RamHealth == set.RamHealth && Mathf.Approximately(x.Gap, set.Gap) && Mathf.Approximately(x.Daze, set.Daze)).ToList();
+                    if (rs.Count == 0) continue;
+                    text.Add("Ram " + set.RamHealth + ", gap " + set.Gap.ToString("0.0#", inv) + ", crash daze " + set.Daze.ToString("0.0#", inv) + ", " + b + ": " + rs.Count(x => x.Won) + " of " + rs.Count + " won; " + rs.Count(x => x.Died) + " died; mean fight "
+                             + rs.Average(x => x.Seconds).ToString("0", inv) + " s; by floor: "
+                             + string.Join(" | ", rs.Select(x => x.Seed + " " + x.Seconds.ToString("0", inv) + " s " + (x.Won ? "won" : x.Died ? "died" : "time")
+                                                                 + ", her health " + x.Health + ", Ram left " + (x.RamLeft * 100f).ToString("0", inv) + " %"
+                                                                 + ", hits " + H(x, GraveRamValues.Ram) + "/" + H(x, GraveRamValues.Stomp) + "/" + H(x, GraveRamValues.Stones)
+                                                                 + ", crashes " + x.Crashes + " of " + x.Rams
+                                                                 + ", " + (x.DealtRate / Rate * 100f).ToString("0", inv) + " % uptime")));
+                }
             text.Add("");
-            foreach (Result r in s_results) text.Add(r.Bot + " " + r.Seed + ": " + r.Moves);
-            File.WriteAllLines(Path.Combine(Captures, "bots.txt"), text);
+            foreach (Result r in results) text.Add(r.Bot + " " + r.RamHealth + " " + r.Seed + ": " + r.Moves);
+            File.WriteAllLines(Path.Combine(Captures, name + ".txt"), text);
             Debug.Log(string.Join("\n", text));
         }
 

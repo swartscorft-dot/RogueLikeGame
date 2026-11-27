@@ -124,7 +124,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(r.Level.EliteRoomEnemies[0], Is.SameAs(r.Ram));
             Assert.That(r.R.EnemyGroups.Count(g => !g.Elite), Is.GreaterThan(0), "the layout still has the room's others: they are not made");
             Assert.That(r.Ram.IsElite, Is.True);
-            Assert.That(r.Ram.Body.MaxHealth, Is.EqualTo(10000), "its own health");
+            Assert.That(r.Ram.Body.MaxHealth, Is.EqualTo(r.Ram.Tuning.Health), "its own health");
             Assert.That(r.Ram.DamageScale, Is.EqualTo(1f), "its damage final: not floor 1's 0.6");
             Assert.That(r.Ram.TakesTurns, Is.False);
             Assert.That(r.Ram.Fight, Is.SameAs(r.Fight), "its room's fight is its");
@@ -366,6 +366,21 @@ namespace Roguelike.PlayModeTests
             int before = _health.Current;
             yield return GraveRamTestRoom.Run(3f, () => !r.Ram.Stones.Any(s => s.Pending) && r.Ram.State != EnemyState.Windup, () => _player.Teleport(her));
             Assert.That(r.Ram.Stones.Select(s => GraveRamTestRoom.Flat(s.Center)).All(c => FlatDistance(c, her) < 0.6f), Is.True, "each where she stood");
+            // Round 2: against the east wall, each stone's outline stops at the wall's face, never under it.
+            LineRenderer line = r.Ram.StoneLine(0);
+            Assert.That(line, Is.Not.Null);
+            var pts = new Vector3[line.positionCount];
+            line.GetPositions(pts);
+            Vector3 c0 = GraveRamTestRoom.Flat(r.Ram.Stones[0].Center);
+            float radius = r.Ram.Tuning.StonesAttack.Radius;
+            Assert.That(pts.Max(p => FlatDistance(p, c0)), Is.LessThanOrEqualTo(radius + 1e-3f));
+            Assert.That(pts.Min(p => FlatDistance(p, c0)), Is.LessThan(radius - 0.2f), "clipped where the wall is nearer than its radius");
+            foreach (Vector3 p in pts)
+            {
+                Vector3 d = GraveRamTestRoom.Flat(p) - c0;
+                float len = d.magnitude;
+                Assert.That(Cover.ClearDistance(c0, d / len, len, 0.5f), Is.GreaterThanOrEqualTo(len - 0.05f), "no wall between a stone's middle and its outline");
+            }
             Assert.That(before - _health.Current, Is.EqualTo(16), "standing: the first and the third (8 each); the hurt guard spared the second");
             Assert.That(r.Ram.Guarded, Is.EqualTo(1));
 
@@ -380,6 +395,58 @@ namespace Roguelike.PlayModeTests
             yield return GraveRamTestRoom.Run(2.5f, () => !r.Ram.Stones.Any(s => s.Pending), () => _player.Steer(south));
             _player.Steer(Vector3.zero);
             Assert.That(_health.Current, Is.EqualTo(before), "she kept moving: none landed");
+        }
+
+        [UnityTest, Timeout(240000)]
+        public IEnumerator AThrow_StopsWhenTheRamLeavesHisScreen_TheStonesNotYetThrownAreNotThrown()
+        {
+            GraveRamTestRoom r = null;
+            yield return Room(x => r = x);
+            Vector3 her = Floor(r, 10, 12.8), ram = Floor(r, 10, 1.5);
+            yield return r.HoldPastTheStart(ram, her);
+            bool began = false;
+            yield return UntilWindup(r, GraveRamValues.Stones, her, 6f, b => began = b);
+            Assume.That(began, Is.True, "a throw");
+            Assert.That(r.Ram.Stones.Count(s => s.Pending), Is.EqualTo(1), "the first at once");
+            // She runs far off (her camera with her): the Ram is off his screen before the second stone.
+            Vector3 far = Floor(r, 1.5, 12.5);
+            _player.Teleport(far);
+            yield return GraveRamTestRoom.Run(1.5f, null, () => _player.Teleport(far));
+            Assert.That(r.Ram.BodyOnScreen(), Is.False, "off his screen");
+            Assert.That(r.Ram.ThrowsCutShort, Is.EqualTo(1), "the throw stopped");
+            Assert.That(r.Ram.Stones.Count(s => s.PlacedAt > 0f), Is.LessThan(3), "not all three thrown");
+        }
+
+        [UnityTest, Timeout(240000)]
+        public IEnumerator ItsDaze_ShowsDeepBlue_AndItsBarDrainsTheDazesTimeLeft()
+        {
+            GraveRamTestRoom r = null;
+            yield return Room(x => r = x);
+            Func<float, bool, LancerStopper, Vector3, Vector3, bool> want = (run, crash, stopper, stop, h) => crash;
+            Assume.That(r.FindRam(want, out Vector3 her, out Vector3 ram, out Vector3 step), Is.True);
+            yield return Place(r, her, ram);
+            bool began = false;
+            yield return UntilWindup(r, GraveRamValues.Ram, her, 8f, b => began = b);
+            Assume.That(began, Is.True);
+            yield return GraveRamTestRoom.Run(React, null);
+            yield return Walk(step, 1f);
+            yield return GraveRamTestRoom.Run(3f, () => r.Ram.CrashDazed);
+            Assume.That(r.Ram.CrashDazed, Is.True, "a crash");
+            yield return GraveRamTestRoom.Run(0.05f, null);
+            Assert.That(r.Ram.ShowsDazedTint, Is.True);
+            Color body = r.Ram.BodyRenderer.sharedMaterial.color, want2 = InterfaceStyle.C(r.Ram.Tuning.DazedTint);
+            Assert.That(body.r, Is.EqualTo(want2.r).Within(0.02f), "its body the deep daze blue");
+            Assert.That(body.b, Is.EqualTo(want2.b).Within(0.02f));
+            var bar = r.Ram.GetComponent<GraveRamBar>();
+            float first = bar.DazeShown;
+            Assert.That(first, Is.GreaterThan(0.9f), "its bar's line full as the daze begins");
+            yield return GraveRamTestRoom.Run(1.25f, null);
+            Assert.That(bar.DazeShown, Is.EqualTo(0.5f).Within(0.06f), "half the daze left half way through its 2.5 s");
+            yield return GraveRamTestRoom.Run(1.5f, () => !r.Ram.IsDazed);
+            Assert.That(bar.DazeShown, Is.LessThan(0f), "no daze: its stagger again");
+            yield return null;
+            Assert.That(r.Ram.ShowsDazedTint, Is.False);
+            Assert.That(r.Ram.BodyRenderer.sharedMaterial.color.b, Is.EqualTo(r.Ram.BodyColor.b).Within(0.02f), "ash white again");
         }
 
         // ---------------- His screen and the start ----------------
@@ -446,7 +513,7 @@ namespace Roguelike.PlayModeTests
                                   out Vector3 her, out Vector3 ram, out Vector3 step, 6.5f, 10f, 3.5f),
                         Is.True, "a long clear line in the room");
             yield return Place(r, her, ram);
-            r.Ram.Body.TakeHit(5100);
+            r.Ram.Body.TakeHit(r.Ram.Body.MaxHealth / 2 + 100);
             yield return GraveRamTestRoom.Run(0.1f, null, () => _player.Teleport(her));
             Assert.That(r.Ram.PhaseTwo && r.Ram.IsRoaring, Is.True, "it roars");
             Assert.That(r.Ram.Stagger, Is.Not.Null);

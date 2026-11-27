@@ -152,6 +152,17 @@ namespace Roguelike.PlayModeTests
             finally { Object.Destroy(crop); }
         }
 
+        /// <summary>A crop twice its size round a world point as the picture's camera showed it.</summary>
+        void CropRound(string name, Vector3 world)
+        {
+            Camera cam = Camera.main;
+            cam.aspect = (float)W / H;
+            Vector3 v = cam.WorldToViewportPoint(world);
+            int cx = Mathf.RoundToInt(v.x * W), cy = Mathf.RoundToInt((1f - v.y) * H);
+            const int Size = 320;
+            SaveCrop(name, Mathf.Clamp(cx - Size / 2, 0, W - Size), Mathf.Clamp(cy - Size / 2, 0, H - Size), Size, Size, 2);
+        }
+
         Vector3 Floor(GraveRamTestRoom r, double d, double s)
         {
             Assert.That(GraveRamTestRoom.OnFloor(r.World(d, s), 0.7f, out Vector3 at), Is.True);
@@ -251,7 +262,13 @@ namespace Roguelike.PlayModeTests
             yield return GraveRamTestRoom.Run(3f, () => r.Ram.Crashes > crashes && r.Ram.CrashDazed);
             yield return GraveRamTestRoom.Run(0.5f, null);
             Draw();
-            Save("149-8-crash-daze", "0.5 s into the daze after its Ram met the west wall, she stepped aside", r);
+            Save("149-8-crash-daze", "0.5 s into the daze after its Ram met the west wall, she stepped aside (round 2: its body the deep daze blue, its bar's line the daze's time left)", r);
+            CropRound("149-8-crash-daze-crop", r.Ram.transform.position + Vector3.up * 1.4f);
+            SaveCrop("149-10-bar-in-the-daze", (W - 900) / 2, 0, 900, 150, 2);
+            yield return GraveRamTestRoom.Run(1.4f, null);
+            Draw();
+            Save("149-11-crash-daze-later", "1.9 s into the same daze (0.6 s left): the bar's line nearly drained", r);
+            SaveCrop("149-11-bar-later-in-the-daze", (W - 900) / 2, 0, 900, 150, 2);
             Time.captureDeltaTime = 0f;
         }
     }

@@ -33,6 +33,11 @@ namespace Roguelike
         public bool Showing => _ram != null && _ram.isActiveAndEnabled && _ram.IsAwake && !_ram.IsDead;
         public float HealthShown => _ram != null ? _ram.HealthShare : 0f;
         public float StaggerShown => _ram != null && _ram.Stagger != null ? _ram.Stagger.Fill : 0f;
+        /// <summary>
+        /// Round 2: while it is dazed, its stagger line is the daze's time still to come, draining from full to empty in the daze's
+        /// blue, steady (not flashing): it is open now, for this long. Negative when no daze with a known end runs.
+        /// </summary>
+        public float DazeShown => _ram != null ? _ram.DazeLeftShare : -1f;
         /// <summary>The name over it.</summary>
         public string Title => Rules.GraveRamValues.Title;
         /// <summary>The share of the bar where its phases part.</summary>
@@ -63,8 +68,9 @@ namespace Roguelike
             var health = new Rect(x, Top, width, HealthHeight);
             Bar(health, HealthShown, s_Health);
             Halves(health);
-            bool flash = _ram.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
-            Bar(new Rect(x, Top + HealthHeight + Gap, width, StaggerHeight), StaggerShown, flash ? s_Flash : s_Stagger, flash);
+            float daze = DazeShown;
+            bool flash = daze < 0f && _ram.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
+            Bar(new Rect(x, Top + HealthHeight + Gap, width, StaggerHeight), daze >= 0f ? daze : StaggerShown, daze >= 0f || flash ? s_Flash : s_Stagger, flash);
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
         }
@@ -87,10 +93,12 @@ namespace Roguelike
             InterfaceStyle.SlantedBar(bar, HealthShown, InterfaceStyle.C(v.Back), InterfaceStyle.C(v.Red));
             InterfaceStyle.DotsAlong(bar, bar.center.y, v.Slant, 1f - v.PlateDots, InterfaceStyle.C(v.Black, 0.45f));
             Halves(bar);
-            bool flash = _ram.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
+            float daze = DazeShown;
+            bool flash = daze < 0f && _ram.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
             var stagger = new Rect(bar.x - (v.BossHeight * 0.5f + 3f + v.BossStaggerHeight * 0.5f) * v.Slant, bar.yMax + 3f, bar.width, v.BossStaggerHeight);
-            InterfaceStyle.SlantedBar(stagger, StaggerShown, flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Back),
-                                      flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Stagger));
+            if (daze >= 0f) InterfaceStyle.SlantedBar(stagger, daze, InterfaceStyle.C(v.Back), InterfaceStyle.C(v.Dazed)); // round 2: the daze's time left
+            else InterfaceStyle.SlantedBar(stagger, StaggerShown, flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Back),
+                                           flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Stagger));
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
         }

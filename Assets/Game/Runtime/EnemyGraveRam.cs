@@ -312,6 +312,7 @@ namespace Roguelike
             TickStones(now);
             TellCounter();
             Pose(now);
+            TintDazed();
             Follow(now);
         }
 
@@ -819,6 +820,14 @@ namespace Roguelike
         void TickThrow(float now)
         {
             if (!_throwing || Player == null) return;
+            // Round 2: it throws only while its whole body is on his screen, for the whole throw (it stands still as it throws; she
+            // walking can take it off his screen): seen no more, the stones not yet thrown are not thrown.
+            if (_thrown > 0 && !BodyOnScreen())
+            {
+                _throwing = false;
+                ThrowsCutShort++;
+                return;
+            }
             int count = Mathf.Min(_stones.Length, Mathf.Max(1, Tuning.StonesCount));
             while (_thrown < count && now >= GraveRamRules.StoneAppears(_thrown, _throwStart, Tuning) - 1e-5f)
             {
@@ -829,7 +838,7 @@ namespace Roguelike
                 LineRenderer line = _stoneLines != null ? _stoneLines[i] : null;
                 if (line != null)
                 {
-                    GroundOutline.Circle(line, at, Tuning.StonesAttack.Radius, TelegraphHeight);
+                    StoneOutline(line, at);
                     line.widthMultiplier = TelegraphThin;
                     line.enabled = true;
                 }
@@ -837,6 +846,37 @@ namespace Roguelike
             }
             if (_thrown >= count) _throwing = false;
         }
+
+        static readonly Vector3[] s_ring = new Vector3[32];
+
+        /// <summary>Times a throw was cut short because it was no longer on his screen (round 2). For tests.</summary>
+        public int ThrowsCutShort { get; private set; }
+
+        /// <summary>
+        /// A stone's outline, clipped at the wall (round 2): round it, as far as its radius or, where the walkable ground ends nearer,
+        /// that end and <see cref="GraveRamValues.StoneWallSlack"/> (the wall's face), never under a wall. Its hit is the same circle:
+        /// her middle never stands past the walkable ground's end.
+        /// </summary>
+        void StoneOutline(LineRenderer line, Vector3 center)
+        {
+            float r = Tuning.StonesAttack.Radius;
+            bool sampled = NavMesh.SamplePosition(center, out NavMeshHit start, SampleReach, NavMesh.AllAreas);
+            for (int i = 0; i < s_ring.Length; i++)
+            {
+                float a = i / (float)s_ring.Length * Mathf.PI * 2f;
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                float reach = r;
+                if (sampled && NavMesh.Raycast(start.position, start.position + dir * r, out NavMeshHit edge, NavMesh.AllAreas))
+                    reach = Mathf.Min(r, Flat(edge.position - start.position).magnitude + Tuning.StoneWallSlack);
+                Vector3 p = center + dir * reach;
+                s_ring[i] = new Vector3(p.x, TelegraphHeight, p.z);
+            }
+            line.positionCount = s_ring.Length;
+            line.SetPositions(s_ring);
+        }
+
+        /// <summary>Its stones' outlines' points now (for tests): the one of stone <paramref name="i"/>.</summary>
+        public LineRenderer StoneLine(int i) => _stoneLines != null && i >= 0 && i < _stoneLines.Length ? _stoneLines[i] : null;
 
         void TickStones(float now)
         {
@@ -960,6 +1000,47 @@ namespace Roguelike
         }
 
         // ---------------- Its look ----------------
+
+        bool _dazedTinted;
+        float _dazeFrom = -1f, _dazeUntil = -1f;
+
+        /// <summary>
+        /// Round 2: while dazed its body is <see cref="GraveRamValues.DazedTint"/>, a deep blue, in place of the game's pale daze blue that
+        /// did not show on ash white; back to ash white as the daze ends (the base's own tint at the daze's end does that).
+        /// </summary>
+        void TintDazed()
+        {
+            bool dazed = !IsDead && IsDazed;
+            if (dazed && !_dazedTinted)
+            {
+                _dazeFrom = Time.time;
+                StaggerBar bar = _self != null ? _self.Stagger : null;
+                _dazeUntil = CrashDazed ? _crashDazeUntil : bar != null && bar.IsDazed(Time.time) ? bar.DazedUntil : -1f;
+            }
+            // The base tints a daze its pale blue a frame after it begins (Enemy.TintForDaze): painted over again while that shows.
+            if (dazed && BodyRenderer != null && BodyRenderer.sharedMaterial != null)
+            {
+                Color deep = InterfaceStyle.C(Tuning.DazedTint);
+                if (BodyRenderer.sharedMaterial.color != deep) EnemyFactory.Paint(BodyRenderer.sharedMaterial, deep);
+            }
+            _dazedTinted = dazed;
+        }
+
+        /// <summary>
+        /// The share of the running daze still to come, 1 to 0, for its bar (round 2: "it is open now, for this long"); negative when it
+        /// is not dazed or the daze's end is not known (Stopping Shot's).
+        /// </summary>
+        public float DazeLeftShare
+        {
+            get
+            {
+                if (!IsDazed || _dazeUntil <= _dazeFrom) return -1f;
+                return Mathf.Clamp01((_dazeUntil - Time.time) / (_dazeUntil - _dazeFrom));
+            }
+        }
+
+        /// <summary>True while its body shows its dazed tint. For tests.</summary>
+        public bool ShowsDazedTint => _dazedTinted;
 
         /// <summary>Its lean: forward over the first part of a Ram's wind-up and held through the run, back while it roars, up again after.</summary>
         void Pose(float now)
