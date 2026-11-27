@@ -196,8 +196,12 @@ namespace Roguelike.PlayModeTests
             Assert.That(_screen.OpenPage(SettingsPage.Trials), Is.True);
             List<SettingLine> lines = _screen.Lines.ToList();
             int cue = lines.IndexOf(SettingLine.TimingCue), click = lines.IndexOf(SettingLine.TimingClick);
-            Assert.That(cue, Is.EqualTo(lines.Count - 2), "the cue next to last");
-            Assert.That(click, Is.EqualTo(lines.Count - 1), "its click last");
+            // Work order 135 (changed deliberately): its "Line-ups" stands after them, last on the page, on (nothing kept here).
+            Assert.That(cue, Is.EqualTo(lines.Count - 3), "the cue before its click");
+            Assert.That(click, Is.EqualTo(lines.Count - 2), "its click before the line-ups");
+            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.LineUps), "work order 135's line-ups last");
+            Assert.That(_screen.RowNames[lines.Count - 1], Is.EqualTo("Line-ups"));
+            Assert.That(_screen.RowValues[lines.Count - 1], Is.EqualTo(RoomTrialSettings.LineUpsChosen ? "on" : "off"));
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));
