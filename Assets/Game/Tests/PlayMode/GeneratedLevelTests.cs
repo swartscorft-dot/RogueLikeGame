@@ -195,6 +195,10 @@ namespace Roguelike.PlayModeTests
             // Work order 012: floor 5, for the act boss; every enemy stands at its place in the description (a pack round
             // its point, a line across it), and every kind has the floor's health for it, the act boss the boss's.
             _levels = GeneratedLevels.Ensure();
+            // The merge of 2026-11-27, W3 (changed deliberately): with work order 137's callers on, a caller takes the place of some of a
+            // line-up room's partners after the floor placed them, so a group no longer holds its count; work order 012's placement is asked
+            // of the floor as placed, callers off.
+            _levels.Values.Callers = false;
             GeneratedLevel level = _levels.Build(Seed, 5);
             yield return null;
             yield return null;
