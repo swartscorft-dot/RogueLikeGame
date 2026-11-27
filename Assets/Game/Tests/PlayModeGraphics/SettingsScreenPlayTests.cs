@@ -416,6 +416,38 @@ namespace Roguelike.PlayModeTests
             }
         }
 
+        /// <summary>
+        /// The merge of 2026-11-27, W2: a page whose lines would run into the keys' line draws its rows smaller by one share, the
+        /// least that keeps SettingsScreenLook.KeysClear above it (the Trials page's twelve lines of work orders 134, 143, 144, 135
+        /// and 136); a page that fits (the Graphics page's eleven) is drawn at its full size, as before.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator APageLongerThanTheRoom_DrawsItsRowsSmaller_APageThatFits_AtFullSize()
+        {
+            yield return PausedInARun();
+            _hud.PickMenuLine(RunHud.MenuLine.Settings);
+            foreach (Vector2Int size in Sizes)
+            {
+                InterfaceStyle.ScreenForPictures = size;
+                Assert.That(_screen.OpenPage(SettingsPage.Graphics), Is.True);
+                Assert.That(_screen.RowScale, Is.EqualTo(1f), size + ": the Graphics page at its full size");
+                Assert.That(_screen.OpenPage(SettingsPage.Trials), Is.True);
+                int lines = _screen.Lines.Count;
+                SettingsScreenLook look = SettingsScreenValues.Look;
+                StartMenuValues s = InterfaceStyle.V.Menus.Start;
+                float room = InterfaceStyle.V.LayoutHeight - s.HintBottom - s.HintHeight - look.KeysClear - look.RowsTop;
+                float full = lines * (look.RowHeight + look.RowGap) - look.RowGap;
+                if (full <= room) Assert.That(_screen.RowScale, Is.EqualTo(1f), size + ": " + lines + " lines fit");
+                else
+                {
+                    Assert.That(_screen.RowScale, Is.LessThan(1f), size + ": " + lines + " lines do not fit at the full size");
+                    Assert.That(_screen.RowScale * full, Is.LessThanOrEqualTo(room).And.GreaterThan(room - 1f), size + ": the least share that fits");
+                }
+                Assert.That(_screen.TextOutside(), Is.Empty, size + ": every word inside its shape");
+                _screen.Escape();
+            }
+        }
+
         [UnityTest]
         public IEnumerator AFrameWithTheScreenUp_AndNothingChanging_AllocatesNothing_AndMakesNoRowsAgain()
         {

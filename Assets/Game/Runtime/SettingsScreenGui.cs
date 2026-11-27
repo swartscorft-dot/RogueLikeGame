@@ -35,6 +35,8 @@ namespace Roguelike
         Vector2Int _laidAt;
         int _laidRows = -1;
         float _viewWidth, _headW;
+        /// <summary>The share the open page's rows are drawn at: 1, or less when its lines would run into the keys' line (<see cref="SettingsScreenLook.KeysClear"/>).</summary>
+        float _rowScale = 1f;
         string[] _hint = s_ListHint;
         bool[] _hintCap = s_ListHintCap;
         Vector2 _mouse = new Vector2(float.NaN, float.NaN);
@@ -60,6 +62,7 @@ namespace Roguelike
             InterfaceValues v = InterfaceStyle.V;
             MenuValues m = v.Menus;
             StartMenuValues s = m.Start;
+            _rowScale = RowScaleFor(OnPage ? _lines.Count : 0, s);
             _hits.Clear();
             _hint = OnPage ? s_PageHint : s_ListHint;
             _hintCap = OnPage ? s_PageHintCap : s_ListHintCap;
@@ -92,11 +95,32 @@ namespace Roguelike
         }
 
         static GUIStyle CapStyle(MenuValues m) => InterfaceStyle.Text(true, m.KeyCapSize, TextAnchor.MiddleCenter);
-        static GUIStyle NameStyle() => InterfaceStyle.Text(false, L.NameSize, TextAnchor.MiddleLeft);
-        static GUIStyle ValueStyle() => InterfaceStyle.Text(true, L.ValueSize, TextAnchor.MiddleRight);
-        static GUIStyle NoteStyle() => InterfaceStyle.Text(false, L.NoteSize, TextAnchor.MiddleLeft);
+        GUIStyle NameStyle() => InterfaceStyle.Text(false, RowWords(L.NameSize), TextAnchor.MiddleLeft);
+        GUIStyle ValueStyle() => InterfaceStyle.Text(true, RowWords(L.ValueSize), TextAnchor.MiddleRight);
+        GUIStyle NoteStyle() => InterfaceStyle.Text(false, RowWords(L.NoteSize), TextAnchor.MiddleLeft);
         static float HeadingPad(MenuValues m) => m.HeadingSlant * m.HeadingHeight * 0.5f + 18f;
-        static float RowPad(InterfaceValues v) => v.Slant * L.RowHeight * 0.5f + 18f;
+        float RowPad(InterfaceValues v) => v.Slant * RowHeight * 0.5f + 18f;
+
+        /// <summary>The open page's row height and gap, at <see cref="_rowScale"/>.</summary>
+        float RowHeight => L.RowHeight * _rowScale;
+        float RowGap => L.RowGap * _rowScale;
+        /// <summary>A row's type size at <see cref="_rowScale"/>, rounded down so the words never outgrow the smaller row.</summary>
+        int RowWords(int size) => _rowScale >= 1f ? size : Mathf.Max(1, Mathf.FloorToInt(size * _rowScale));
+
+        /// <summary>
+        /// The share a page of <paramref name="lines"/> rows is drawn at (the merge of 2026-11-27, W2): 1 while its last row ends
+        /// <see cref="SettingsScreenLook.KeysClear"/> above the keys' line, else the share of the rows' height and gaps that does.
+        /// </summary>
+        /// <summary>A hair under the exact share, so that the float sum of the rows never lands a fraction of a pixel past the room.</summary>
+        const float ScaleShave = 0.9999f;
+
+        static float RowScaleFor(int lines, StartMenuValues s)
+        {
+            if (lines <= 0) return 1f;
+            float room = ViewHeight - s.HintBottom - s.HintHeight - L.KeysClear - L.RowsTop;
+            float need = lines * (L.RowHeight + L.RowGap) - L.RowGap;
+            return need <= room || need <= 0f ? 1f : Mathf.Max(0f, room) / need * ScaleShave;
+        }
 
         Rect TabRect(int t, StartMenuValues s) => new Rect(s.TabLeft + t * (s.TabWidth + s.TabGap), s.TabTop, s.TabWidth, s.TabHeight);
         Rect ListRect(int i, StartMenuValues s) => new Rect(s.MainLeft, s.MainTop + i * (s.MainRowHeight + s.MainRowGap), s.MainWidth, s.MainRowHeight);
@@ -105,7 +129,7 @@ namespace Roguelike
 
         /// <summary>Row <paramref name="i"/> of the page; the chosen one moved out to the right when <paramref name="shifted"/>.</summary>
         Rect RowRect(int i, bool shifted) =>
-            new Rect(L.RowsLeft + (shifted && i == Selected ? L.SelectedShift : 0f), L.RowsTop + i * (L.RowHeight + L.RowGap), L.RowsWidth, L.RowHeight);
+            new Rect(L.RowsLeft + (shifted && i == Selected ? L.SelectedShift : 0f), L.RowsTop + i * (RowHeight + RowGap), L.RowsWidth, RowHeight);
 
         Rect LessRect(Rect r, int i) => new Rect(r.xMax - 2f * L.Chevron - 30f - ValueW(i), r.y, L.Chevron + 10f, r.height);
         Rect MoreRect(Rect r) => new Rect(r.xMax - L.Chevron - 16f, r.y, L.Chevron + 16f, r.height);
@@ -163,6 +187,16 @@ namespace Roguelike
 
         /// <summary>The layout's work for a frame with the screen up (for the tests of a frame with nothing changing).</summary>
         public void LayOutForTests() => LayOut();
+
+        /// <summary>The share the open page's rows are drawn at (1 unless its lines would run into the keys' line). For tests.</summary>
+        public float RowScale
+        {
+            get
+            {
+                LayOut();
+                return _rowScale;
+            }
+        }
 
         // ---------------- Drawing ----------------
 
@@ -308,7 +342,7 @@ namespace Roguelike
                              : ink;
             float right = r.xMax - L.Chevron - 20f, w = ValueW(i);
             Label(new Rect(right - w - 4f, r.y, w + 4f, r.height), value, ValueStyle(), valueInk, !selected);
-            GUIStyle chevron = InterfaceStyle.Text(true, L.ValueSize, TextAnchor.MiddleCenter);
+            GUIStyle chevron = InterfaceStyle.Text(true, RowWords(L.ValueSize), TextAnchor.MiddleCenter);
             Color chevronInk = greyed ? InterfaceStyle.C(v.White, 0.15f) : selected ? InterfaceStyle.C(v.Red) : InterfaceStyle.C(v.White, 0.55f);
             Label(new Rect(right - w - 14f - L.Chevron, r.y, L.Chevron, r.height), LessWord, chevron, chevronInk, false);
             Label(new Rect(right + 4f, r.y, L.Chevron, r.height), MoreWord, chevron, chevronInk, false);
@@ -383,14 +417,14 @@ namespace Roguelike
                     Vector2 n = InterfaceStyle.Measure(_names[i], name);
                     float noteW = _notes[i].Length > 0 ? 22f + InterfaceStyle.Measure(_notes[i], note).x : 0f;
                     Fits("the row " + _names[i] + "'s name and note reach its value", pad + n.x + noteW + 12f, L.RowsWidth - L.ValueRoom);
-                    Fits("the row " + _names[i] + " is taller than its row", n.y, L.RowHeight * 1.05f);
+                    Fits("the row " + _names[i] + " is taller than its row", n.y, RowHeight * 1.05f);
                     Vector2 val = InterfaceStyle.Measure(_values[i], value);
                     Fits("the value " + _values[i] + " is wider than its room", val.x + 2f * L.Chevron + 50f, L.ValueRoom);
-                    Fits("the value " + _values[i] + " is taller than its row", val.y, L.RowHeight * 1.1f);
+                    Fits("the value " + _values[i] + " is taller than its row", val.y, RowHeight * 1.1f);
                 }
                 if (_lines.Count > 0)
                 {
-                    Fits("the rows run into the keys' line", RowRect(_lines.Count - 1, false).yMax + 10f, hintTop);
+                    Fits("the rows run into the keys' line", RowRect(_lines.Count - 1, false).yMax + L.KeysClear, hintTop);
                     Fits("the rows run past the view's right", L.RowsLeft + L.RowsWidth + L.SelectedShift + 60f, _viewWidth);
                 }
             }

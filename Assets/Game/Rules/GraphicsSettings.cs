@@ -436,6 +436,13 @@ namespace Roguelike.Rules
         public float RowsWidth = 1180f;
         public float RowHeight = 58f;
         public float RowGap = 9f;
+        /// <summary>
+        /// Layout pixels kept between a page's last row and the keys' line at the foot. A page with more lines than fit above it at
+        /// these sizes draws its rows, their gaps and their words smaller by one share, the least that keeps this room (the merge of
+        /// 2026-11-27, W2: the Trials page's twelve lines, work orders 134, 143, 144, 135 and 136, ran 41 px into the keys' line;
+        /// eleven lines fit at the full size, as the Graphics page's eleven do, and every page had at most that until then).
+        /// </summary>
+        public float KeysClear = 10f;
         /// <summary>How far the chosen row stands out to the right (the pause menu's is <see cref="MenuValues.SelectedShift"/>).</summary>
         public float SelectedShift = 18f;
         /// <summary>The words: a line's name, its value (heavy), and the small note after the name.</summary>
