@@ -10,6 +10,9 @@ namespace Roguelike
     /// (<see cref="InUse"/>, <see cref="GeneratedLevels"/>): off, the floors built after it are version 24's (<see cref="LevelValues.LineUps"/>);
     /// the floor she stands on stays as it was built.
     ///
+    /// Work order 136: "Waves" the same way under <see cref="WavesKey"/> (<see cref="WavesInUse"/>, read as a floor's fights are set up):
+    /// off, the floors set up after it wake every room at once, as on work order 135.
+    ///
     /// Read as the game's other settings are: nothing until <see cref="GameSettings.Load"/> (the HUD does it when it starts), so a test that
     /// never makes the HUD plays with the default whatever this machine has stored, and <see cref="GameSettings.Unload"/> puts the default
     /// back. A class of its own, not lines in GameSettings.cs: it follows GameSettings' own load by <see cref="GameSettings.IsLoaded"/>.
@@ -17,15 +20,18 @@ namespace Roguelike
     public static class RoomTrialSettings
     {
         public const string LineUpsKey = "Roguelike.Settings.LineUps"; // work order 135: 1 on (the default, as nothing stored), 0 off
+        public const string WavesKey = "Roguelike.Settings.Waves";     // work order 136: 1 on (the default, as nothing stored), 0 off
 
         static bool s_loaded;
         static bool s_lineUps = true;
+        static bool s_waves = true;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             s_loaded = false;
             s_lineUps = true;
+            s_waves = true;
         }
 
         /// <summary>Follows GameSettings: read when it has loaded, the default again when it has unloaded.</summary>
@@ -34,12 +40,14 @@ namespace Roguelike
             if (GameSettings.IsLoaded && !s_loaded)
             {
                 s_lineUps = PlayerPrefs.GetInt(LineUpsKey, 1) != 0;
+                s_waves = PlayerPrefs.GetInt(WavesKey, 1) != 0;
                 s_loaded = true;
             }
             else if (!GameSettings.IsLoaded && s_loaded)
             {
                 s_loaded = false;
                 s_lineUps = true;
+                s_waves = true;
             }
         }
 
@@ -53,8 +61,21 @@ namespace Roguelike
             }
         }
 
+        /// <summary>Work order 136: the waves as chosen on the Trials page (on unless he turned them off).</summary>
+        public static bool WavesChosen
+        {
+            get
+            {
+                Follow();
+                return s_waves;
+            }
+        }
+
         /// <summary>Whether a floor built now with these values has line-ups: their switch and the page's choice both on.</summary>
         public static bool InUse(LevelValues values) => (values == null || values.LineUps) && LineUpsChosen;
+
+        /// <summary>Work order 136: whether a floor set up now with these values has waves: their switch and the page's choice both on.</summary>
+        public static bool WavesInUse(LevelValues values) => (values == null || (values.Waves && values.WaveRules != null)) && WavesChosen;
 
         /// <summary>Turns the line-ups on or off and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
         public static void SetLineUps(bool on, bool keep = true)
@@ -66,15 +87,30 @@ namespace Roguelike
             PlayerPrefs.Save();
         }
 
-        /// <summary>The settings screen's line changed a step: "Line-ups" on or off. False for any other line.</summary>
+        /// <summary>Work order 136: turns the waves on or off and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void SetWaves(bool on, bool keep = true)
+        {
+            Follow();
+            s_waves = on;
+            if (!keep) return;
+            PlayerPrefs.SetInt(WavesKey, on ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>The settings screen's line changed a step: "Line-ups" or "Waves" on or off. False for any other line.</summary>
         public static bool ChangeLine(SettingLine line, int delta)
         {
+            if (line == SettingLine.Waves)
+            {
+                SetWaves(!WavesChosen);
+                return true;
+            }
             if (line != SettingLine.LineUps) return false;
             SetLineUps(!LineUpsChosen);
             return true;
         }
 
         /// <summary>The words of the line's value now ("on", "off"): made once, never in a frame.</summary>
-        public static string LineWords(SettingLine line) => RoomTrialLines.Words(LineUpsChosen);
+        public static string LineWords(SettingLine line) => RoomTrialLines.Words(line == SettingLine.Waves ? WavesChosen : LineUpsChosen);
     }
 }
