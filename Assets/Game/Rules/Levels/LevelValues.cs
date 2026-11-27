@@ -635,6 +635,19 @@ namespace Roguelike.Rules
         // (the generator's version 24): the act boss's room holds the boss and nobody else as she enters (LevelBossAlone); the swarmers
         // the boss calls in its fight are its own and stay. Off: every floor is version 23's, field for field, but for the version.
         public bool BossAlone = true;
+
+        // ---------------- Line-ups (work order 135, 2026-11-27) ----------------
+
+        // Kristian, 2026-11-25, after about two and a half hours of play: "og hvert rom er slik: man kommer inn, skyter de små først, så
+        // cahrgerne, og så ranged. det er veldig likt hver gang. dette må gjøres noe. større variasjon", and asked the same evening "may a
+        // room hold only two kinds, the full mix kept for one big room a floor?", he ticked "Ja" (from floor 1; neighbours never the same
+        // line-up). ON (the generator's version 25): every combat room of a floor but one is filled from one line-up of two kinds, a lead
+        // and a partner, its counts spending the weight today's room has (LevelLineUps, the numbers in LineUpRules); one combat room a
+        // floor, never the first, keeps today's full mix; two neighbouring combat rooms never draw the same line-up. The exit room, the
+        // boss alone and the elite are as before. Off: every floor is version 24's, field for field, but for the version. The settings
+        // screen's Trials page turns it off for the floors built after (RoomTrialSettings in the game).
+        public bool LineUps = true;
+        public LineUpValues LineUpRules = new LineUpValues();
     }
 
     /// <summary>

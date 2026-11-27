@@ -101,7 +101,7 @@ namespace Roguelike.PlayModeTests
             foreach ((ulong seed, int floor, bool exits) in floors)
             {
                 _levels = GeneratedLevels.Ensure();
-                _levels.Values = exits ? exitValues : new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // the second set is off by default since 2026-11-22; work order 103: and the throne rooms on these floors, as these seeds were found
+                _levels.Values = exits ? exitValues : new LevelValues { MoreTemplates = true, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // the second set is off by default since 2026-11-22; work order 103: and the throne rooms on these floors, as these seeds were found
                 GeneratedLevel level = _levels.Build(seed, floor);
                 Assert.That(level, Is.Not.Null, "a level was built");
                 yield return Frames(2);

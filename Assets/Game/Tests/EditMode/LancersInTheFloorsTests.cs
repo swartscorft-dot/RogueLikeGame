@@ -21,8 +21,8 @@ namespace Roguelike.Rules.Tests
     public class LancersInTheFloorsTests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        static LevelValues On => new LevelValues { Lancers = true, RangedAroundTheRoom = false, BossAlone = false }; // work order 124 (changed deliberately): version 22 is the ranged enemies around the room off; the lancers named on
-        static LevelValues Off => new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false };
+        static LevelValues On => new LevelValues { Lancers = true, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 124 (changed deliberately): version 22 is the ranged enemies around the room off; the lancers named on
+        static LevelValues Off => new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
 
         /// <summary>
         /// The far half: a lancer stands at least this share of the room's farthest place from the door she comes in by (the order:
@@ -98,9 +98,9 @@ namespace Roguelike.Rules.Tests
         {
             Assert.That(new LevelValues().Lancers, Is.True, "on by default (work order 108)");
             Assert.That(new LevelValues().LancersInFloors, Is.True, "and in the floors, with the act's plan");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "work order 118's version, 22; work order 124's, 23; work order 130's, 24");
-            Assert.That(LevelGenerator.Generate(0x118UL, 4).Version, Is.EqualTo(24));
-            Assert.That(LevelGenerator.Generate(0x118UL, 4, Off).Version, Is.EqualTo(24), "off: version 21's floor, but for the number");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "work order 118's version, 22; work order 124's, 23; work order 130's, 24; 135's, 25");
+            Assert.That(LevelGenerator.Generate(0x118UL, 4).Version, Is.EqualTo(25));
+            Assert.That(LevelGenerator.Generate(0x118UL, 4, Off).Version, Is.EqualTo(25), "off: version 21's floor, but for the number");
         }
 
         /// <summary>
@@ -376,7 +376,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepVersion22sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "the version was raised: update the golden maps and this number together");
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, On)).Replace("version " + LevelGenerator.Version + " ", "version 22 "); // work order 124 (changed deliberately): version 22's maps are the ranged enemies around the room off
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN22 " + key + "\n" + map);

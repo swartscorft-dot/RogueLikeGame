@@ -231,16 +231,16 @@ namespace Roguelike.Rules.Tests
         /// Work order 073's rule with its own values: the bombers on from floor 2, and the warders off (work order 087 turned both
         /// on in the floors, the bomber from floor 4 and the warder from floor 3: ActPlanTests test the defaults).
         /// </summary>
-        static LevelValues On() => new LevelValues { Bombers = true, Warders = false, BomberFloors = new BomberFloorValues { FromFloor = 2, MostInRoom = new[] { 1, 1, 2 } } }; // 087's follow-up: 073's caps counted from floor 2
+        static LevelValues On() => new LevelValues { Bombers = true, Warders = false, LineUps = false, BomberFloors = new BomberFloorValues { FromFloor = 2, MostInRoom = new[] { 1, 1, 2 } } }; // 087's follow-up: 073's caps counted from floor 2
 
         /// <summary>The same with the bombers off (work order 073's "off", the default until work order 087).</summary>
-        static LevelValues Off() => new LevelValues { Bombers = false, Warders = false };
+        static LevelValues Off() => new LevelValues { Bombers = false, Warders = false, LineUps = false }; // work order 135 (changed deliberately): the bombers against their own off on version 24's rooms, the line-ups named off
 
         [Test]
         public void Off_OrTheActsPlanOff_NoRoomMayHoldOne()
         {
             Assert.That(new LevelValues().Bombers, Is.True, "built off (work order 073), on in the floors since work order 087");
-            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, UsableRooms = false } }) // work order 087: the plan off is version 17's floors, with none
+            foreach (LevelValues v in new[] { Off(), new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false, UsableRooms = false } }) // work order 087: the plan off is version 17's floors, with none
             {
                 for (int f = 1; f <= 5; f++)
                     foreach (RoomKind k in Enum.GetValues(typeof(RoomKind)))

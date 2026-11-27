@@ -197,6 +197,16 @@ namespace Roguelike.Rules
     /// <see cref="LevelValues.BossAlone"/> on (the default) the act boss's room holds the boss alone (<see cref="LevelBossAlone"/>): its
     /// other groups are drawn as before and taken out after every draw, so a floor without the act boss is version 23's, field for
     /// field; the validator asks that room for the boss alone. With it off every floor is version 23's, field for field, but for the version.
+    /// Version 25 (work order 135; Kristian, 2026-11-25: "man kommer inn, skyter de små først, så cahrgerne, og så ranged. det er veldig
+    /// likt hver gang", and his tick "Ja" to a room of two kinds with the full mix kept for one big room a floor): with
+    /// <see cref="LevelValues.LineUps"/> on (the default) every combat room of the floor but one is filled from one line-up of its floor,
+    /// a lead kind and a partner kind (<see cref="LevelLineUps"/>, on a stream of its own after the lancers): its counts spend the weight
+    /// today's groups give that room, within its caps, and only those two kinds stand in it (the elite room's elite beside them). One
+    /// combat room a floor, never the first nor the elite room, keeps the groups version 24 gives it (the full room); two neighbouring
+    /// combat rooms never draw the same line-up; the exit room is version 24's. The validator holds the line-ups' rules
+    /// (<see cref="LevelLineUps.Faults"/>) and asks a line-up room for its line-up's counts in place of the floor's range. The rooms'
+    /// places, props and cover laid round the new groups stand otherwise. With it off every floor is version 24's, field for field, but
+    /// for the version.
     /// </summary>
     public static partial class LevelGenerator
     {
@@ -245,7 +255,10 @@ namespace Roguelike.Rules
         // every floor is version 22's).
         // 24: work order 130, the boss alone (LevelValues.BossAlone, on: the act boss's room holds the boss and nobody else, its other
         // groups drawn as before and then taken out; every floor without the act boss is version 23's; off, every floor is version 23's).
-        public const int Version = 24;
+        // 25: work order 135, line-ups (LevelValues.LineUps, on: every combat room but one a floor of two kinds, a lead and a partner,
+        // spending the weight of today's room, on the stream "line-ups"; one full room a floor, never the first; neighbours never the
+        // same line-up; off, every floor is version 24's).
+        public const int Version = 25;
         public const string MoreRoomsStage = "more rooms"; // work order 046: the enemies of the row's further combat rooms
 
         public const string ShapesStage = RoomShapes.Stage; // work order 051
@@ -280,6 +293,7 @@ namespace Roguelike.Rules
             if (values.BombersInFloors) LevelBombers.Put(fights, seed, floor, values); // work order 073; on with the act's plan (087)
             if (values.WardersInFloors) LevelWarders.Put(fights, seed, floor, values); // work order 079; on with the act's plan (087)
             if (values.LancersInFloors) LevelLancers.Put(fights, seed, floor, values); // work order 118 (version 22): 108's lancer; on with the act's plan
+            List<LineUp> lineUps = LevelLineUps.Put(fights, seed, floor, values); // work order 135 (version 25): line-ups (nothing, and null, with its switch off)
             LevelRanged.Split(fights, values); // work order 124 (version 23): the shooters stand singly (nothing with its switch off)
             LevelBossAlone.Clear(fights, values); // work order 130 (version 24): the act boss's room holds the boss alone (nothing with its switch off)
             List<string> faults = null;
@@ -299,6 +313,7 @@ namespace Roguelike.Rules
                 for (int i = 0; i < contentsWarmUp; i++) contents.NextBits();
                 if (!(fights != null ? PlaceFights(level, fights, contents, values) : PlaceContents(level, contents, values))
                     && !PlaceAgainPlainer(level, fights, seed, attempt, contentsWarmUp, values)) continue; // work order 051
+                if (lineUps != null) LevelLineUps.Mark(level, lineUps); // work order 135: each combat room told its line-up (the validator, the game, the log)
 
                 faults = LevelValidator.Validate(level, values);
                 if (faults.Count > 0) continue;

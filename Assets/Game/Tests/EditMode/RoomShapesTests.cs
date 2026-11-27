@@ -85,8 +85,8 @@ namespace Roguelike.Rules.Tests
             // Work order 118 (changed deliberately): 051's drawn shapes without the lancers, as they were measured. With them on, a carved
             // cell can leave a room no 10 m of floor for its lancer to charge across, and the floor is then made by a later attempt
             // than with the shapes off (seed 17 of floors 4 and 5); the defaults below keep the lancers.
-            var values = defaults ? new LevelValues() : new LevelValues { Templates = false, Passages = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 058: 051's drawn shapes, as they were; 059: touching rooms, a gate in each
-            var off = new LevelValues { Shapes = false, Templates = false, Passages = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false };
+            var values = defaults ? new LevelValues() : new LevelValues { Templates = false, Passages = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 058: 051's drawn shapes, as they were; 059: touching rooms, a gate in each
+            var off = new LevelValues { Shapes = false, Templates = false, Passages = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
             var shapes = new Dictionary<string, int>();
             int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0, earlier = 0;
             int templated = 0, enemyPaths = 0;
@@ -287,7 +287,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void SwitchOff_FiveThousandFloors_AreVersion12s_FieldForField()
         {
-            var off = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 103: nor exit rooms of their own; 054: version 12 had the casters off; 058: nor templates; 059: nor passages; 087: nor the act's plan
+            var off = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 103: nor exit rooms of their own; 054: version 12 had the casters off; 058: nor templates; 059: nor passages; 087: nor the act's plan
             ulong h = 14695981039346656037UL;
             for (ulong s = 0; s < 5000; s++)
             {

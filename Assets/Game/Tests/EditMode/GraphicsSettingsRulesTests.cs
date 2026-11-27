@@ -164,10 +164,11 @@ namespace Roguelike.Rules.Tests
             Assert.That(lines, Is.EqualTo(new[]
             {
                 SettingLine.Attachments, SettingLine.Greybox, SettingLine.Light, SettingLine.ToonLook, SettingLine.BetweenRuns, SettingLine.CameraAngle,
-                SettingLine.TimingCue, SettingLine.TimingClick, // the merge of 2026-11-26: work order 134's two lines, last
+                SettingLine.TimingCue, SettingLine.TimingClick, // the merge of 2026-11-26: work order 134's two lines
+                SettingLine.LineUps, // work order 135 (changed deliberately): the rooms' line-ups, last
             }));
             SettingsPages.Lines(SettingsPage.Trials, false, lines);
-            Assert.That(lines.GetRange(lines.Count - 2, 2), Is.EqualTo(new[] { SettingLine.TimingCue, SettingLine.TimingClick }), "with the camera angle off, still last");
+            Assert.That(lines.GetRange(lines.Count - 3, 3), Is.EqualTo(new[] { SettingLine.TimingCue, SettingLine.TimingClick, SettingLine.LineUps }), "with the camera angle off, still last");
             Assert.That(lines, Has.No.Member(SettingLine.CameraAngle), "work order 121's switch off: no camera angle line");
             foreach (SettingsPage page in SettingsPages.All)
             {

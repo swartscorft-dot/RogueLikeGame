@@ -289,6 +289,7 @@ namespace Roguelike.Rules
             LevelWarders.Faults(level, values, faults); // work order 079: the warders' rules
             LevelLancers.Faults(level, values, faults); // work order 118: the lancers' rules (work order 108's)
             LevelRanged.Faults(level, values, faults); // work order 124: the ranged enemies' posts around the room
+            LevelLineUps.Faults(level, values, faults); // work order 135: the line-ups' rules, on the rooms that carry one
 
             // Work order 051: every room's carved outline keeps the rules of RoomShapes.Faults (its gate among them).
             foreach (LevelRoom r in rooms)
@@ -394,7 +395,8 @@ namespace Roguelike.Rules
             }
             else
             {
-                if (count < fewest || count > most) faults.Add($"{name} holds {count} enemies, floor {floor} has {fewest} to {most} in a {r.Kind} room");
+                // Work order 135: a room filled from a line-up holds its line-up's counts (LevelLineUps.Faults), not the floor's range.
+                if (!LevelLineUps.Fills(r) && (count < fewest || count > most)) faults.Add($"{name} holds {count} enemies, floor {floor} has {fewest} to {most} in a {r.Kind} room");
                 int kinds = others.Select(g => g.Kind).Distinct().Count();
                 if (kinds < 2) faults.Add($"{name} holds {kinds} kind of enemy, not at least two");
             }

@@ -19,7 +19,10 @@ namespace Roguelike.Rules.Tests
     {
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static LevelValues On => new LevelValues();
-        static LevelValues Off => new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false };
+        // Work order 135 (changed deliberately): the floors' character's draws measured on version 24's rooms, the line-ups named off (with them on
+        // a floor's mixes are drawn for its full room and its exit room only, and floor 2's guard comes in the line-ups' guard rooms).
+        static LevelValues OnVersion24 => new LevelValues { LineUps = false };
+        static LevelValues Off => new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
 
         /// <summary>How far a measured share may lie from the one its weights give (a thousand seeds a floor, five to eight rooms each: about 1.5 points of noise).</summary>
         const double MixShareTolerance = 0.05;
@@ -93,7 +96,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Version21_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            ulong h = Print(new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false }); // work order 118 (changed deliberately): version 21 is the lancers off
+            ulong h = Print(new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }); // work order 118 (changed deliberately): version 21 is the lancers off
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x524BEFDC904EAF79UL; // Unity's EditMode run of this code (work order 104's filtered run, 2026-11-24)
 #else
@@ -263,7 +266,7 @@ namespace Roguelike.Rules.Tests
         [Test, Timeout(3600000)]
         public void AThousandSeedsAFloor_TheDominantMixAndTheme_WithinTheirTolerances_AndTheShareThatShowsTheNewThing()
         {
-            Share[] before = Count(Off, 1000), after = Count(On, 1000);
+            Share[] before = Count(Off, 1000), after = Count(OnVersion24, 1000);
             var lines = new List<string> { "NEWTHING a thousand seeds a floor: the fights' rooms that show the floor's new thing, and the combat rooms of its theme; before -> after" };
             for (int floor = 1; floor <= 5; floor++)
             {
@@ -290,7 +293,7 @@ namespace Roguelike.Rules.Tests
                 return guarded / (double)rooms;
             }
             Assert.That(Guarded(Off), Is.EqualTo(1.0 / 3).Within(MixShareTolerance), "floor 2 before: the guarded swarm one of three");
-            Assert.That(Guarded(On), Is.EqualTo(0.5).Within(MixShareTolerance), "floor 2 after: the guarded swarm half the draws");
+            Assert.That(Guarded(OnVersion24), Is.EqualTo(0.5).Within(MixShareTolerance), "floor 2 after: the guarded swarm half the draws");
             for (int floor = 1; floor <= 5; floor++)
             {
                 Share b = before[floor], a = after[floor];

@@ -18,9 +18,9 @@ namespace Roguelike.Rules.Tests
     public class RangedAroundTheRoomTests
     {
         // Work order 130 (changed deliberately): version 23's floors are the boss alone named off (LevelValues.BossAlone), so its pins and maps keep their numbers.
-        static LevelValues LancersOn => new LevelValues { Lancers = true, BossAlone = false };
-        static LevelValues LancersOff => new LevelValues { Lancers = false, BossAlone = false };
-        static LevelValues Version22 => new LevelValues { Lancers = true, RangedAroundTheRoom = false, BossAlone = false };
+        static LevelValues LancersOn => new LevelValues { Lancers = true, BossAlone = false, LineUps = false };
+        static LevelValues LancersOff => new LevelValues { Lancers = false, BossAlone = false, LineUps = false };
+        static LevelValues Version22 => new LevelValues { Lancers = true, RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
 
         static ulong Mix(ulong h, ulong v)
         {
@@ -89,7 +89,7 @@ namespace Roguelike.Rules.Tests
         {
             var v = new LevelValues();
             Assert.That(v.RangedAroundTheRoom, Is.True, "on by default (work order 124)");
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "work order 124's version, 23; work order 130's, 24");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "work order 124's version, 23; work order 130's, 24; 135's, 25");
             RangedAroundValues r = v.RangedAround;
             Assert.That(r.OnScreenOnly && r.WakeGrace && r.NearFlank && r.PairsAndNests && r.Ladder && r.OneAtTheBack && r.WarderInThePack && r.Crossfire && r.TellsTheLog,
                         Is.True, "every part on");
@@ -97,8 +97,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(r.NearFlankShare, Is.EqualTo(0.6), "the order's first guess");
             Assert.That(r.SinglesShare + r.PairShare + r.NestShare, Is.EqualTo(1.0).Within(1e-9), "the mix's shares");
             Assert.That(r.CrossfireFromFloor, Is.EqualTo(4), "his tick: from floor 4");
-            Assert.That(LevelGenerator.Generate(0x124UL, 4).Version, Is.EqualTo(24));
-            Assert.That(LevelGenerator.Generate(0x124UL, 4, Version22).Version, Is.EqualTo(24), "off: version 22's floor, but for the number");
+            Assert.That(LevelGenerator.Generate(0x124UL, 4).Version, Is.EqualTo(25));
+            Assert.That(LevelGenerator.Generate(0x124UL, 4, Version22).Version, Is.EqualTo(25), "off: version 22's floor, but for the number");
         }
 
         /// <summary>The design view's numbers are the default camera's (FeelValues): the floors' rule asks the camera the game starts with.</summary>
@@ -237,7 +237,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepVersion23sMaps(string seedText, int floor, bool lancers)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "the version was raised: update the golden maps and this number together");
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "the version was raised: update the golden maps and this number together");
             // Work order 130 (changed deliberately): version 24's floor 5 maps are BossAloneTests'; these are version 23's, the boss alone named off, but for the number.
             string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, lancers ? LancersOn : LancersOff)).Replace("version " + LevelGenerator.Version + " ", "version 23 ");
             string key = seedText + "/" + floor + (lancers || floor < 4 ? "" : "/lancers off");

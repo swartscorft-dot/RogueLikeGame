@@ -23,7 +23,7 @@ namespace Roguelike.Rules.Tests
         [TestCase(5)]
         public void Enemies_OfAThousandSeeds_KeepTheFloorsNumbersAndMixes(int floor)
         {
-            var v = new LevelValues { RangedAroundTheRoom = false, BossAlone = false }; // work order 124 (changed deliberately): "shooters at the far side" is version 22's rule; 124 stands them around the room (RangedAroundTheRoomFloorsTests)
+            var v = new LevelValues { RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 124 (changed deliberately): "shooters at the far side" is version 22's rule; 124 stands them around the room (RangedAroundTheRoomFloorsTests)
             int rooms = 0, shootersFarther = 0, roomsWithShootersAndOthers = 0;
             var counts = new SortedDictionary<int, int>();
             for (ulong s = 0; s < 1000; s++)

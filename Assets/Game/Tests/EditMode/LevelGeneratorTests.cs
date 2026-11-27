@@ -173,7 +173,8 @@ namespace Roguelike.Rules.Tests
                     long hp = r.EnemyGroups.Sum(g => (long)values.HealthOf(g.Kind, g.Boss) * g.Count);
                     if (r.Kind == RoomKind.Combat)
                     {
-                        fewestCombat = Math.Min(fewestCombat, n); mostCombat = Math.Max(mostCombat, n);
+                        // Work order 135 (changed deliberately): a line-up room holds its line-up's counts (the validator asks them), not the floor's range.
+                        if (!LevelLineUps.Fills(r)) { fewestCombat = Math.Min(fewestCombat, n); mostCombat = Math.Max(mostCombat, n); }
                         combatHealth += hp; combatRooms++;
                     }
                     else if (r.Kind == RoomKind.Exit)
@@ -3022,10 +3023,10 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            Assert.That(LevelGenerator.Version, Is.EqualTo(24), "the version was raised: update the golden maps and this number together"); // work order 124: 23; 130: 24
+            Assert.That(LevelGenerator.Version, Is.EqualTo(25), "the version was raised: update the golden maps and this number together"); // work order 124: 23; 130: 24; 135: 25
             // Work order 118 (changed deliberately): version 22's maps, the lancers on, are LancersInTheFloorsTests'; these are version 21's,
             // the lancers named off, but for the version number.
-            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false })).Replace("version " + LevelGenerator.Version + " ", "version 21 ");
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false })).Replace("version " + LevelGenerator.Version + " ", "version 21 ");
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN " + key + "\n" + map);
             Assert.That(Golden.ContainsKey(key), "no golden map for " + key + "\n" + map);
@@ -3041,7 +3042,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheRoomsYouCanUseOff_KeepVersion18sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false });
             Assert.That(level.Rooms.SelectMany(r => r.Props).Any(p => p.Fight), Is.False, "no cover added");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 18 ");
             string key = seedText + "/" + floor;
@@ -3057,7 +3058,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheActsPlanOff_KeepVersion17sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false });
             Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Warder || g.Kind == EnemyKind.Bomber), Is.False, "no warder, no bomber");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 17 ");
             string key = seedText + "/" + floor;
@@ -3074,7 +3075,7 @@ namespace Roguelike.Rules.Tests
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
             Assert.That(LevelGenerator.Generate(seed, floor).Rooms.All(r => r.Template == null || r.Template.Template.Since != RoomTemplateLibrary.MoreSince), "the default floor: none of the second set"); // work order 103: the third set is no second set
-            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { MoreTemplates = true, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false })) // work order 087: version 17's
+            string map = LevelMap.Draw(LevelGenerator.Generate(seed, floor, new LevelValues { MoreTemplates = true, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false })) // work order 087: version 17's
                          .Replace("version " + LevelGenerator.Version + " ", "version 17 ");
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN SECOND SET " + key + "\n" + map);
@@ -3090,7 +3091,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithThePassagesOff_KeepVersion15sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false });
             Assert.That(level.Rooms.All(r => r.Kind != RoomKind.Passage), "no passage");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 15 ");
             string key = seedText + "/" + floor;
@@ -3106,7 +3107,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheTemplatesOff_KeepVersion14sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false });
             Assert.That(level.Rooms.All(r => r.Template == null), "no template");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 14 ");
             string key = seedText + "/" + floor;
@@ -3122,7 +3123,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheCastersOff_KeepVersion13sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }); // work order 058: version 13 had no templates
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }); // work order 058: version 13 had no templates
             Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 13 ");
             string key = seedText + "/" + floor;
@@ -3138,7 +3139,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheShapesOff_KeepVersion12sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false });
             Assert.That(level.Rooms.All(r => r.SolidCount == 0), "no carved cell");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 12 ");
             string key = seedText + "/" + floor;
@@ -3156,7 +3157,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithFourCombatRooms_KeepVersion11sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            var four = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false };
+            var four = new LevelValues { Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false };
             four.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, four);
             Assert.That(level.Rooms.Count(r => r.Kind == RoomKind.Combat), Is.EqualTo(4));
@@ -3172,7 +3173,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithFourCombatRoomsAndNoMood_KeepVersion10sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            var bare = new LevelValues { RoomMood = false, Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }; // work order 054: version 10 had the casters off
+            var bare = new LevelValues { RoomMood = false, Shapes = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 054: version 10 had the casters off
             bare.Plan.MoreCombatRooms = 0;
             LevelLayout level = LevelGenerator.Generate(seed, floor, bare);
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 10 ");
@@ -3188,7 +3189,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithTheLineOff_KeepVersion9sMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }); // work order 044: version 9 had no mood; 054: and the casters off; 058: no templates
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { InALine = false, RoomMood = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }); // work order 044: version 9 had no mood; 054: and the casters off; 058: no templates
             Assert.That(level.InALine, Is.False);
             Assert.That(level.Version, Is.EqualTo(LevelGenerator.Version));
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
@@ -3206,7 +3207,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithThemesOff_KeepMainsVersion7Maps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Themes = false, InALine = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false });
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Themes = false, InALine = false, Casters = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false });
             Assert.That(level.Rooms.All(r => r.Theme == RoomTheme.None), "no room has a theme");
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 7 ");
             string key = seedText + "/" + floor;
@@ -3220,7 +3221,7 @@ namespace Roguelike.Rules.Tests
         public void GoldenSeeds_WithCastersOn_KeepTheirMaps(string seedText, int floor)
         {
             Assert.That(LevelSeed.TryParse(seedText, out ulong seed), Is.True);
-            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false, RoomMood = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false }); // work order 044: version 9 had no mood
+            LevelLayout level = LevelGenerator.Generate(seed, floor, new LevelValues { Casters = true, InALine = false, RoomMood = false, Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }); // work order 044: version 9 had no mood
             string map = LevelMap.Draw(level).Replace("version " + LevelGenerator.Version + " ", "version 9 ");
             string key = seedText + "/" + floor;
             TestContext.WriteLine("GOLDEN CASTERS " + key + "\n" + map);

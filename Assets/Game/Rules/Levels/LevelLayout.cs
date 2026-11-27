@@ -254,6 +254,13 @@ namespace Roguelike.Rules
             _solidList = null;
             ShapeCache = null;
         }
+
+        /// <summary>
+        /// The line-up the room was filled from (work order 135, <see cref="LevelLineUps"/>): its lead kind and its partner kind (the
+        /// room's groups of each kind are theirs, the elite apart), or the floor's full room (<see cref="Rules.LineUp.Full"/>: today's
+        /// mix). Null for every room with <see cref="LevelValues.LineUps"/> off, the exit room, and a room of no floor's row.
+        /// </summary>
+        public LineUp LineUp;
     }
 
     /// <summary>
