@@ -151,8 +151,19 @@ namespace Roguelike
         ParticleSystem.Particle[] _fogBuffer; // work order 085: the fog's particles, read and written back without allocating
         bool _fogTreated;
 
-        /// <summary>Enemy renderers drawn with the light floor.</summary>
-        public int FlooredRenderers => _floored.Count;
+        /// <summary>
+        /// Enemy renderers drawn with the light floor: those still standing (the merge of 2026-11-27, W3: work order 137's caller takes the
+        /// place of partners the floor placed, which leave it destroyed after the mood floored them; their entries stay in the list, null).
+        /// </summary>
+        public int FlooredRenderers
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < _floored.Count; i++) if (_floored[i].Renderer != null) n++;
+                return n;
+            }
+        }
         public bool Built => _built;
         /// <summary>For tests: how many times it was built.</summary>
         public int Builds { get; private set; }
