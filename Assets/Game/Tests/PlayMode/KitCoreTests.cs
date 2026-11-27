@@ -393,6 +393,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Backstep_ASecondPressEarlyInTheWindow_IsAnOrdinaryShot_ThatAddsOneMark_AndTakesNone()
         {
+            // Work order 142 opened Backstep's clean part with the hop's end (KitTimingChoices.BackstepFromHopsEnd), so its window
+            // has no early part any more: this test of a press before it is given the 0.03 s before (on a copy of the settings).
+            OwnSkills(s => s.Kit.OpeningMoveCleanFrom = 0.03f);
             SkillDefinition step = _player.Skills[Backstep];
             KitValues kit = _player.Kit;
             IdentityValues id = _player.Identity;

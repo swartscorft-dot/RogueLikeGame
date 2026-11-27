@@ -523,6 +523,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheLitBand_AgreesWithTheJudge_ThroughoutAHitStop_AndAPressInItWhileLitIsClean()
         {
+            // Work order 142 opened Backstep's clean part with the hop's end (KitTimingChoices.BackstepFromHopsEnd), so there is no
+            // moment before it in the window any more: this test of the band lighting at its opening edge is given the 0.03 s before.
+            OwnKit(k => k.OpeningMoveCleanFrom = 0.03f);
             int slot = Slot("Backstep");
             _player.Teleport(NearA);
             yield return null;

@@ -36,6 +36,7 @@ namespace Roguelike.PlayModeTests
         readonly List<FeedbackShown> _words = new List<FeedbackShown>();
         readonly List<FeedbackTone> _tones = new List<FeedbackTone>();
         readonly List<int> _damage = new List<int>();
+        readonly List<Object> _copies = new List<Object>(); // settings copies a test made, so the asset itself is never touched
 
         [UnitySetUp]
         public IEnumerator LoadScene()
@@ -88,6 +89,8 @@ namespace Roguelike.PlayModeTests
             _words.Clear();
             _tones.Clear();
             _toneVolume = -1f;
+            foreach (Object copy in _copies) if (copy != null) Object.Destroy(copy);
+            _copies.Clear();
         }
 
         void OnWord(FeedbackShown w) => _words.Add(w);
@@ -217,6 +220,12 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Backstep_AnEarlyShot_SaysEARLYOverHer_NoCleanAndNoTone()
         {
+            // Work order 142 opened Backstep's clean part with the hop's end (KitTimingChoices.BackstepFromHopsEnd), so its window
+            // has no early part any more: this test of a press before it is given the 0.03 s before (on a copy of the settings).
+            SkillSettings copy = Object.Instantiate(_player.SkillSet);
+            _copies.Add(copy);
+            copy.Kit.OpeningMoveCleanFrom = 0.03f;
+            _player.SkillSet = copy;
             yield return Chain("Backstep", clean: false);
             SaidOnce("EARLY", null);
             NotSaid("CLEAN");
