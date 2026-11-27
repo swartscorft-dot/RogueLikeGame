@@ -402,11 +402,14 @@ namespace Roguelike.Rules
             }
             int guards = groups.Where(g => g.Kind == EnemyKind.Guard && !g.Elite).Sum(g => g.Count);
             int guardsMost = values.GuardsMost(r.Kind, floor);
-            if (guards > guardsMost) faults.Add($"{name} holds {guards} guards, floor {floor} at most {guardsMost} in a {r.Kind} room");
+            // Work order 135, second round: a line-up room holds its line-up's counts (up to two guards or casters where the floor lets a room
+            // hold two; LevelLineUps.Faults asks them), not a mixed room's caps.
+            bool lineUp = LevelLineUps.Fills(r);
+            if (!lineUp && guards > guardsMost) faults.Add($"{name} holds {guards} guards, floor {floor} at most {guardsMost} in a {r.Kind} room");
             // The casters (work order 027): no more than the floor allows, the elite apart; each alone, and far from each other.
             int casters = groups.Where(g => g.Kind == EnemyKind.Caster && !g.Elite).Sum(g => g.Count);
             int castersMost = values.CastersMost(r.Kind, floor);
-            if (casters > castersMost) faults.Add($"{name} holds {casters} casters, floor {floor} at most {castersMost} in a {r.Kind} room");
+            if (!lineUp && casters > castersMost) faults.Add($"{name} holds {casters} casters, floor {floor} at most {castersMost} in a {r.Kind} room");
             for (int i = 0; i < r.EnemyPoints.Count && i < r.EnemyGroups.Count; i++)
                 for (int j = i + 1; j < r.EnemyPoints.Count && j < r.EnemyGroups.Count; j++)
                     if (r.EnemyGroups[i]?.Kind == EnemyKind.Caster && r.EnemyGroups[j]?.Kind == EnemyKind.Caster
