@@ -32,8 +32,9 @@ namespace Roguelike.PlayModeTests
         const ulong RunSeed = 0x0E117E17UL;     // an elite room on its floors (BetweenRunsTests' seed)
         const int MostFrames = 600;
         static readonly Vector2Int[] Sizes = { new Vector2Int(1920, 1080), new Vector2Int(1280, 720) };
-        static readonly float EntranceSeconds = new BossEntranceValues().Total + 6f; // the most real time the entrance may take here
-        const float MostSecondsForTheBossToStrike = 60f;                              // real seconds the boss is given to land a strike on her
+        static readonly float EntranceSeconds = new BossEntranceValues().Total * 3f + 10f; // the most real time the entrance (which runs on real time) may take on a busy machine
+        const float MostGameSecondsForTheBossToStrike = 30f; // game seconds the boss is given to land a strike on her (it took 1.6 on 2026-11-27)
+        const float MostRealSecondsForAnything = 600f;      // only a guard against a test that hangs: every wait here counts frames or game time
 
         // The game's own saves, as they were before these tests (OneTimeSetUp) and never touched by them.
         static string[] s_realPaths;
@@ -419,7 +420,8 @@ namespace Roguelike.PlayModeTests
             fight = _levels.FightOf(_levels.Level.Layout.ExitRoom);
             yield return WalkInAndWakeTheFight(fight);
             _health.TakeHit(_health.Current - 1);
-            yield return Until(() => _levels.Ending != GeneratedLevels.EndKind.None, MostSecondsForTheBossToStrike);
+            float from = Time.time; // by game time, never real seconds: a busy machine gives fewer frames, not less fight
+            yield return Until(() => _levels.Ending != GeneratedLevels.EndKind.None || Time.time - from > MostGameSecondsForTheBossToStrike, MostRealSecondsForAnything);
             Assert.That(_levels.Ending, Is.EqualTo(GeneratedLevels.EndKind.Died), "her death ends it");
             Assert.That(_levels.RehearsalEnding, Is.True);
             Assert.That(_levels.RehearsalKilledBy, Is.Not.Empty, "what killed her: the last strike that landed");
@@ -482,6 +484,37 @@ namespace Roguelike.PlayModeTests
             Assert.That(Bytes(BuildFile), Is.EqualTo(broken), "left as it was");
             _menu.Close();
             yield return null;
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [UnityTest]
+        public IEnumerator AFileFromAnOlderGame_WithASkillAndAnUpgradeThatAreGone_StillShowsTheEntry_AndStartsWithTheRest()
+        {
+            // His file is kept across updates: one from a game that had a skill and an upgrade kind this one does not.
+            var old = new RehearsalBuild { Run = "an older game's run", Floor = 3, Ended = "death" };
+            string kept = _player.Skills.First(k => k != null && !k.StartEquipped).Name;
+            foreach (SkillDefinition k in _player.Skills)
+                if (k != null && k.StartEquipped) old.Skills.Add(k.Name);
+            old.Skills.Add("A Skill Long Gone");
+            old.Skills.Add(kept);
+            old.Upgrades.Add(new Upgrade { Kind = UpgradeKind.Damage, Amount = 0.05f, Tiered = true });
+            old.Upgrades.Add(new Upgrade { Kind = UpgradeKind.FlatDamage, Amount = 3f, Tiered = true });
+            old.SkillUpgrades.Add(new SkillUpgradeDefinition("A Skill Long Gone", "Gone Too", SkillUpgradeKind.Change, "", null, SkillPatch.Scale("Cooldown", 0.5f)));
+            string text = RehearsalJson.Write(old).Replace("\"Kind\": \"FlatDamage\"", "\"Kind\": \"AKindLongGone\"");
+            File.WriteAllText(BuildFile, text);
+            byte[] before = Bytes(BuildFile);
+
+            Assert.That(_menu.Open(MenuScreen.Main), Is.True);
+            yield return null;
+            Assert.That(_menu.MainLines, Does.Contain(MainLine.Rehearsal), "the entry: what is gone is dropped, the rest kept");
+            Assert.That(_menu.PickMain(MainLine.Rehearsal), Is.True, "the rehearsal starts");
+            yield return Frames(3);
+            Assert.That(_levels.InRehearsal, Is.True);
+            Assert.That(_levels.RehearsalSkillsMissing, Is.EqualTo(new[] { "A Skill Long Gone" }), "the skill that is gone left out");
+            Assert.That(_player.IsEquipped(_player.SlotOf(kept)), Is.True, "the skill after it given");
+            Assert.That(_levels.Modifiers.Taken.Count, Is.EqualTo(1), "the upgrade of a kind that is gone dropped, the other kept");
+            Assert.That(_levels.Modifiers.Taken[0].Kind, Is.EqualTo(UpgradeKind.Damage));
+            Assert.That(Bytes(BuildFile), Is.EqualTo(before), "his file left as it was");
             LogAssert.NoUnexpectedReceived();
         }
 

@@ -249,7 +249,9 @@ namespace Roguelike.Rules
     /// <summary>
     /// The stored build's file (work order 148): one small JSON file of its own at a path the caller gives (the game's beside
     /// between-runs.json; tests give a temporary one). Reading never throws and never changes the file: a missing, unreadable,
-    /// damaged or newer one is no build (null), and the menu shows no entry; the next run that reaches floor 2 writes a good one
+    /// damaged or newer one is no build (null), and the menu shows no entry; one kept by an older game
+    /// that names a skill, an upgrade or a kind this game no longer has is read with those dropped and the rest kept
+    /// (<see cref="RehearsalJson"/>; a skill no longer hers is left out as the rehearsal starts); the next run that reaches floor 2 writes a good one
     /// over it. Writing goes through a temporary file, so a write cut short leaves the last build whole.
     /// </summary>
     public static class RehearsalFile
@@ -340,7 +342,7 @@ namespace Roguelike.Rules
             var p = new Parser(text);
             object root = p.Value();
             p.End();
-            return (T)Bind(root, typeof(T), into);
+            return (T)Bind(root, typeof(T), into, true);
         }
 
         /// <summary>A copy of an object of public fields, through its JSON: nothing of the first is held by it.</summary>
@@ -438,7 +440,13 @@ namespace Roguelike.Rules
             public string Text;
         }
 
-        static object Bind(object node, Type t, object into)
+        /// <summary>
+        /// A node as a value of <paramref name="t"/>. A file kept from an older (or newer) game may name what this game no longer
+        /// has: an item of a list that cannot be read (an upgrade of a kind that is gone, a tier of a basic-shot upgrade that is
+        /// gone) is dropped and the rest kept; on the <paramref name="root"/> object a name of an enum that is gone keeps the
+        /// field's default. Anything else that is not as written throws.
+        /// </summary>
+        static object Bind(object node, Type t, object into, bool root = false)
         {
             if (t == typeof(string))
             {
@@ -473,7 +481,13 @@ namespace Roguelike.Rules
                 list.Clear();
                 if (node == null) return list;
                 if (!(node is List<object> items)) throw new FormatException("a list expected");
-                foreach (object i in items) list.Add(Bind(i, item, null));
+                foreach (object i in items)
+                {
+                    object one;
+                    try { one = Bind(i, item, null); }
+                    catch (Exception e) when (e is FormatException || e is ArgumentException || e is OverflowException) { continue; } // dropped: the rest kept
+                    list.Add(one);
+                }
                 return list;
             }
             if (!t.IsClass) throw new NotSupportedException("the stored build cannot hold a " + t.Name);
@@ -487,6 +501,11 @@ namespace Roguelike.Rules
                 {
                     object there = f.GetValue(made);
                     if (there != null) Bind(v, f.FieldType, there);
+                }
+                else if (root && f.FieldType.IsEnum)
+                {
+                    try { f.SetValue(made, Bind(v, f.FieldType, null)); }
+                    catch (Exception e) when (e is FormatException || e is ArgumentException) { } // a name this game does not have: the default
                 }
                 else f.SetValue(made, Bind(v, f.FieldType, null));
             }

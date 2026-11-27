@@ -266,10 +266,7 @@ namespace Roguelike.Rules.Tests
         [TestCase("not json at all")]
         [TestCase("{\"Version\": 1, \"Keys\": [\"Quick Shot\"")]
         [TestCase("{\"Version\": 1, \"Keys\": \"Quick Shot\"}")]
-        [TestCase("{\"Version\": 1, \"Focus\": \"NoSuchMode\"}")]
-        [TestCase("{\"Version\": 1, \"Focus\": \"1\"}")]
         [TestCase("{\"Version\": 1, \"MaxHealth\": 1.5}")]
-        [TestCase("{\"Version\": 1, \"Upgrades\": [{\"Amount\": \"lots\"}]}")]
         [TestCase("{\"Version\": 99}")]
         [TestCase("{\"Version\": 0}")]
         [TestCase("{}")]
@@ -285,6 +282,37 @@ namespace Roguelike.Rules.Tests
             Assert.That(b, Is.Null, text);
             Assert.That(File.ReadAllBytes(FilePath), Is.EqualTo(before), "never renamed, emptied or written over by a read");
             Assert.That(Directory.GetFiles(_folder).Length, Is.EqualTo(1), "nothing kept beside it");
+        }
+
+        [Test]
+        public void AFileFromAnOlderGame_DropsWhatThisGameNoLongerHas_AndKeepsTheRest()
+        {
+            ARichRun(out RunModifiers m, out RunSkillUpgrades s, out RunFocusChoice f);
+            string text = RehearsalJson.Write(RehearsalBuild.Capture(m, s, f, Keys, Had));
+            // What an older game had and this one does not: an upgrade's kind, a basic-shot upgrade, a tier, a focus way, a patch's op.
+            text = text.Replace("\"Kind\": \"CritChance\"", "\"Kind\": \"OldKindGone\"")
+                       .Replace("\"Kind\": \"PiercingRound\"", "\"Kind\": \"OldShotGone\"")
+                       .Replace("\"Tier\": \"Epic\" }]", "\"Tier\": \"Legendary\" }]")
+                       .Replace("\"Focus\": \"SteadyHand\"", "\"Focus\": \"OldFocusGone\"")
+                       .Replace("\"Op\": \"Add\"", "\"Op\": \"OldOpGone\"");
+            Assert.That(text, Does.Contain("OldKindGone").And.Contain("OldShotGone").And.Contain("Legendary").And.Contain("OldFocusGone").And.Contain("OldOpGone"), "the test's text was changed");
+            RehearsalBuild b = null;
+            Assert.DoesNotThrow(() => b = RehearsalFile.Parse(text));
+            Assert.That(b, Is.Not.Null, "read, with what is gone dropped");
+            Assert.That(b.Upgrades.Count, Is.EqualTo(m.Taken.Count - 1), "the upgrade of a kind that is gone dropped, the other four kept");
+            Assert.That(b.Upgrades.Any(u => u.Kind == UpgradeKind.CritChance), Is.False);
+            Assert.That(b.BasicShot.Select(x => x.Kind), Is.EqualTo(new[] { BasicShotUpgradeKind.HotBarrel }), "the basic-shot upgrade that is gone dropped");
+            Assert.That(b.SkillTiers, Is.Empty, "a tier that is gone dropped");
+            Assert.That(b.Focus, Is.EqualTo(FocusMode.Today), "a focus way that is gone: today's");
+            Assert.That(b.SkillUpgrades.Select(u => u.Name), Is.EqualTo(new[] { "Double Tap", "epic step" }), "the upgrade whose patch is gone dropped whole, never half");
+            Assert.That(b.Keys, Is.EqualTo(Keys), "the rest kept");
+            Assert.That(b.Meta.Pieces, Is.EqualTo(m.Meta.Pieces));
+            Assert.That(b.Weapon.Parts, Is.EqualTo(m.Weapon.Parts));
+
+            // A skill that is gone stays in the lists (the rehearsal leaves it out as it starts); put on a run, nothing throws.
+            var m2 = new RunModifiers();
+            Assert.DoesNotThrow(() => b.ApplyTo(m2, new RunSkillUpgrades(), new RunFocusChoice(), new BasicShotUpgradeValues(), 5, 5));
+            Assert.That(m2.Taken.Count, Is.EqualTo(m.Taken.Count - 1));
         }
 
         [Test]
