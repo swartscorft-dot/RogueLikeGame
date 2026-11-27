@@ -34,7 +34,7 @@ namespace Roguelike
         public bool Showing => _boss != null && _boss.isActiveAndEnabled && _boss.IsAwake && !_boss.IsDead;
         /// <summary>The shares shown, 0 to 1. For tests.</summary>
         public float HealthShown => _boss != null ? _boss.HealthShare : 0f;
-        public float StaggerShown => _boss != null && _boss.Stagger != null ? _boss.Stagger.Fill : 0f;
+        public float StaggerShown => WardShown >= 0f ? WardShown : _boss != null && _boss.Stagger != null ? _boss.Stagger.Fill : 0f;
 
         void Awake() => _boss = GetComponent<EnemyBoss>();
 
@@ -61,10 +61,10 @@ namespace Roguelike
             GUI.color = Color.white;
             GUI.Label(new Rect(x, Top - 24f, width, 22f), _boss.Tuning.Title, _title);
 
-            Bar(new Rect(x, Top, width, HealthHeight), HealthShown, _boss.IsAngry ? s_AngryHealth : s_Health);
+            Bar(new Rect(x, Top, width, HealthHeight), HealthShown, _boss.InTransition ? s_Grey : _boss.IsAngry ? s_AngryHealth : s_Health);
             if (ShowsHalves) Halves(new Rect(x, Top, width, HealthHeight)); // work order 106
             bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
-            Bar(new Rect(x, Top + HealthHeight + Gap, width, StaggerHeight), StaggerShown, flash ? s_Flash : s_Stagger, flash);
+            Bar(new Rect(x, Top + HealthHeight + Gap, width, StaggerHeight), StaggerShown, WardShown >= 0f ? s_Ward : flash ? s_Flash : s_Stagger, flash);
 
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
@@ -90,13 +90,13 @@ namespace Roguelike
                                  InterfaceStyle.Text(true, v.BossNameSize, TextAnchor.LowerLeft), InterfaceStyle.C(v.White), true);
             // Work order 068: the concept's language: a heavy black outline and its dark copy, halftone dots toward its end.
             InterfaceStyle.HeavyPlate(bar, bar.center.y, v.Slant, v.HeavyOutline * 0.75f, v.Depth);
-            InterfaceStyle.SlantedBar(bar, HealthShown, InterfaceStyle.C(v.Back), _boss.IsAngry ? s_AngryHealth : InterfaceStyle.C(v.Red));
+            InterfaceStyle.SlantedBar(bar, HealthShown, InterfaceStyle.C(v.Back), _boss.InTransition ? s_Grey : _boss.IsAngry ? s_AngryHealth : InterfaceStyle.C(v.Red));
             InterfaceStyle.DotsAlong(bar, bar.center.y, v.Slant, 1f - v.PlateDots, InterfaceStyle.C(v.Black, 0.45f));
             if (ShowsHalves) Halves(bar); // work order 106
             bool flash = _boss.IsDazed && Mathf.Repeat(Time.time, FlashPeriod) < FlashPeriod * 0.5f;
             var stagger = new Rect(bar.x - (v.BossHeight * 0.5f + 3f + v.BossStaggerHeight * 0.5f) * v.Slant, bar.yMax + 3f, bar.width, v.BossStaggerHeight);
             InterfaceStyle.SlantedBar(stagger, StaggerShown, flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Back),
-                                      flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Stagger));
+                                      WardShown >= 0f ? s_Ward : flash ? InterfaceStyle.C(v.Dazed) : InterfaceStyle.C(v.Stagger));
             GUI.color = colorBefore;
             GUI.matrix = matrixBefore;
         }
@@ -119,9 +119,26 @@ namespace Roguelike
         {
             Color before = GUI.color;
             GUI.color = s_HalfMark;
-            GUI.DrawTexture(HalfMark(bar), Texture2D.whiteTexture);
+            if (_boss.InTrial) // work order 147: a notch at each phase's line instead, 65 % and 30 %
+            {
+                GUI.DrawTexture(Mark(bar, _boss.TrialValues.PhaseTwoBelow), Texture2D.whiteTexture);
+                GUI.DrawTexture(Mark(bar, _boss.TrialValues.PhaseThreeBelow), Texture2D.whiteTexture);
+            }
+            else GUI.DrawTexture(HalfMark(bar), Texture2D.whiteTexture);
             GUI.color = before;
         }
+
+        // ---------------- The trial fight (work order 147) ----------------
+
+        static readonly Color s_Grey = new Color(0.55f, 0.55f, 0.58f);  // the bar through a transition: it takes no damage
+        static readonly Color s_Ward = new Color(1f, 0.82f, 0.35f);     // the ward's gold, as its closing circle on the floor
+
+        /// <summary>A notch's rectangle at a share of a health bar drawn in <paramref name="bar"/> (for tests too).</summary>
+        public Rect Mark(Rect bar, float share) => new Rect(bar.x + bar.width * Mathf.Clamp01(share) - HalfMarkWidth * 0.5f, bar.y - 2f, HalfMarkWidth, bar.height + 4f);
+
+        /// <summary>While Judgement's ward stands, the share of it left, shown in the stagger's place in gold; else -1.</summary>
+        public float WardShown => _boss != null && _boss.InTrial && _boss.Judgement == EnemyBoss.JudgementStage.Ward
+            ? Mathf.Clamp01(1f - _boss.WardTaken / (float)Mathf.Max(1, _boss.TrialValues.Ward)) : -1f;
 
         static void Bar(Rect rect, float fill, Color color, bool flashBack = false)
         {

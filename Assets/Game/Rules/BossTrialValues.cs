@@ -35,15 +35,16 @@ namespace Roguelike.Rules
         public static bool JudgementOn = true;
 
         /// <summary>
-        /// The order's first named choice near his rulings ("nothing aims for her"): Grave Marks LEAD her motion, her velocity times
-        /// <see cref="MarkLeadSeconds"/>, at most <see cref="MarkLeadMost"/>, as the caster's Grave Rain already does (work order 034).
-        /// On (the research's first version). Off: each circle where she stands as it is placed.
+        /// Grave Marks LEAD her motion, her velocity times <see cref="MarkLeadSeconds"/>, at most <see cref="MarkLeadMost"/>, as the
+        /// caster's Grave Rain already does (work order 034). Kristian, 2026-11-27, asked whether the four circles should be laid a
+        /// little ahead of her so that running straight is punished too, ticked "Ja, de leder henne". On. Off: each circle where she
+        /// stands as it is placed.
         /// </summary>
         public static bool GraveMarksLead = true;
         /// <summary>
-        /// The order's second named choice ("the boss calls nobody" was about packs): Seeds CAN BE SHOT, <see cref="SeedShots"/> basic
-        /// shots each; they take no marks, give no focus, draw no bounce and are not enemies. On (the research's first version). Off:
-        /// delayed circles she must leave.
+        /// Seeds CAN BE SHOT, <see cref="SeedShots"/> basic shots each; they take no marks, give no focus, draw no bounce and are not
+        /// enemies. Kristian, 2026-11-27, asked with his own ruling in the question (the boss calls nobody; the seeds are not enemies, do
+        /// not move or attack, take no marks), ticked "Ja, de kan skytes". On. Off: delayed circles she must leave.
         /// </summary>
         public static bool SeedsCanBeShot = true;
 

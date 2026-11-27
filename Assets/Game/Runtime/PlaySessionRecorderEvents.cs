@@ -277,7 +277,7 @@ namespace Roguelike
                 double t = Now();
                 // Every enemy event says which enemy and its kind (work order 008).
                 SessionEvent Of(string type, string name = null) =>
-                    new SessionEvent(t, type, name) { Enemy = (r.Elite ? "elite " : "") + EnemyKinds.Word(r.EnemyKind), EnemyId = r.Id };
+                    BossTrialLine(new SessionEvent(t, type, name) { Enemy = (r.Elite ? "elite " : "") + EnemyKinds.Word(r.EnemyKind), EnemyId = r.Id }, r); // work order 147: a trial boss's extras
                 switch (r.Kind)
                 {
                     case EnemyReportKind.Woke:

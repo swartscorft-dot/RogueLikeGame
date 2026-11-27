@@ -87,6 +87,11 @@ namespace Roguelike
         [NonSerialized] public float WardShare;
         /// <summary>Raised after a hit the ward lessened, with the damage it took off (work order 079): the shell flashes, the log counts.</summary>
         public event Action<int> Warded;
+        /// <summary>
+        /// While true no hit does anything to it (work order 147: the trial boss through each phase's transition, "the hit that crosses
+        /// the line counts; nothing after it does"). Set and cleared by that boss; false for everything else.
+        /// </summary>
+        [NonSerialized] public bool Untouchable;
 
         // Work order 015 (2026-11-20).
         readonly Tag _tag = new Tag();
@@ -148,6 +153,7 @@ namespace Roguelike
         /// </summary>
         public int TakeHit(int damage, float stagger = 0f)
         {
+            if (Untouchable) return 0; // work order 147
             float now = Time.time;
             if (Stagger != null)
             {
