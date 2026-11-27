@@ -57,7 +57,7 @@ namespace Roguelike.PlayModeTests
             _health = _player.GetComponent<PlayerHealth>();
             _health.Untouchable = true;
             _levels = GeneratedLevels.Ensure();
-            _levels.Values = new LevelValues { Waves = false }; // work order 136 (changed deliberately): its stand-in fights each room whole, as it measured work order 140
+            _levels.Values = new LevelValues { Waves = false, Callers = false }; // work orders 136 and 137 (changed deliberately; 137 at the merge of 2026-11-27, W3): its stand-in fights each room whole with no caller, as it measured work order 140
         }
 
         [TearDown]
