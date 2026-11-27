@@ -38,6 +38,7 @@ namespace Roguelike.Rules
         Attachments, Greybox, Light, ToonLook, BetweenRuns, CameraAngle,
         TimingCue, TimingClick, // the merge of 2026-11-26: work order 134's two choices on the Trials page (TimingCueLines)
         Precision, // work order 143: Off, Inertia, Meter, Ghost on the Trials page (PrecisionLines), with its switch on
+        SightOpening, // work order 144: the sight's opening, the brackets or the whole ring, on the Trials page (SightLines), with its switch on
     }
 
     /// <summary>The quality presets (work order 128): each sets the four lines under it; a hand-made mix of them reads Custom.</summary>
@@ -384,6 +385,7 @@ namespace Roguelike.Rules
                     into.Add(SettingLine.TimingCue);   // the merge of 2026-11-26: work order 134's cue at the sight,
                     into.Add(SettingLine.TimingClick); // and its cocking click, last on the page (TimingCueLines)
                     if (PrecisionValues.On) into.Add(SettingLine.Precision); // work order 143, after them
+                    if (SightValues.On) into.Add(SettingLine.SightOpening); // work order 144, last
                     break;
             }
         }

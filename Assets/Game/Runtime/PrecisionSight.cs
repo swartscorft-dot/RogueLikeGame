@@ -212,6 +212,7 @@ namespace Roguelike
         /// </summary>
         void DrawBrackets(ConeAtTheCursor c, float s)
         {
+            if (GameSight.TakesTheBrackets) return; // work order 144: the sight's own brackets show the cone (GameSight)
             PrecisionSightValues v = Values;
             InterfaceValues iv = InterfaceStyle.V;
             float w = v.BracketWidth * s, len = v.BracketLength * s, dark = v.DarkMore * s;

@@ -108,6 +108,8 @@ namespace Roguelike
         /// <summary>The hammer: its light now, 0 to 1 of the brightest, and whether it is at the brightest (whichever cue is in use).</summary>
         public float HammerLevel { get; private set; }
         public bool HammerSays { get; private set; }
+        /// <summary>Work order 144: the sight's arm has its catch under the teeth zone, the window open (whichever cue is in use; <see cref="SightArm"/>).</summary>
+        public bool SightSays { get; private set; }
 
         /// <summary>Clicks played since it started, and the latest's pitch.</summary>
         public int Clicks { get; private set; }
@@ -225,7 +227,7 @@ namespace Roguelike
             Alpha = _live ? (v.FadeInSeconds > 0f ? Mathf.Clamp01((real - _startAt) / v.FadeInSeconds) : 1f)
                   : v.LingerSeconds > 0f ? Mathf.Clamp01(1f - (real - _endedAt) / v.LingerSeconds) : 0f;
             bool shows = on && !held && Alpha > 0f && Cue != TimingCue.BarOnly;
-            SaysClean = Cue == TimingCue.Cylinder ? CylinderSays : Cue == TimingCue.Ring ? RingSays : Cue == TimingCue.Hammer && HammerSays;
+            SaysClean = Cue == TimingCue.Cylinder ? CylinderSays : Cue == TimingCue.Ring ? RingSays : Cue == TimingCue.Hammer ? HammerSays : Cue == TimingCue.Sight && SightSays;
             if ((shows && Cue != TimingCue.Hammer) || NameShowing) Sight = SightNow(p);
             bool hammer = shows && Cue == TimingCue.Hammer && HammerLevel > 0f;
             if (hammer) DrawHammer(p, HammerLevel, v);
@@ -294,7 +296,7 @@ namespace Roguelike
             _endMissed = p != null && p.RecastTimingOf(Press) == RecastTiming.Missed;
             _fromTurn = Turn;
             WindowOpen = Lit = false;
-            CylinderSays = RingSays = HammerSays = false;
+            CylinderSays = RingSays = HammerSays = SightSays = false;
             HammerLevel = 0f;
             SinceOpened = Since = -1f;
         }
@@ -312,7 +314,7 @@ namespace Roguelike
                 WindowOpen = Lit = false;
                 LiveChamber = -1;
                 Turn = Eased(_fromTurn, real, v);
-                CylinderSays = RingSays = HammerSays = false;
+                CylinderSays = RingSays = HammerSays = SightSays = false;
                 RingRadius = v.RingMost;
                 HammerLevel = 0f;
                 return;
@@ -340,6 +342,9 @@ namespace Roguelike
             // The hammer: on the judge's clock alone (dark until the window opens).
             HammerLevel = WindowOpen ? HammerCue.Level(SinceOpened, Window, clean, v) : 0f;
             HammerSays = HammerLevel >= HammerCue.Brightest;
+
+            // Work order 144: the sight's arm, on the same clock (SightArm).
+            SightSays = WindowOpen && clean.Any && SightArm.SaysClean(SinceOpened, Window, clean, p.RecastLead, SightValues.Live);
         }
 
         /// <summary>
