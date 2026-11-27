@@ -40,6 +40,8 @@ namespace Roguelike
         public sealed class WaveArrival
         {
             public Enemy Enemy;
+            /// <summary>Its wave's number, from 1.</summary>
+            public int Wave;
             public Vector3 At;
             public float Since;
             public LineRenderer Disc;
@@ -260,7 +262,7 @@ namespace Roguelike
             {
                 Enemy e = w.Waiting[k];
                 Vector3 at = w.OnMesh[kept[k]];
-                var a = new WaveArrival { Enemy = e, At = at, Since = now };
+                var a = new WaveArrival { Enemy = e, Wave = w.Started, At = at, Since = now };
                 a.Disc = PlaceArrival(e, at, rules);
                 w.Arriving.Add(a);
                 w.Arrived.Add(a);
