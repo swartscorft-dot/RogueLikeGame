@@ -366,7 +366,10 @@ namespace Roguelike.PlayModeTests
             Assert.That(Vector3.Dot(moved.normalized, toA.normalized), Is.LessThan(-0.98f), "straight away from the aim");
             Assert.That(_player.SkillShotsFired, Is.EqualTo(fired), "the hop fires nothing");
             Assert.That(_a.HitsTaken, Is.EqualTo(0));
-            Assert.That(_player.RecastCleanShare, Is.EqualTo(_player.Kit.CleanShare).Within(1e-5f), "the window has its clean part");
+            // Changed deliberately (the merge of 2026-11-27): the clean part after the hop is its own since work order 064, and
+            // work order 142 opened it with the hop's end (KitTimingChoices.BackstepFromHopsEnd, his tick): 0 to 0.23 s of the
+            // window. Before, 0.03 to 0.23 s was 0.20 of 0.6 s, the kit's CleanShare of a third only by chance.
+            Assert.That(_player.RecastCleanShare, Is.EqualTo(0.23f / step.RecastWindow).Within(1e-5f), "the window has its clean part");
             Assert.That(_player.Action, Is.EqualTo(ActionKind.None), "she is free in the window");
             Assert.That(_player.IsLocked, Is.False);
             Vector3 hopEnd = _player.Position;

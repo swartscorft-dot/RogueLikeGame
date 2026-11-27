@@ -340,7 +340,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.IsRecastWindowOpen, Is.True);
             Assert.That(After(stepLine), Is.EqualTo((_player.RecastCleanTo - _player.RecastCleanFrom).ToString("0.00", CultureInfo.InvariantCulture) + " s"),
                         "the card's after is the clean part of a real hop");
-            Assert.That(_player.RecastCleanTo - _player.RecastCleanFrom, Is.EqualTo(0.2f * 1.35f).Within(1e-4f), "+10 % and +25 %");
+            // Changed deliberately (the merge of 2026-11-27): work order 142 opened Backstep's clean part with the hop's end
+            // (KitTimingChoices.BackstepFromHopsEnd, his tick), so it is 0 to 0.23 s, 0.23 s wide (0.03 to 0.23 s, 0.20 s, before).
+            Assert.That(_player.RecastCleanTo - _player.RecastCleanFrom, Is.EqualTo(0.23f * 1.35f).Within(1e-4f), "+10 % and +25 % of today's 0.23 s");
         }
     }
 }
