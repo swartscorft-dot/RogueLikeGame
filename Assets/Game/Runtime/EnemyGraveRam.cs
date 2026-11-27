@@ -1034,16 +1034,28 @@ namespace Roguelike
                     for (int i = 0; i < parts.Length; i++)
                         if (parts[i] != null && parts[i] != BodyRenderer && parts[i].sharedMaterial != null && parts[i].sharedMaterial.color != deep)
                             EnemyFactory.Paint(parts[i].sharedMaterial, deep);
+                // And over the renderers as the hit's flash is laid (HitFlash: a block of _BaseColor), which is what shows on the body as
+                // drawn: its materials' colour alone did not (round 2's second picture). Laid again each frame, as a flash's end clears it.
+                if (_dazeBlock == null) _dazeBlock = new MaterialPropertyBlock();
+                _dazeBlock.SetColor(s_BaseColorId, deep);
+                if (parts != null)
+                    for (int i = 0; i < parts.Length; i++) if (parts[i] != null) parts[i].SetPropertyBlock(_dazeBlock);
             }
             else if (_dazedTinted && parts != null)
             {
                 for (int i = 0; i < parts.Length; i++)
-                    if (parts[i] != null && parts[i] != BodyRenderer && parts[i].sharedMaterial != null) EnemyFactory.Paint(parts[i].sharedMaterial, _partColours[i]);
+                {
+                    if (parts[i] == null) continue;
+                    parts[i].SetPropertyBlock(null);
+                    if (parts[i] != BodyRenderer && parts[i].sharedMaterial != null) EnemyFactory.Paint(parts[i].sharedMaterial, _partColours[i]);
+                }
             }
             _dazedTinted = dazed;
         }
 
         Color[] _partColours;
+        MaterialPropertyBlock _dazeBlock;
+        static readonly int s_BaseColorId = Shader.PropertyToID("_BaseColor");
 
         /// <summary>
         /// The share of the running daze still to come, 1 to 0, for its bar (round 2: "it is open now, for this long"); negative when it
