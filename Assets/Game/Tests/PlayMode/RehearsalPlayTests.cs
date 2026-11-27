@@ -515,8 +515,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(_player.IsEquipped(_player.SlotOf(kept)), Is.True, "the skill after it given");
             Assert.That(_levels.Modifiers.Taken.Count, Is.EqualTo(1), "the upgrade of a kind that is gone dropped, the other kept");
             Assert.That(_levels.Modifiers.Taken[0].Kind, Is.EqualTo(UpgradeKind.Damage));
-            Assert.That(Bytes(BuildFile), Is.EqualTo(before), "his file left as it was");
-            LogAssert.NoUnexpectedReceived();
+            Assert.That(Bytes(BuildFile), Is.EqualTo(before), "his file left as it was"); // an error or exception logged would fail the test by itself
         }
 
         [UnityTest]
