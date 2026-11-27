@@ -23,6 +23,7 @@ namespace Roguelike
 
         Damageable _damageable;
         MaterialPropertyBlock _flash;
+        EnemyTintLayer _tint; // work order 151: a tinted enemy's added picture on a floor carries its tint, composed with this flash
         float _flashUntil;
         bool _flashing;
         bool _crit, _critShown; // work order 064: the flash running is a crit's
@@ -33,8 +34,12 @@ namespace Roguelike
         {
             _damageable = GetComponent<Damageable>();
             _flash = new MaterialPropertyBlock();
+            _tint = new EnemyTintLayer(this);
             _damageable.Damaged += OnDamaged;
         }
+
+        /// <summary>Work order 151's tint on its added picture (<see cref="Rules.EnemyTintValues"/>); for tests.</summary>
+        public EnemyTintLayer Tint => _tint;
 
         void OnDestroy()
         {
@@ -73,6 +78,10 @@ namespace Roguelike
             _flashing = flash;
             _critShown = _crit;
             _flash.SetColor(s_BaseColor, _crit ? Color.white * CritBrightness : FlashColor);
+            // Work order 151: as the flash goes on, the tint's own blocks come off at once, so the flash reaches every slot as today;
+            // as it goes off, the tint is laid again (in LateUpdate).
+            if (flash) _tint.TakeOffAll();
+            else _tint.Touched();
             if (Targets == null)
             {
                 Target.SetPropertyBlock(flash ? _flash : null);
@@ -81,5 +90,8 @@ namespace Roguelike
             foreach (Renderer r in Targets)
                 if (r != null) r.SetPropertyBlock(flash ? _flash : null);
         }
+
+        // Work order 151: after every Update of the frame (the flash's, the daze's, the paint's), the tint on its added picture.
+        void LateUpdate() => _tint.Tick(_flashing);
     }
 }
