@@ -24,7 +24,9 @@ namespace Roguelike
     /// <see cref="WeaponStageValues.ModelTurn"/>, scaled to <see cref="WeaponStageValues.ModelLength"/> and centred; the three
     /// mount points are places in its box (<see cref="WeaponStageValues.MountOf"/>). Each fitted part is a simple shape made in
     /// code at its mount, in the model's own dark steel and bronze with a teal accent, turning with the model; a part previewed
-    /// and not owned is drawn ghosted.
+    /// and not owned is drawn ghosted. Work order 150: while <see cref="WeaponStageValues.ModelledParts"/> is on, each part is
+    /// its model from Blender instead (<see cref="WeaponStageValues.PartModelPath"/>), its shape made in code only when the
+    /// model is missing.
     ///
     /// It lives while the menu keeps it (<see cref="Keep"/>, every frame the WEAPON tab is up) and goes the frame after it is not
     /// kept, freeing its texture and everything it made. It is made by the menu, never in Awake, and reads nothing in Awake.
@@ -48,11 +50,19 @@ namespace Roguelike
         /// </summary>
         public static Func<Object> LoadHook;
 
+        /// <summary>
+        /// A test's part model in place of Resources' (work order 150: it returns what
+        /// <see cref="WeaponStageValues.PartModelPath"/> would hold for the part's id: a GameObject; null as if nothing were
+        /// there). Null: Resources.
+        /// </summary>
+        public static Func<string, Object> PartLoadHook;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             Current = null;
             LoadHook = null;
+            PartLoadHook = null;
         }
 
         /// <summary>The one standing, made if there is none.</summary>
@@ -404,9 +414,11 @@ namespace Roguelike
             _mount[i].localRotation = Quaternion.LookRotation(Vector3.Cross(f, u.normalized), u.normalized); // its +X along Forward, +Y along Up
         }
 
-        /// <summary>How far past the muzzle a barrel part sticks out (in the stage's units; its shapes' own lengths below).</summary>
+        /// <summary>How far past the muzzle a barrel part sticks out (in the stage's units; its shapes' own lengths below, or the models' while <see cref="WeaponStageValues.ModelledParts"/> is on).</summary>
         static float BarrelReach(string id) =>
-            id == WeaponAttachments.LongBarrel ? LongBarrelLength : id == WeaponAttachments.BullBarrel ? 0.115f : id == WeaponAttachments.Compensator ? 0.125f : 0f;
+            WeaponStageValues.ModelledParts
+                ? (id == WeaponAttachments.LongBarrel ? WeaponStageValues.LongBarrelReach : id == WeaponAttachments.BullBarrel ? WeaponStageValues.BullBarrelReach : id == WeaponAttachments.Compensator ? WeaponStageValues.CompensatorReach : 0f)
+                : (id == WeaponAttachments.LongBarrel ? LongBarrelLength : id == WeaponAttachments.BullBarrel ? 0.115f : id == WeaponAttachments.Compensator ? 0.125f : 0f);
 
         /// <summary>The model and the mounts (the parts with them) moved back by the shown barrel's share (<see cref="Shift"/>).</summary>
         void Reframe()
@@ -424,6 +436,7 @@ namespace Roguelike
         public void Remount()
         {
             if (!_built) return;
+            Reframe(); // the barrel's reach follows WeaponStageValues.ModelledParts (work order 150)
             for (int s = 0; s < 3; s++)
             {
                 PlaceMount((WeaponSlot)s);
@@ -445,6 +458,7 @@ namespace Roguelike
             _part[i] = p;
             bool g = _ghost[i];
             Material body = g ? _ghostBody : _body, trim = g ? _ghostBody : _trim, accent = g ? _ghostAccent : _accent, dot = g ? _ghostDot : _dot;
+            if (WeaponStageValues.ModelledParts && ModelledPart(p, i, id, g)) return; // work order 150: its model; without one, its shape below
             float spacing = WeaponStageValues.GripBandSpacing * WeaponStageValues.ModelLength;
             switch (id)
             {
@@ -669,6 +683,134 @@ namespace Roguelike
             _bands[k] = band;
             _made.Add(band);
             return band;
+        }
+
+        // ---------------- The parts as models (work order 150) ----------------
+
+        /// <summary>
+        /// The models' three shared materials (the names the Blender files give them: Gunmetal, Bronze, Teal), matched by eye to
+        /// the pistol's painted map under the stage's three lights (sRGB; the map's medians, 2026-11-26: gunmetal about 0.21, bronze
+        /// 0.58/0.47/0.35, teal 0.42/0.89/0.92). Their worn-edge layer (<c>Wear</c>) is not shown: URP Lit has no vertex colour.
+        /// Set from the pictures of 2026-11-27: at the map's bronze, 0.6 metallic and half rough, the bronze read as flat tan plastic
+        /// beside the pistol's (lighter in its shade, no highlight), and the gunmetal at 0.30 as flat grey beside its dark steel
+        /// (81 against 45 of 255 on the same side): both darker now, more metal and glossier, so they shade and catch the key light
+        /// as the pistol's painted metal does. The teal at the map's colour came out a sixth brighter than the pistol's teal lines
+        /// (193 against 168 of 255 in green, its highlights at 255): darker by 0.85 and less glossy.
+        /// </summary>
+        static readonly Color ModelGunmetal = new Color(0.24f, 0.235f, 0.25f), ModelBronze = new Color(0.55f, 0.42f, 0.28f), ModelTeal = new Color(0.354f, 0.753f, 0.78f);
+        const float ModelGunmetalMetallic = 0.55f, ModelBronzeMetallic = 0.75f, ModelSmoothness = 0.6f, ModelTealSmoothness = 0.35f;
+        /// <summary>
+        /// The laser's lens (the Blender file's LaserRed): a deep red lit from inside, with no light highlight and no reflection of
+        /// its own (a grey shine on it read as pink). The code-made dot's colour and glow ran to pink on the model's lens in the
+        /// first pictures, and at a glow of 0.9 red with a gloss its brightest pixels still came out salmon (255, 101, 124 of 255);
+        /// at 0.75 with the shine off, raspberry (246, 66, 84 at the ninetieth hundredth): the glow lower again and pure red, with
+        /// no green or blue in it at all.
+        /// </summary>
+        static readonly Color ModelDot = new Color(0.42f, 0f, 0.01f), ModelDotGlow = new Color(0.62f, 0f, 0.01f);
+        /// <summary>The reflex sight's pane (the Blender file's Glass: a pale teal, about a third opaque) and how glossy it is.</summary>
+        static readonly Color ModelGlass = new Color(0.55f, 0.85f, 0.9f, 0.3f);
+        const float ModelGlassSmoothness = 0.9f;
+
+        Material _modelGunmetal, _modelBronze, _modelTeal, _modelGlass, _modelDot;
+        readonly HashSet<string> _partModelMissing = new HashSet<string>(); // ids already warned of (one warning a part)
+
+        /// <summary>Whether the part on a slot is drawn as its model (false: its shape made in code, or none). For tests.</summary>
+        public bool PartModelled(WeaponSlot slot) => _part[(int)slot] != null && _part[(int)slot].Find(PartModelChild) != null;
+        /// <summary>The name of the child of a part that holds its model.</summary>
+        public const string PartModelChild = "Model";
+
+        /// <summary>
+        /// The part's model (<see cref="WeaponStageValues.PartModelPath"/>) under <paramref name="p"/>, in the pistol's own frame:
+        /// the models were made in Blender in the pistol's own units and axes, each with its origin at its mount (the sights' on the
+        /// top rib, the barrels' in the muzzle's face on the bore, the grips' in the middle of the handle's panels: the stage's
+        /// three mount points are the same places in the model's box), so each is laid as the pistol is (<see cref="WeaponStageValues.ModelTurn"/>
+        /// and its file's own turn), at the pistol's scale on the stage, with its origin on the mount and no turn of the mount's own
+        /// (the grip's lean is in its shape). Its materials by name: the three shared ones, the laser's red dot, the reflex's pane;
+        /// a ghost (a part previewed and not owned) in the ghost materials. False, with one warning a part, when there is no model.
+        /// </summary>
+        bool ModelledPart(Transform p, int slot, string id, bool ghost)
+        {
+            string path = WeaponStageValues.PartModelPath(id);
+            if (path == null) return false;
+            var model = (PartLoadHook != null ? PartLoadHook(id) : Resources.Load<GameObject>(path)) as GameObject;
+            bool any = false;
+            MeshFilter[] filters = model != null ? model.GetComponentsInChildren<MeshFilter>(true) : null;
+            if (filters != null)
+                foreach (MeshFilter f in filters)
+                    any |= f.sharedMesh != null && f.GetComponent<MeshRenderer>() != null;
+            if (!any)
+            {
+                if (_partModelMissing.Add(id)) Debug.LogWarning("[WeaponStage] no model at Resources/" + path + ": the " + id + " is drawn as its shape made in code");
+                return false;
+            }
+            MakeModelMaterials();
+            Transform holder = Child(PartModelChild, p);
+            holder.localRotation = Quaternion.Inverse(_mount[slot].localRotation); // the pistol's frame, not the mount's
+            holder.localScale = _laid.localScale;
+            Matrix4x4 lay = Matrix4x4.Rotate(Quaternion.Euler(WeaponStageValues.ModelTurn.X, WeaponStageValues.ModelTurn.Y, WeaponStageValues.ModelTurn.Z));
+            foreach (MeshFilter f in filters)
+            {
+                MeshRenderer source = f.GetComponent<MeshRenderer>();
+                if (f.sharedMesh == null || source == null) continue;
+                Matrix4x4 m = lay * f.transform.localToWorldMatrix;
+                Transform t = Child(f.sharedMesh.name, holder);
+                t.localPosition = m.GetColumn(3);
+                Vector3 fwd = m.GetColumn(2), up = m.GetColumn(1);
+                if (fwd.sqrMagnitude > 1e-12f && up.sqrMagnitude > 1e-12f) t.localRotation = Quaternion.LookRotation(fwd, up);
+                t.localScale = m.lossyScale;
+                t.gameObject.AddComponent<MeshFilter>().sharedMesh = f.sharedMesh;
+                MeshRenderer r = t.gameObject.AddComponent<MeshRenderer>();
+                Material[] from = source.sharedMaterials;
+                var mats = new Material[Mathf.Max(1, from.Length)];
+                for (int k = 0; k < mats.Length; k++) mats[k] = ModelMaterial(k < from.Length ? from[k] : null, ghost);
+                r.sharedMaterials = mats;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                r.lightProbeUsage = LightProbeUsage.Off;
+                r.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            }
+            return true;
+        }
+
+        /// <summary>The stage's material for a model's material, by the name the Blender file gives it (anything else: the gunmetal).</summary>
+        Material ModelMaterial(Material from, bool ghost)
+        {
+            string n = from != null ? from.name : "";
+            if (n.StartsWith("Bronze", StringComparison.Ordinal)) return ghost ? _ghostBody : _modelBronze;
+            if (n.StartsWith("Teal", StringComparison.Ordinal)) return ghost ? _ghostAccent : _modelTeal;
+            if (n.StartsWith("LaserRed", StringComparison.Ordinal)) return ghost ? _ghostDot : _modelDot;
+            if (n.StartsWith("Glass", StringComparison.Ordinal)) return ghost ? _ghostBody : _modelGlass;
+            return ghost ? _ghostBody : _modelGunmetal;
+        }
+
+        /// <summary>The models' materials, made the first time a model is shown (freed with the stage).</summary>
+        void MakeModelMaterials()
+        {
+            if (_modelGunmetal != null) return;
+            Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+            if (lit == null) lit = Shader.Find("Standard");
+            _modelGunmetal = Lit(lit, "ModelGunmetal", ModelGunmetal, 0f, false, ModelGunmetalMetallic);
+            _modelBronze = Lit(lit, "ModelBronze", ModelBronze, 0f, false, ModelBronzeMetallic);
+            _modelTeal = Lit(lit, "ModelTeal", ModelTeal, WeaponStageValues.PartTealGlow, false);
+            _modelGlass = Lit(lit, "ModelGlass", ModelGlass, 0f, true);
+            _modelDot = Lit(lit, "ModelDot", ModelDot, 1f, false);
+            if (_modelDot.HasProperty("_EmissionColor")) _modelDot.SetColor("_EmissionColor", ModelDotGlow);
+            if (_modelDot.HasProperty("_SpecularHighlights"))
+            {
+                _modelDot.SetFloat("_SpecularHighlights", 0f);
+                _modelDot.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            }
+            if (_modelDot.HasProperty("_EnvironmentReflections"))
+            {
+                _modelDot.SetFloat("_EnvironmentReflections", 0f);
+                _modelDot.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            }
+            foreach (Material m in new[] { _modelGunmetal, _modelBronze })
+                if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", ModelSmoothness);
+            if (_modelTeal.HasProperty("_Smoothness")) _modelTeal.SetFloat("_Smoothness", ModelTealSmoothness);
+            if (_modelGlass.HasProperty("_Smoothness")) _modelGlass.SetFloat("_Smoothness", ModelGlassSmoothness);
+            if (_modelGlass.HasProperty("_BaseColor")) _modelGlass.SetColor("_BaseColor", ModelGlass); // its own alpha, not the ghost's
+            _modelGlass.color = ModelGlass;
         }
 
         void MakeMaterials()
