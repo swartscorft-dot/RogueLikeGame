@@ -699,8 +699,13 @@ namespace Roguelike
         /// </summary>
         static readonly Color ModelGunmetal = new Color(0.24f, 0.235f, 0.25f), ModelBronze = new Color(0.55f, 0.42f, 0.28f), ModelTeal = new Color(0.354f, 0.753f, 0.78f);
         const float ModelGunmetalMetallic = 0.55f, ModelBronzeMetallic = 0.75f, ModelSmoothness = 0.6f, ModelTealSmoothness = 0.35f;
-        /// <summary>The laser's lens (the Blender file's LaserRed): a deep red lit from inside; the code-made dot's colour and glow ran to pink on the model's lens in the first pictures.</summary>
-        static readonly Color ModelDot = new Color(0.55f, 0.03f, 0.07f), ModelDotGlow = new Color(0.9f, 0.08f, 0.14f);
+        /// <summary>
+        /// The laser's lens (the Blender file's LaserRed): a deep red lit from inside, with no light highlight and no reflection of
+        /// its own (a grey shine on it read as pink). The code-made dot's colour and glow ran to pink on the model's lens in the
+        /// first pictures, and at a glow of 0.9 red with a gloss its brightest pixels still came out salmon (255, 101, 124 of 255):
+        /// the glow lower and the shine off, so its red is red.
+        /// </summary>
+        static readonly Color ModelDot = new Color(0.45f, 0.02f, 0.04f), ModelDotGlow = new Color(0.75f, 0.02f, 0.05f);
         /// <summary>The reflex sight's pane (the Blender file's Glass: a pale teal, about a third opaque) and how glossy it is.</summary>
         static readonly Color ModelGlass = new Color(0.55f, 0.85f, 0.9f, 0.3f);
         const float ModelGlassSmoothness = 0.9f;
@@ -789,6 +794,16 @@ namespace Roguelike
             _modelGlass = Lit(lit, "ModelGlass", ModelGlass, 0f, true);
             _modelDot = Lit(lit, "ModelDot", ModelDot, 1f, false);
             if (_modelDot.HasProperty("_EmissionColor")) _modelDot.SetColor("_EmissionColor", ModelDotGlow);
+            if (_modelDot.HasProperty("_SpecularHighlights"))
+            {
+                _modelDot.SetFloat("_SpecularHighlights", 0f);
+                _modelDot.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            }
+            if (_modelDot.HasProperty("_EnvironmentReflections"))
+            {
+                _modelDot.SetFloat("_EnvironmentReflections", 0f);
+                _modelDot.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            }
             foreach (Material m in new[] { _modelGunmetal, _modelBronze })
                 if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", ModelSmoothness);
             if (_modelTeal.HasProperty("_Smoothness")) _modelTeal.SetFloat("_Smoothness", ModelTealSmoothness);
