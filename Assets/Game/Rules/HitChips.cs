@@ -225,7 +225,8 @@ namespace Roguelike.Rules
                 case EnemyKind.Guard: return ChipStuff.GreyBone;
                 case EnemyKind.Lancer: return ChipStuff.RedBone;
                 case EnemyKind.Caster:
-                case EnemyKind.Warder: return ChipStuff.Robe;
+                case EnemyKind.Warder:
+                case EnemyKind.Caller: return ChipStuff.Robe; // work order 137: the caster's robe it wears
                 case EnemyKind.Boss: return ChipStuff.Armour;
                 default: return ChipStuff.Bone;
             }

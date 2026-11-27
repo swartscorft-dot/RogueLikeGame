@@ -150,7 +150,7 @@ namespace Roguelike.Rules.Tests
             // three quarters of their rest, the shooters, the casters and the warder a half; the boss never rages.
             PartRageValues.On = true;
             var melee = new[] { EnemyKind.Swarmer, EnemyKind.Brute, EnemyKind.Guard, EnemyKind.Lancer, EnemyKind.Bomber };
-            var ranged = new[] { EnemyKind.Shooter, EnemyKind.Caster, EnemyKind.Warder };
+            var ranged = new[] { EnemyKind.Shooter, EnemyKind.Caster, EnemyKind.Warder, EnemyKind.Caller }; // work order 137 (changed deliberately): the caller strikes nothing in reach; its rest after a call changes nothing (its calls keep their own clock)
             foreach (EnemyKind kind in s_Kinds)
             {
                 bool isMelee = Array.IndexOf(melee, kind) >= 0, isRanged = Array.IndexOf(ranged, kind) >= 0;

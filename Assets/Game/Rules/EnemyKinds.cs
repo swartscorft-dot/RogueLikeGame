@@ -37,6 +37,11 @@ namespace Roguelike.Rules
         /// put cover between you? (<see cref="LancerValues"/>)
         /// </summary>
         Lancer,
+        /// <summary>
+        /// Stands far in and calls three swarmers every 6 s until it dies, and they all fall with it (work order 137, Kristian's tick of
+        /// 2026-11-25, "Ja, fra etasje 2"): the one far enemy you must go to first. The caster's body in its own tint (<see cref="CallerValues"/>).
+        /// </summary>
+        Caller,
     }
 
     public static class EnemyKinds
@@ -45,7 +50,7 @@ namespace Roguelike.Rules
         public static string Word(EnemyKind kind) =>
             kind == EnemyKind.Brute ? "brute" : kind == EnemyKind.Swarmer ? "swarmer" : kind == EnemyKind.Shooter ? "shooter"
             : kind == EnemyKind.Boss ? "boss" : kind == EnemyKind.Caster ? "caster" : kind == EnemyKind.Bomber ? "bomber"
-            : kind == EnemyKind.Warder ? "warder" : kind == EnemyKind.Lancer ? "lancer" : "guard"; // work order 079; 108 the lancer
+            : kind == EnemyKind.Warder ? "warder" : kind == EnemyKind.Lancer ? "lancer" : kind == EnemyKind.Caller ? "caller" : "guard"; // work order 079; 108 the lancer; 137 the caller
 
         /// <summary>
         /// The letter for an enemy point on a level's text map: b brute, s swarmer, p a pack of swarmers, h shooter,
@@ -55,7 +60,7 @@ namespace Roguelike.Rules
         public static char Letter(EnemyKind kind, int count) =>
             kind == EnemyKind.Swarmer ? (count > 1 ? 'p' : 's') : kind == EnemyKind.Brute ? 'b' : kind == EnemyKind.Shooter ? 'h'
             : kind == EnemyKind.Boss ? 'G' : kind == EnemyKind.Caster ? 'c' : kind == EnemyKind.Bomber ? 'x'
-            : kind == EnemyKind.Warder ? 'w' : kind == EnemyKind.Lancer ? 'l' : 'g'; // work order 079; 108 the lancer, l (each alone)
+            : kind == EnemyKind.Warder ? 'w' : kind == EnemyKind.Lancer ? 'l' : kind == EnemyKind.Caller ? 'k' : 'g'; // work order 079; 108 the lancer, l (each alone); 137 the caller, k (never on a generated map: it is set up in the fight)
     }
 
     /// <summary>

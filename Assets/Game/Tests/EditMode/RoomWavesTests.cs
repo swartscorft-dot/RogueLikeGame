@@ -314,8 +314,9 @@ namespace Roguelike.Rules.Tests
         {
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Waves));
-            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.LineUps));
+            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.Waves)); // work order 137 (changed deliberately): its "Callers" after it, last
+            Assert.That(lines[lines.Count - 3], Is.EqualTo(SettingLine.LineUps));
+            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Callers));
             Assert.That(SettingsPages.PageOf(SettingLine.Waves), Is.EqualTo(SettingsPage.Trials));
             Assert.That(RoomTrialLines.Is(SettingLine.Waves), Is.True);
             Assert.That(RoomTrialLines.Name(SettingLine.Waves), Is.EqualTo("Waves"));

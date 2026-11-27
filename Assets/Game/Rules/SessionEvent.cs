@@ -134,6 +134,17 @@ namespace Roguelike.Rules
         // the screen from 0 to 1, bottom left 0 0, joined by ";"; "" for wave 1, which stands where the room put it), waiting (of its enemies,
         // how many found no point and wait). Name "arrival" for those that came after waiting: the same, since its wave's start in "waited".
         public const string RoomWave = "room_wave";
+        // Work order 137 (the caller): a caller's call. Name "came" as its tell ended and its swarmers stood, "cut" when its tell was cut
+        // short (dazed, countered, killed, the fight over) and none came, "none" when it was due with six of its called alive (or no point
+        // for one) and it began no tell: floor, room (as the run box counts), order, caller (its id), call (from 1), since (s since the
+        // waking, as the tell began), asked (the discs put down), came (the swarmers that stood), alive (of its called, alive as the tell
+        // began), called (all it called so far), ids (the ids of those that came, joined by ";": research R3's rooms.py leaves them out).
+        public const string CallerCall = "caller_call";
+        // Work order 137: a caller's part in a fight, once, as it died ("died") or its fight ended with it alive ("left"): floor, room,
+        // order, caller (its id), first_hit (s from the waking to the first hit it took; "" for none), died (s from the waking to its death;
+        // "" alive), calls (begun), came (swarmers that stood, all told), fell (of its called, those alive as it died, which fell with it),
+        // gave_way (of the room's partners, those taken out for it, and their kind).
+        public const string CallerEnd = "caller_end";
     }
 
     /// <summary>The words a log uses in its "result" field, and the names of the two actions that are not skills.</summary>

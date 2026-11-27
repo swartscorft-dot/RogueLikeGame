@@ -665,6 +665,20 @@ namespace Roguelike.Rules
         // order 135, field for field. The settings screen's Trials page turns it off for the floors built after (RoomTrialSettings).
         public bool Waves = true;
         public RoomWaveValues WaveRules = new RoomWaveValues();
+
+        // ---------------- The caller (work order 137, 2026-11-27) ----------------
+
+        // Kristian, asked on 2026-11-25 about "the caller (a caster's body in another tint, far in, calling three swarmers every 6 s until
+        // it dies, its called ones falling with it)": "Ja, fra etasje 2"; that day, of every room: "skyter de små først, så cahrgerne, og så
+        // ranged": it is the one far enemy she must go to first. ON: from floor 2 (floor 2 from its third combat room), one room a floor on
+        // floors 2 to 4 and two on floor 5, never the first combat room, the elite, exit or throne room, nor a room with a warder, holds a
+        // caller far in and in his view from the room's line, in place of some of its line-up's partners (RoomCallerRules, the numbers in
+        // CallerRules); from 3 s after the room wakes, every 6 s, it calls three swarmers (a second's tell on it and their discs), never
+        // more than six of them alive, and they all fall when it dies. A rule of the fight read as the floor is set up, not of the
+        // generator: no floor and no pinned fingerprint changes. Off: every floor as on work order 136, field for field. The settings
+        // screen's Trials page turns it off for the floors set up after (RoomTrialSettings).
+        public bool Callers = true;
+        public CallerValues CallerRules = new CallerValues();
     }
 
     /// <summary>
