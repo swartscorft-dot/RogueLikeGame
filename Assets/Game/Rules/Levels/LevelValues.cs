@@ -645,7 +645,10 @@ namespace Roguelike.Rules
         // and a partner, its counts spending the weight today's room has (LevelLineUps, the numbers in LineUpRules); one combat room a
         // floor, never the first, keeps today's full mix; two neighbouring combat rooms never draw the same line-up. The exit room, the
         // boss alone and the elite are as before. Off: every floor is version 24's, field for field, but for the version. The settings
-        // screen's Trials page turns it off for the floors built after (RoomTrialSettings in the game).
+        // screen's Trials page turns it off for the floors built after (RoomTrialSettings in the game). Second round (the producer, 2026-11-27:
+        // the weight wins): a line-up room may hold more brutes and shooters than a mixed room's three, and two guards or casters, made for
+        // work order 136's two waves; with 136's switch off and this one on such a room wakes all at once and can be much harder than
+        // today's: a trial state, not the default.
         public bool LineUps = true;
         public LineUpValues LineUpRules = new LineUpValues();
 

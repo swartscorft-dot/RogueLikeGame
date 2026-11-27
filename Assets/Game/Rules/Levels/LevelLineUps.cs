@@ -87,13 +87,22 @@ namespace Roguelike.Rules
         // The lancer is in none of his sessions: its health's share (800/150) times a brute's damage share (2.0/0.4), sqrt = 5.16.
         public float LancerWeight = 5.2f;
 
+        // ---- The counts (work order 135's second round, the producer's ruling of 2026-11-27: "THE WEIGHT WINS, the caps give way"; the
+        // owner finds the game easy already, "klarte det ganske enkelt nå", and work order 136 brings a line-up room in two waves, the lead
+        // then the partner, so its enemies no longer all stand there at once). A line-up's own count ranges, per floor (each floor's table
+        // holds its own line-ups), are its caps for the brutes and the shooters: the mixed room's three of each (work order 023,
+        // LevelValues.BrutesMostInRoom and ShootersMostInRoom) are not read in a line-up room. Per line-up and floor rather than one number
+        // for all: the line-ups that need more are those without swarmers, on the deep floors, and each only by as much as it needs.
+        /// <summary>The most swarmers any line-up room holds (the producer: "swarmers stay at 14 or under"; "the small ones first" is what he is tired of).</summary>
+        public int SwarmersMost = 14;
+
         /// <summary>
-        /// How many more brutes and how many more shooters a line-up room may hold than the full mix's caps (LevelValues.BrutesMostInRoom
-        /// and ShootersMostInRoom, three each; work order 023), as an exit room holds ExitRoomKindMore more. 0: the order's rule, a
-        /// count past the cap is cut. The one number for the producer's question: with the caps as they are, a room of two kinds cannot
-        /// hold the weight of floors 3 to 5's rooms of three kinds and more (the report's numbers).
+        /// The most a line-up room holds of a kind that is one a room by its nature today (the guard, the caster), where the floor already
+        /// lets some room of it hold that many (an exit room's two guards from floor 2, its two casters from floor 3): 2 (the producer's
+        /// ruling). The warder stays one (no room holds two), and the bomber and the lancer keep their own rules for a combat room
+        /// (LevelBombers, LevelLancers: one on floor 4, two on floor 5).
         /// </summary>
-        public int KindMore = 0;
+        public int OneARoomMost = 2;
 
         /// <summary>
         /// How far a line-up room's weight may lie from the weight today's generator gives that very room (its groups as version 24
@@ -138,9 +147,12 @@ namespace Roguelike.Rules
         /// sooner, and the bomber, the warder and the lancer never into a floor's first combat room, as their own rules have it).
         /// The counts are ranges; the room's weight picks among them. Floor 1: the pack (swarmers and a brute or two), the gallery
         /// (shooters and swarmers), the brute line (brutes and shooters). Floor 2 adds the guard's two: the guard and its pack, the
-        /// guard and shooters. Floor 3 the warded pack (a warder and swarmers: the research's three-kind "warder + brutes + swarmers"
-        /// as two) and casters with shooters. Floor 4 bombers in the pack and lancers with shooters. Floor 5 ("three-kind rooms" in the
-        /// research; two kinds by his tick) draws from the act's kinds as floors 3 and 4 do.
+        /// guard and shooters. Floor 3 the warded brutes (the research's three-kind "warder + brutes + swarmers" as two: a warder and
+        /// fourteen swarmers at most cannot carry a floor-3 room's weight) and casters with shooters. Floor 4 bombers with brutes (the
+        /// research's "bombers in the pack", the brutes carrying the weight the swarmers cannot) and lancers with shooters. Floor 5
+        /// ("three-kind rooms" in the research; two kinds by his tick) draws from the act's kinds, its guard with shooters. Second round
+        /// (the weight wins): the counts on floors 2 to 5 reach the weight of the floor's rooms of version 24, and the lead's top count
+        /// stays under the heaviest such room of its floor (it is what wakes at once with work order 136's waves).
         /// </summary>
         public static LineUpFloor[] DefaultFloors() => new[]
         {
@@ -149,29 +161,29 @@ namespace Roguelike.Rules
                 new LineUp("gallery", EnemyKind.Shooter, 2, 3, EnemyKind.Swarmer, 4, 10),
                 new LineUp("brute line", EnemyKind.Brute, 2, 3, EnemyKind.Shooter, 1, 3)),
             new LineUpFloor(
-                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 2, 3),
-                new LineUp("gallery", EnemyKind.Shooter, 3, 3, EnemyKind.Swarmer, 6, 12),
-                new LineUp("brute line", EnemyKind.Brute, 3, 3, EnemyKind.Shooter, 2, 3),
-                new LineUp("guard and pack", EnemyKind.Guard, 1, 1, EnemyKind.Swarmer, 8, 14),
-                new LineUp("guard and shooters", EnemyKind.Guard, 1, 1, EnemyKind.Shooter, 2, 3)),
+                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 2, 6),
+                new LineUp("gallery", EnemyKind.Shooter, 3, 7, EnemyKind.Swarmer, 6, 12),
+                new LineUp("brute line", EnemyKind.Brute, 2, 5, EnemyKind.Shooter, 2, 4),
+                new LineUp("guard and pack", EnemyKind.Guard, 1, 2, EnemyKind.Swarmer, 8, 14),
+                new LineUp("guard and shooters", EnemyKind.Guard, 1, 2, EnemyKind.Shooter, 2, 5)),
             new LineUpFloor(
-                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 2, 3),
-                new LineUp("gallery", EnemyKind.Shooter, 3, 3, EnemyKind.Swarmer, 6, 12),
-                new LineUp("brute line", EnemyKind.Brute, 3, 3, EnemyKind.Shooter, 2, 3),
-                new LineUp("warded pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Warder, 1, 1),
-                new LineUp("casters and shooters", EnemyKind.Caster, 1, 1, EnemyKind.Shooter, 2, 3)),
+                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 3, 6),
+                new LineUp("gallery", EnemyKind.Shooter, 4, 8, EnemyKind.Swarmer, 6, 12),
+                new LineUp("brute line", EnemyKind.Brute, 3, 6, EnemyKind.Shooter, 2, 5),
+                new LineUp("warded brutes", EnemyKind.Brute, 3, 7, EnemyKind.Warder, 1, 1),
+                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 3, 8)),
             new LineUpFloor(
-                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 2, 3),
-                new LineUp("gallery", EnemyKind.Shooter, 3, 3, EnemyKind.Swarmer, 6, 12),
-                new LineUp("brute line", EnemyKind.Brute, 3, 3, EnemyKind.Shooter, 2, 3),
-                new LineUp("bombers in the pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Bomber, 1, 1),
-                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 1, EnemyKind.Shooter, 2, 3)),
+                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 3, 7),
+                new LineUp("gallery", EnemyKind.Shooter, 4, 9, EnemyKind.Swarmer, 6, 12),
+                new LineUp("brute line", EnemyKind.Brute, 3, 7, EnemyKind.Shooter, 2, 5),
+                new LineUp("bombers and brutes", EnemyKind.Brute, 4, 8, EnemyKind.Bomber, 1, 1),
+                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 1, EnemyKind.Shooter, 4, 10)),
             new LineUpFloor(
-                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 2, 3),
-                new LineUp("brute line", EnemyKind.Brute, 3, 3, EnemyKind.Shooter, 2, 3),
-                new LineUp("guard and pack", EnemyKind.Guard, 1, 1, EnemyKind.Swarmer, 8, 14),
-                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 2, 3),
-                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 2, EnemyKind.Shooter, 2, 3)),
+                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 4, 8),
+                new LineUp("brute line", EnemyKind.Brute, 4, 8, EnemyKind.Shooter, 3, 6),
+                new LineUp("guard and shooters", EnemyKind.Guard, 1, 2, EnemyKind.Shooter, 4, 10),
+                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 4, 10),
+                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 2, EnemyKind.Shooter, 4, 10)),
         };
     }
 
@@ -185,10 +197,11 @@ namespace Roguelike.Rules
     /// The exit room, floor 5's throne room with the act boss alone, and the elite are as before.
     ///
     /// Each room's counts spend the weight today's generator gives that very room (<see cref="LineUpValues.WeightOf(IEnumerable{EnemyGroup})"/>
-    /// of its groups as version 24 draws them, the elite apart) on the two kinds: among the line-up's counts, within the room's caps
-    /// (<see cref="Most"/>: the brutes' and shooters' three, the guard's one, the casters', bombers', warders' and lancers' own rules,
-    /// so no kind comes to a floor or a first room sooner than today), those whose weight lies within
-    /// <see cref="LineUpValues.WeightTolerance"/> of it, one drawn; else the nearest. A count past a cap is cut, never turned into
+    /// of its groups as version 24 draws them, the elite apart) on the two kinds: among the line-up's counts, within the room's most
+    /// (<see cref="Most"/>; second round, the weight wins: the brutes and shooters by the line-up's own counts past the mixed room's
+    /// three, fourteen swarmers at most, the guard and the caster up to two where the floor already lets a room hold two, the bombers',
+    /// warders' and lancers' own rules, so no kind comes to a floor or a first room sooner than today), those whose weight lies within
+    /// <see cref="LineUpValues.WeightTolerance"/> of it, one drawn; else the nearest. A count past a most is cut, never turned into
     /// swarmers. Every draw is on a stream of its own (<see cref="Stage"/>), after the bombers, the warders and the lancers, before the
     /// shooters stand singly (work order 124) and the boss room is cleared (130), so those rules hold for the line-up's enemies too.
     /// Off: nothing here is read, and every floor is version 24's, field for field, but for the version.
@@ -206,29 +219,37 @@ namespace Roguelike.Rules
 
         /// <summary>
         /// The most of a kind a line-up room may hold (a combat room of this floor; the floor's first combat room when
-        /// <paramref name="firstCombatRoom"/>): the swarmers no cap; the brutes and shooters their caps (work order 023), with
-        /// <see cref="LineUpValues.KindMore"/> more of each (0); the guards, casters, bombers, warders and lancers what their rules let a
-        /// combat room hold there (0 before their floor, and the bomber, warder and lancer none in the first combat room); the act boss none.
+        /// <paramref name="firstCombatRoom"/>), second round (the weight wins): the swarmers <see cref="LineUpValues.SwarmersMost"/>; the
+        /// brutes and shooters no cap but the line-up's own counts (the mixed room's three of each are not read); the guards and the
+        /// casters as many as any room of the floor may hold (a combat room or the exit room, the act boss not counted), at most
+        /// <see cref="LineUpValues.OneARoomMost"/>, none before their floor; the bombers, warders and lancers what their rules let a combat
+        /// room hold there (none before their floor, none in the first combat room); the act boss none.
         /// </summary>
         public static int Most(EnemyKind kind, int floor, bool firstCombatRoom, LevelValues v)
         {
+            int oneARoom = Math.Max(1, v.LineUpRules?.OneARoomMost ?? 1);
             switch (kind)
             {
-                case EnemyKind.Swarmer: return int.MaxValue;
-                case EnemyKind.Brute: return v.BrutesMostInRoom > 0 ? v.BrutesMostInRoom + Math.Max(0, v.LineUpRules?.KindMore ?? 0) : int.MaxValue;
-                case EnemyKind.Shooter: return v.ShootersMostInRoom > 0 ? v.ShootersMostInRoom + Math.Max(0, v.LineUpRules?.KindMore ?? 0) : int.MaxValue;
-                case EnemyKind.Guard: return v.GuardsMost(RoomKind.Combat, floor);
-                case EnemyKind.Caster: return v.CastersMost(RoomKind.Combat, floor);
+                case EnemyKind.Swarmer: return Math.Max(1, v.LineUpRules?.SwarmersMost ?? int.MaxValue);
+                case EnemyKind.Brute: return int.MaxValue;
+                case EnemyKind.Shooter: return int.MaxValue;
+                case EnemyKind.Guard:
+                {
+                    int combat = v.GuardsMost(RoomKind.Combat, floor);
+                    int exit = v.GuardsMost(RoomKind.Exit, floor) - (floor >= v.FloorsPerAct ? 1 : 0); // the exit room's, the act boss counted in it
+                    return combat <= 0 ? 0 : Math.Min(oneARoom, Math.Max(combat, exit));
+                }
+                case EnemyKind.Caster:
+                {
+                    int combat = v.CastersMost(RoomKind.Combat, floor);
+                    return combat <= 0 ? 0 : Math.Min(oneARoom, Math.Max(combat, v.CastersMost(RoomKind.Exit, floor)));
+                }
                 case EnemyKind.Bomber: return LevelBombers.Most(v, RoomKind.Combat, floor, firstCombatRoom);
                 case EnemyKind.Warder: return LevelWarders.Most(v, RoomKind.Combat, floor, firstCombatRoom, int.MaxValue);
                 case EnemyKind.Lancer: return LevelLancers.Most(v, RoomKind.Combat, floor, firstCombatRoom);
                 default: return 0;
             }
         }
-
-        /// <summary>The brutes' and shooters' <see cref="LineUpValues.KindMore"/> (on the line-up's own most as on the cap), none for the other kinds.</summary>
-        static int More(EnemyKind kind, LevelValues v) =>
-            kind == EnemyKind.Brute || kind == EnemyKind.Shooter ? Math.Max(0, v.LineUpRules?.KindMore ?? 0) : 0;
 
         /// <summary>
         /// The counts a line-up may take in a room: each kind's own range, cut to the room's most (<see cref="Most"/>); with a warder,
@@ -241,9 +262,9 @@ namespace Roguelike.Rules
             if (u == null || u.Full || u.Lead == u.Partner) return false;
             int leadMost = Most(u.Lead, floor, firstCombatRoom, v), partnerMost = Most(u.Partner, floor, firstCombatRoom, v);
             if (leadMost <= 0 || partnerMost <= 0) return false;
-            leadHi = Math.Min(Math.Max(1, u.LeadMost) + More(u.Lead, v), leadMost);
+            leadHi = Math.Min(Math.Max(1, u.LeadMost), leadMost);
             leadLo = Math.Min(Math.Max(1, u.LeadFewest), leadHi);
-            partnerHi = Math.Min(Math.Max(1, u.PartnerMost) + More(u.Partner, v), partnerMost);
+            partnerHi = Math.Min(Math.Max(1, u.PartnerMost), partnerMost);
             partnerLo = Math.Min(Math.Max(1, u.PartnerFewest), partnerHi);
             int others = v.WarderFloors != null ? v.WarderFloors.OthersAtLeast : 0;
             if (u.Lead == EnemyKind.Warder) partnerLo = Math.Max(partnerLo, others);

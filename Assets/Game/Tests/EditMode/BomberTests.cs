@@ -292,7 +292,7 @@ namespace Roguelike.Rules.Tests
         public void On_WithNoneAllowed_IsTheFloorWithThemOff(int floor)
         {
             var off = Off();
-            var none = new LevelValues { Bombers = true, Warders = false, BomberFloors = new BomberFloorValues { FromFloor = 99 } };
+            var none = new LevelValues { Bombers = true, Warders = false, LineUps = false, BomberFloors = new BomberFloorValues { FromFloor = 99 } }; // work order 135 (changed deliberately): against Off(), the line-ups named off
             for (ulong s = 0; s < 100; s++)
                 Assert.That(LevelGenerator.Generate(s, floor, none).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, off).Describe()), "seed " + s);
         }

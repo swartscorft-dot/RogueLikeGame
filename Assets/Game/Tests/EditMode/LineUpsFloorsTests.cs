@@ -102,12 +102,11 @@ namespace Roguelike.Rules.Tests
         }
 
         /// <summary>The numbers for him, a given number of seeds a floor (a thousand for the report).</summary>
-        static void Measure(int seeds, int kindMore = 0)
+        static void Measure(int seeds)
         {
             LineUpValues w = new LineUpValues();
             LevelValues On = LineUpsFloorsTests.On;
-            On.LineUpRules.KindMore = kindMore;
-            string tag = kindMore == 0 ? "" : " (KindMore " + kindMore + ")";
+            string tag = "";
             var all = new List<string>();
             int lacking = 0, rooms = 0, lackingBefore = 0, roomsBefore = 0;
             for (int floor = 1; floor <= 5; floor++)
@@ -121,8 +120,18 @@ namespace Roguelike.Rules.Tests
                     Count(before, off, null, w);
                     Count(after, on, off, w);
                 }
-                if (kindMore == 0) all.Add(Lines("before", floor, before));
+                all.Add(Lines("before", floor, before));
                 all.Add(Lines("after" + tag, floor, after));
+                // Work order 136's wave 1 is the lead: what the lead's top count weighs, against the heaviest room of version 24 on the floor.
+                double heaviest = before.Weight.Max();
+                foreach (LineUp u in On.LineUpRules.Of(floor))
+                {
+                    LevelLineUps.Counts(u, floor, false, On, out _, out int leadHi, out _, out int partnerHi);
+                    double wave1 = leadHi * w.WeightOf(u.Lead);
+                    all.Add(string.Format(Inv, "LINEUPS wave 1 floor {0}: {1,-22} the lead at most {2} {3}s, weight {4:0.0} (the partner at most {5}); the heaviest room of version 24 {6:0.0}{7}",
+                                          floor, u.Name, leadHi, EnemyKinds.Word(u.Lead), wave1, partnerHi, heaviest,
+                                          wave1 > heaviest * (1 + w.WeightTolerance) ? "  PAST IT BY MORE THAN THE TOLERANCE" : ""));
+                }
                 lacking += after.LackingCore;
                 rooms += after.Rooms;
                 lackingBefore += before.LackingCore;
@@ -167,10 +176,6 @@ namespace Roguelike.Rules.Tests
         [Test, Explicit("a measurement while tuning: two hundred seeds a floor"), Timeout(3600000)]
         public void Measure_TwoHundredSeedsAFloor_BeforeAndAfter() => Measure(200);
 
-        [Test, Explicit("a measurement for the producer's question: one more brute and shooter in a line-up room"), Timeout(3600000)]
-        public void Measure_AThousandSeedsAFloor_OneMoreBruteAndShooter() => Measure(1000, 1);
 
-        [Test, Explicit("a measurement while tuning"), Timeout(3600000)]
-        public void Measure_TwoHundredSeedsAFloor_OneMoreBruteAndShooter() { Measure(200, 1); Measure(200, 2); }
     }
 }

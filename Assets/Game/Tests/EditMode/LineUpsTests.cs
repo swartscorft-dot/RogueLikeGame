@@ -103,7 +103,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(LevelLineUps.On(new LevelValues { ActPlan = false }), Is.False, "the floors before the act's plan are as they were");
             Assert.That(LevelGenerator.Generate(0x135UL, 3).Version, Is.EqualTo(25));
             Assert.That(LevelGenerator.Generate(0x135UL, 3, Off).Version, Is.EqualTo(25), "off: version 24's floor, but for the number");
-            Assert.That(new LineUpValues().KindMore, Is.EqualTo(0), "the order's rule: a count past a cap is cut");
+            Assert.That(new LineUpValues().SwarmersMost, Is.EqualTo(14), "the second round: fourteen swarmers at most");
+            Assert.That(new LineUpValues().OneARoomMost, Is.EqualTo(2), "the second round: two of a one-a-room kind where the floor allows two");
             Assert.That(new LineUpValues().WeightTolerance, Is.EqualTo(0.2f), "the named tolerance");
         }
 
@@ -147,6 +148,13 @@ namespace Roguelike.Rules.Tests
                     Assert.That(u.Name, Is.Not.EqualTo(v.LineUpRules.FullName));
                     // A room past the first may hold both kinds there (else the line-up could never be drawn on its floor).
                     Assert.That(LevelLineUps.Counts(u, floor, false, v, out _, out _, out _, out _), Is.True, "floor " + floor + ": " + u.Name);
+                    // Second round: the swarmers fourteen at most, the one-a-room kinds two at most.
+                    foreach ((EnemyKind k, int most) in new[] { (u.Lead, u.LeadMost), (u.Partner, u.PartnerMost) })
+                    {
+                        if (k == EnemyKind.Swarmer) Assert.That(most, Is.LessThanOrEqualTo(v.LineUpRules.SwarmersMost), "floor " + floor + ": " + u.Name);
+                        if (k != EnemyKind.Swarmer && k != EnemyKind.Brute && k != EnemyKind.Shooter)
+                            Assert.That(most, Is.LessThanOrEqualTo(v.LineUpRules.OneARoomMost), "floor " + floor + ": " + u.Name);
+                    }
                 }
             }
             // No kind sooner than today: the guard from floor 2, the caster and the warder from 3, the bomber and the lancer from 4.
@@ -213,25 +221,35 @@ namespace Roguelike.Rules.Tests
         }
 
         [Test]
-        public void Counts_AreTheLineUpsOwn_CutToTheRoomsCaps_NeverTurnedIntoSwarmers()
+        public void Counts_AreTheLineUpsOwn_PastTheMixedRoomsCaps_CutToTheirOwnMost_NeverTurnedIntoSwarmers()
         {
             var v = new LevelValues();
+            // Second round (the weight wins): the brutes and shooters by the line-up's own counts, past the mixed room's three.
             var many = new LineUp("many", EnemyKind.Brute, 2, 6, EnemyKind.Shooter, 4, 5);
             Assert.That(LevelLineUps.Counts(many, 3, false, v, out int al, out int ah, out int bl, out int bh), Is.True);
-            Assert.That((al, ah, bl, bh), Is.EqualTo((2, 3, 3, 3)), "cut to three brutes and three shooters (work order 023's caps)");
-            var guards = new LineUp("guards", EnemyKind.Guard, 2, 2, EnemyKind.Swarmer, 4, 4);
+            Assert.That((al, ah, bl, bh), Is.EqualTo((2, 6, 4, 5)), "the line-up's own counts");
+            var horde = new LineUp("horde", EnemyKind.Swarmer, 10, 20, EnemyKind.Brute, 1, 1);
+            Assert.That(LevelLineUps.Counts(horde, 3, false, v, out al, out ah, out _, out _), Is.True);
+            Assert.That((al, ah), Is.EqualTo((10, 14)), "fourteen swarmers at most");
+            var guards = new LineUp("guards", EnemyKind.Guard, 2, 3, EnemyKind.Swarmer, 4, 4);
             Assert.That(LevelLineUps.Counts(guards, 3, false, v, out al, out ah, out _, out _), Is.True);
-            Assert.That((al, ah), Is.EqualTo((1, 1)), "one guard a combat room");
+            Assert.That((al, ah), Is.EqualTo((2, 2)), "two guards: floor 3's exit room holds two");
+            Assert.That(LevelLineUps.Counts(guards, 5, false, v, out al, out ah, out _, out _), Is.True);
+            Assert.That((al, ah), Is.EqualTo((1, 1)), "one on floor 5: its exit room's two are the act boss and one guard");
             Assert.That(LevelLineUps.Counts(guards, 1, false, v, out _, out _, out _, out _), Is.False, "no guard on floor 1");
+            var casters = new LineUp("casters", EnemyKind.Caster, 1, 3, EnemyKind.Shooter, 2, 2);
+            Assert.That(LevelLineUps.Counts(casters, 3, false, v, out _, out ah, out _, out _), Is.True);
+            Assert.That(ah, Is.EqualTo(2), "two casters: floor 3's exit room holds two");
+            Assert.That(LevelLineUps.Counts(casters, 2, false, v, out _, out _, out _, out _), Is.False, "no caster before floor 3");
+            var bombers = new LineUp("bombers", EnemyKind.Brute, 4, 4, EnemyKind.Bomber, 1, 2);
+            Assert.That(LevelLineUps.Counts(bombers, 4, false, v, out _, out _, out _, out bh), Is.True);
+            Assert.That(bh, Is.EqualTo(1), "the bomber's own rule: one in a floor-4 combat room");
+            Assert.That(LevelLineUps.Counts(bombers, 5, false, v, out _, out _, out _, out bh), Is.True);
+            Assert.That(bh, Is.EqualTo(2), "two on floor 5");
             var warded = new LineUp("warded", EnemyKind.Swarmer, 1, 8, EnemyKind.Warder, 1, 1);
             Assert.That(LevelLineUps.Counts(warded, 3, false, v, out al, out _, out _, out _), Is.True);
             Assert.That(al, Is.EqualTo(v.WarderFloors.OthersAtLeast), "a warder stands only with three others");
             Assert.That(LevelLineUps.Counts(warded, 3, true, v, out _, out _, out _, out _), Is.False, "never in the first combat room");
-            // KindMore: the producer's one number for more brutes and shooters (0, the order's rule).
-            var more = new LevelValues();
-            more.LineUpRules.KindMore = 1;
-            Assert.That(LevelLineUps.Counts(many, 3, false, more, out _, out ah, out _, out bh), Is.True);
-            Assert.That((ah, bh), Is.EqualTo((4, 4)));
         }
 
         // ---------------- A floor's fights filled ----------------
@@ -271,9 +289,12 @@ namespace Roguelike.Rules.Tests
                     if (drawn[i].Full) continue;
                     var kinds = fights[i].Where(g => !g.Elite).Select(g => g.Kind).Distinct().ToList();
                     Assert.That(kinds, Is.EquivalentTo(new[] { drawn[i].Lead, drawn[i].Partner }), "seed " + s + " room " + i + ": " + Text(fights[i]));
-                    Assert.That(fights[i].Where(g => g.Kind == EnemyKind.Brute && !g.Elite).Sum(g => g.Count), Is.LessThanOrEqualTo(3), "the cap");
-                    Assert.That(fights[i].Where(g => g.Kind == EnemyKind.Shooter).Sum(g => g.Count), Is.LessThanOrEqualTo(3), "the cap");
-                    Assert.That(fights[i].Where(g => g.Kind == EnemyKind.Guard).Sum(g => g.Count), Is.LessThanOrEqualTo(1), "one guard");
+                    Assert.That(LevelLineUps.Counts(drawn[i], 2, i == 0, On, out int leadLo, out int leadHi, out int partnerLo, out int partnerHi), Is.True);
+                    int lead = fights[i].Where(g => g.Kind == drawn[i].Lead && !g.Elite).Sum(g => g.Count), partner = fights[i].Where(g => g.Kind == drawn[i].Partner && !g.Elite).Sum(g => g.Count);
+                    Assert.That(lead, Is.InRange(leadLo, leadHi), "the lead's counts");
+                    Assert.That(partner, Is.InRange(partnerLo, partnerHi), "the partner's counts");
+                    Assert.That(fights[i].Where(g => g.Kind == EnemyKind.Swarmer).Sum(g => g.Count), Is.LessThanOrEqualTo(14), "fourteen swarmers at most");
+                    Assert.That(fights[i].Where(g => g.Kind == EnemyKind.Guard).Sum(g => g.Count), Is.LessThanOrEqualTo(2), "two guards at most");
                 }
             }
         }
@@ -317,7 +338,11 @@ namespace Roguelike.Rules.Tests
         [Test, Timeout(3600000)] // the long sweeps' own time limit (as BossAloneTests')
         public void AThousandSeedsAFloor_KeepTheLineUpsRules()
         {
+            var w = new LineUpValues();
             for (int floor = 1; floor <= 5; floor++)
+            {
+                double offSum = 0, heaviest = 0;
+                int lineUpRooms = 0, within = 0;
                 for (ulong s = 0; s < 1000; s++)
                 {
                     LevelLayout on = LevelGenerator.Generate(s, floor, On), off = LevelGenerator.Generate(s, floor, Off);
@@ -343,11 +368,29 @@ namespace Roguelike.Rules.Tests
                             continue;
                         }
                         Assert.That(r.EnemyGroups.Where(g => !g.Elite).Select(g => g.Kind).Distinct().Count(), Is.EqualTo(2), at + ": two kinds");
+                        // Second round (the weight wins): the room's weight against the same room's of version 24.
+                        double target = w.WeightOf(was[i].EnemyGroups), weight = w.WeightOf(r.EnemyGroups);
+                        offSum += (weight - target) / target;
+                        lineUpRooms++;
+                        if (Math.Abs(weight - target) <= w.WeightTolerance * target + 1e-9) within++;
                     }
+                    foreach (LevelRoom r in was) heaviest = Math.Max(heaviest, w.WeightOf(r.EnemyGroups));
                     LevelRoom exit = on.Rooms.Single(r => r.Kind == RoomKind.Exit), exitWas = off.Rooms.Single(r => r.Kind == RoomKind.Exit);
                     Assert.That(string.Join(",", exit.EnemyGroups.Select(g => g.ToString()).OrderBy(t => t)), Is.EqualTo(string.Join(",", exitWas.EnemyGroups.Select(g => g.ToString()).OrderBy(t => t))),
                                 "seed " + s + " floor " + floor + ": the exit room as before");
                 }
+                // The producer's second round: a mean within 5 % a floor, at least 80 % of the rooms within the tolerance.
+                double mean = offSum / lineUpRooms, share = within / (double)lineUpRooms;
+                TestContext.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture, "LINEUPWEIGHT floor {0}: off by {1:+0.0%;-0.0%} on average, {2:P1} within the tolerance; the heaviest room of version 24 {3:0.0}", floor, mean, share, heaviest));
+                Assert.That(Math.Abs(mean), Is.LessThanOrEqualTo(0.05), "floor " + floor + ": the line-up rooms' weight on average");
+                Assert.That(share, Is.GreaterThanOrEqualTo(0.8), "floor " + floor + ": the rooms within the tolerance");
+                // The wave 1 (work order 136: the lead wakes at once): the lead's top count no heavier than the floor's heaviest room of version 24 and the tolerance.
+                foreach (LineUp u in On.LineUpRules.Of(floor))
+                {
+                    LevelLineUps.Counts(u, floor, false, On, out _, out int leadHi, out _, out _);
+                    Assert.That(leadHi * w.WeightOf(u.Lead), Is.LessThanOrEqualTo(heaviest * (1 + w.WeightTolerance)), "floor " + floor + ": " + u.Name + "'s wave 1");
+                }
+            }
         }
 
         // ---------------- The pins ----------------
@@ -376,9 +419,9 @@ namespace Roguelike.Rules.Tests
         {
             ulong h = Print(LancersOn, FoldLineUps);
 #if UNITY_5_3_OR_NEWER
-            const ulong pinned = 0x7AFC91BC3DBE57DAUL; // Unity's EditMode run of this code (work order 135's filtered run, 2026-11-27)
+            const ulong pinned = 0xF3FB859B6DF6E8B6UL; // Unity's EditMode run of this code (work order 135's second round, its filtered run, 2026-11-27)
 #else
-            const ulong pinned = 0x35308CA604C445A1UL; // .NET, this code (the .NET rules run of work order 135, 2026-11-27)
+            const ulong pinned = 0x33B27C00CA2A2009UL; // .NET, this code (the .NET rules run of work order 135's second round, 2026-11-27)
 #endif
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("LINEUPSPRINT LANCERS ON " + found);
@@ -391,9 +434,9 @@ namespace Roguelike.Rules.Tests
         {
             ulong h = Print(LancersOff, FoldLineUps);
 #if UNITY_5_3_OR_NEWER
-            const ulong pinned = 0x7166C3785A76D72EUL; // Unity's EditMode run of this code (work order 135's filtered run, 2026-11-27)
+            const ulong pinned = 0x43BD711A97F31F17UL; // Unity's EditMode run of this code (work order 135's second round, its filtered run, 2026-11-27)
 #else
-            const ulong pinned = 0xF0943C09122AFC72UL; // .NET, this code (the .NET rules run of work order 135, 2026-11-27)
+            const ulong pinned = 0x7472C8994D0526E7UL; // .NET, this code (the .NET rules run of work order 135's second round, 2026-11-27)
 #endif
             string found = "0x" + h.ToString("X16") + "UL";
             TestContext.WriteLine("LINEUPSPRINT LANCERS OFF " + found);
@@ -467,20 +510,20 @@ namespace Roguelike.Rules.Tests
                                                           |           |
                                                           +-+-+-+-+-+-+
 ",
-            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 25  17 rooms  37 enemies  116 x 128 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner, C4 twin, L8 knights-apse, C10 transept, C14 nave-apse, X16 throne-nave
+            ["WALKTHRU/5"] = @"seed WALKTHRU  floor 5  version 25  17 rooms  56 enemies  116 x 128 m  themes C2 archive, C4 shrine, T6 archive, L8 tomb hall, C10 archive, T12 vault, C14 shrine, X16 throne room  templates C2 corner, C4 twin, L8 knights-apse, C10 transept, C14 nave-apse, X16 throne-nave
             +-+-+     +-+-+-+-+-+-+-+
-            |E0*|     |C2           |
+            |E0*|     |C2 u         |
         +-+-+   +-+-+ +             +
         |        P  | | %           |
-        +   @   +-+ +-+         b   +
+        +   @   +-+ +-+    b    B   +
         |       | |          B     k|
         +-+    *+ +-+-+-+ #        i+
           |     |       |           |
-          +-+-+-+       +-+  : :    +
-                          |h       k|
-                          +-+# h  hi+
-                            |       |
-                            +      k+
+          +-+-+-+       +-+  h      +
+                          |h #:    k|
+                          +-+  h  hi+
+                            |h      |
+                            +   :  k+
                             |       |
                             + +-+-+-+
                             |P|
@@ -490,32 +533,32 @@ namespace Roguelike.Rules.Tests
                           | |
                     +-+-+-+ +-+-+-+
                     |C4           |
-                    +             +
+                    + h         h +
                     |    #   #    |
-                    +           h +
-                    |  h       #  |
-                    +-+       +-+-+
-                      |       |
+                    + h         h +
+                    |  h       h  |
+                    +-+      h+-+-+
+                      | h h   |
                       +-+     +
                         |     |
-                    +-+-+l    +-+-+
+                    +-+-+g    +-+-+
                     |             |
     +-+-+-+-+       +    #        +
     |X16Y*  |       |     o    h  |
 +-+-+       +-+-+   +      *      +   +-+-+-+-+-+
-| #           # |   |  l *A       |   |L8 !h   &|
+| #           # |   |    *A       |   |Lh !h   &|
 + +-+       +-+ +   +-+-+-+-+ +-+-+   +   +-+   +-+
-| | |       | | |           |P|       |b  | |     |
-+ +-+       +-+ +           + +       +   +-+[  [ +-+
+| | |       | | |           |P|       |!  | |     |
++ +-+       +-+ +           + +       + h +-+[  =l+-+
 |               |           | |       |             |
-+       G       +         +-+ +-+     + #  h       &+
++       G       +         +-+ +-+     +    h h     &+
 |               |         |T6   |     |   #     e   |
-+ +-+       +-+ +         +i    +-+-+-+             +
++ +-+       +-+ +         +i    +-+-+-+     #h      +
 | | |       | | |         |k     P                  |
-+ +-+       +-+ +         +  $  +-+-+-+  =+-+[   B+-+
-|               |         |  u  |     |   | |  #  |
-+ #           # +         +-+-+-+     +   +-+   +-+
-|               |                     |     h   |
++ +-+       +-+ +         +  $  +-+-+-+  [+-+  [ l+-+
+|               |         |  u  |     |   | |h    |
++ #           # +         +-+-+-+     +   +-+ # +-+
+|               |                     |  h  h   |
 +-+-+-+-+-+ +-+-+                     +-+-+-+ +-+
           |P|                               |P|
           + +-+                             + +-+
@@ -524,12 +567,12 @@ namespace Roguelike.Rules.Tests
             | |                               | |
             + +-+-+ +-+-+-+             +-+-+-+ +-+-+-+-+-+
             |C14  | |     |             |C10            ki|
-        +-+-+b B  +-+     +             +i             h l+
+        +-+-+b B  +-+     +             +i             h B+
         |           # h   |             |   #             |
-        +*  #             +   +-+-+-+   +# h             k+
-        |A o  g      p    |   |T12 u|   |    %       :    |
-        +*   c  p         +-+-+ i   +-+-+             l   +
-        |  #     #   : #   P    $    P     h              |
+        +*  #             +   +-+-+-+   +# h    :        k+
+        |A o  g      p    |   |T12 u|   |    %      B     |
+        +*   c  p         +-+-+ i   +-+-+                 +
+        |  #     #   : #   P    $    P     h h  b         |
         +-+-+     +-+     +-+-+ i   +-+-+   +-+     +-+   +
             |   h | |     |   |     |   |   | |   u | |   |
             +-+-+-+ +-+-+-+   +-+-+-+   +-+-+ +-+-+-+ +-+-+
@@ -605,7 +648,7 @@ namespace Roguelike.Rules.Tests
                                 |k      u     |
                                 +-+-+-+-+-+-+-+
 ",
-            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 25  17 rooms  57 enemies  136 x 136 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 tomb hall, T12 vault, C14 archive, X16 throne room  templates C2 nave-apse, C4 twin, L8 cross-hall, C10 corner-long, X16 throne-nave
+            ["RUNNER42/5"] = @"seed RUNNER42  floor 5  version 25  17 rooms  62 enemies  136 x 136 m  themes C2 archive, C4 tomb hall, T6 archive, L8 ossuary, C10 tomb hall, T12 vault, C14 archive, X16 throne room  templates C2 nave-apse, C4 twin, L8 cross-hall, C10 corner-long, X16 throne-nave
                                         +-+-+
                                         |E0 |
                                       +-+   +
@@ -620,7 +663,7 @@ namespace Roguelike.Rules.Tests
                                         | |
                                       +-+ +-+-+-+
                                       |C2    k  |
-                                      +i       b+
+                                      +i        +
                                       |         |
                                       +    #  # +
                                       |      h  |
@@ -629,45 +672,45 @@ namespace Roguelike.Rules.Tests
                                       +-+     +-+
                                       |  %   : k|
                 +-+-+-+   +-+-+-+     +       h +
-                |C4  !|   |     |     |         |
-    +-+-+-+     +& p  +   +#    + +-+-+      h  +
+                |C4  !|   |h h  |     |   B     |
+    +-+-+-+     +&    +   +##   + +-+-+      h  +
     |T6k  |     |     |   |   # | |P            |
-    +     +-+-+-+   [ +-+-+     +-+ +-+-+     +-+
-    | $    P                 [      |   |     |
-    +     +-+-+-+    B          +-+-+   +     +
+    +     +-+-+-+    [+-+-+     +-+ +-+-+     +-+
+    | $    P                 [      |   | B   |
+    +     +-+-+-+    g   h      +-+-+   +     +
     |     |     |  =            |       |     |
-    +-+ +-+     +      #        +       +-+-+-+
-      |P|       |               |
-      + +       +  p  +-+=   p [+
-      | |       |     | |       |
+    +-+ +-+     +      # h      +       +-+-+-+
+      |P|       |          h    |
+      + +       +  h  +-+=   h h+
+      | |       |   #h| |       |
     +-+ +-+     +     + +-+     +
-    |L8   |     | !   |   |   b |
+    |L8   |     | !   |   |   h |
     +     +     +-+-+-+   +-+-+-+
     |   : |
-+-+-+  q  +-+-+     +-+-+-+-+-+-+-+
-|             |     |C10!! ! &  # |
-+         p   +-+-+ +            l+
-| p q          P  | |             |
-+       e     +-+ +-+   #        &+
-|     p    g  | |        # [  [   |
++-+-+     +-+-+     +-+-+-+-+-+-+-+
+| h       q h |     |C10!!      &!|
++       : b   +-+-+ +     B   [  B+
+|h h  :        P  | |   =         |
++       e     +-+ +-+       p   # +
+|     B    B  | |        p    [   |
 +-+-+     +-+-+ +-+-+-+           +
-    |     |           | =         |
-    +     +           +-+-+h  [  !+
-    | ^~~ |               |     # |
-    +-+-+-+               +       +
-                          |   =  l|
-                          +  h    +
-                          |       |
-                          +    h  +                 +-+-+-+-+-+-+-+
+    |h    |           |           |
+    +     +           +-+-+B  [  !+
+    | ^~~ |               |       |
+    +-+-+-+               +      !+
+                          |   #   |
+                          +  p    +
+                          |     # |
+                          +   =   +                 +-+-+-+-+-+-+-+
                           |       |                 |X16          |
                           + +-+-+-+                 + # +-+   +-+#+
                           |P|                       |   | |   | | |
                           + +     +-+-+-+-+-+-+     +   +-+   +-+ +-+
-                          | |     |C14 #      |     |               |
-                        +-+ +-+   +%  # c +-+ +     +               +
-                        |T12  |   |       | | |     |               |
+                          | |     |C14  w     |     |               |
+                        +-+ +-+   +%  #   +-+ +     +               +
+                        |T12  |   |     c | | |     |               |
                         +     +-+-+       +-+ +-+-+ +       G      o+
-                        |      P      w :   b  P  | |              Y|
+                        |      P        :   b  P  | |              Y|
                         + i$i +-+-+       +-+ +-+ +-+              o+
                         |     |   |     g | | | |                   |
                         +-+-+-+   +   B   +-+ + +-+-+   +-+   +-+ +-+
