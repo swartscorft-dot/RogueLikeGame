@@ -447,6 +447,67 @@ namespace Roguelike.PlayModeTests
             Assert.That(metaAfter.Runs, Is.EqualTo(metaBefore.Runs));
         }
 
+        /// <summary>
+        /// The merge of 2026-11-27, W3 (the producer's ruling: work order 148 was built without 147): with the trial boss in use, a
+        /// rehearsal wakes the TRIAL boss in the ordinary way (the entrance, then its fight), the hurt guard is on her through its fight
+        /// and holds off a second hit, the trial's attacks begin, and the rehearsal is still no run: the boss's death ends it as a
+        /// rehearsal's, and the between-runs save, the records and the stored build are the same byte for byte.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator WithTheTrialBoss_TheRehearsalWakesIt_TheOrdinaryWay_ItsGuardAndItsAttacksWork_AndItIsStillNoRun()
+        {
+            bool? trialBefore = BossTrialSettings.ForTests;
+            BossTrialSettings.ForTests = true; // the trial fight in use, as for him at the keys with BossValues.Trial on
+            try
+            {
+                Assert.That(BossValues.Trial && BossTrialSettings.InUse, Is.True, "work order 147's trial boss in use");
+                TrialsOn();
+                yield return AShortRunWithUpgrades_OnFloor2();
+                yield return Die();
+                yield return Frames(3);
+                Assert.That(RehearsalFile.Load(BuildFile), Is.Not.Null, "a build stored");
+                _levels.AnswerEndScreen(GeneratedLevels.EndAnswer.NewRun);
+                yield return Frames(3);
+                byte[] betweenBefore = Bytes(BetweenRunsFile), recordsBefore = Bytes(RecordsFile), buildBefore = Bytes(BuildFile);
+                int runsInRecords = _menu.Records.RunsStarted;
+
+                Assert.That(_menu.PickMain(MainLine.Rehearsal), Is.True, "REHEARSAL picked");
+                yield return Frames(3);
+                TheFloorBehindHerIsCleared("the rehearsal with the trial boss");
+                EnemyBoss boss = _levels.Level.Boss as EnemyBoss;
+                Assert.That(boss, Is.Not.Null);
+                Assert.That(boss.InTrial, Is.True, "the throne room's boss is the trial boss");
+                RoomFight fight = _levels.FightOf(_levels.Level.Layout.ExitRoom);
+                yield return WalkInAndWakeTheFight(fight);
+                Assert.That(boss.IsAwake, Is.True, "woken by the ordinary entrance and fight");
+                HurtGuard guard = _player.GetComponent<HurtGuard>();
+                Assert.That(guard, Is.Not.Null, "the hurt guard on her as the trial fight woke");
+                Assert.That(guard.Rule.Active, Is.True, "on through the trial fight");
+                _health.Untouchable = false;
+                _health.RestoreFull();
+                Assert.That(_health.TakeHit(10), Is.EqualTo(10), "a hit lands");
+                Assert.That(_health.TakeHit(10), Is.EqualTo(0), "the next one, at once, is held off by the guard");
+                _health.Untouchable = true; // the boss's attacks may now strike: the test asks only that they begin
+                float from = Time.time;
+                yield return Until(() => boss.TrialAttack != BossTrialAttack.None || Time.time - from > MostGameSecondsForTheBossToStrike, MostRealSecondsForAnything);
+                Assert.That(boss.TrialAttack, Is.Not.EqualTo(BossTrialAttack.None), "the trial's attacks begin");
+
+                _levels.FinishFloorForTests(); // the boss's death, as the first rehearsal test ends it
+                yield return Frames(() => _levels.Ending == GeneratedLevels.EndKind.ActCleared);
+                Assert.That(_levels.Ending, Is.EqualTo(GeneratedLevels.EndKind.ActCleared));
+                Assert.That(_levels.RehearsalEnding, Is.True, "a rehearsal's end");
+                yield return Frames(3);
+                Assert.That(Bytes(BetweenRunsFile), Is.EqualTo(betweenBefore), "no Echoes, no feats: the between-runs save byte for byte");
+                Assert.That(Bytes(RecordsFile), Is.EqualTo(recordsBefore), "the records byte for byte");
+                Assert.That(Bytes(BuildFile), Is.EqualTo(buildBefore), "the stored build byte for byte");
+                Assert.That(_menu.Records.RunsStarted, Is.EqualTo(runsInRecords), "no run counted");
+            }
+            finally
+            {
+                BossTrialSettings.ForTests = trialBefore;
+            }
+        }
+
         [UnityTest]
         public IEnumerator ARunEndedOnFloor1_DoesNotReplaceTheStoredBuild()
         {

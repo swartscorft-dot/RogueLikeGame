@@ -55,6 +55,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            EliteValues.Unique = true; // the merge of 2026-11-27, W3: put back after the elite room's test, which names it off
             if (_recorder != null) _recorder.StopRecording();
             _recorder = null;
             if (_folder != null && Directory.Exists(_folder)) Directory.Delete(_folder, true);
@@ -307,6 +308,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator TheEliteRoom_AndTheExitRoom_WakeWhole_AtTheirPoints()
         {
+            // The merge of 2026-11-27, W3 (changed deliberately): floor 1's elite room as work order 070 measured it, its elite with its
+            // room's others; with work order 149's unique elite on it holds the Grave Ram alone, and "the room wakes whole" would ask one.
+            EliteValues.Unique = false;
             GeneratedLevel level = StartRun();
             yield return Frames(2);
             foreach (LevelRoom room in new[] { level.Layout.EliteRoom, level.Layout.ExitRoom })
