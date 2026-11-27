@@ -111,6 +111,22 @@ namespace Roguelike.Rules
         /// </summary>
         public float WeightTolerance = 0.2f;
 
+        /// <summary>
+        /// How much heavier than the same room of version 24 a line-up room is on floors 2 to 5 (<see cref="WeightMoreFromFloor"/> on), as a
+        /// share of it: its target is that room's weight times (1 + this). Kristian, 2026-11-27, asked whether the new rooms should weigh
+        /// the same as today's, about 15 % more or about 30 % more (he had found the day's run easy, "klarte det ganske enkelt nå"), ticked
+        /// "Ca. 15 % tyngre": floors 2 to 5 get rooms about 15 % heavier, more of the heavy kinds, not more small ones. Floor 1 stays at
+        /// today's weight (his tick named floors 2 to 5); the full room and the exit room are mixed rooms and stay as they are. 0: the
+        /// floors of the second round, the same weight as today's rooms.
+        /// </summary>
+        public float WeightMore = 0.15f;
+
+        /// <summary>The first floor <see cref="WeightMore"/> is read on: 2 (his tick: "floors 2 to 5").</summary>
+        public const int WeightMoreFromFloor = 2;
+
+        /// <summary>A line-up room's target on this floor: the same room's version-24 weight, times (1 + <see cref="WeightMore"/>) from <see cref="WeightMoreFromFloor"/>.</summary>
+        public double TargetOf(double today, int floor) => floor >= WeightMoreFromFloor ? today * (1 + Math.Max(0f, WeightMore)) : today;
+
         /// <summary>The full room's name in the log and on the room (one a floor, today's mix of three kinds).</summary>
         public string FullName = "full";
 
@@ -162,28 +178,28 @@ namespace Roguelike.Rules
                 new LineUp("brute line", EnemyKind.Brute, 2, 3, EnemyKind.Shooter, 1, 3)),
             new LineUpFloor(
                 new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 2, 6),
-                new LineUp("gallery", EnemyKind.Shooter, 3, 7, EnemyKind.Swarmer, 6, 12),
+                new LineUp("gallery", EnemyKind.Shooter, 3, 8, EnemyKind.Swarmer, 6, 12),
                 new LineUp("brute line", EnemyKind.Brute, 2, 5, EnemyKind.Shooter, 2, 4),
                 new LineUp("guard and pack", EnemyKind.Guard, 1, 2, EnemyKind.Swarmer, 8, 14),
-                new LineUp("guard and shooters", EnemyKind.Guard, 1, 2, EnemyKind.Shooter, 2, 5)),
-            new LineUpFloor(
-                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 3, 6),
-                new LineUp("gallery", EnemyKind.Shooter, 4, 8, EnemyKind.Swarmer, 6, 12),
-                new LineUp("brute line", EnemyKind.Brute, 3, 6, EnemyKind.Shooter, 2, 5),
-                new LineUp("warded brutes", EnemyKind.Brute, 3, 7, EnemyKind.Warder, 1, 1),
-                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 3, 8)),
+                new LineUp("guard and shooters", EnemyKind.Guard, 1, 2, EnemyKind.Shooter, 2, 7)),
             new LineUpFloor(
                 new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 3, 7),
-                new LineUp("gallery", EnemyKind.Shooter, 4, 9, EnemyKind.Swarmer, 6, 12),
-                new LineUp("brute line", EnemyKind.Brute, 3, 7, EnemyKind.Shooter, 2, 5),
-                new LineUp("bombers and brutes", EnemyKind.Brute, 4, 8, EnemyKind.Bomber, 1, 1),
-                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 1, EnemyKind.Shooter, 4, 10)),
+                new LineUp("gallery", EnemyKind.Shooter, 4, 10, EnemyKind.Swarmer, 6, 12),
+                new LineUp("brute line", EnemyKind.Brute, 3, 6, EnemyKind.Shooter, 2, 6),
+                new LineUp("warded brutes", EnemyKind.Brute, 3, 8, EnemyKind.Warder, 1, 1),
+                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 3, 10)),
             new LineUpFloor(
-                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 4, 8),
-                new LineUp("brute line", EnemyKind.Brute, 4, 8, EnemyKind.Shooter, 3, 6),
-                new LineUp("guard and shooters", EnemyKind.Guard, 1, 2, EnemyKind.Shooter, 4, 10),
-                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 4, 10),
-                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 2, EnemyKind.Shooter, 4, 10)),
+                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 3, 8),
+                new LineUp("gallery", EnemyKind.Shooter, 4, 11, EnemyKind.Swarmer, 6, 12),
+                new LineUp("brute line", EnemyKind.Brute, 3, 7, EnemyKind.Shooter, 2, 6),
+                new LineUp("bombers and brutes", EnemyKind.Brute, 4, 9, EnemyKind.Bomber, 1, 1),
+                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 1, EnemyKind.Shooter, 4, 13)),
+            new LineUpFloor(
+                new LineUp("pack", EnemyKind.Swarmer, 8, 14, EnemyKind.Brute, 4, 10),
+                new LineUp("brute line", EnemyKind.Brute, 4, 8, EnemyKind.Shooter, 3, 7),
+                new LineUp("guard and shooters", EnemyKind.Guard, 1, 2, EnemyKind.Shooter, 4, 14),
+                new LineUp("casters and shooters", EnemyKind.Caster, 1, 2, EnemyKind.Shooter, 4, 13),
+                new LineUp("lancers and shooters", EnemyKind.Lancer, 1, 2, EnemyKind.Shooter, 4, 13)),
         };
     }
 
@@ -392,7 +408,7 @@ namespace Roguelike.Rules
                     pick -= u.Weight;
                 }
                 Counts(chosen, floor, first, v, out int leadLo, out int leadHi, out int partnerLo, out int partnerHi);
-                double target = w.WeightOf(fights[i]);
+                double target = w.TargetOf(w.WeightOf(fights[i]), floor); // work order 135's third round: his "Ca. 15 % tyngre" from floor 2
                 Spend(chosen, target, leadLo, leadHi, partnerLo, partnerHi, w, rng, out int lead, out int partner);
                 List<EnemyGroup> elite = fights[i].Where(g => g != null && g.Elite).ToList();
                 fights[i].Clear();
