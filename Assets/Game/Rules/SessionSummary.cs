@@ -261,6 +261,8 @@ namespace Roguelike.Rules
         public PrecisionStats Precision = new PrecisionStats();
         /// <summary>Work order 147: the trial boss's fights (SessionSummaryBossTrial.cs); none for a log without them.</summary>
         public List<BossTrialRow> BossTrial = new List<BossTrialRow>();
+        /// <summary>Work order 149: the Grave Ram's fights (SessionSummaryGraveRam.cs); none for a log without one.</summary>
+        public List<GraveRamRow> GraveRam = new List<GraveRamRow>();
     }
 
     /// <summary>One run of a session (work order 012): its seed, the floors it reached, how long each took, what it took, how it ended.</summary>
@@ -496,6 +498,7 @@ namespace Roguelike.Rules
             stats.Music = ComputeMusic(events, length); // work order 116
             stats.Precision = ComputePrecision(events, length); // work order 143
             stats.BossTrial = ComputeBossTrial(events); // work order 147
+            stats.GraveRam = ComputeGraveRam(events); // work order 149
             return stats;
         }
 
@@ -726,6 +729,7 @@ namespace Roguelike.Rules
             WriteNewSkills(sb, stats.NewSkills); // work order 109: only in a log with one of the three in it
             WritePrecision(sb, stats.Precision); // work order 143: only in a log with precision's extras
             WriteBossTrial(sb, stats.BossTrial); // work order 147: only in a log with a trial fight
+            WriteGraveRam(sb, stats.GraveRam); // work order 149: "Elite (work order 149)", only in a log with a Grave Ram fight
             return sb.ToString();
         }
 

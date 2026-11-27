@@ -81,6 +81,7 @@ namespace Roguelike
         {
             if (!IsAlive || damage <= 0 || Untouchable) return 0;
             if (HurtGuard.Holds(this)) return 0; // work order 147: the trial boss's hurt guard (HurtGuard.cs)
+            if (EliteHurtGuard.Holds(this)) return 0; // work order 149: the Grave Ram's hurt guard (EliteHurtGuard.cs); 147's boss guard is to be folded in here
             if (_player.IsInvulnerable)
             {
                 HitsAvoided++;

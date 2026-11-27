@@ -43,6 +43,7 @@ namespace Roguelike.Rules
         Waves, // work order 136: the rooms' waves on or off, on the Trials page (RoomTrialLines)
         Callers, // work order 137: the rooms' callers on or off, on the Trials page (RoomTrialLines)
         BossFight, // work order 147: the boss, "Trial" or "As before", on the Trials page (BossTrialSettings), with BossValues.Trial on
+        Elites, // work order 149: Unique (floor 1's Grave Ram) or As before, on the Trials page (EliteLines)
     }
 
     /// <summary>The quality presets (work order 128): each sets the four lines under it; a hand-made mix of them reads Custom.</summary>
@@ -394,6 +395,7 @@ namespace Roguelike.Rules
                     into.Add(SettingLine.Waves);       // work order 136: the rooms' waves (RoomTrialLines)
                     into.Add(SettingLine.Callers);     // work order 137: the rooms' callers (RoomTrialLines)
                     if (BossValues.Trial) into.Add(SettingLine.BossFight); // work order 147, after them
+                    into.Add(SettingLine.Elites); // work order 149, after it: the line is its switch
                     break;
             }
         }

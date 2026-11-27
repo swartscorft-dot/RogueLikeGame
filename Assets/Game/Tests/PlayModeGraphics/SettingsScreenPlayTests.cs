@@ -223,6 +223,8 @@ namespace Roguelike.PlayModeTests
             int boss = lines.IndexOf(SettingLine.BossFight); // work order 147's line after the callers, with BossValues.Trial on
             if (BossValues.Trial) Assert.That(boss, Is.EqualTo(callers + 1), "work order 147's boss line after the callers");
             else Assert.That(boss, Is.EqualTo(-1), "work order 147's switch off: no boss line");
+            int elites = lines.IndexOf(SettingLine.Elites);
+            Assert.That(elites, Is.EqualTo((BossValues.Trial ? boss : callers) + 1), "work order 149's elites line after them");
             Assert.That(lines.IndexOf(SettingLine.Attachments), Is.EqualTo(0), "the weapon attachments' line where it was");
             Assert.That(_screen.RowNames[cue], Is.EqualTo("Timing cue"));
             Assert.That(_screen.RowNames[click], Is.EqualTo("Timing click"));
