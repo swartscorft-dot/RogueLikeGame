@@ -196,7 +196,9 @@ namespace Roguelike.Rules.Tests
         {
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - (SightValues.On ? 2 : 1)], Is.EqualTo(SettingLine.Precision)); // work order 144's line after it
+            // The merge of 2026-11-27, W2 (changed deliberately): right after work order 134's click, found by its line, not counted
+            // from the end (144's sight, 135's line-ups and 136's waves come after it).
+            Assert.That(lines.IndexOf(SettingLine.Precision), Is.EqualTo(lines.IndexOf(SettingLine.TimingClick) + 1), "after the timing click");
             Assert.That(SettingsPages.PageOf(SettingLine.Precision), Is.EqualTo(SettingsPage.Trials));
             PrecisionValues.On = false;
             SettingsPages.Lines(SettingsPage.Trials, true, lines);

@@ -117,8 +117,11 @@ namespace Roguelike.Rules.Tests
         {
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.LineUps)); // work order 136 (changed deliberately): its "Waves" after it, last
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Waves));
+            // The merge of 2026-11-27, W2 (changed deliberately): after work order 144's line (143's with 144's off, 134's click with
+            // both off), work order 136's "Waves" after it; found by their lines, not counted from the end.
+            SettingLine before = SightValues.On ? SettingLine.SightOpening : PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick;
+            Assert.That(lines.IndexOf(SettingLine.LineUps), Is.EqualTo(lines.IndexOf(before) + 1), "after " + before);
+            Assert.That(lines.IndexOf(SettingLine.Waves), Is.EqualTo(lines.IndexOf(SettingLine.LineUps) + 1), "work order 136's waves after it");
             Assert.That(SettingsPages.PageOf(SettingLine.LineUps), Is.EqualTo(SettingsPage.Trials));
             Assert.That(RoomTrialLines.Is(SettingLine.LineUps), Is.True);
             Assert.That(RoomTrialLines.Is(SettingLine.TimingClick), Is.False);

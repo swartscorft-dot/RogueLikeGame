@@ -314,8 +314,9 @@ namespace Roguelike.Rules.Tests
         {
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Waves));
-            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.LineUps));
+            // The merge of 2026-11-27, W2 (changed deliberately): found by their lines, not counted from the end, as more orders add lines.
+            Assert.That(lines, Has.Member(SettingLine.Waves));
+            Assert.That(lines.IndexOf(SettingLine.Waves), Is.EqualTo(lines.IndexOf(SettingLine.LineUps) + 1), "the waves right after the line-ups");
             Assert.That(SettingsPages.PageOf(SettingLine.Waves), Is.EqualTo(SettingsPage.Trials));
             Assert.That(RoomTrialLines.Is(SettingLine.Waves), Is.True);
             Assert.That(RoomTrialLines.Name(SettingLine.Waves), Is.EqualTo("Waves"));

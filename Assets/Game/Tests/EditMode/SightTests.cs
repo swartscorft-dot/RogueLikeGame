@@ -179,7 +179,10 @@ namespace Roguelike.Rules.Tests
             Assert.That(TimingCues.SoundByDefault(TimingCue.Sight), Is.True, "the click with it, as with every cue but the bar");
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.SightOpening), "work order 144's line last on the Trials page");
+            // The merge of 2026-11-27, W2 (changed deliberately): right after work order 143's line (134's click with 143 off); work
+            // orders 135's and 136's lines come after it, so it is no longer the last.
+            SettingLine before = PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick;
+            Assert.That(lines.IndexOf(SettingLine.SightOpening), Is.EqualTo(lines.IndexOf(before) + 1), "work order 144's line after " + before);
             Assert.That(SettingsPages.PageOf(SettingLine.SightOpening), Is.EqualTo(SettingsPage.Trials));
             Assert.That(SightLines.PointerStays(-1), Is.True, "none stored: the switch's own");
             Assert.That(SightLines.PointerStays(0), Is.False);
@@ -202,7 +205,8 @@ namespace Roguelike.Rules.Tests
             Assert.That(cue, Is.EqualTo(TimingCue.BarOnly));
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
             Assert.That(lines, Has.No.Member(SettingLine.SightOpening), "off: no line");
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick), "the page as before");
+            Assert.That(lines.IndexOf(SettingLine.LineUps), Is.EqualTo(lines.IndexOf(PrecisionValues.On ? SettingLine.Precision : SettingLine.TimingClick) + 1),
+                "the page as before: the line-ups follow the line before the sight's (the merge of 2026-11-27, W2)");
         }
     }
 }
