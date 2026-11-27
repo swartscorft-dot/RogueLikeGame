@@ -664,7 +664,7 @@ namespace Roguelike
             bool pressReady = PressReady(now);
             if (!pressReady && _clicks.TakeWhenAllowed(Busy, now, _nextShotAt))
             {
-                StartBasicShot(feel, onTheMove: IsMoving);
+                StartBasicShot(feel, onTheMove: BodyMoving); // work order 143: under Inertia, sliding on is on the move
                 return;
             }
             if (pressReady && _buffer.TryPeek(out Press press))

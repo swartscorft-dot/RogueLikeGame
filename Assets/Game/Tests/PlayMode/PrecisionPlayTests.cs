@@ -285,6 +285,73 @@ namespace Roguelike.PlayModeTests
             Assert.That(sight.Cone.Shown, Is.False, "Off: nothing drawn");
         }
 
+        // ---------------- Shown as moving while her body moves (the second round) ----------------
+
+        [UnityTest]
+        public IEnumerator Inertia_LettingGoAtARun_TheRunPlaysOnUntilSheIsAlmostStill_AndAClickWhileSheSlidesIsAShotOnTheMove()
+        {
+            PrecisionSettings.ForTests = PrecisionMode.Inertia;
+            CharacterAnimation view = _p.GetComponentInChildren<CharacterAnimation>();
+            Assume.That(view, Is.Not.Null, "her animation");
+            yield return RunFor(Vector3.right, 0.5f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Run));
+            float threshold = PrecisionValues.Live.InertiaMovingSpeed;
+            int slidingFrames = 0, idleWhileSliding = 0;
+            float speedBefore = _p.Speed, idleAt = -1f;
+            float deadline = Time.realtimeSinceStartup + 10f, t0 = Time.time;
+            while (Time.time - t0 < 1f && Time.realtimeSinceStartup < deadline)
+            {
+                _p.Steer(Vector3.zero);
+                yield return null;
+                float speed = _p.Speed;
+                // A frame's lag between her speed and the pose is allowed: judged where it was above the threshold both frames.
+                if (speed > threshold && speedBefore > threshold)
+                {
+                    slidingFrames++;
+                    if (view.Pose == CharacterPose.Idle) idleWhileSliding++;
+                    Assert.That(_p.BodyMoving, Is.True, "her body moves: she is moving as shown");
+                    Assert.That(_p.IsMoving, Is.False, "no key held: not moving by the keys");
+                }
+                if (idleAt < 0f && view.Pose == CharacterPose.Idle) idleAt = speed;
+                speedBefore = speed;
+                if (speed < 1e-3f && idleAt >= 0f) break;
+            }
+            TestContext.WriteLine("frames sliding after the keys were let go: " + slidingFrames + "; idle first at " + idleAt.ToString("0.000", CultureInfo.InvariantCulture) + " m/s");
+            Assert.That(slidingFrames, Is.GreaterThan(10), "she slid on after letting go");
+            Assert.That(idleWhileSliding, Is.EqualTo(0), "never the standing pose while her body slides");
+            Assert.That(idleAt, Is.InRange(0f, threshold + 0.6f), "the standing pose only once she is all but still");
+            // A click while she slides on is a shot on the move: the legs go on under it, not the standing stance.
+            yield return RunFor(Vector3.right, 0.5f);
+            _p.Steer(Vector3.zero);
+            yield return null;
+            Assume.That(_p.Speed, Is.GreaterThan(1f), "sliding on");
+            _p.Shoot(_p.Position + new Vector3(3f, 0f, 6f));
+            Assert.That(_p.IsShootingOnTheMove, Is.True, "a shot on the move");
+            yield return null;
+            if (_p.Speed > threshold) Assert.That(view.Pose, Is.Not.EqualTo(CharacterPose.Shoot), "not the standing stance while she slides");
+        }
+
+        [UnityTest]
+        public IEnumerator Off_LettingGo_IsAStandAsToday_AndAClickThenIsAStandingShot()
+        {
+            PrecisionSettings.ForTests = PrecisionMode.Off;
+            CharacterAnimation view = _p.GetComponentInChildren<CharacterAnimation>();
+            Assume.That(view, Is.Not.Null, "her animation");
+            yield return RunFor(Vector3.right, 0.5f);
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Run));
+            int frames = 0;
+            for (; frames < 6 && (frames == 0 || view.Pose != CharacterPose.Idle); frames++)
+            {
+                _p.Steer(Vector3.zero);
+                yield return null;
+            }
+            Assert.That(view.Pose, Is.EqualTo(CharacterPose.Idle), "standing");
+            Assert.That(frames, Is.LessThanOrEqualTo(3), "within a frame or two, as today");
+            Assert.That(_p.BodyMoving, Is.EqualTo(_p.IsMoving), "Off: her body's moving is the keys'");
+            _p.Shoot(_p.Position + new Vector3(3f, 0f, 6f));
+            Assert.That(_p.IsShootingOnTheMove, Is.False, "a standing shot");
+        }
+
         // ---------------- Helpers ----------------
 
         IEnumerator RunFor(Vector3 dir, float seconds, Vector3? aim = null)

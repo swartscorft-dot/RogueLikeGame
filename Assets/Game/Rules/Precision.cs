@@ -77,6 +77,8 @@ namespace Roguelike.Rules
         public float InertiaAcceleration = 60f;
         /// <summary>m/s² more while the held direction points against her motion: the counter-strafe.</summary>
         public float InertiaBrake = 60f;
+        /// <summary>m/s: under Inertia she counts as moving (her poses, a shot on the move, the log's sample) while her body is faster than this with no key held (the poses' own <see cref="PoseRule.MoveThreshold"/>).</summary>
+        public float InertiaMovingSpeed = PoseRule.MoveThreshold;
         /// <summary>s: the longest small step the law is run in, so it is the same at any frame rate (a frame is cut into equal steps no longer than this).</summary>
         public float InertiaStep = 1f / 1000f;
 

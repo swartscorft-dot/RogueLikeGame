@@ -59,6 +59,15 @@ namespace Roguelike
 
         /// <summary>The mode in use this frame.</summary>
         public PrecisionMode PrecisionModeNow => _pmode;
+
+        /// <summary>
+        /// Work order 143's second round: her body moves, as shown and as a shot reads it. <see cref="IsMoving"/> (a move key held and
+        /// she free to move), and under Inertia also while she slides on with no key held, her real speed above
+        /// <see cref="PrecisionValues.InertiaMovingSpeed"/> (the poses' own threshold). Off, Meter and Ghost: exactly IsMoving.
+        /// </summary>
+        public bool BodyMoving =>
+            IsMoving || (_pmode == PrecisionMode.Inertia && !_dashing && !_inCover && !_duck.IsDown && !_held.IsHeld && !_jumping
+                         && (_actionKind != ActionKind.Skill || IsInLightSkill) && Speed > PV.InertiaMovingSpeed);
         /// <summary>The share of her run speed the accuracy reads now (the meter's as the share it stands for).</summary>
         public float PrecisionShare => _precisionShare;
         /// <summary>The cone's full width in degrees a shot would have now, after her Precision's cut; 0 Off.</summary>

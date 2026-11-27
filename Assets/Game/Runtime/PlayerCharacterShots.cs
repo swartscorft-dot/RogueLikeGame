@@ -44,7 +44,7 @@ namespace Roguelike
                 return;
             }
             Report(new PlayerReport { Kind = PlayerReportKind.ShotClicked, Result = IntentResult.Started });
-            StartBasicShot(Feel, onTheMove: IsMoving);
+            StartBasicShot(Feel, onTheMove: BodyMoving); // work order 143: under Inertia, sliding on is on the move (Off: IsMoving)
         }
 
         /// <summary>Drops a waiting click, as a dash or a skill does, and reports it if one was waiting.</summary>
