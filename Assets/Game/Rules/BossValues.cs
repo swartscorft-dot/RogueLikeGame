@@ -125,6 +125,19 @@ namespace Roguelike.Rules
         public static bool NoPacks = true;
         /// <summary>The finale's numbers (work order 106): the roar, the lamps' colour, the Ground Slam.</summary>
         public BossFinaleValues Phases = new BossFinaleValues();
+
+        /// <summary>
+        /// Work order 146, ON by default. Kristian, 2026-11-27, after the first run that reached it alone: "bossen stod fast mellom en
+        /// trang path. så det var grise enkelt. [...] nå sto jeg basicly bare stille og høyre cklikket." Its charge needs only a thin
+        /// line of sight to her, but runs on the walkable ground, which keeps half a metre off every wall and pier (the agent the
+        /// NavMesh is built for) and has a hole at every low prop; so where its sight to her grazes a pier's corner, the charge was cut
+        /// to almost nothing, it stood its windup and its recovery, and as she stood still it charged the same line again, for as long
+        /// as she stood there. On: it begins no charge whose line, as cut, stops short of her where she stands
+        /// (<see cref="BossTactics.ChargeReachesHer"/>); it walks toward her round the corner instead, and a charge whose line is not
+        /// cut is begun as before. Off: as before, field for field. One switch for the whole game, so it is static; tests set it and
+        /// put it back.
+        /// </summary>
+        public static bool NeverParked = true;
     }
 
     /// <summary>
@@ -147,9 +160,12 @@ namespace Roguelike.Rules
         /// <summary>
         /// The attack for this distance, remembering it (<see cref="Choose(float, bool, string, EnemyAttackDefinition[])"/>).
         /// </summary>
-        public EnemyAttackDefinition Choose(float distance, bool seesHer, EnemyValues values)
+        public EnemyAttackDefinition Choose(float distance, bool seesHer, EnemyValues values) => Choose(distance, seesHer, true, values);
+
+        /// <summary>As above, with a charge held back when <paramref name="chargeReaches"/> is false (work order 146).</summary>
+        public EnemyAttackDefinition Choose(float distance, bool seesHer, bool chargeReaches, EnemyValues values)
         {
-            EnemyAttackDefinition a = Choose(distance, seesHer, _lastClose, values?.Attacks);
+            EnemyAttackDefinition a = Choose(distance, seesHer, chargeReaches, _lastClose, values?.Attacks);
             if (a != null && a.Rush <= 0f) _lastClose = a.Name;
             return a;
         }
@@ -160,7 +176,14 @@ namespace Roguelike.Rules
         /// <paramref name="lastClose"/>, so the cleave and the spin take turns when both reach; else a rushing attack whose
         /// band holds her, if it sees her; else none, and it walks toward her.
         /// </summary>
-        public static EnemyAttackDefinition Choose(float distance, bool seesHer, string lastClose, EnemyAttackDefinition[] attacks)
+        public static EnemyAttackDefinition Choose(float distance, bool seesHer, string lastClose, EnemyAttackDefinition[] attacks) =>
+            Choose(distance, seesHer, true, lastClose, attacks);
+
+        /// <summary>
+        /// As above, with a rushing attack held back when <paramref name="chargeReaches"/> is false (work order 146: its line, as
+        /// cut, stops short of her, <see cref="ChargeReachesHer"/>): it walks toward her instead; the close attacks are as before.
+        /// </summary>
+        public static EnemyAttackDefinition Choose(float distance, bool seesHer, bool chargeReaches, string lastClose, EnemyAttackDefinition[] attacks)
         {
             if (attacks == null) return null;
             EnemyAttackDefinition first = null, other = null;
@@ -171,7 +194,7 @@ namespace Roguelike.Rules
                 if (other == null && a.Name != lastClose) other = a;
             }
             if (first != null) return other ?? first;
-            if (!seesHer) return null;
+            if (!seesHer || !chargeReaches) return null;
             foreach (EnemyAttackDefinition a in attacks)
                 if (a != null && a.Rush > 0f && distance >= a.MinDistance && distance <= a.MaxDistance) return a;
             return null;
@@ -251,6 +274,18 @@ namespace Roguelike.Rules
             for (double x = x1; x > x0; x -= step) Try(x, y1);
             for (double y = y1; y > y0; y -= step) Try(x0, y);
             return places;
+        }
+
+        /// <summary>
+        /// Does a charge straight at her reach her (work order 146, <see cref="BossValues.NeverParked"/>)? Its line not cut
+        /// (<paramref name="cutReach"/> its whole <paramref name="length"/>): yes, as before, wherever she is in its band. Cut short (at
+        /// the end of the walkable ground, the only cut a charge that sees her has): only when the strip it runs, as
+        /// <see cref="RushPasses"/> tests it, still covers her where she stands, <paramref name="distance"/> from it.
+        /// </summary>
+        public static bool ChargeReachesHer(float length, float cutReach, float distance, float halfWidth, float herRadius)
+        {
+            if (cutReach >= length - 1e-4f) return true;
+            return distance <= Math.Max(0f, cutReach) + halfWidth + herRadius + 1e-4f;
         }
 
         /// <summary><paramref name="count"/> of the places, evenly spread through the list (all of them when there are no more).</summary>
