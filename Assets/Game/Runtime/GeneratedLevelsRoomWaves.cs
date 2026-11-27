@@ -63,8 +63,10 @@ namespace Roguelike
             public float NextTryAt;
             /// <summary>The enemies standing in their discs.</summary>
             public readonly List<WaveArrival> Arriving = new List<WaveArrival>();
-            /// <summary>For the test bot and the report: tries that left one waiting, and the enemies that waited at least once.</summary>
+            /// <summary>For the test bot and the report: tries that found too few good points, and the enemies that had to wait for one.</summary>
             public int WaitTries, Waited;
+            /// <summary>True for the first try of a wave or of a group of it (the limit at one moment), when the enemies short of a point are counted in <see cref="Waited"/>.</summary>
+            public bool NewGroup;
             /// <summary>Every arrival so far, for the tests (distance from her as it began, its point).</summary>
             public readonly List<WaveArrival> Arrived = new List<WaveArrival>();
             /// <summary>The room's points an arrival may be tried at, made the first time; and, for each, its place on the NavMesh (asked once).</summary>
@@ -186,7 +188,8 @@ namespace Roguelike
                     NoteWave(w, "start", 1, -1, "", 0);
                     continue;
                 }
-                if (w.Waiting.Count > 0 && now >= w.NextTryAt) TryArrivals(w, now, rules, false);
+                // The rest of a wave: after a wait for a point, or, held back by the limit at one moment, once the group before has stood.
+                if (w.Waiting.Count > 0 && now >= w.NextTryAt && (rules.MostAtOnce <= 0 || w.Arriving.Count == 0)) TryArrivals(w, now, rules, false);
                 if (w.Started >= w.Count) continue;
                 List<Enemy> before = w.Waves[w.Started - 1];
                 int dead = DeadOf(before);
@@ -199,6 +202,7 @@ namespace Roguelike
         void StartWave(RoomWaves w, float now, int beforeAlive, RoomWaveValues rules)
         {
             w.Started++;
+            w.NewGroup = true;
             w.StartedAt = now;
             w.Waiting.Clear();
             foreach (Enemy e in w.Waves[w.Started - 1])
@@ -256,7 +260,8 @@ namespace Roguelike
                 // Not behind anything she cannot walk through: a whole path from her to it.
                 return !herOnMesh || (NavMesh.CalculatePath(herHit.position, w.OnMesh[i], NavMesh.AllAreas, _wavePath) && _wavePath.status == NavMeshPathStatus.PathComplete);
             }
-            List<int> kept = RoomWaveRules.Pick(w.Points, w.Waiting.Count, her, view, margin, upX, upZ, _waveTaken, rules, w.Rng, Reachable);
+            int wanted = rules.MostAtOnce > 0 ? Mathf.Min(w.Waiting.Count, rules.MostAtOnce) : w.Waiting.Count; // the producer's ruling: at most so many at one moment
+            List<int> kept = RoomWaveRules.Pick(w.Points, wanted, her, view, margin, upX, upZ, _waveTaken, rules, w.Rng, Reachable);
             var words = new StringBuilder();
             for (int k = 0; k < kept.Count; k++)
             {
@@ -272,12 +277,14 @@ namespace Roguelike
                      .Append(seen.x.ToString("0.###", CultureInfo.InvariantCulture)).Append('|').Append(seen.y.ToString("0.###", CultureInfo.InvariantCulture));
             }
             w.Waiting.RemoveRange(0, kept.Count);
-            if (w.Waiting.Count > 0)
+            if (w.Waiting.Count > 0) w.NextTryAt = now + Mathf.Max(0f, rules.WaitSeconds);
+            if (kept.Count < wanted)
             {
-                w.NextTryAt = now + Mathf.Max(0f, rules.WaitSeconds);
+                // Too few good points: the rest wait for one (not those the limit at one moment holds back).
                 w.WaitTries++;
-                if (first) w.Waited += w.Waiting.Count;
+                if (w.NewGroup) w.Waited += wanted - kept.Count;
             }
+            w.NewGroup = false;
             if (!first && kept.Count > 0) NoteWave(w, "arrival", w.Started, -1, words.ToString(), w.Waiting.Count, now - w.StartedAt);
             return words.ToString();
         }
@@ -345,6 +352,12 @@ namespace Roguelike
                 if (a.Disc != null) Destroy(a.Disc.gameObject);
                 a.Disc = null;
                 w.Arriving.RemoveAt(i);
+                if (w.Arriving.Count == 0 && w.Waiting.Count > 0 && rules.MostAtOnce > 0)
+                {
+                    // A group has stood: the next begins one interval later (the producer's ruling).
+                    w.NextTryAt = Mathf.Max(w.NextTryAt, now + Mathf.Max(0f, rules.WaitSeconds));
+                    w.NewGroup = true;
+                }
                 Enemy e = a.Enemy;
                 if (e == null || e.IsDead) continue;
                 e.ArriveAt(a.At);

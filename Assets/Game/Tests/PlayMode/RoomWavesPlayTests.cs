@@ -221,6 +221,26 @@ namespace Roguelike.PlayModeTests
         }
 
         [UnityTest, Timeout(120000)]
+        public IEnumerator ALargeWave_ComesInGroupsOfTheMostAtOneMoment_EachOneIntervalAfterTheGroupBeforeStood()
+        {
+            GeneratedLevel level = Build(v => v.WaveRules.MostAtOnce = 1);
+            yield return Frames(2);
+            GeneratedLevels.RoomWaves w = _levels.RoomWaveList.FirstOrDefault(x => x.Count >= 2 && x.Waves[1].Count >= 2);
+            Assert.That(w, Is.Not.Null, "a room whose second wave holds two or more");
+            yield return InAndToTheMiddle(level, w.Room);
+            RoomWaveValues rules = _levels.Values.WaveRules;
+            Kill(w.Waves[0].Take(RoomWaveRules.DeadFor(w.Waves[0].Count, rules)));
+            yield return Until(() => w.Started == 2, 1f);
+            Assert.That(w.Arriving.Count, Is.EqualTo(1), "one at one moment");
+            Assert.That(w.Waiting.Count, Is.EqualTo(w.Waves[1].Count - 1), "the rest held back");
+            float first = w.Arriving[0].Since;
+            yield return Until(() => w.Arrived.Count >= 2, rules.DiscSeconds + rules.WaitSeconds + 1f);
+            Assert.That(w.Arrived.Count, Is.GreaterThanOrEqualTo(2), "the next group came");
+            Assert.That(w.Arrived[1].Since - first, Is.GreaterThanOrEqualTo(rules.DiscSeconds + rules.WaitSeconds - 0.05f), "one interval after the group before stood");
+            Assert.That(w.Waited, Is.EqualTo(0), "held back by the limit, not for want of a point");
+        }
+
+        [UnityTest, Timeout(120000)]
         public IEnumerator TheRecorder_WritesEachWave_AndTheRoomsFightItsWaves()
         {
             _folder = Path.Combine(Path.GetTempPath(), "RoguelikeWavesTests_" + Guid.NewGuid().ToString("N"));

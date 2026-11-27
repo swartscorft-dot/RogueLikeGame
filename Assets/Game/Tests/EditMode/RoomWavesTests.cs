@@ -36,6 +36,7 @@ namespace Roguelike.Rules.Tests
             Assert.That(W.NeverNearer, Is.EqualTo(3f));
             Assert.That(W.DiscSeconds, Is.EqualTo(1f), "the order's 1.0 s");
             Assert.That(W.DiscRadius, Is.EqualTo(1f));
+            Assert.That(W.MostAtOnce, Is.EqualTo(5), "the producer's ruling: a large wave in groups of five");
         }
 
         /// <summary>The waves are the fight's, not the generator's: on or off, every floor is the same, field for field, its map too.</summary>

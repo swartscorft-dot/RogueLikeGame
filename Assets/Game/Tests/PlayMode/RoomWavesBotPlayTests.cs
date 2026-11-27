@@ -16,9 +16,9 @@ namespace Roguelike.PlayModeTests
     /// The numbers of work order 136 (two waves) for him, from a TEST BOT, not from play: on floors 1 to 5 of two run seeds, every combat
     /// room but the elite room is fought by a simple stand-in for her (WarderAndLancerOnScreenPlayTests' stand-in: she walks toward the
     /// nearest enemy of the room in play until she is within <see cref="Closes"/> of it, and shoots it with the basic shot, the camera
-    /// following her; her health filled again every frame, the damage she took counted with its time), three times: version 24's rooms
-    /// (the line-ups and the waves off: everything wakes at once), work order 135 alone (the line-ups on, the waves off), and with the
-    /// waves. Counted for each fight: the kind of its last kill, the sameness of its kill order (Kendall's tau-b of the kill times against
+    /// following her; her health filled again every frame, the damage she took counted with its time), four times: version 24's rooms
+    /// (the line-ups and the waves off: everything wakes at once), work order 135 alone (the line-ups on, the waves off), with the
+    /// waves, and with the waves but every enemy of a wave at once (RoomWaveValues.MostAtOnce 0, as before the producer's ruling). Counted for each fight: the kind of its last kill, the sameness of its kill order (Kendall's tau-b of the kill times against
     /// small, melee, ranged, as research R3's rooms.py), the seconds from the waking to her first hit on a ranged enemy, the clear time, the
     /// damage she took, the damage in its first <see cref="Window"/> s, the longest time in the fight with no enemy of it in play, the
     /// arrivals that had to wait for a point, and the most enemies awake at once; and for each later wave the damage in the
@@ -150,7 +150,7 @@ namespace Roguelike.PlayModeTests
                 List<Wave> all = Fights.SelectMany(f => f.Later).ToList();
                 if (all.Count == 0) return "no later waves";
                 return string.Join("; ", all.GroupBy(w => w.Kinds).OrderBy(g => g.Key).Select(g => string.Format(Inv,
-                    "{0}: {1} waves, {2:0} s after its first stood: mean {3:0.0}, worst {4:0}, deadly {5}; held back {6} of {7} enemies in {8} waves",
+                    "{0}: {1} waves, {2:0} s after its first stood: mean {3:0.0}, worst {4:0}, deadly {5}; came after the first (the limit at one moment, or no point) {6} of {7} enemies in {8} waves",
                     g.Key, g.Count(), Window, g.Average(w => w.Damage), g.Max(w => w.Damage), g.Count(w => w.Deadly), g.Sum(w => w.Held), g.Sum(w => w.Count),
                     g.Count(w => w.Held > 0))));
             }
@@ -336,8 +336,71 @@ namespace Roguelike.PlayModeTests
             yield return FightThem(v => { v.Waves = false; }, lineUps);
             yield return FightThem(v => { }, waves);
             Report(v24, lineUps, waves);
+            var all = new Dictionary<int, Tally>();
+            yield return FightThem(v => { v.WaveRules.MostAtOnce = 0; }, all);
+            for (int floor = 1; floor <= 5; floor++)
+            {
+                string line = string.Format(Inv, "WAVESBOT floor {0} waves ON, every one of a wave at once (MostAtOnce 0): {1}\nWAVESBOT floor {0} later waves at once: {2}", floor, all[floor], all[floor].WavesWords());
+                Debug.Log(line);
+                TestContext.WriteLine(line);
+            }
             Assert.That(waves.Values.Sum(t => t.Fights.Count(f => f.Waves > 1)), Is.GreaterThan(0), "rooms with waves were fought");
         }
+
+        /// <summary>
+        /// The producer's worry of 2026-11-27, measured on the rooms themselves: on floors 3 to 5, line-up rooms whose wave 1 is one or two
+        /// bodies and whose wave 2 is ten or more shooters, and rooms whose wave 2 is eight or more brutes, found by the generator among the first seeds and
+        /// fought by the same stand-in, with the limit at one moment (<see cref="RoomWaveValues.MostAtOnce"/>, its default) and without it
+        /// (0: the whole wave at once). Each room's damage in the 6 s after its wave 2's first enemy stood, whether that was her whole health,
+        /// how many of the wave came after its first (by the limit or for want of a point), and how many lacked a point. Writes "BIGWAVES".
+        /// </summary>
+        [Explicit("about ten minutes: the numbers for the report, run by name"), UnityTest, Timeout(3600000)]
+        public IEnumerator TheLargeWavesBehindOneOrTwo_OnFloors3To5_WithTheLimitAndWithout()
+        {
+            var rooms = new List<(ulong seed, int floor, int order, string what)>();
+            for (int floor = 3; floor <= 5; floor++)
+            {
+                int found = 0;
+                for (ulong s = 1; s <= 600 && found < BigRoomsAFloor; s++)
+                {
+                    ulong seed = s * 2654435761UL + (ulong)floor;
+                    LevelLayout l = LevelGenerator.Generate(seed, floor, new LevelValues());
+                    foreach (LevelRoom r in l.Rooms)
+                    {
+                        if (r.Kind != RoomKind.Combat || r.Elite || r.LineUp == null || r.LineUp.Full) continue;
+                        int lead = r.EnemyGroups.Where(g => !g.Elite && g.Kind == r.LineUp.Lead).Sum(g => g.Count);
+                        int partner = r.EnemyGroups.Where(g => !g.Elite && g.Kind == r.LineUp.Partner).Sum(g => g.Count);
+                        bool big = (r.LineUp.Partner == EnemyKind.Shooter && partner >= 10 && lead <= 2) || (r.LineUp.Partner == EnemyKind.Brute && partner >= 8);
+                        if (!big) continue;
+                        rooms.Add((seed, floor, r.Order, r.LineUp.Name + ": " + EnemyKinds.Word(r.LineUp.Lead) + " " + lead + ", then " + EnemyKinds.Word(r.LineUp.Partner) + " " + partner));
+                        found++;
+                        break;
+                    }
+                }
+            }
+            Assert.That(rooms, Is.Not.Empty, "such rooms among the first seeds");
+            foreach (int most in new[] { new RoomWaveValues().MostAtOnce, 0 })
+            {
+                foreach ((ulong seed, int floor, int order, string what) in rooms)
+                {
+                    _levels.Values = new LevelValues();
+                    _levels.Values.WaveRules.MostAtOnce = most;
+                    GeneratedLevel level = _levels.Build(seed, floor);
+                    yield return Frames(2);
+                    var fight = new Fight();
+                    yield return FightRoom(level, level.Layout.Rooms[order], fight);
+                    Wave two = fight.Later.FirstOrDefault();
+                    string line = string.Format(Inv,
+                        "BIGWAVES limit {0} floor {1} seed {2} room {3} ({4}): first 6 s after the waking {5:0}; wave 2 ({6}) 6 s after its first stood {7:0}{8}; came after its first {9} of {10}; enemies that lacked a point {11}; cleared {12} in {13:0.0} s, damage {14}, most awake {15}",
+                        most, floor, LevelSeed.ToText(seed), order, what, fight.Opening, two?.Kinds ?? "-", two?.Damage ?? 0f, two != null && two.Deadly ? " (her whole health)" : "",
+                        two?.Held ?? 0, two?.Count ?? 0, fight.Waited, fight.Cleared, fight.Seconds, fight.Damage, fight.MostAwake);
+                    Debug.Log(line);
+                    TestContext.WriteLine(line);
+                }
+            }
+        }
+
+        const int BigRoomsAFloor = 4; // rooms of the worry measured a floor
 
         static void Report(Dictionary<int, Tally> v24, Dictionary<int, Tally> lineUps, Dictionary<int, Tally> waves)
         {

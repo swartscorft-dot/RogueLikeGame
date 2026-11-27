@@ -49,6 +49,15 @@ namespace Roguelike.Rules
         /// arrive one named interval later"; the producer's first guess, half a second: about the time she takes to walk 3 m).
         /// </summary>
         public float WaitSeconds = 0.5f;
+        /// <summary>
+        /// The most enemies of a wave that begin their discs at one moment (the producer's ruling of 2026-11-27, after work order 135 made
+        /// the waves larger: "a large wave arrives in groups one named interval apart, each with its own 1 s discs"); the rest wait, and
+        /// the next group begins <see cref="WaitSeconds"/> after the group before has stood, by the same rule. Counted in enemies, not in
+        /// a kind's weight: the cases measured unfair were counts of one kind (seven brutes, twelve to fourteen swarmers), and a count is
+        /// what he sees. 5: in the test bot's measure on the merged floors every wave of five or fewer took at most about 1.5 times its
+        /// floor's version-24 opening damage, and a wave of seven brutes 2.1 times. 0: no limit (every one at once, as before the ruling).
+        /// </summary>
+        public int MostAtOnce = 5;
 
         // ---- The tell (research R3's B1: "a flat glowing disc of 1 m radius", Hades' 1.0 s)
         /// <summary>s the disc stands on the ground before its enemy stands there awake (the order's 1.0 s; Hades waits 1.0 s, research R3).</summary>
