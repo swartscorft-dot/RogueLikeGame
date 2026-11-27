@@ -161,6 +161,7 @@ namespace Roguelike
             else if (TimingCueLines.Is(line)) done = TimingCueSettings.ChangeLine(line, delta);
             else if (PrecisionSettings.Is(line)) done = PrecisionSettings.ChangeLine(line, delta); // work order 143
             else if (SightSettings.Is(line)) done = SightSettings.ChangeLine(line, delta); // work order 144
+            else if (BossTrialSettings.Is(line)) done = BossTrialSettings.ChangeLine(line, delta); // work order 147
             else done = RunHud.Current != null && RunHud.MenuLineOf(line, out RunHud.MenuLine menuLine) && RunHud.Current.ChangeSetting(menuLine, delta);
             if (done) MakeRows();
             return done;
@@ -208,6 +209,13 @@ namespace Roguelike
                     {
                         _names.Add(SightLines.Name);
                         _values.Add(SightSettings.LineWords);
+                        _notes.Add("");
+                        _greyed.Add(false);
+                    }
+                    else if (BossTrialSettings.Is(line)) // work order 147's line, read through BossTrialSettings
+                    {
+                        _names.Add(BossTrialSettings.Name);
+                        _values.Add(BossTrialSettings.LineWords);
                         _notes.Add("");
                         _greyed.Add(false);
                     }

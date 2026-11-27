@@ -196,7 +196,7 @@ namespace Roguelike.Rules.Tests
         {
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - (SightValues.On ? 2 : 1)], Is.EqualTo(SettingLine.Precision)); // work order 144's line after it
+            Assert.That(lines[lines.Count - 1 - (SightValues.On ? 1 : 0) - (BossValues.Trial ? 1 : 0)], Is.EqualTo(SettingLine.Precision)); // work order 144's and 147's lines after it
             Assert.That(SettingsPages.PageOf(SettingLine.Precision), Is.EqualTo(SettingsPage.Trials));
             PrecisionValues.On = false;
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
