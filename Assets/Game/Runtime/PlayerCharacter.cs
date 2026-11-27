@@ -489,6 +489,7 @@ namespace Roguelike
             _easing = false;
             _shotFacing.End(turnBack: false);
             _backpedalCap.Reset();
+            FreshPrecision(); // work order 143: the draw's bag from the run's seed, the meter and the ghost at rest
             // Work order 029 (the rack between runs, only when it is switched on and a piece says so): Spare Step's dash
             // charges, and Steady Start's focus.
             RefreshDashCharges();
@@ -497,7 +498,15 @@ namespace Roguelike
 
         // ---------------- Simulation ----------------
 
+        // Work order 143: precision's work before and after the frame's own (PlayerCharacterPrecision.cs); Off, it does nothing.
         void Update()
+        {
+            PrecisionBefore();
+            UpdateFrame();
+            PrecisionAfter();
+        }
+
+        void UpdateFrame()
         {
             FeelValues feel = Feel;
             float now = Time.time;

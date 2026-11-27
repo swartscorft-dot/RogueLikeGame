@@ -304,6 +304,15 @@ namespace Roguelike.Rules
         /// <summary>The share of stagger everything she does takes off a bar.</summary>
         public float Stagger => 1f + _m.Total(UpgradeKind.HeavyHits);
 
+        // ---------------- Work order 143's Precision ("en ny stat vi kan oppgradere og gi stats for"): only while precision is in use ----------------
+
+        /// <summary>The share her basic shot's moving cone is cut by: her pistols' parts' (the Laser Sight's 40 %), to the cap (60 %); 0 off.</summary>
+        public float Precision => PrecisionValues.ModeNow == PrecisionMode.Off ? 0f : Math.Min(PrecisionValues.Live.MostCut, Math.Max(0f, _m.Weapon.MovingConeCut));
+        /// <summary>The share of run speed at or under which she is accurate (35 %): a value parts can move later; nothing moves it yet.</summary>
+        public float PrecisionAccurateShare => PrecisionValues.Live.AccurateShare;
+        /// <summary>The settle time's scale (1: the meter's fall and the ghost's friction as their values): a value parts can move later; nothing moves it yet.</summary>
+        public float PrecisionSettle => 1f;
+
         static float Clamp01(float x) => x < 0f ? 0f : x > 1f ? 1f : x;
 
         // ---------------- In words ----------------

@@ -86,6 +86,7 @@ namespace Roguelike
             float startup = BasicShotStartupNow(feel); // work order 110: a grip's quicker first shot after a dash or a skill
             ActionLeadTime = startup;
             _shotStartedAt = Time.time;
+            PrecisionShotStarted(); // work order 143: the share at the press, and its lowest in the wind-up from here
             _action.Start(Time.time, startup, feel.BasicShotActive, BasicShotRecoveryNow(feel)); // work order 050: attack speed
             Report(new PlayerReport { Kind = PlayerReportKind.ShotStarted, Moving = onTheMove });
         }
@@ -108,6 +109,7 @@ namespace Roguelike
             _shotWeight = LastShotWeight = ShotWeight.Basic; // work order 064
             PlayBasicShotSound(look); // on a hit or a miss alike; work order 064: never the same twice running
 
+            DeflectBasicShot(); // work order 143: the aim turned inside the shot's cone (Off: as it was)
             GroundPoint origin = GroundPosition;
             var aim = new GroundPoint(_aimPoint.x, _aimPoint.z);
             // Work order 060: where it ends is one calculation (BasicShotEnd). Work order 102: the Laser Sight no longer draws it.
