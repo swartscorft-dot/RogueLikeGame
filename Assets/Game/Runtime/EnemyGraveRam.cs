@@ -210,10 +210,13 @@ namespace Roguelike
             LineRenderer telegraph = null;
             if (template.Telegraph != null)
             {
-                GameObject tg = UnityEngine.Object.Instantiate(template.Telegraph.gameObject, parent, false);
+                // Its own, as every enemy's telegraph is (EnemyFactory.Make): the floor's cave draws and hides it with the Ram, by the room it
+                // stands in (the merge of 2026-11-27, W3: under the floor's root it belonged to no room). Its world scale stays 1, under the
+                // Ram's own scale, as it was.
+                GameObject tg = UnityEngine.Object.Instantiate(template.Telegraph.gameObject, go.transform, false);
                 tg.name = name + "_Telegraph";
                 tg.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-                tg.transform.localScale = Vector3.one;
+                tg.transform.localScale = Vector3.one / shown;
                 telegraph = tg.GetComponent<LineRenderer>();
             }
 
@@ -259,10 +262,12 @@ namespace Roguelike
             if (Telegraph == null) return;
             for (int i = 0; i < _stoneLines.Length; i++)
             {
-                GameObject go = Instantiate(Telegraph.gameObject, transform.parent, false);
+                // Its own, as its telegraph (the merge of 2026-11-27, W3): the cave draws and hides them with the Ram; world scale 1 as before.
+                GameObject go = Instantiate(Telegraph.gameObject, transform, false);
                 go.name = name + "_Stone_" + (i + 1);
                 go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-                go.transform.localScale = Vector3.one;
+                float scale = transform.localScale.x > 1e-4f ? transform.localScale.x : 1f;
+                go.transform.localScale = Vector3.one / scale;
                 LineRenderer line = go.GetComponent<LineRenderer>();
                 line.loop = true;
                 line.useWorldSpace = true;
