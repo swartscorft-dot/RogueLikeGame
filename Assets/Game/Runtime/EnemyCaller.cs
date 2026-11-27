@@ -110,11 +110,22 @@ namespace Roguelike
             Paint();
         }
 
-        /// <summary>Its tint on its body (the caster's model, or its capsule): its body's colour, which the daze goes back to.</summary>
+        /// <summary>
+        /// Its tint on its body (the caster's model, or its capsule): its body's colour, which the daze goes back to. On the caster's model
+        /// its whole body also glows faintly in it (<see cref="CallerValues.BodyGlow"/>, in place of the caster's cyan eyes, palms and
+        /// amulet), so the tint reads on a dark floor, where the floor's light on enemies is the model's own untinted picture.
+        /// </summary>
         void Paint()
         {
             BodyColor = EnemyFactory.ColorOf(Calls.Tint);
-            if (BodyRenderer != null) EnemyFactory.Paint(BodyRenderer.sharedMaterial, BodyColor);
+            if (BodyRenderer == null) return;
+            Material m = BodyRenderer.sharedMaterial;
+            EnemyFactory.Paint(m, BodyColor);
+            if (Look == null || m == null || Calls.BodyGlow <= 0f || !m.HasProperty("_EmissionColor")) return;
+            if (m.HasProperty("_EmissionMap")) m.SetTexture("_EmissionMap", null); // the whole body, not the caster's glowing parts
+            Color lit = CryptKit.Glowing(Calls.Tint, Calls.BodyGlow);
+            m.SetColor("_EmissionColor", QualitySettings.activeColorSpace == ColorSpace.Linear ? lit.gamma : lit);
+            m.EnableKeyword("_EMISSION");
         }
 
         void OnHurt(int amount)

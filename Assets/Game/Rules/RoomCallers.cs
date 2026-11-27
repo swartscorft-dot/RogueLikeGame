@@ -85,6 +85,13 @@ namespace Roguelike.Rules
         /// lancer's blood red (0.72, 0.18, 0.2), the bomber's ember, the elite's gold, the daze's pale blue and the waves' pale violet discs.
         /// </summary>
         public Rgb Tint = new Rgb(1f, 0.3f, 0.85f);
+        /// <summary>
+        /// How strongly its whole body glows in its tint (the strength of a glow as the crypt kit's and the caster's eyes are given it;
+        /// theirs is 3 on small parts): its look's pictures on floor 5 showed the tint alone unread, the caster and the caller both dark
+        /// red-brown, because the floor's light on enemies adds the model's own untinted picture; at 0.3 it read at once but as a flat pink
+        /// cut-out, its bones lost; 0.15 keeps some of them. 0: the tint alone, no glow.
+        /// </summary>
+        public float BodyGlow = 0.15f;
 
         /// <summary>The name of its one attack, the call (the recorder's attack word; its model plays the caster's CastBig for it).</summary>
         public const string Call = "Call";
