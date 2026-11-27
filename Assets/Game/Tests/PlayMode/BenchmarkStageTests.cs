@@ -70,6 +70,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(boss, Is.Not.Null);
             Assert.That(boss, Is.SameAs(level.Boss));
             Assert.That(boss.IsAwake, Is.True, "the boss is awake");
+            Assert.That(boss.InTrial, Is.False, "work order 146's boss, not 147's trial fight: nobody is at the keys (the merge of 2026-11-27, W3)");
             Assert.That(boss.PacksCalled, Is.EqualTo(2), "both packs called");
             Assert.That(boss.IsAngry, Is.True);
             Assert.That(boss.HealthShare, Is.LessThan(1f / 3f));
@@ -103,6 +104,10 @@ namespace Roguelike.PlayModeTests
             // from a swarmer's middle, under the 2.799 the stand's own rule keeps; the room's other enemies stood elsewhere).
             Assert.That(level.Layout.Rooms.Where(r => r.LineUp != null), Is.Empty, "no line-up room on the benchmark's floor");
             Assert.That(GeneratedLevels.Current.Values.LineUps, Is.True, "the values' own switch put back after the build");
+            // The merge of 2026-11-27, W3: no caller, and today's elite on floor 1 in place of work order 149's Grave Ram; the switches put back.
+            Assert.That(level.Enemies.OfType<EnemyCaller>(), Is.Empty, "no caller");
+            Assert.That(level.Elite, Is.Not.Null.And.Not.InstanceOf<EnemyGraveRam>(), "today's elite, not the Ram");
+            Assert.That(GeneratedLevels.Current.Values.Callers && EliteValues.Unique, Is.True, "the callers' and the unique elite's switches put back");
             int most = level.Layout.Rooms.Where(r => r.Kind == RoomKind.Combat && !r.Elite)
                                          .Max(r => level.EnemiesByRoom.TryGetValue(r.Order, out var l) ? l.Count : 0);
             Assert.That(level.EnemiesByRoom[room.Order].Count, Is.EqualTo(most), "the fullest combat room");

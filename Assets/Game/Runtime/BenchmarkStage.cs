@@ -27,7 +27,8 @@ namespace Roguelike
     /// Every scenario is the same each time: the floors are those of <see cref="RunSeed"/> (floor n's seed is
     /// <see cref="RunSeeds.FloorSeed"/> of it and n), built alone outside a run with <see cref="GeneratedLevels.Build"/>
     /// (so no reward, chest or heal comes up) and with the line-ups (work order 135) and the waves (work order 136) off, so
-    /// their rooms are version 24's and wake whole (the merge of 2026-11-27, W2), and the room is the combat room with the most enemies (the first of them
+    /// their rooms are version 24's and wake whole (the merge of 2026-11-27, W2), with no caller (137) and today's elite in place of
+    /// the Grave Ram (149; the merge of 2026-11-27, W3), and the room is the combat room with the most enemies (the first of them
     /// in the floor's order when two hold as many; not the elite room), or floor 5's exit room. She stands where the
     /// fight is (<see cref="StandFor"/>): the place of the room, on its NavMesh, nearest to the farthest of its enemies,
     /// and clear of each of them (the boss too), so that every one of them is within its leash and comes for her when
@@ -112,6 +113,12 @@ namespace Roguelike
                 bool waves = levels.Values != null && levels.Values.Waves;
                 bool lineUps = levels.Values != null && levels.Values.LineUps;
                 bool callers = levels.Values != null && levels.Values.Callers; // work order 137: nor a caller, for the same reason
+                // The merge of 2026-11-27 (W3), for the same reason: floor 1's elite room holds today's elite and its others, not work order
+                // 149's Grave Ram alone (read as the floor is built; with nobody at the keys, as here, its switch's own value). Work order
+                // 147's trial boss needs nothing here: the trial fight is in use only for a player at the keys (BossTrialSettings.InUse), and
+                // the benchmark plays with nobody at them, so floor 5's boss is 146's, as every benchmark before measured.
+                bool unique = EliteValues.Unique;
+                EliteValues.Unique = false;
                 if (levels.Values != null)
                 {
                     levels.Values.Waves = false;
@@ -130,6 +137,7 @@ namespace Roguelike
                         levels.Values.LineUps = lineUps;
                         levels.Values.Callers = callers;
                     }
+                    EliteValues.Unique = unique;
                 }
                 if (stage.Level == null) return stage;
                 stage.Room = scenario == BenchmarkScenario.Floor5Boss ? stage.Level.Layout.ExitRoom : FullestCombatRoom(stage.Level);
