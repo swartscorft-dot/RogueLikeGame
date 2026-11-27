@@ -648,6 +648,20 @@ namespace Roguelike.Rules
         // screen's Trials page turns it off for the floors built after (RoomTrialSettings in the game).
         public bool LineUps = true;
         public LineUpValues LineUpRules = new LineUpValues();
+
+        // ---------------- Two waves (work order 136, 2026-11-27) ----------------
+
+        // Kristian's ticks of 2026-11-25, asked with the warning that the first rush gets smaller: waves "Ja, i de fleste rom", and the
+        // second wave "Når halve første er død"; on 2026-11-27, after a run without them: "jeg trodde vi hadde implimentert hades
+        // fremgangsmåten i hvert rom". ON: every combat room with a line-up brings its enemies in two waves (its lead as wave 1, placed
+        // and woken as before; its partner as wave 2), but floor 1's first combat room (one) and each floor's last combat room before its
+        // exit (three); the next wave comes the moment half of the one before is dead, each of its enemies at a point of the room in his
+        // view 7 to 11 m from her and never below her on his screen, after a second's disc (RoomWaveRules, the numbers in WaveRules). The
+        // doors stay shut and the room is not cleared until the last wave is dead. A rule of the fight read as the floor is set up (from
+        // each room's place on it), not of the generator: no floor and no pinned fingerprint changes. Off: every room wakes as on work
+        // order 135, field for field. The settings screen's Trials page turns it off for the floors built after (RoomTrialSettings).
+        public bool Waves = true;
+        public RoomWaveValues WaveRules = new RoomWaveValues();
     }
 
     /// <summary>

@@ -38,6 +38,7 @@ namespace Roguelike.Rules
         Attachments, Greybox, Light, ToonLook, BetweenRuns, CameraAngle,
         TimingCue, TimingClick, // the merge of 2026-11-26: work order 134's two choices on the Trials page (TimingCueLines)
         LineUps, // work order 135: the rooms' line-ups on or off, on the Trials page (RoomTrialLines)
+        Waves, // work order 136: the rooms' waves on or off, on the Trials page (RoomTrialLines)
     }
 
     /// <summary>The quality presets (work order 128): each sets the four lines under it; a hand-made mix of them reads Custom.</summary>
@@ -384,6 +385,7 @@ namespace Roguelike.Rules
                     into.Add(SettingLine.TimingCue);   // the merge of 2026-11-26: work order 134's cue at the sight,
                     into.Add(SettingLine.TimingClick); // and its cocking click, last on the page (TimingCueLines)
                     into.Add(SettingLine.LineUps);     // work order 135: the rooms' line-ups (RoomTrialLines), after them
+                    into.Add(SettingLine.Waves);       // work order 136: the rooms' waves (RoomTrialLines), last
                     break;
             }
         }

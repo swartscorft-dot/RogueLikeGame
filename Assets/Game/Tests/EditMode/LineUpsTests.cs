@@ -113,7 +113,8 @@ namespace Roguelike.Rules.Tests
         {
             var lines = new List<SettingLine>();
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
-            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.LineUps));
+            Assert.That(lines[lines.Count - 2], Is.EqualTo(SettingLine.LineUps)); // work order 136 (changed deliberately): its "Waves" after it, last
+            Assert.That(lines[lines.Count - 1], Is.EqualTo(SettingLine.Waves));
             Assert.That(SettingsPages.PageOf(SettingLine.LineUps), Is.EqualTo(SettingsPage.Trials));
             Assert.That(RoomTrialLines.Is(SettingLine.LineUps), Is.True);
             Assert.That(RoomTrialLines.Is(SettingLine.TimingClick), Is.False);
