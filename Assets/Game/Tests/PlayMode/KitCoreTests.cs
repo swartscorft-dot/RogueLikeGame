@@ -514,6 +514,11 @@ namespace Roguelike.PlayModeTests
         /// here (the ordinary shot that adds a mark, as its one press did before), and the rotation reads the new values
         /// (five basic shot hits a mark, Scatter Blast 6 s). The second test is the same with every second press of
         /// Backstep clean: the hard way, which spends the marks.
+        /// Changed deliberately in the merge of 2026-11-27: work order 142 opened Backstep's clean part with the hop's end
+        /// (KitTimingChoices.BackstepFromHopsEnd, his tick), so a second press as soon as the window opens is clean now and spends
+        /// the marks (Backstep shot 280 at five, every blast after the first on 0 or 5 marks, as the clean test); the window has no
+        /// early part. The ordinary shot that adds a mark is now a press after the clean part (late), so the first test presses
+        /// there, 0.05 s past it.
         /// </summary>
         [UnityTest]
         public IEnumerator Measure_TheStartFourOnCooldown_MarksAtEachBlast_AndTheTimeToFillFocus() => MeasureStartFour(cleanBackstep: false);
@@ -558,16 +563,17 @@ namespace Roguelike.PlayModeTests
                 }
                 bool free = !_player.IsLocked && _player.SkillGateRemaining <= 0f;
                 bool inCleanPart = _player.RecastSinceOpened >= (_player.RecastCleanFrom + _player.RecastCleanTo) * 0.5f;
+                bool pastCleanPart = _player.RecastSinceOpened >= _player.RecastCleanTo + 0.05f; // late: the ordinary shot (work order 142)
                 if (_player.RecastSlot == Triple && _player.IsRecastWindowOpen && (_player.RecastCleanShare <= 0f || inCleanPart))
                     _player.PressSkill(Triple, at);
-                else if (_player.RecastSlot == Backstep && _player.IsRecastWindowOpen && (!cleanBackstep || inCleanPart))
+                else if (_player.RecastSlot == Backstep && _player.IsRecastWindowOpen && (cleanBackstep ? inCleanPart : pastCleanPart))
                 {
                     int marksBefore = _a.MarkCount, lostBefore = Lost(_a), firedBefore = _player.SkillShotsFired;
                     _player.PressSkill(Backstep, at);
                     yield return Until(() => _player.SkillShotsFired > firedBefore, 2f);
                     int dealt = Lost(_a) - lostBefore;
                     steps.Add($"{marksBefore} marks: {dealt}");
-                    if (cleanBackstep) stepSpends.Add(new KeyValuePair<int, int>(marksBefore, dealt));
+                    stepSpends.Add(new KeyValuePair<int, int>(marksBefore, dealt));
                     continue;
                 }
                 else if (free && _player.RecastSlot < 0)
@@ -599,7 +605,7 @@ namespace Roguelike.PlayModeTests
             }
             Assert.That(marksAtBlast.Count, Is.GreaterThanOrEqualTo(4), "four blasts in the time");
             string blasts = string.Join(", ", marksAtBlast.Select((m, i) => $"{m} marks: {dealtAtBlast.ElementAtOrDefault(i)}"));
-            Debug.Log($"[0005] start four on cooldown, Backstep's second press {(cleanBackstep ? "clean" : "early")}: "
+            Debug.Log($"[0005] start four on cooldown, Backstep's second press {(cleanBackstep ? "clean" : "late")}: "
                     + $"marks when Scatter Blast came off cooldown {string.Join(", ", marksWhenReady)}; "
                     + $"at each Scatter Blast {blasts} (with no marks {blast.Damage}); "
                     + $"back at {kit.MaxMarks} marks after each blast: {string.Join(", ", backAtFive)}; "
@@ -615,6 +621,8 @@ namespace Roguelike.PlayModeTests
             }
             else
             {
+                foreach (KeyValuePair<int, int> shot in stepSpends)
+                    Assert.That(shot.Value, Is.EqualTo(step.Damage), $"a late Backstep on {shot.Key} marks is the ordinary shot");
                 Assert.That(marksAtBlast.Skip(1).Min(), Is.GreaterThanOrEqualTo(3), "the rotation builds marks for the blast");
             }
         }
