@@ -679,6 +679,21 @@ namespace Roguelike.Rules
         // screen's Trials page turns it off for the floors set up after (RoomTrialSettings).
         public bool Callers = true;
         public CallerValues CallerRules = new CallerValues();
+
+        // ---------------- The timed chest (work order 153, 2026-11-27) ----------------
+
+        // Kristian, 2026-11-25, after two and a half hours of play: "det er veldig likt hver gang ... vi trenger en mye større variasjon av
+        // utfordirnger i rommene"; asked which odd room a floor should come first (the timed chest, survive 40 s, the hunt, none yet), he
+        // ticked "Tidskisten": "The timed chest: open it to fight, and the reward shrinks while you fight". ON: from floor 2, one combat room
+        // a floor (never the first, the elite, exit or throne room, nor a caller's) holds a chest at a corner, shut and dim until the room's
+        // own fight is cleared, then faintly aglow; opened by the interact key, the doors shut and one wave of the room's own two kinds
+        // comes by work order 136's arrival rule; its Echoes start whole, fall 1 % a second from 9 s after the opening, never under 10 %,
+        // and stop at the wave's last kill; she takes what is left by the same key (TimedChestRules, the numbers in TimedChestRules). A rule
+        // of the fight read as the floor is set up, not of the generator: no floor and no pinned fingerprint changes. Static, as the order
+        // names it; the benchmark builds with it off. Off: every floor as on work order 137's merge (fb15f9c), field for field. The settings
+        // screen's ROOMS page turns it off for the floors set up after (TimedChestSettings).
+        public static bool TimedChests = true;
+        public TimedChestValues TimedChestRules = new TimedChestValues();
     }
 
     /// <summary>

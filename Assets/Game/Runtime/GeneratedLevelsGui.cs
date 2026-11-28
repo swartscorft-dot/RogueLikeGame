@@ -85,6 +85,7 @@ namespace Roguelike
                 }
                 if (kinetic) DrawChestPromptKinetic();
                 else DrawChestPrompt(scale);
+                DrawTimedChest(kinetic, scale); // work order 153: the timed chest's number, prompt and HUD line (GeneratedLevelsTimedChest.cs)
             }
             else if (ShowDevBox)
             {

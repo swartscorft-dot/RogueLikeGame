@@ -121,8 +121,8 @@ namespace Roguelike
 
         // ---------------- Intents ----------------
 
-        /// <summary>The interact key: picks up the drop in reach, else opens the chest in reach. True when either happened.</summary>
-        public bool Interact() => PickUpDrop() || OpenChest();
+        /// <summary>The interact key: picks up the drop in reach, else opens the chest in reach, else uses the timed chest in reach (work order 153). True when one happened.</summary>
+        public bool Interact() => PickUpDrop() || OpenChest() || UseTimedChest();
 
         /// <summary>Picks up the drop in reach that lies still, as the interact key does: its choice opens. False with none.</summary>
         public bool PickUpDrop()

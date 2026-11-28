@@ -57,6 +57,7 @@ namespace Roguelike
             SetUpRoomCallers(); // work order 137: the rooms' callers, their partners giving way, before the waves split them (GeneratedLevelsRoomCallers.cs)
             SetUpRoomWaves(); // work order 136: the rooms' waves, their later waves out of the game until they come (GeneratedLevelsRoomWaves.cs)
             SetUpRoomDoors(); // work order 086: the doors that close behind her (GeneratedLevelsRoomDoors.cs)
+            SetUpTimedChest(); // work order 153: the floor's timed chest, after the callers, the waves and the doors (GeneratedLevelsTimedChest.cs)
             if (_fightList.Count == 0) return;
             _fightsOf = _level;
             _level.EnemyCalled += OnCalledIntoAFight;
@@ -76,6 +77,7 @@ namespace Roguelike
             ForgetRoomDoors(); // work order 086
             ForgetRoomWaves(); // work order 136
             ForgetRoomCallers(); // work order 137
+            ForgetTimedChest(); // work order 153
         }
 
         /// <summary>A swarmer the boss calls belongs to the boss's room's fight at once (work order 070): it comes for her awake.</summary>
@@ -117,6 +119,7 @@ namespace Roguelike
             }
             TickRoomCallers(); // work order 137: the callers' discs, and their called falling with them (GeneratedLevelsRoomCallers.cs)
             TickRoomWaves(); // work order 136: the next waves, after the fights and before the doors (GeneratedLevelsRoomWaves.cs)
+            TickTimedChest(); // work order 153: the timed chest's wave and its reward, before the doors (GeneratedLevelsTimedChest.cs)
             TickRoomDoors(); // work order 086: after the fights, the doors that close behind her and open as the room is cleared
         }
 
