@@ -67,7 +67,7 @@ namespace Roguelike.Rules.Tests
             string largest = "";
             for (ulong s = 0; s < seeds; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, values);
+                LevelLayout level = SharedFloors.Once(s, floor, values); // work order 155: from the run's set (a batch at a time), read in this order
                 string where = "seed " + s + " floor " + floor;
                 Assert.That(level.Passages && level.InALine, where);
                 Assert.That(level.GridCells, Is.EqualTo(pv.GridCells));
@@ -122,7 +122,7 @@ namespace Roguelike.Rules.Tests
                 if (s >= compared) continue;
                 // The same seed with the passages off: the same enemies in every room, room for room; the same templates when the
                 // floors came of the same attempt (the templates are drawn on the attempt's stream, as with the passages off).
-                LevelLayout plain = LevelGenerator.Generate(s, floor, Off);
+                LevelLayout plain = SharedFloors.Once(s, floor, Off); // work order 155: from the run's set (a batch at a time), read in this order
                 List<LevelRoom> rooms = level.Rooms.Where(r => r.Kind != RoomKind.Passage).ToList();
                 Assert.That(rooms.Select(r => r.Kind), Is.EqualTo(plain.Rooms.Select(r => r.Kind)), "the row, " + where);
                 for (int i = 0; i < rooms.Count; i++)
@@ -208,9 +208,10 @@ namespace Roguelike.Rules.Tests
         public void SwitchOff_TwoThousandFloors_AreVersion15s_FieldForField()
         {
             ulong h = 14695981039346656037UL;
+            SharedFloors.Prefetch(Version15, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
             for (ulong s = 0; s < 2000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, Version15); // work order 072: version 15 had none of the second set
+                LevelLayout level = SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, Version15); // work order 072: version 15 had none of the second set // work order 155: from the run's set (a batch at a time), read in this order
                 Assert.That(level.Passages, Is.False);
                 Assert.That(level.Rooms.All(r => r.Kind != RoomKind.Passage), "no passage, seed " + level.SeedText);
                 Assert.That(level.Describe(), Does.Not.Contain("passages"));

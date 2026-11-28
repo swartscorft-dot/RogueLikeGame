@@ -189,9 +189,12 @@ namespace Roguelike.Rules.Tests
         {
             ulong h = 14695981039346656037UL;
             foreach (bool more in new[] { false, true })
+            {
+                var off = new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 103: the switch off named
+                SharedFloors.Prefetch(off, Enumerable.Range(0, more ? 1000 : 2000).Select(k => ((ulong)k * 7919UL + 89UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
                 for (ulong s = 0; s < (more ? 1000UL : 2000UL); s++)
                 {
-                    LevelLayout level = LevelGenerator.Generate(s * 7919UL + 89UL, (int)(s % 5) + 1, new LevelValues { MoreTemplates = more, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }); // work order 103: the switch off named
+                    LevelLayout level = SharedFloors.Once(s * 7919UL + 89UL, (int)(s % 5) + 1, off);
                     h = FloorPrint.Of(level, h);
                     foreach (LevelRoom r in level.Rooms)
                     {
@@ -203,6 +206,7 @@ namespace Roguelike.Rules.Tests
                         h = Mix(h, (ulong)r.CoverLowAdded);
                     }
                 }
+            }
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x2E1FD118BE87BD61UL; // Unity's EditMode run of this code (f02a9d2), the switch off, 2026-11-23
 #else
@@ -216,8 +220,12 @@ namespace Roguelike.Rules.Tests
         static IEnumerable<LevelLayout> Floors(int seedsAFloor, LevelValues v, IEnumerable<int> floors, ulong salt = 0)
         {
             foreach (int floor in floors)
+            {
+                // Work order 155: a batch at a time, read in this order, each checked as before.
+                SharedFloors.Prefetch(v, Enumerable.Range(0, seedsAFloor).Select(k => ((ulong)k * 6151UL + salt, floor)));
                 for (ulong s = 0; s < (ulong)seedsAFloor; s++)
-                    yield return LevelGenerator.Generate(s * 6151UL + salt, floor, v);
+                    yield return SharedFloors.Once(s * 6151UL + salt, floor, v);
+            }
         }
 
         /// <summary>

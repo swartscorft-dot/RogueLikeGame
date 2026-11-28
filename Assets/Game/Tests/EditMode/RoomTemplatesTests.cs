@@ -549,9 +549,10 @@ namespace Roguelike.Rules.Tests
         {
             var off = new LevelValues { Templates = false, Passages = false, MoreTemplates = false, ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 103: nor exit rooms of their own; 059: version 14 had no passages; 072: nor the second set; 087: nor the act's plan
             ulong h = 14695981039346656037UL;
+            SharedFloors.Prefetch(off, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
             for (ulong s = 0; s < 2000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, off);
+                LevelLayout level = SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, off);
                 Assert.That(level.Templates, Is.False);
                 Assert.That(level.Rooms.All(r => r.Template == null && r.Shape != RoomShape.Template), "no template, seed " + level.SeedText);
                 Assert.That(level.Describe(), Does.Not.Contain("template"));

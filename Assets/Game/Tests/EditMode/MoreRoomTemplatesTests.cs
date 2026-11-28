@@ -296,10 +296,10 @@ namespace Roguelike.Rules.Tests
             int seen = 0;
             for (ulong s = 0; s < 40; s++)
             {
-                LevelLayout off = LevelGenerator.Generate(s, 1 + (int)(s % 5), SecondSetOff);
+                LevelLayout off = SharedFloors.Once(s, 1 + (int)(s % 5), SecondSetOff); // work order 155: from the run's set (a batch at a time), read in this order
                 Assert.That(off.Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "seed " + s);
-                Assert.That(LevelGenerator.Generate(s, 1 + (int)(s % 5), new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }).Describe(), Is.EqualTo(off.Describe()), "the defaults are the switch off, seed " + s); // work order 103: the exit rooms of their own named off on both sides
-                seen += LevelGenerator.Generate(s, 1 + (int)(s % 5), On).Rooms.Count(r => r.Template != null && r.Template.Template.Since == RoomTemplateLibrary.MoreSince);
+                Assert.That(SharedFloors.Once(s, 1 + (int)(s % 5), new LevelValues { ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }).Describe(), Is.EqualTo(off.Describe()), "the defaults are the switch off, seed " + s); // work order 103: the exit rooms of their own named off on both sides // work order 155: from the run's set (a batch at a time), read in this order
+                seen += SharedFloors.Once(s, 1 + (int)(s % 5), On).Rooms.Count(r => r.Template != null && r.Template.Template.Since == RoomTemplateLibrary.MoreSince); // work order 155: from the run's set (a batch at a time), read in this order
             }
             Assert.That(seen, Is.GreaterThan(40), "on, the second set is drawn");
         }
@@ -331,7 +331,7 @@ namespace Roguelike.Rules.Tests
             int rooms = 0, moreRooms = 0;
             for (ulong s = 0; s < seeds; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, on);
+                LevelLayout level = SharedFloors.Once(s, floor, on); // work order 155: from the run's set (a batch at a time), read in this order
                 string where = "seed " + s + " floor " + floor;
                 attempts.Add(level.Attempt);
                 Assert.That(LevelValidator.Validate(level, on), Is.Empty, where + "\n" + LevelMap.Draw(level));
@@ -366,7 +366,7 @@ namespace Roguelike.Rules.Tests
                         }
                 }
                 if (s >= compared) continue;
-                LevelLayout plain = LevelGenerator.Generate(s, floor, SecondSetOff);
+                LevelLayout plain = SharedFloors.Once(s, floor, SecondSetOff); // work order 155: from the run's set (a batch at a time), read in this order
                 List<LevelRoom> a = level.Rooms.Where(r => r.Kind != RoomKind.Passage).ToList(), b2 = plain.Rooms.Where(r => r.Kind != RoomKind.Passage).ToList();
                 Assert.That(a.Select(r => r.Kind.ToString() + r.Elite), Is.EqualTo(b2.Select(r => r.Kind.ToString() + r.Elite)), "the row, " + where);
                 for (int i = 0; i < a.Count; i++) Assert.That(Groups(a[i]), Is.EqualTo(Groups(b2[i])), "the enemies of room " + i + ", " + where);
@@ -454,7 +454,7 @@ namespace Roguelike.Rules.Tests
             int combat = 0;
             for (ulong s = 0; s < 400; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, 2 + (int)(s % 4), On);
+                LevelLayout level = SharedFloors.Once(s, 2 + (int)(s % 4), On); // work order 155: from the run's set (a batch at a time), read in this order
                 foreach (LevelRoom r in level.Rooms)
                 {
                     if (r.Template == null || r.Template.Template.For != RoomTemplateFor.Combat) continue;
@@ -575,9 +575,10 @@ namespace Roguelike.Rules.Tests
         public void SwitchOff_TwoThousandFloors_AreVersion16s_FieldForField()
         {
             ulong h = 14695981039346656037UL;
+            SharedFloors.Prefetch(Version16, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
             for (ulong s = 0; s < 2000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, Version16); // work order 087: the act's plan off too
+                LevelLayout level = SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, Version16); // work order 087: the act's plan off too // work order 155: from the run's set (a batch at a time), read in this order
                 Assert.That(level.Rooms.All(r => r.Template == null || r.Template.Template.Since < RoomTemplateLibrary.MoreSince), "none of the second set, seed " + level.SeedText);
                 h = FloorPrint.Of(level, h);
                 foreach (LevelRoom r in level.Rooms)

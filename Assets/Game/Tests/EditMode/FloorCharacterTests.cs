@@ -58,13 +58,14 @@ namespace Roguelike.Rules.Tests
             return h;
         }
 
-        static List<LevelLayout> Run(ulong runSeed, LevelValues v, int floors)
+        // Work order 155: from the run's set, read only; kept for a later test's reading (keep), or let go as read (the walk's last reader).
+        static List<LevelLayout> Run(ulong runSeed, LevelValues v, int floors, bool keep = true)
         {
             var list = new List<LevelLayout>();
             string before = null;
             for (int floor = 1; floor <= floors; floor++)
             {
-                LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, exitBefore: before);
+                LevelLayout l = keep ? SharedFloors.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, before) : SharedFloors.Once(RunSeeds.FloorSeed(runSeed, floor), floor, v, before);
                 list.Add(l);
                 before = WayDowns.Shown(l);
             }
@@ -72,12 +73,15 @@ namespace Roguelike.Rules.Tests
         }
 
         /// <summary>Two thousand floors (seeds s * 7919 + 13, floors 1 to 5 in turn) and a hundred runs of five, folded (as ExitRoomsInTheFloorsTests folds version 20's).</summary>
-        static ulong Print(LevelValues v)
+        // Work order 155: keep, the floors kept for a later test of the run that walks them again (the pins of the version after); else let go as read.
+        static ulong Print(LevelValues v, bool keep)
         {
+            SharedFloors.Prefetch(v, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
+            SharedFloors.PrefetchRuns(v, Enumerable.Range(0, 100).Select(r => (ulong)r * 104729UL + 103UL), 5);
             ulong h = 14695981039346656037UL;
-            for (ulong s = 0; s < 2000; s++) h = Fold(LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h);
+            for (ulong s = 0; s < 2000; s++) h = Fold((keep ? SharedFloors.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v) : SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, v)), h); // work order 155: from the run's set, read only
             for (ulong r = 0; r < 100; r++)
-                foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5)) h = Fold(l, h);
+                foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5, keep)) h = Fold(l, h);
             return h;
         }
 
@@ -96,7 +100,7 @@ namespace Roguelike.Rules.Tests
         [Test]
         public void Version21_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            ulong h = Print(new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }); // work order 118 (changed deliberately): version 21 is the lancers off
+            ulong h = Print(new LevelValues { Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }, true); // work order 155: LancersInTheFloorsTests' switch-off pin reads these floors again; // work order 118 (changed deliberately): version 21 is the lancers off
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x524BEFDC904EAF79UL; // Unity's EditMode run of this code (work order 104's filtered run, 2026-11-24)
 #else
@@ -240,9 +244,11 @@ namespace Roguelike.Rules.Tests
             {
                 var s = shares[floor] = new Share();
                 RoomTheme dominant = FloorCharacterRules.DominantTheme(floor, On);
+                // Work order 155: made a batch at a time and read in this order; floor 2's are kept, the floor-2 guard count below reads them again.
+                SharedFloors.Prefetch(v, Enumerable.Range(0, seeds).Select(k => ((ulong)k * 6151UL + 104UL, floor)));
                 for (ulong k = 0; k < (ulong)seeds; k++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(k * 6151UL + 104UL, floor, v);
+                    LevelLayout l = floor == 2 ? SharedFloors.Generate(k * 6151UL + 104UL, floor, v) : SharedFloors.Once(k * 6151UL + 104UL, floor, v);
                     foreach (LevelRoom r in l.Rooms.Where(x => x.Kind == RoomKind.Combat || x.Kind == RoomKind.Exit))
                     {
                         s.Rooms++;
@@ -285,7 +291,7 @@ namespace Roguelike.Rules.Tests
             {
                 int rooms = 0, guarded = 0;
                 for (ulong k = 0; k < 1000; k++)
-                    foreach (LevelRoom r in LevelGenerator.Generate(k * 6151UL + 104UL, 2, v).Rooms.Where(x => x.Kind == RoomKind.Combat))
+                    foreach (LevelRoom r in SharedFloors.Once(k * 6151UL + 104UL, 2, v).Rooms.Where(x => x.Kind == RoomKind.Combat)) // work order 155: Count's floor 2, read again and let go
                     {
                         rooms++;
                         if (r.EnemyGroups.Any(g => g.Kind == EnemyKind.Guard && !g.Elite)) guarded++;
@@ -314,9 +320,11 @@ namespace Roguelike.Rules.Tests
         {
             LevelValues v = On;
             for (int floor = 1; floor <= 5; floor++)
+            {
+                SharedFloors.Prefetch(v, Enumerable.Range(0, 1000).Select(k => ((ulong)k * 3571UL + 21UL, floor))); // work order 155: a batch at a time, read in this order
                 for (ulong k = 0; k < 1000; k++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(k * 3571UL + 21UL, floor, v);
+                    LevelLayout l = SharedFloors.Once(k * 3571UL + 21UL, floor, v);
                     string where = l.SeedText + " floor " + floor;
                     EnemyGroup elite = l.Rooms.SelectMany(r => r.EnemyGroups).FirstOrDefault(g => g.Elite);
                     Assert.That(elite, Is.Not.Null, where + ": the elite room's elite");
@@ -326,6 +334,7 @@ namespace Roguelike.Rules.Tests
                     foreach (LevelRoom r in l.Rooms.Where(x => x.Template != null))
                         Assert.That(FloorCharacterRules.FirstFloorOf(r.Template.Template, v), Is.LessThanOrEqualTo(floor), where + " " + r.Template.Template.Name);
                 }
+            }
         }
 
         // ---------------- The names ----------------

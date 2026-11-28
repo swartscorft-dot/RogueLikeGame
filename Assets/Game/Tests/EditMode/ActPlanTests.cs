@@ -322,10 +322,13 @@ namespace Roguelike.Rules.Tests
             LevelValues before = new LevelValues { ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false, UsableRooms = false }, after = new LevelValues { BossAlone = false, LineUps = false }; // work order 130 (changed deliberately): the plan against version 17, the boss room as it was before version 24 emptied it
             Tally tb = new Tally(), ta = new Tally();
             int same = 0, rooms = 0;
+            // Work order 155: this sweep's own floors, made a batch at a time and read in this order, each checked as before.
+            SharedFloors.Prefetch(before, Enumerable.Range(0, Seeds).Select(i => (RunSeeds.FloorSeed(RunSeedOf(i), floor), floor)));
+            SharedFloors.Prefetch(after, Enumerable.Range(0, Seeds).Select(i => (RunSeeds.FloorSeed(RunSeedOf(i), floor), floor)));
             for (int i = 0; i < Seeds; i++)
             {
                 ulong seed = RunSeeds.FloorSeed(RunSeedOf(i), floor);
-                LevelLayout lb = LevelGenerator.Generate(seed, floor, before), la = LevelGenerator.Generate(seed, floor, after);
+                LevelLayout lb = SharedFloors.Once(seed, floor, before), la = SharedFloors.Once(seed, floor, after);
                 Count(lb, before, false, tb);
                 Count(la, after, true, ta);
                 List<LevelRoom> fb = lb.Rooms.Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).ToList();
@@ -406,9 +409,10 @@ namespace Roguelike.Rules.Tests
         {
             var off = new LevelValues { ActPlan = false, UsableRooms = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 103: nor the exit rooms of their own
             ulong h = 14695981039346656037UL;
+            SharedFloors.Prefetch(off, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
             for (ulong s = 0; s < 2000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, off);
+                LevelLayout level = SharedFloors.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, off); // kept: MoreRoomTemplatesTests' version 16 pin walks the same floors
                 Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Warder || g.Kind == EnemyKind.Bomber), Is.False, "seed " + level.SeedText);
                 h = FloorPrint.Of(level, h);
                 foreach (LevelRoom r in level.Rooms)

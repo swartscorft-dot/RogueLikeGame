@@ -114,7 +114,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 1000; s++)
             {
                 int floor = 1 + (int)(s % 5);
-                LevelLayout level = LevelGenerator.Generate(s, floor, new LevelValues());
+                LevelLayout level = SharedFloors.Generate(s, floor, new LevelValues()); // work order 155: LineUpsTests' thousand seeds a floor, from the run's set, read only
                 foreach (LevelRoom room in new[] { level.ExitRoom, level.EliteRoom })
                 {
                     if (room == null) continue;

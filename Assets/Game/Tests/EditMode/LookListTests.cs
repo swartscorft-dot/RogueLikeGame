@@ -66,9 +66,10 @@ namespace Roguelike.EditModeTests
         static IEnumerable<LevelLayout> Floors(int seeds, LevelValues values = null)
         {
             var v = values ?? new LevelValues();
-            for (int f = 1; f <= 5; f++) yield return LevelGenerator.Generate(RunSeeds.FloorSeed(RunSeed, f), f, v);
+            // Work order 155: from the run's set, read only (the defaults' seeds are LineUpsTests' thousand seeds a floor).
+            for (int f = 1; f <= 5; f++) yield return Roguelike.Rules.Tests.SharedFloors.Generate(RunSeeds.FloorSeed(RunSeed, f), f, v);
             for (ulong s = 0; s < (ulong)seeds; s++)
-                for (int f = 1; f <= 5; f++) yield return LevelGenerator.Generate(s, f, v);
+                for (int f = 1; f <= 5; f++) yield return Roguelike.Rules.Tests.SharedFloors.Generate(s, f, v);
         }
 
         // ---------------- Off is as before ----------------

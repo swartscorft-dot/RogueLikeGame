@@ -330,7 +330,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 1000; s++)
             {
                 int floor = (int)(s % 5) + 1;
-                LevelLayout a = LevelGenerator.Generate(s * 7919UL + 108UL, floor, off), b = LevelGenerator.Generate(s * 7919UL + 108UL, floor, on);
+                LevelLayout a = SharedFloors.Once(s * 7919UL + 108UL, floor, off), b = SharedFloors.Once(s * 7919UL + 108UL, floor, on); // work order 155: from the run's set (a batch at a time), read in this order
                 Assert.That(a.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Lancer), Is.False, "off: no lancer, seed " + s);
                 // Work order 118 (changed deliberately): the generator places them since its version 22, from floor 4; before it, on and
                 // off are the same floor, field for field (version 21's with them off: LancersInTheFloorsTests' pin).

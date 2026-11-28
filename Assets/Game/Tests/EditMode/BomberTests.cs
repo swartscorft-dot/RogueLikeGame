@@ -294,7 +294,7 @@ namespace Roguelike.Rules.Tests
             var off = Off();
             var none = new LevelValues { Bombers = true, Warders = false, LineUps = false, BomberFloors = new BomberFloorValues { FromFloor = 99 } }; // work order 135 (changed deliberately): against Off(), the line-ups named off
             for (ulong s = 0; s < 100; s++)
-                Assert.That(LevelGenerator.Generate(s, floor, none).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, off).Describe()), "seed " + s);
+                Assert.That(SharedFloors.Once(s, floor, none).Describe(), Is.EqualTo(SharedFloors.Once(s, floor, off).Describe()), "seed " + s); // work order 155: from the run's set (a batch at a time), read in this order
         }
 
         [TestCase(1)]
@@ -309,10 +309,10 @@ namespace Roguelike.Rules.Tests
             int rooms = 0, roomsWith = 0;
             for (ulong s = 0; s < 400; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, on); // valid under these values, or it throws
+                LevelLayout level = SharedFloors.Once(s, floor, on); // valid under these values, or it throws // work order 155: from the run's set (a batch at a time), read in this order
                 List<string> faults = LevelValidator.Validate(level, on);
                 Assert.That(faults, Is.Empty, "seed " + s + ": " + string.Join("; ", faults));
-                LevelLayout without = LevelGenerator.Generate(s, floor, off);
+                LevelLayout without = SharedFloors.Once(s, floor, off); // work order 155: from the run's set (a batch at a time), read in this order
                 LevelRoom first = LevelGeometry.MainPath(level).First(r => r.Kind == RoomKind.Combat);
                 List<LevelRoom> fights = level.Rooms.Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).OrderBy(r => r.Order).ToList();
                 List<LevelRoom> fightsOff = without.Rooms.Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).OrderBy(r => r.Order).ToList();
