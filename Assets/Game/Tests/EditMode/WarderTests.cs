@@ -326,7 +326,7 @@ namespace Roguelike.Rules.Tests
             var off = new LevelValues { Warders = false, WarderFloors = new WarderFloorValues { FromFloor = 1, OthersAtLeast = 0, MostInRoom = 5 } };
             for (ulong s = 0; s < 200; s++)
             {
-                LevelLayout a = LevelGenerator.Generate(s, floor, before), b = LevelGenerator.Generate(s, floor, off);
+                LevelLayout a = SharedFloors.Once(s, floor, before), b = SharedFloors.Once(s, floor, off); // work order 155: from the run's set (a batch at a time), read in this order
                 Assert.That(b.Describe(), Is.EqualTo(a.Describe()), "seed " + s);
                 Assert.That(a.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Warder), Is.False);
             }
@@ -339,7 +339,7 @@ namespace Roguelike.Rules.Tests
             var off = Off();
             var none = new LevelValues { Warders = true, Bombers = false, LineUps = false, WarderFloors = new WarderFloorValues { FromFloor = 99 } }; // work order 135 (changed deliberately): against Off(), the line-ups named off
             for (ulong s = 0; s < 100; s++)
-                Assert.That(LevelGenerator.Generate(s, floor, none).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, off).Describe()), "seed " + s);
+                Assert.That(SharedFloors.Once(s, floor, none).Describe(), Is.EqualTo(SharedFloors.Once(s, floor, off).Describe()), "seed " + s); // work order 155: from the run's set (a batch at a time), read in this order
         }
 
         [TestCase(1)]
@@ -354,10 +354,10 @@ namespace Roguelike.Rules.Tests
             int rooms = 0, roomsWith = 0;
             for (ulong s = 0; s < 400; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, on); // valid under these values, or it throws
+                LevelLayout level = SharedFloors.Once(s, floor, on); // valid under these values, or it throws // work order 155: from the run's set (a batch at a time), read in this order
                 List<string> faults = LevelValidator.Validate(level, on);
                 Assert.That(faults, Is.Empty, "seed " + s + ": " + string.Join("; ", faults));
-                LevelLayout without = LevelGenerator.Generate(s, floor, off);
+                LevelLayout without = SharedFloors.Once(s, floor, off); // work order 155: from the run's set (a batch at a time), read in this order
                 LevelRoom first = LevelGeometry.MainPath(level).First(r => r.Kind == RoomKind.Combat);
                 List<LevelRoom> fights = level.Rooms.Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).OrderBy(r => r.Order).ToList();
                 List<LevelRoom> fightsOff = without.Rooms.Where(r => r.Kind == RoomKind.Combat || r.Kind == RoomKind.Exit).OrderBy(r => r.Order).ToList();
@@ -395,7 +395,7 @@ namespace Roguelike.Rules.Tests
             var both = new LevelValues { Warders = true, Bombers = true };
             for (int floor = 2; floor <= 5; floor++)
                 for (ulong s = 0; s < 100; s++)
-                    Assert.That(LevelValidator.Validate(LevelGenerator.Generate(s, floor, both), both), Is.Empty, "floor " + floor + " seed " + s);
+                    Assert.That(LevelValidator.Validate(SharedFloors.Once(s, floor, both), both), Is.Empty, "floor " + floor + " seed " + s); // work order 155: from the run's set (a batch at a time), read in this order
         }
 
         [Test]

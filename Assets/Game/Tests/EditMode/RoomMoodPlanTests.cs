@@ -48,7 +48,7 @@ namespace Roguelike.Rules.Tests
                 LevelValues off = Off();
                 off.Shapes = false;
                 off.UsableRooms = false;
-                LevelLayout a = LevelGenerator.Generate(s, floor, on), b = LevelGenerator.Generate(s, floor, off);
+                LevelLayout a = SharedFloors.Once(s, floor, on), b = SharedFloors.Once(s, floor, off); // work order 155: from the run's set (a batch at a time), read in this order
                 string where = "seed " + s + " floor " + floor;
                 Assert.That(a.Describe(props: false), Is.EqualTo(b.Describe(props: false)), "layout and enemies, " + where);
                 for (int i = 0; i < a.Rooms.Count; i++)
@@ -68,7 +68,7 @@ namespace Roguelike.Rules.Tests
                 if (s % 5 == 0)
                 {
                     // The eye-catchers off: the floor is the master's off, field for field; making the plan changes nothing of it.
-                    LevelLayout c = LevelGenerator.Generate(s, floor, composeOff);
+                    LevelLayout c = SharedFloors.Once(s, floor, composeOff); // work order 155: from the run's set (a batch at a time), read in this order
                     Assert.That(c.Describe(), Is.EqualTo(b.Describe()), "compositions off, " + where);
                     string before = a.Describe();
                     RoomMoodPlan.Make(a, on);
@@ -102,7 +102,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 400; s++)
                 for (int floor = 1; floor <= 5; floor += 2)
                 {
-                    LevelLayout a = LevelGenerator.Generate(s, floor), b = LevelGenerator.Generate(s, floor, Off());
+                    LevelLayout a = SharedFloors.Once(s, floor), b = SharedFloors.Once(s, floor, Off()); // work order 155: from the run's set (a batch at a time), read in this order
                     for (int i = 0; i < a.Rooms.Count; i++)
                     {
                         if (a.Rooms[i].Theme != RoomTheme.Ossuary) continue;
@@ -133,7 +133,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 300; s++)
                 foreach (int floor in new[] { 1, 5 })
                 {
-                    LevelLayout l = LevelGenerator.Generate(s, floor, values);
+                    LevelLayout l = SharedFloors.Once(s, floor, values); // work order 155: from the run's set (a batch at a time), read in this order
                     RoomMoodPlan plan = RoomMoodPlan.Make(l, values);
                     double cs = l.CellSize;
                     foreach (MoodRoom mr in plan.Rooms)
@@ -179,9 +179,9 @@ namespace Roguelike.Rules.Tests
             values.Mood.Wear = false;
             for (ulong s = 0; s < 20; s++)
             {
-                LevelLayout l = LevelGenerator.Generate(s, 3, values);
+                LevelLayout l = SharedFloors.Once(s, 3, values); // work order 155: from the run's set (a batch at a time), read in this order
                 Assert.That(RoomMoodPlan.Make(l, values).WearCount, Is.EqualTo(0));
-                Assert.That(l.Describe(), Is.EqualTo(LevelGenerator.Generate(s, 3).Describe()), "the wear's switch is never read by the generator");
+                Assert.That(l.Describe(), Is.EqualTo(SharedFloors.Once(s, 3).Describe()), "the wear's switch is never read by the generator"); // work order 155: from the run's set (a batch at a time), read in this order
             }
         }
 
@@ -212,7 +212,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 300; s++)
                 foreach (int floor in new[] { 1, 3, 5 })
                 {
-                    LevelLayout l = LevelGenerator.Generate(s, floor, values);
+                    LevelLayout l = SharedFloors.Once(s, floor, values); // work order 155: from the run's set (a batch at a time), read in this order
                     RoomMoodPlan plan = RoomMoodPlan.Make(l, values);
                     foreach (MoodRoom mr in plan.Rooms)
                     {
@@ -376,7 +376,7 @@ namespace Roguelike.Rules.Tests
             var values = new LevelValues { LargeProps = false, ExitRoomsOfTheirOwn = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 103 (changed deliberately): the exit hall has no eye-catcher yet (its look is a later order); the throne room as before
             for (ulong s = 0; s < 50; s++)
             {
-                LevelLayout l = LevelGenerator.Generate(s, 1, values);
+                LevelLayout l = SharedFloors.Once(s, 1, values); // work order 155: from the run's set (a batch at a time), read in this order
                 foreach (MoodRoom mr in RoomMoodPlan.Make(l, values).Rooms)
                 {
                     int braziers = mr.Room.Props.Count(p => p.Model == PropModel.Brazier || p.Model == PropModel.Basin);

@@ -287,9 +287,9 @@ namespace Roguelike.Rules.Tests
             LevelValues none = NoCasters(), on = On(); // work order 034: with the casters on
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, 1, on);
+                LevelLayout level = SharedFloors.Once(s, 1, on); // work order 155: the casters' sweep's floor 1, from the run's set and let go
                 Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster on floor 1, seed " + s);
-                Assert.That(level.Describe(), Is.EqualTo(LevelGenerator.Generate(s, 1, none).Describe()), "seed " + s);
+                Assert.That(level.Describe(), Is.EqualTo(SharedFloors.Generate(s, 1, none).Describe()), "seed " + s); // kept: the switch-off's floor 1 reads it again
             }
         }
 
@@ -306,7 +306,7 @@ namespace Roguelike.Rules.Tests
             double nearestApart = double.MaxValue;
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, v); // valid under these values, or it throws
+                LevelLayout level = floor == 1 ? SharedFloors.Generate(s, floor, v) : SharedFloors.Once(s, floor, v); // valid under these values, or it throws (work order 155: made a batch at a time, read in this order; floor 1's kept for Floor1_IsUnchanged_ByTheCasters)
                 int onFloor = 0;
                 foreach (LevelRoom r in level.Rooms)
                 {
@@ -414,15 +414,15 @@ namespace Roguelike.Rules.Tests
             }
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, off);
+                LevelLayout level = SharedFloors.Once(s, floor, off); // work order 155: made a batch at a time (the sweep's next seeds guessed), read in this order
                 Assert.That(level.Rooms.SelectMany(r => r.EnemyGroups).Any(g => g.Kind == EnemyKind.Caster), Is.False, "no caster, seed " + s);
-                Assert.That(level.Describe(props: false), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassed).Describe(props: false)), "seed " + s);
+                Assert.That(level.Describe(props: false), Is.EqualTo(SharedFloors.Once(s, floor, bypassed).Describe(props: false)), "seed " + s);
                 if (s % 10 == 0)
                 {
                     var themesOff = new LevelValues { Themes = false, Casters = false, ActPlan = false, FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false, UsableRooms = false };
                     var bypassedThemesOff = NoCasters();
                     bypassedThemesOff.Themes = false;
-                    Assert.That(LevelGenerator.Generate(s, floor, themesOff).Describe(), Is.EqualTo(LevelGenerator.Generate(s, floor, bypassedThemesOff).Describe()),
+                    Assert.That(SharedFloors.Once(s, floor, themesOff).Describe(), Is.EqualTo(SharedFloors.Once(s, floor, bypassedThemesOff).Describe()),
                                 "seed " + s + ", props too, with the themes off");
                 }
             }

@@ -246,7 +246,7 @@ namespace Roguelike.Rules.Tests
         {
             for (int floor = 1; floor <= 5; floor++)
                 for (ulong s = 0; s < (ulong)seedsAFloor; s++)
-                    yield return LevelGenerator.Generate(s * 6151UL + salt, floor, v);
+                    yield return SharedFloors.Once(s * 6151UL + salt, floor, v); // work order 155: from the run's set (a batch at a time), read in this order
         }
 
         /// <summary>
@@ -381,9 +381,10 @@ namespace Roguelike.Rules.Tests
         public void SwitchOff_TwoThousandFloors_AreVersion18s_FieldForField()
         {
             ulong h = 14695981039346656037UL;
+            SharedFloors.Prefetch(Off, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
             for (ulong s = 0; s < 2000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, Off);
+                LevelLayout level = SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, Off); // work order 155: from the run's set (a batch at a time), read in this order
                 h = FloorPrint.Of(level, h);
                 foreach (LevelRoom r in level.Rooms)
                 {
@@ -410,7 +411,7 @@ namespace Roguelike.Rules.Tests
             foreach (int floor in new[] { 1, 2, 3, 4, 5 })
                 for (ulong s = 0; s < 60; s++)
                 {
-                    LevelLayout on = LevelGenerator.Generate(s * 104729UL + 5UL, floor, On), off = LevelGenerator.Generate(s * 104729UL + 5UL, floor, Off);
+                    LevelLayout on = SharedFloors.Once(s * 104729UL + 5UL, floor, On), off = SharedFloors.Once(s * 104729UL + 5UL, floor, Off); // work order 155: from the run's set (a batch at a time), read in this order
                     Assert.That(on.Describe(props: false), Is.EqualTo(off.Describe(props: false)), "seed " + on.SeedText + " floor " + floor);
                     Assert.That(on.Rooms.Select(r => r.Theme), Is.EqualTo(off.Rooms.Select(r => r.Theme)), "the themes");
                     Assert.That(on.Rooms.Select(r => r.EnemyCount), Is.EqualTo(off.Rooms.Select(r => r.EnemyCount)), "the count of every room's enemies");
@@ -578,7 +579,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 1; s <= 150; s++)
                 for (int floor = 1; floor <= 5; floor++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(s, floor, SecondSet);
+                    LevelLayout l = SharedFloors.Once(s, floor, SecondSet); // work order 155: from the run's set (a batch at a time), read in this order
                     floors.Add((s, floor, new HashSet<string>(l.Rooms.Where(r => r.Template != null && r.Shape == RoomShape.Template).Select(r => r.Template.Template.Name))));
                 }
             var left = new HashSet<string>(all);

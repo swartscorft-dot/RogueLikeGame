@@ -28,7 +28,7 @@ namespace Roguelike.Rules.Tests
             var counts = new SortedDictionary<int, int>();
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout l = LevelGenerator.Generate(s + 7000UL, floor, v);
+                LevelLayout l = SharedFloors.Once(s + 7000UL, floor, v); // work order 155: made a batch at a time (the sweep's next seeds guessed), read in this order
                 foreach (LevelRoom r in l.Rooms.Where(x => x.Kind == RoomKind.Combat || x.Kind == RoomKind.Exit))
                 {
                     string where = "seed " + (s + 7000UL) + " floor " + floor + " room " + r.Order;

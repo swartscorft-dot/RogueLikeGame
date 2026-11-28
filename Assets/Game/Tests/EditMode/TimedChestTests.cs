@@ -20,7 +20,7 @@ namespace Roguelike.Rules.Tests
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static readonly TimedChestValues C = new TimedChestValues();
 
-        static LevelLayout Floor(ulong seed, int floor, LevelValues v = null) => LevelGenerator.Generate(seed * 7919UL, floor, v ?? new LevelValues());
+        static LevelLayout Floor(ulong seed, int floor, LevelValues v = null) => SharedFloors.Once(seed * 7919UL, floor, v ?? new LevelValues()); // work order 155: from the run's set (a batch at a time), read in this order
 
         /// <summary>The rooms the callers' rule gives a caller on this floor (callers on, as by default).</summary>
         static List<LevelRoom> Callers(LevelLayout l, LevelValues v) => RoomCallerRules.Rooms(l, v);

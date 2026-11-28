@@ -178,10 +178,13 @@ namespace Roguelike.Rules.Tests
             {
                 var a = new Tally();
                 var b = new Tally();
+                // Work order 155: this sweep's own floors, made a batch at a time and read in this order, each checked as before.
+                SharedFloors.Prefetch(after, Enumerable.Range(0, 1000).Select(k => ((ulong)k * 6151UL + 124UL, floor)));
+                SharedFloors.Prefetch(before, Enumerable.Range(0, 1000).Select(k => ((ulong)k * 6151UL + 124UL, floor)));
                 for (ulong k = 0; k < 1000; k++)
                 {
                     ulong seed = k * 6151UL + 124UL;
-                    LevelLayout la = LevelGenerator.Generate(seed, floor, after), lb = LevelGenerator.Generate(seed, floor, before);
+                    LevelLayout la = SharedFloors.Once(seed, floor, after), lb = SharedFloors.Once(seed, floor, before);
                     string where = la.SeedText + " floor " + floor;
                     Assert.That(LevelValidator.Validate(la, after), Is.Empty, where + ": valid");
                     if (la.Attempt != lb.Attempt) a.Reattempted++;

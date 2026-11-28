@@ -117,7 +117,7 @@ namespace Roguelike.Rules.Tests
                 if (faults.Count > 0) Assert.Fail(where + ": " + string.Join("; ", faults) + "\n" + LevelMap.Draw(level));
                 // The rooms, doors and enemies are those of the floor without props, which has no themes stage either (and
                 // the props never change them: LevelPropsTests); with the themes off: TheSums_PerTheme_AgainstTheRoomsOfBefore.
-                if (level.Describe(props: false) != LevelGenerator.Generate(s, floor, noProps).Describe(props: false))
+                if (level.Describe(props: false) != SharedFloors.Once(s, floor, noProps).Describe(props: false)) // work order 155: the floor without props from the run's set (the timed floor above is the generator's own)
                     Assert.Fail(where + ": the themes changed its rooms, doors or enemies");
 
                 List<LevelRoom> chain = LevelGeometry.MainPath(level).Where(r => r.Kind == RoomKind.Combat).ToList();
@@ -254,7 +254,7 @@ namespace Roguelike.Rules.Tests
             var before = new Tally();
             for (ulong s = 0; s < 500; s++)
             {
-                LevelLayout level = Make(s), plain = LevelGenerator.Generate(s, 1, Off());
+                LevelLayout level = Make(s), plain = SharedFloors.Once(s, 1, Off()); // work order 155: the plain floor made a batch at a time, read in this order
                 Assert.That(plain.Rooms.All(r => r.Theme == RoomTheme.None), "seed " + s + ": no theme with the themes off");
                 if (level.Describe(props: false) != plain.Describe(props: false)) Assert.Fail("seed " + s + ": the themes off and on, other rooms, doors or enemies");
                 foreach (LevelRoom r in plain.Rooms.Where(r => r.Kind == RoomKind.Combat)) before.Add(plain, r, pv);

@@ -61,7 +61,7 @@ namespace Roguelike.Rules.Tests
             string before = null;
             for (int floor = 1; floor <= floors; floor++)
             {
-                LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, exitBefore: before);
+                LevelLayout l = SharedFloors.Once(RunSeeds.FloorSeed(runSeed, floor), floor, v, before); // work order 155: from the run's set (a batch at a time), read in this order; no other test walks them
                 list.Add(l);
                 before = WayDowns.Shown(l);
             }
@@ -92,8 +92,10 @@ namespace Roguelike.Rules.Tests
         public void Version20_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
             var v = new LevelValues { FloorCharacter = false, Lancers = false, RangedAroundTheRoom = false, BossAlone = false, LineUps = false }; // work order 104 (changed deliberately): version 20 is the floors' character off
+            SharedFloors.Prefetch(v, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
+            SharedFloors.PrefetchRuns(v, Enumerable.Range(0, 100).Select(r => (ulong)r * 104729UL + 103UL), 5);
             ulong h = 14695981039346656037UL;
-            for (ulong s = 0; s < 2000; s++) h = Fold(LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h);
+            for (ulong s = 0; s < 2000; s++) h = Fold(SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h); // work order 155: from the run's set, read only
             for (ulong r = 0; r < 100; r++)
                 foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5)) h = Fold(l, h);
             string found = "0x" + h.ToString("X16") + "UL";
@@ -154,6 +156,9 @@ namespace Roguelike.Rules.Tests
             var v = new LevelValues();
             var seen = new int[4, 3];
             int allThree = 0, toldOther = 0;
+            // Work order 155: the runs and each floor built alone, made a batch at a time and read in this order, each checked as before.
+            SharedFloors.PrefetchRuns(v, Enumerable.Range(0, 1000).Select(r => (ulong)r * 7907UL + 1UL), 4);
+            SharedFloors.Prefetch(v, Enumerable.Range(0, 1000).SelectMany(r => Enumerable.Range(2, 3).Select(f => (RunSeeds.FloorSeed((ulong)r * 7907UL + 1UL, f), f))));
             for (ulong r = 0; r < 1000; r++)
             {
                 List<LevelLayout> run = Run(r * 7907UL + 1UL, v);
@@ -165,7 +170,7 @@ namespace Roguelike.Rules.Tests
                     seen[i, Array.IndexOf(Names, name)]++;
                     if (i == 0) continue;
                     Assert.That(name, Is.Not.EqualTo(WayDowns.Shown(run[i - 1])), where + ": not the floor before's");
-                    LevelLayout alone = LevelGenerator.Generate(l.Seed, l.Floor, v);
+                    LevelLayout alone = SharedFloors.Once(l.Seed, l.Floor, v);
                     if (WayDowns.Shown(alone) != name) toldOther++;
                     if (alone.Attempt == l.Attempt)
                     {
@@ -289,9 +294,11 @@ namespace Roguelike.Rules.Tests
             var v = new LevelValues();
             var by = new Dictionary<string, Tally>();
             for (int floor = 1; floor <= 5; floor++)
+            {
+                SharedFloors.Prefetch(v, Enumerable.Range(0, 1000).Select(k => ((ulong)k * 6151UL + 103UL, floor))); // work order 155: a batch at a time, read in this order
                 for (ulong s = 0; s < 1000; s++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(s * 6151UL + 103UL, floor, v);
+                    LevelLayout l = SharedFloors.Once(s * 6151UL + 103UL, floor, v);
                     LevelRoom exit = l.ExitRoom;
                     string where = l.SeedText + " floor " + floor;
                     Assert.That(l.Rooms.Sum(r => r.EnemyGroups.Count(g => g.Boss)), Is.EqualTo(floor == 5 ? 1 : 0), where + ": the act boss on floor 5 only");
@@ -333,6 +340,7 @@ namespace Roguelike.Rules.Tests
                         t.Solid += exit.SolidCount / (double)(exit.Rect.Width * exit.Rect.Height);
                     }
                 }
+            }
             var lines = new List<string> { "EXITFLOORS a thousand seeds a floor, floors 1 to 4, the exit room of its own: drawn, size, solid, walkable, enemies, in their band, the way down reached, walked" };
             foreach (string key in Names.Concat(by.Keys.Where(k => k.StartsWith("floor", StringComparison.Ordinal)).OrderBy(k => k, StringComparer.Ordinal)))
             {

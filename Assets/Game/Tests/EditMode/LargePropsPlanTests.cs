@@ -109,7 +109,7 @@ namespace Roguelike.Rules.Tests
             int combat = 0, banners = 0, throneBanners = 0, thrones = 0, vaults = 0, heaps = 0, daisThrones = 0, greatBraziers = 0, clusters = 0;
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout l = LevelGenerator.Generate(s, floor, values);
+                LevelLayout l = SharedFloors.Once(s, floor, values); // work order 155: from the run's set (a batch at a time), read in this order
                 RoomMoodPlan plan = RoomMoodPlan.Make(l, values);
                 CryptKitPlan kit = PropRules.KitPlanForProps(l);
                 double cs = l.CellSize;
@@ -287,7 +287,7 @@ namespace Roguelike.Rules.Tests
             for (ulong s = 0; s < 300; s++)
                 foreach (int floor in new[] { 1, 5 })
                 {
-                    LevelLayout on = LevelGenerator.Generate(s, floor), off = LevelGenerator.Generate(s, floor, Off());
+                    LevelLayout on = SharedFloors.Once(s, floor), off = SharedFloors.Once(s, floor, Off()); // work order 155: from the run's set (a batch at a time), read in this order
                     string where = "seed " + s + " floor " + floor;
                     Assert.That(off.Describe(), Is.EqualTo(on.Describe()), "the generator never reads it: " + where);
                     RoomMoodPlan planOff = RoomMoodPlan.Make(off, Off()), planOn = RoomMoodPlan.Make(on, new LevelValues());
@@ -325,7 +325,7 @@ namespace Roguelike.Rules.Tests
             int braziers = 0, altars = 0, clusters = 0;
             for (ulong s = 0; s < 120; s++)
                 foreach (int floor in new[] { 1, 5 })
-                    foreach (MoodRoom mr in RoomMoodPlan.Make(LevelGenerator.Generate(s, floor, values), values).Rooms)
+                    foreach (MoodRoom mr in RoomMoodPlan.Make(SharedFloors.Once(s, floor, values), values).Rooms) // work order 155: from the run's set (a batch at a time), read in this order
                     {
                         string where = "seed " + s + " floor " + floor + " " + mr.Room.Letter + mr.Room.Order;
                         foreach (LevelProp p in mr.LargeProps)
@@ -375,7 +375,7 @@ namespace Roguelike.Rules.Tests
             int chests = 0;
             for (ulong s = 0; s < 200; s++)
             {
-                LevelLayout l = LevelGenerator.Generate(s, 3, values);
+                LevelLayout l = SharedFloors.Once(s, 3, values); // work order 155: from the run's set (a batch at a time), read in this order
                 foreach (MoodRoom mr in RoomMoodPlan.Make(l, values).Rooms)
                 {
                     LevelProp dais = mr.LargeProps.FirstOrDefault(p => p.Model == PropModel.Dais);

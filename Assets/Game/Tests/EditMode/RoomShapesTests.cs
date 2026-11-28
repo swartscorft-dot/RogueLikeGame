@@ -91,9 +91,13 @@ namespace Roguelike.Rules.Tests
             int rooms = 0, fellBack = 0, bare = 0, redraws = 0, floorsAllDiffer = 0, pairs = 0, pairsDiffer = 0, drops = 0, pieces = 0, largeProps = 0, wallLarge = 0, earlier = 0;
             int templated = 0, enemyPaths = 0;
             int seeds = defaults ? 1000 : 2000;
+            // Work order 155: the floors made a batch at a time and read in this order, each checked as before; the defaults' are the run's
+            // set (LineUpsTests' thousand seeds a floor), 051's drawn shapes and the shapes off this sweep's own.
+            SharedFloors.Prefetch(values, Enumerable.Range(0, seeds).Select(k => ((ulong)k, floor)));
+            if (!defaults) SharedFloors.Prefetch(off, Enumerable.Range(0, seeds).Select(k => ((ulong)k, floor)));
             for (ulong s = 0; s < (ulong)seeds; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, values);
+                LevelLayout level = SharedFloors.Once(s, floor, values); // the defaults' read from the set and let go: no later test walks them
                 string where = "seed " + s + " floor " + floor;
                 double cs = level.CellSize;
                 Assert.That(level.Shapes, Is.True, where);
@@ -106,7 +110,7 @@ namespace Roguelike.Rules.Tests
                 // shapes off is the next attempt's; never the other way round (an attempt fails only where it failed without them).
                 if (!defaults)
                 {
-                    LevelLayout plain = LevelGenerator.Generate(s, floor, off);
+                    LevelLayout plain = SharedFloors.Once(s, floor, off);
                     Assert.That(level.Attempt, Is.LessThanOrEqualTo(plain.Attempt), "no later attempt with the shapes on, " + where);
                     if (level.Attempt == plain.Attempt)
                         Assert.That(level.DescribeLayout(), Is.EqualTo(plain.DescribeLayout()), "the same layout with the shapes on and off, " + where);

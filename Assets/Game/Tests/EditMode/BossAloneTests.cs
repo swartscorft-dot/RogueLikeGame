@@ -61,13 +61,14 @@ namespace Roguelike.Rules.Tests
             return h;
         }
 
-        static List<LevelLayout> Run(ulong runSeed, LevelValues v, int floors)
+        // Work order 155: from the run's set, read only; kept for a later test's reading (keep), or let go as read (the walk's last reader).
+        static List<LevelLayout> Run(ulong runSeed, LevelValues v, int floors, bool keep = true)
         {
             var list = new List<LevelLayout>();
             string before = null;
             for (int floor = 1; floor <= floors; floor++)
             {
-                LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, exitBefore: before);
+                LevelLayout l = keep ? SharedFloors.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, before) : SharedFloors.Once(RunSeeds.FloorSeed(runSeed, floor), floor, v, before);
                 list.Add(l);
                 before = WayDowns.Shown(l);
             }
@@ -75,12 +76,15 @@ namespace Roguelike.Rules.Tests
         }
 
         /// <summary>RangedAroundTheRoomTests' two thousand floors and a hundred runs of five, folded, as its version 23 pins.</summary>
-        static ulong Print(LevelValues v)
+        // Work order 155: keep, the floors kept for a later test of the run that walks them again (the pins of the version after); else let go as read.
+        static ulong Print(LevelValues v, bool keep)
         {
+            SharedFloors.Prefetch(v, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
+            SharedFloors.PrefetchRuns(v, Enumerable.Range(0, 100).Select(r => (ulong)r * 104729UL + 103UL), 5);
             ulong h = 14695981039346656037UL;
-            for (ulong s = 0; s < 2000; s++) h = Fold(LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h);
+            for (ulong s = 0; s < 2000; s++) h = Fold((keep ? SharedFloors.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v) : SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, v)), h); // work order 155: from the run's set, read only
             for (ulong r = 0; r < 100; r++)
-                foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5)) h = Fold(l, h);
+                foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5, keep)) h = Fold(l, h);
             return h;
         }
 
@@ -172,9 +176,12 @@ namespace Roguelike.Rules.Tests
             var groups = new Dictionary<EnemyKind, int>();
             int floors = 0, sameAttempt = 0, roomsBefore = 0, roomsBeforeSame = 0, bossSamePoint = 0;
             int fewest = int.MaxValue, most = 0, total = 0;
+            // Work order 155: made a batch at a time and read in this order; the switch on's are version 24's floor 5, which LineUpsTests reads again.
+            SharedFloors.Prefetch(On, Enumerable.Range(0, 1000).Select(k => ((ulong)k, 5)));
+            SharedFloors.Prefetch(Off, Enumerable.Range(0, 1000).Select(k => ((ulong)k, 5)));
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout on = LevelGenerator.Generate(s, 5, On), off = LevelGenerator.Generate(s, 5, Off);
+                LevelLayout on = SharedFloors.Generate(s, 5, On), off = SharedFloors.Generate(s, 5, Off); // kept: BossRulesTests' floor 5 reads the switch off's again
                 floors++;
                 List<string> faults = LevelValidator.Validate(on, On);
                 if (faults.Count > 0) Assert.Fail("seed " + s + ": " + string.Join("; ", faults));
@@ -225,7 +232,7 @@ namespace Roguelike.Rules.Tests
             LevelRoom was = BossRoom(off);
             string gone = string.Join(", ", was.EnemyGroups.Where(g => !g.Boss).Select(g => g.ToString()));
             TestContext.WriteLine("BOSSALONE the benchmark's floor 5 (" + LevelSeed.ToText(seed) + "): left the boss room " + was.EnemyGroups.Where(g => !g.Boss).Sum(g => g.Count) + " enemies: " + gone);
-            TestContext.WriteLine("BOSSALONE the benchmark's floor 5 in a run (floors 1 to 5 of BENCH032): " + string.Join(", ", Run(run, Off, 5)[4].Rooms.Where(r => r.EnemyGroups.Any(g => g.Boss)).SelectMany(r => r.EnemyGroups).Where(g => !g.Boss).Select(g => g.ToString())));
+            TestContext.WriteLine("BOSSALONE the benchmark's floor 5 in a run (floors 1 to 5 of BENCH032): " + string.Join(", ", Run(run, Off, 5, false)[4].Rooms.Where(r => r.EnemyGroups.Any(g => g.Boss)).SelectMany(r => r.EnemyGroups).Where(g => !g.Boss).Select(g => g.ToString())));
             Assert.That(BossRoom(on).EnemyGroups.Count, Is.EqualTo(1));
             Assert.That(was.EnemyGroups.Count(g => !g.Boss), Is.GreaterThan(0), "with the switch off the room held more than the boss");
         }
@@ -243,12 +250,19 @@ namespace Roguelike.Rules.Tests
         public void EveryFloorWithoutTheBoss_IsVersion23s_FieldForField()
         {
             int compared = 0;
+            // Work order 155: the pins' floors, from the run's set (version 24's pins below and RangedAroundTheRoomTests' version 23 pin read
+            // them again), made a batch at a time; read only, each compared as before.
+            foreach (LevelValues v in new[] { On, Off })
+            {
+                SharedFloors.Prefetch(v, Enumerable.Range(0, 2000).Where(k => k % 5 + 1 < v.FloorsPerAct).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1)));
+                SharedFloors.PrefetchRuns(v, Enumerable.Range(0, 100).Select(r => (ulong)r * 104729UL + 103UL), 5); // the runs of five, as the pins read them
+            }
             for (ulong s = 0; s < 2000; s++)
             {
                 int floor = (int)(s % 5) + 1;
                 if (floor >= On.FloorsPerAct) continue;
                 ulong seed = s * 7919UL + 13UL;
-                LevelLayout a = LevelGenerator.Generate(seed, floor, On), b = LevelGenerator.Generate(seed, floor, Off);
+                LevelLayout a = SharedFloors.Generate(seed, floor, On), b = SharedFloors.Generate(seed, floor, Off);
                 Assert.That(Fold(a, 0UL), Is.EqualTo(Fold(b, 0UL)), "seed " + seed + " floor " + floor);
                 Assert.That(a.Describe(), Is.EqualTo(b.Describe()), "seed " + seed + " floor " + floor);
                 compared++;
@@ -272,7 +286,7 @@ namespace Roguelike.Rules.Tests
         [Test, Timeout(3600000)] // the long sweeps' own time limit (see EveryFloorWithoutTheBoss_IsVersion23s_FieldForField)
         public void Version24_LancersOn_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            ulong h = Print(LancersOn);
+            ulong h = Print(LancersOn, true); // work order 155: LineUpsTests' switch-off pin reads these floors again
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x5F07D15C837EAF2CUL; // Unity's EditMode run of this code (work order 130's filtered run, 2026-11-25)
 #else
@@ -287,7 +301,7 @@ namespace Roguelike.Rules.Tests
         [Test, Timeout(3600000)] // the long sweeps' own time limit (see EveryFloorWithoutTheBoss_IsVersion23s_FieldForField)
         public void Version24_LancersOff_TwoThousandFloorsAndAHundredRuns_FieldForField()
         {
-            ulong h = Print(LancersOff);
+            ulong h = Print(LancersOff, false);
 #if UNITY_5_3_OR_NEWER
             const ulong pinned = 0x5E8A1BC8237BF32CUL; // Unity's EditMode run of this code (work order 130's filtered run, 2026-11-25)
 #else

@@ -46,8 +46,8 @@ namespace Roguelike.Rules.Tests
             for (ulong seed = 1; seed <= 40; seed++)
                 for (int floor = 1; floor <= 5; floor++)
                 {
-                    LevelLayout on = LevelGenerator.Generate(seed * 7919UL, floor, new LevelValues());
-                    LevelLayout off = LevelGenerator.Generate(seed * 7919UL, floor, new LevelValues { Waves = false });
+                    LevelLayout on = SharedFloors.Once(seed * 7919UL, floor, new LevelValues()); // work order 155: from the run's set (a batch at a time), read in this order
+                    LevelLayout off = SharedFloors.Once(seed * 7919UL, floor, new LevelValues { Waves = false }); // work order 155: from the run's set (a batch at a time), read in this order
                     Assert.That(FloorPrint.Of(off, 14695981039346656037UL), Is.EqualTo(FloorPrint.Of(on, 14695981039346656037UL)), "seed " + seed + " floor " + floor);
                     Assert.That(LevelMap.Draw(off), Is.EqualTo(LevelMap.Draw(on)));
                     Assert.That(on.Version, Is.EqualTo(off.Version));
@@ -63,7 +63,7 @@ namespace Roguelike.Rules.Tests
             for (ulong seed = 1; seed <= 60; seed++)
                 for (int floor = 1; floor <= 5; floor++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(seed * 104729UL, floor, new LevelValues());
+                    LevelLayout l = SharedFloors.Once(seed * 104729UL, floor, new LevelValues()); // work order 155: from the run's set (a batch at a time), read in this order
                     List<LevelRoom> combats = Combats(l);
                     Assert.That(combats.Count, Is.GreaterThan(2));
                     foreach (LevelRoom r in l.Rooms)
@@ -134,7 +134,7 @@ namespace Roguelike.Rules.Tests
             for (ulong seed = 1; seed <= 200; seed++)
                 for (int floor = 1; floor <= 5; floor++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(seed * 15485863UL, floor, new LevelValues());
+                    LevelLayout l = SharedFloors.Once(seed * 15485863UL, floor, new LevelValues()); // work order 155: from the run's set (a batch at a time), read in this order
                     foreach (LevelRoom r in Combats(l))
                     {
                         List<(EnemyKind kind, bool elite)> members = Members(r);
@@ -175,7 +175,7 @@ namespace Roguelike.Rules.Tests
                 var firstBy = new Dictionary<EnemyKind, int>();
                 for (ulong seed = 1; seed <= 300; seed++)
                 {
-                    LevelLayout l = LevelGenerator.Generate(seed * 32452843UL + 17UL, floor, new LevelValues());
+                    LevelLayout l = SharedFloors.Once(seed * 32452843UL + 17UL, floor, new LevelValues()); // work order 155: from the run's set (a batch at a time), read in this order
                     foreach (LevelRoom r in Combats(l))
                     {
                         List<(EnemyKind kind, bool elite)> members = Members(r);

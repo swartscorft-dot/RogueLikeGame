@@ -201,7 +201,7 @@ namespace Roguelike.Rules.Tests
             var exitHp = new List<long>();
             for (ulong s = 0; s < 1000; s++)
             {
-                LevelLayout level = LevelGenerator.Generate(s, floor, v);
+                LevelLayout level = SharedFloors.Once(s, floor, v); // work order 155: made a batch at a time (the sweep's next seeds guessed), read in this order; floor 5's are BossAloneTests' switch off's
                 List<string> faults = LevelValidator.Validate(level, v);
                 Assert.That(faults, Is.Empty, "seed " + s + " floor " + floor);
                 foreach (LevelRoom r in level.Rooms)

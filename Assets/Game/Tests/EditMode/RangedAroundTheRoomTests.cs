@@ -59,13 +59,14 @@ namespace Roguelike.Rules.Tests
             return h;
         }
 
-        static List<LevelLayout> Run(ulong runSeed, LevelValues v, int floors)
+        // Work order 155: from the run's set, read only; kept for a later test's reading (keep), or let go as read (the walk's last reader).
+        static List<LevelLayout> Run(ulong runSeed, LevelValues v, int floors, bool keep = true)
         {
             var list = new List<LevelLayout>();
             string before = null;
             for (int floor = 1; floor <= floors; floor++)
             {
-                LevelLayout l = LevelGenerator.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, exitBefore: before);
+                LevelLayout l = keep ? SharedFloors.Generate(RunSeeds.FloorSeed(runSeed, floor), floor, v, before) : SharedFloors.Once(RunSeeds.FloorSeed(runSeed, floor), floor, v, before);
                 list.Add(l);
                 before = WayDowns.Shown(l);
             }
@@ -73,12 +74,15 @@ namespace Roguelike.Rules.Tests
         }
 
         /// <summary>Two thousand floors (seeds s * 7919 + 13, floors 1 to 5 in turn) and a hundred runs of five, folded: the very floors and fold of version 22's pin (LancersInTheFloorsTests).</summary>
-        static ulong Print(LevelValues v, bool posts)
+        // Work order 155: keep, the floors kept for a later test of the run that walks them again (the pins of the version after); else let go as read.
+        static ulong Print(LevelValues v, bool posts, bool keep = false)
         {
+            SharedFloors.Prefetch(v, Enumerable.Range(0, 2000).Select(k => ((ulong)k * 7919UL + 13UL, k % 5 + 1))); // work order 155: a batch at a time, read in this order
+            SharedFloors.PrefetchRuns(v, Enumerable.Range(0, 100).Select(r => (ulong)r * 104729UL + 103UL), 5);
             ulong h = 14695981039346656037UL;
-            for (ulong s = 0; s < 2000; s++) h = Fold(LevelGenerator.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v), h, posts);
+            for (ulong s = 0; s < 2000; s++) h = Fold((keep ? SharedFloors.Generate(s * 7919UL + 13UL, (int)(s % 5) + 1, v) : SharedFloors.Once(s * 7919UL + 13UL, (int)(s % 5) + 1, v)), h, posts); // work order 155: from the run's set, read only
             for (ulong r = 0; r < 100; r++)
-                foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5)) h = Fold(l, h, posts);
+                foreach (LevelLayout l in Run(r * 104729UL + 103UL, v, 5, keep)) h = Fold(l, h, posts);
             return h;
         }
 
