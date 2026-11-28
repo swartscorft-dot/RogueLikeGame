@@ -261,6 +261,12 @@ namespace Roguelike.PlayModeTests
             if (BossValues.Trial) Assert.That(boss, Is.EqualTo(callers + 1), "work order 147's boss line after the callers");
             else Assert.That(boss, Is.EqualTo(-1), "work order 147's switch off: no boss line");
             Assert.That(lines.IndexOf(SettingLine.Elites), Is.EqualTo((BossValues.Trial ? boss : callers) + 1), "work order 149's elites line after them");
+            // The merge of 2026-11-28, W4 (changed deliberately): work order 153's "Timed chest", then work order 151's "Enemy tints".
+            int chest = lines.IndexOf(SettingLine.TimedChest), tints = lines.IndexOf(SettingLine.EnemyTints);
+            Assert.That(chest, Is.EqualTo(lines.IndexOf(SettingLine.Elites) + 1), "work order 153's timed chest after the elites");
+            Assert.That(tints, Is.EqualTo(chest + 1), "work order 151's tints after the timed chest");
+            Assert.That(_screen.RowNames[tints], Is.EqualTo("Enemy tints"));
+            Assert.That(_screen.RowValues[tints], Is.EqualTo(EnemyTintSettings.Chosen ? "Show" : "As before"));
             foreach (SettingLine hers in new[] { SettingLine.Attachments, SettingLine.TimingCue, SettingLine.Precision, SettingLine.SightOpening })
                 Assert.That(lines, Has.No.Member(hers), hers + " is on the TRIALS page");
             Assert.That(_screen.TextOutside(), Is.Empty, "every word of the ROOMS page inside its shape");

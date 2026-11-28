@@ -303,6 +303,66 @@ namespace Roguelike.PlayModeTests
             Assert.That(Near01(OwnOf(ram.Look.Skin), InterfaceStyle.C(ram.Tuning.Tint)), Is.True, "ash white again");
         }
 
+        /// <summary>
+        /// The merge of 2026-11-28, W4 (the producer's ruling, against W3's fix that made the Grave Ram's telegraph and its stones' lines
+        /// its own children): a telegraph is never a mesh of the enemy's model, so no block of this order's is laid on it and its colour is
+        /// the telegraph's; the same for an ordinary enemy's telegraph child (the gold elite's), and through the Ram's daze.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheTelegraphs_OfTheRamAndOfATintedEnemy_AreTheirChildren_AndTakeNoTint_NorTheRamsDaze()
+        {
+            yield return BuildFloor();
+            Enemy elite = Make(EnemyKind.Brute, -Apart, elite: true);
+            EnemyGraveRam ram = MakeRam(Apart);
+            yield return Frames(4);
+            CarriesItsTint(elite, "the elite brute");
+            CarriesItsTint(ram, "the Grave Ram");
+            Color telegraph = _template.Telegraph.sharedMaterial.color;
+            var lines = new System.Collections.Generic.List<LineRenderer> { elite.Telegraph, ram.Telegraph };
+            lines.AddRange(ram.StoneLines);
+            void NoTint(string when)
+            {
+                foreach (LineRenderer l in lines)
+                {
+                    Assert.That(l, Is.Not.Null, when);
+                    Assert.That(l.transform.IsChildOf(l == elite.Telegraph ? elite.transform : ram.transform), Is.True, when + ": " + l.name + " is its enemy's own");
+                    Assert.That(l.HasPropertyBlock(), Is.False, when + ": " + l.name + " carries no block");
+                    Assert.That(l.sharedMaterial.color, Is.EqualTo(telegraph), when + ": " + l.name + " in the telegraph's colour");
+                }
+            }
+            NoTint("tints laid");
+            ram.Body.DazeFor(0.8f);
+            yield return Until(() => ram.ShowsDazedTint, 2f);
+            yield return null;
+            Assert.That(ram.GetComponent<HitFlash>().Tint.LaidCount, Is.EqualTo(0), "the daze's own block over its body: none of this order's");
+            NoTint("through the Ram's daze");
+        }
+
+        /// <summary>The merge of 2026-11-28, W4: the ROOMS page's "Enemy tints" on "As before" takes every block of the order's off, as its switch does; "Show" lays them again.</summary>
+        [UnityTest]
+        public IEnumerator TheRoomsPagesLine_AsBefore_TakesTheTintsOff_AndShow_LaysThemAgain()
+        {
+            yield return BuildFloor();
+            Enemy elite = Make(EnemyKind.Brute, 0f, elite: true);
+            yield return Frames(4);
+            CarriesItsTint(elite, "shown");
+            try
+            {
+                EnemyTintSettings.Set(false, keep: false);
+                Assert.That(EnemyTintSettings.InUse, Is.False);
+                yield return Frames(2);
+                CarriesNothing(elite, "as before");
+                Assert.That(elite.GetComponent<HitFlash>().Tint.LaidCount, Is.EqualTo(0));
+                EnemyTintSettings.Set(true, keep: false);
+                yield return Frames(2);
+                CarriesItsTint(elite, "shown again");
+            }
+            finally
+            {
+                EnemyTintSettings.Set(true, keep: false);
+            }
+        }
+
         [UnityTest]
         public IEnumerator AWard_PutOnTheEliteAndTakenOff_ItKeepsItsGold_ThroughTheBreaksDaze()
         {

@@ -8,6 +8,24 @@ namespace Roguelike.Rules.Tests
     /// </summary>
     public class EnemyTintRuleTests
     {
+        /// <summary>
+        /// The merge of 2026-11-28, W4 (the producer's ruling): the tints have a line of their own on the ROOMS page, "Enemy tints", right
+        /// after work order 153's "Timed chest", "Show" or "As before".
+        /// </summary>
+        [Test]
+        public void TheRoomsPage_HasTheTintsLine_RightAfterTheTimedChest()
+        {
+            var lines = new System.Collections.Generic.List<SettingLine>();
+            SettingsPages.Lines(SettingsPage.Rooms, true, lines);
+            Assert.That(lines.IndexOf(SettingLine.EnemyTints), Is.EqualTo(lines.IndexOf(SettingLine.TimedChest) + 1), "right after the timed chest, found by its line");
+            Assert.That(SettingsPages.PageOf(SettingLine.EnemyTints), Is.EqualTo(SettingsPage.Rooms));
+            SettingsPages.Lines(SettingsPage.Trials, true, lines);
+            Assert.That(lines, Has.No.Member(SettingLine.EnemyTints), "not on her trials' page");
+            Assert.That(EnemyTintLines.Name, Is.EqualTo("Enemy tints"));
+            Assert.That(EnemyTintLines.Words(true), Is.EqualTo("Show"));
+            Assert.That(EnemyTintLines.Words(false), Is.EqualTo("As before"));
+        }
+
         static readonly Rgb Gold = new Rgb(1f, 0.86f, 0.22f);       // EnemyFactory.EliteTint
         static readonly Rgb Green = new Rgb(0.25f, 0.75f, 0.45f);   // EnemyFactory.WarderTint
         static readonly Rgb Daze = new Rgb(0.55f, 0.75f, 1f);       // Enemy's daze tint

@@ -56,7 +56,8 @@ namespace Roguelike
         /// <summary>Follows the switch, the tint of each mesh and its added picture; <paramref name="flashing"/>: the hit's flash is on.</summary>
         public void Tick(bool flashing)
         {
-            if (!EnemyTintValues.Show && _laidCount == 0) return; // off from the start: nothing looked at, nothing laid (today's)
+            bool show = EnemyTintSettings.InUse; // the switch and, since the merge of 2026-11-28 (W4), the ROOMS page's "Enemy tints"
+            if (!show && _laidCount == 0) return; // off from the start: nothing looked at, nothing laid (today's)
             Renderer[] targets = _flash.Targets;
             Renderer one = targets == null ? _flash.Target : null;
             if (targets != _seen || one != _seenOne)
@@ -74,7 +75,7 @@ namespace Roguelike
                 _enemy = _flash.GetComponent<Enemy>();
             }
             bool over = _enemy is EnemyGraveRam ram && ram.ShowsDazedTint;
-            if (!EnemyTintValues.Show || flashing || over)
+            if (!show || flashing || over)
             {
                 if (_laidCount > 0) TakeOffAll();
                 return;
@@ -162,5 +163,77 @@ namespace Roguelike
             }
             _laidCount = 0;
         }
+    }
+    /// <summary>
+    /// Work order 151's line on the settings screen's ROOMS page, "Enemy tints" (<see cref="EnemyTintLines"/>; the merge of 2026-11-28, W4):
+    /// "Show" (the default, nothing stored) or "As before", kept between sessions in PlayerPrefs under <see cref="Key"/> as the rooms' other
+    /// trials are (<see cref="TimedChestSettings"/>), read once <see cref="GameSettings"/> has loaded. Read every frame by each enemy's tint
+    /// layer (<see cref="InUse"/>): "As before" takes every block of the order's off at once, as its switch off does.
+    /// </summary>
+    public static class EnemyTintSettings
+    {
+        public const string Key = "Roguelike.Settings.EnemyTints"; // 1 show (the default, as nothing stored), 0 as before
+
+        static bool s_loaded;
+        static bool s_on = true;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            s_loaded = false;
+            s_on = true;
+        }
+
+        /// <summary>Follows GameSettings: read when it has loaded, the default again when it has unloaded.</summary>
+        static void Follow()
+        {
+            if (GameSettings.IsLoaded && !s_loaded)
+            {
+                s_on = PlayerPrefs.GetInt(Key, 1) != 0;
+                s_loaded = true;
+            }
+            else if (!GameSettings.IsLoaded && s_loaded)
+            {
+                s_loaded = false;
+                s_on = true;
+            }
+        }
+
+        /// <summary>The tints as chosen on the ROOMS page (shown unless he chose "As before").</summary>
+        public static bool Chosen
+        {
+            get
+            {
+                Follow();
+                return s_on;
+            }
+        }
+
+        /// <summary>Are the tints laid now: the order's switch and the page's choice both on.</summary>
+        public static bool InUse => EnemyTintValues.Show && Chosen;
+
+        /// <summary>Shows them or not and, with <paramref name="keep"/>, keeps it (a test keeps nothing).</summary>
+        public static void Set(bool on, bool keep = true)
+        {
+            Follow();
+            s_on = on;
+            if (!keep) return;
+            PlayerPrefs.SetInt(Key, on ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>Is this the order's line on the ROOMS page.</summary>
+        public static bool Is(SettingLine line) => line == SettingLine.EnemyTints;
+
+        /// <summary>The settings screen's line changed a step: the other choice, kept. False for any other line.</summary>
+        public static bool ChangeLine(SettingLine line, int delta)
+        {
+            if (!Is(line)) return false;
+            Set(!Chosen);
+            return true;
+        }
+
+        /// <summary>The words of the line's value now (constant strings: nothing made in a frame).</summary>
+        public static string LineWords => EnemyTintLines.Words(Chosen);
     }
 }

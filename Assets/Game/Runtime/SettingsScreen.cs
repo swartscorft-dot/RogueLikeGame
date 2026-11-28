@@ -165,6 +165,7 @@ namespace Roguelike
             else if (BossTrialSettings.Is(line)) done = BossTrialSettings.ChangeLine(line, delta); // work order 147
             else if (EliteSettings.Is(line)) done = EliteSettings.ChangeLine(line, delta); // work order 149
             else if (TimedChestSettings.Is(line)) done = TimedChestSettings.ChangeLine(line, delta); // work order 153
+            else if (EnemyTintSettings.Is(line)) done = EnemyTintSettings.ChangeLine(line, delta); // work order 151 (the merge of 2026-11-28, W4)
             else done = RunHud.Current != null && RunHud.MenuLineOf(line, out RunHud.MenuLine menuLine) && RunHud.Current.ChangeSetting(menuLine, delta);
             if (done) MakeRows();
             return done;
@@ -240,6 +241,13 @@ namespace Roguelike
                     {
                         _names.Add(TimedChestLines.Name);
                         _values.Add(TimedChestSettings.LineWords);
+                        _notes.Add("");
+                        _greyed.Add(false);
+                    }
+                    else if (EnemyTintSettings.Is(line)) // work order 151's line (the merge of 2026-11-28, W4), read through EnemyTintSettings
+                    {
+                        _names.Add(EnemyTintLines.Name);
+                        _values.Add(EnemyTintSettings.LineWords);
                         _notes.Add("");
                         _greyed.Add(false);
                     }

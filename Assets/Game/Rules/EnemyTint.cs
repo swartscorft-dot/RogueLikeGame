@@ -61,4 +61,17 @@ namespace Roguelike.Rules
         public static Rgb Added(Rgb levelLinear, Rgb tintLinear) =>
             new Rgb(levelLinear.R * tintLinear.R, levelLinear.G * tintLinear.G, levelLinear.B * tintLinear.B);
     }
+    /// <summary>
+    /// Work order 151's line on the settings screen's ROOMS page (the producer's ruling at the merge of 2026-11-28, W4: he compares by
+    /// playing): "Enemy tints", "Show" (the default, nothing stored: <see cref="EnemyTintValues.Show"/>'s own) or "As before" (no block of
+    /// the order's laid, every enemy drawn as before), after "Timed chest". The game keeps it in EnemyTintSettings.
+    /// </summary>
+    public static class EnemyTintLines
+    {
+        public const string Name = "Enemy tints";
+        public const string ShowWords = "Show", BeforeWords = "As before";
+
+        /// <summary>The line's words.</summary>
+        public static string Words(bool show) => show ? ShowWords : BeforeWords;
+    }
 }

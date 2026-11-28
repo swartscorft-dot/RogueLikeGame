@@ -171,6 +171,7 @@ namespace Roguelike.Rules.Tests
                 SettingLine.BossFight, // work order 147's line (with BossValues.Trial on)
                 SettingLine.Elites, // work order 149's line
                 SettingLine.TimedChest, // work order 153's line, after it (changed deliberately: the ROOMS page's list with it)
+                SettingLine.EnemyTints, // work order 151's line, after it (the merge of 2026-11-28, W4; changed deliberately)
             }));
             SettingsPages.Lines(SettingsPage.Trials, true, lines);
             Assert.That(lines, Is.EqualTo(new[]
