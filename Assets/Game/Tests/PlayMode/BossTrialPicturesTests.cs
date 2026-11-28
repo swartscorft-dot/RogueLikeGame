@@ -30,7 +30,14 @@ namespace Roguelike.PlayModeTests
         public IEnumerator Pictures()
         {
             _folder = Environment.GetEnvironmentVariable(FolderVariable);
-            if (string.IsNullOrEmpty(_folder)) Assert.Ignore("pictures are taken only when " + FolderVariable + " names a folder (work order 147)");
+            if (string.IsNullOrEmpty(_folder))
+            {
+                // The merge of 2026-11-27, W3: the harness's own set-up has run (the boss's entrance off, the trial fight in use for tests,
+                // nobody at the keys); an ignore here skips its tear-down, which left the entrance off for every later class of the run
+                // (RoomFightsPlayTests' boss room found it off, in both full PlayModes of W3). Everything is put back before the ignore.
+                CleanUp();
+                Assert.Ignore("pictures are taken only when " + FolderVariable + " names a folder (work order 147)");
+            }
             Directory.CreateDirectory(_folder);
             CombatEffects.Ensure();
             _levels.ShowDevBox = false;
