@@ -70,6 +70,7 @@ namespace Roguelike.PlayModeTests
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.ReadRealDevices = true;
         }
 
@@ -78,6 +79,23 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>
+        /// Work order 154: until the condition holds, at most this many seconds of GAME time (and a minute of real time, however busy
+        /// the machine is), for a test whose frames are fixed steps of game time (<see cref="FixedStep"/>).
+        /// </summary>
+        static IEnumerator UntilInGameTime(Func<bool> condition, float gameSeconds)
+        {
+            float end = Time.time + gameSeconds, deadline = Time.realtimeSinceStartup + 60f;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        /// <summary>
+        /// Work order 154: s of game time a frame (Time.captureDeltaTime) in the tests here that judge a rule of the game's time by
+        /// its frames: beside a full EditMode run a frame carried up to a third of a second, and these tests failed by it on
+        /// 2026-11-26 (alone, every one passed).
+        /// </summary>
+        const float FixedStep = 1f / 60f;
 
         static IEnumerator For(float seconds)
         {
@@ -100,6 +118,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator SwarmerPack_WakesTogether_ItsMembersStrike_AndKeepApart()
         {
+            // Work order 154: every frame 1/60 s of game time: beside a full run (2026-11-26) frames of a tenth of a second let them close in
+            // further between two of their pushes apart (0.62 m for the 0.7 asked: the push apart is a frame's, FrameStepFindingsTests' table).
+            Time.captureDeltaTime = FixedStep;
             List<Enemy> pack = _levels.SpawnPractice(EnemyKind.Swarmer);
             var values = new SwarmerValues();
             Assert.That(pack.Count, Is.EqualTo(values.PracticePack), "a pack");
@@ -121,8 +142,8 @@ namespace Roguelike.PlayModeTests
             // She stands still; they come and strike. While two or more stand round her, they keep apart.
             int healthBefore = _health.Current;
             float closest = float.MaxValue;
-            float deadline = Time.realtimeSinceStartup + 10f;
-            while (Time.realtimeSinceStartup < deadline)
+            float deadline = Time.realtimeSinceStartup + 60f, gameEnd = Time.time + 10f;
+            while (Time.realtimeSinceStartup < deadline && Time.time < gameEnd)
             {
                 List<Enemy> near = pack.Where(e => !e.IsDead && Flat(e.transform.position, _player.Position) < 2f).ToList();
                 for (int i = 0; i < near.Count; i++)
@@ -138,6 +159,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(healthBefore - _health.Current, Is.EqualTo(landed * values.Enemy.Attacks[0].Damage), "each landed strike does its damage");
             Assert.That(closest, Is.Not.EqualTo(float.MaxValue), "two stood round her at once");
             Assert.That(closest, Is.GreaterThanOrEqualTo(values.Spacing - 0.1f), "they do not stack");
+            Time.captureDeltaTime = 0f;
         }
 
         // ---------------- The shooter ----------------
@@ -172,23 +194,26 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Shooter_HitsHerStandingStill_MissesHerWhenSheStepsOut()
         {
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time (2026-11-26, beside a full run: the real
+            // seconds ran out before its wind-up came: "Expected Windup, was Chase").
+            Time.captureDeltaTime = FixedStep;
             var shooter = SpawnOne<EnemyShooter>(EnemyKind.Shooter);
             EnemyAttackDefinition shot = shooter.Tuning.Enemy.Attacks[0];
             yield return null;
             shooter.Body.TakeHit(1);
 
             // Standing still.
-            yield return Until(() => shooter.State == EnemyState.Windup, 4f);
+            yield return UntilInGameTime(() => shooter.State == EnemyState.Windup, 4f);
             Assert.That(shooter.State, Is.EqualTo(EnemyState.Windup), "it aims");
             Assert.That(shooter.IsTelegraphing, Is.True, "and shows the line");
             int health = _health.Current, landed = shooter.StrikesLanded, strikes = shooter.Strikes;
-            yield return Until(() => shooter.Strikes > strikes, shot.Windup + 1f);
+            yield return UntilInGameTime(() => shooter.Strikes > strikes, shot.Windup + 1f);
             Assert.That(shooter.Strikes, Is.EqualTo(strikes + 1));
             Assert.That(shooter.StrikesLanded, Is.EqualTo(landed + 1), "the line hits her where she stood");
             Assert.That(health - _health.Current, Is.EqualTo(shot.Damage));
 
             // Stepping out sideways during the next windup.
-            yield return Until(() => shooter.State == EnemyState.Windup, shot.Recovery + 2f);
+            yield return UntilInGameTime(() => shooter.State == EnemyState.Windup, shot.Recovery + 2f);
             Assert.That(shooter.State, Is.EqualTo(EnemyState.Windup));
             Vector3 aim = shooter.AimPoint - shooter.transform.position;
             Vector3 side = Vector3.Cross(Vector3.up, new Vector3(aim.x, 0f, aim.z)).normalized;
@@ -197,12 +222,13 @@ namespace Roguelike.PlayModeTests
             strikes = shooter.Strikes;
             Vector3 from = _player.Position;
             _player.Steer(side);
-            yield return Until(() => Flat(_player.Position, from) >= shot.HalfWidth + Placeholders.PlayerRadius + 0.5f, shot.Windup);
+            yield return UntilInGameTime(() => Flat(_player.Position, from) >= shot.HalfWidth + Placeholders.PlayerRadius + 0.5f, shot.Windup);
             _player.Steer(Vector3.zero);
-            yield return Until(() => shooter.Strikes > strikes, shot.Windup + 1f);
+            yield return UntilInGameTime(() => shooter.Strikes > strikes, shot.Windup + 1f);
             Assert.That(shooter.Strikes, Is.EqualTo(strikes + 1), "it shot");
             Assert.That(shooter.StrikesLanded, Is.EqualTo(landed), "the line did not follow her");
             Assert.That(_health.Current, Is.EqualTo(health));
+            Time.captureDeltaTime = 0f;
         }
 
         [UnityTest]
@@ -256,6 +282,8 @@ namespace Roguelike.PlayModeTests
         }
 
         IEnumerator UntilFree() => Until(() => !_player.IsLocked && _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 4f);
+        /// <summary>Work order 154: <see cref="UntilFree"/> in game time, for a test at fixed frames.</summary>
+        IEnumerator UntilFreeInGameTime() => UntilInGameTime(() => !_player.IsLocked && _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 4f);
 
         [UnityTest]
         public IEnumerator Guard_BasicShots_TakeNoStagger()
@@ -279,6 +307,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator Guard_SkillsEmptyTheBar_TheDazeLastsItsTime_HurtsMore_LetsNothingLand_ThenTheBarIsFull()
         {
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time (2026-11-26, beside a full run: the 4 s
+            // of real time to be free ran out first, and Scatter Blast's press waited: "Expected Started, was Buffered").
+            Time.captureDeltaTime = FixedStep;
             _folder = Path.Combine(Path.GetTempPath(), "EnemyKindsTests-" + Guid.NewGuid().ToString("N"));
             _recorder = PlaySessionRecorder.StartRecording(_folder);
             EnemyGuard guard = null;
@@ -294,37 +325,37 @@ namespace Roguelike.PlayModeTests
 
             // Heavy Volley, then Scatter Blast: each takes its own stagger.
             Assert.That(_player.PressSkill(Volley, at), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => bar.Current < stagger.Max, 3f);
+            yield return UntilInGameTime(() => bar.Current < stagger.Max, 3f);
             Assert.That(bar.Current, Is.EqualTo(stagger.Max - _player.Skills[Volley].Stagger), "Heavy Volley's stagger");
-            yield return UntilFree();
+            yield return UntilFreeInGameTime();
             Assert.That(_player.PressSkill(Scatter, at), Is.EqualTo(IntentResult.Started));
             float before = bar.Current;
-            yield return Until(() => bar.Current < before, 2f);
+            yield return UntilInGameTime(() => bar.Current < before, 2f);
             Assert.That(bar.Current, Is.EqualTo(before - _player.Skills[Scatter].Stagger), "Scatter Blast's stagger");
-            yield return UntilFree();
+            yield return UntilFreeInGameTime();
 
             // Fan Fire held until the bar is empty: 4 a tick.
             Assert.That(_player.PressSkill(FanFire, at), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => guard.IsDazed, 3f);
+            yield return UntilInGameTime(() => guard.IsDazed, 3f);
             _player.ReleaseSkill(FanFire);
             Assert.That(guard.IsDazed, Is.True, "the empty bar dazes it");
             Assert.That(bar.Current, Is.EqualTo(0f));
             Assert.That(guard.State, Is.Not.EqualTo(EnemyState.Windup));
             Assert.That(guard.IsTelegraphing, Is.False);
-            yield return UntilFree();
+            yield return UntilFreeInGameTime();
 
             // Dazed: a basic shot deals the bonus.
             int hp = guard.Body.CurrentHealth;
             int hits = _player.BasicShotHits;
             _player.Shoot(at);
-            yield return Until(() => _player.BasicShotHits > hits, 2f);
+            yield return UntilInGameTime(() => _player.BasicShotHits > hits, 2f);
             int bonus = Mathf.RoundToInt(Placeholders.BasicShotDamage * stagger.DazedDamageMultiplier);
             Assert.That(hp - guard.Body.CurrentHealth, Is.EqualTo(bonus), "a basic shot hits " + stagger.DazedDamageMultiplier + " times as hard");
 
             // She walks into its slam: nothing lands while it is dazed.
             _player.Teleport(at + Vector3.back * 1.5f);
             int strikes = guard.Strikes, health = _health.Current;
-            yield return Until(() => !guard.IsDazed, stagger.DazeSeconds + 1f);
+            yield return UntilInGameTime(() => !guard.IsDazed, stagger.DazeSeconds + 1f);
             Assert.That(guard.Strikes, Is.EqualTo(strikes), "no attack while dazed");
             Assert.That(_health.Current, Is.EqualTo(health));
             yield return null;
@@ -332,7 +363,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(bar.Current, Is.EqualTo(stagger.Max), "the bar is full again");
 
             // And then it fights again: the test means something.
-            yield return Until(() => guard.Strikes > strikes, 4f);
+            yield return UntilInGameTime(() => guard.Strikes > strikes, 4f);
             Assert.That(guard.Strikes, Is.GreaterThan(strikes), "awake again, it attacks");
 
             // The recorder saw it all, with the kind.
@@ -347,6 +378,7 @@ namespace Roguelike.PlayModeTests
             StringAssert.Contains("Guards, whole session", summary);
             StringAssert.Contains("Enemies by kind, whole session", summary);
             Debug.Log("[008] guard summary\n" + summary);
+            Time.captureDeltaTime = 0f;
         }
 
         // ---------------- Levels and spawns ----------------

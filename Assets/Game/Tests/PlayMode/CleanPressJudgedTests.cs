@@ -25,6 +25,11 @@ namespace Roguelike.PlayModeTests
     /// made now; then presses are made through the input driver on the frame AFTER a drawing says "now" (the earliest a player
     /// can answer a picture), and their judgement read. Once with the shot landing on Dummy_A (its hit stop of 0.05 s in the
     /// window's clock) and once aimed at nothing (no hit stop). Every number is written to the test's log with "[142]".
+    ///
+    /// Work order 154: the frame after each window opens is half of one (<see cref="HalfAFrameAfterEachOpening"/>), so that no
+    /// frame stands on an edge of a clean part: the window opens on a frame, and Triple Tap's clean part ends eighteen frames of
+    /// 1/60 s after it, exactly on a frame; late in a full run the game's clock (a float) read that frame a quarter of a millisecond
+    /// either side of the edge, and these tests failed by its rounding ("the last frame drawn clean": 299.8 ms, then 300.2).
     /// </summary>
     public class CleanPressJudgedTests
     {
@@ -53,6 +58,7 @@ namespace Roguelike.PlayModeTests
 
         Vector2 _cursorScreen;
         int _pressBits;
+        HalfAFrameAfterEachOpening _halves;
 
         [UnitySetUp]
         public IEnumerator LoadScene()
@@ -89,6 +95,10 @@ namespace Roguelike.PlayModeTests
             _made.Add(_signs.gameObject);
             _made.Add(_feedback.gameObject);
             _made.Add(_sounds.gameObject);
+            _halves = new GameObject("HalfAFrameAfterEachOpening").AddComponent<HalfAFrameAfterEachOpening>(); // work order 154
+            _halves.Player = _player;
+            _halves.Frame = Frame;
+            _made.Add(_halves.gameObject);
             _player.Reported += OnReport;
             _feedback.WordShown += OnWord;
             _feedback.TonePlayed += OnTone;
@@ -156,11 +166,19 @@ namespace Roguelike.PlayModeTests
             return f;
         }
 
+        /// <summary>
+        /// Until the condition holds, at most this many seconds of game time. Work order 154: they were seconds of real time, and
+        /// at the fixed 1/60 s a frame here a busy machine's long frames ran them out before the chain had (its window opens
+        /// some 0.15 s of game time after the press); a minute of real time stays the limit however busy the machine is.
+        /// </summary>
         static IEnumerator Until(Func<bool> condition, float timeoutSeconds)
         {
-            float deadline = Time.realtimeSinceStartup + timeoutSeconds;
-            while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
+            float end = Time.time + timeoutSeconds, deadline = Time.realtimeSinceStartup + RealLimit;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>Work order 154: the real seconds one wait may take at most.</summary>
+        const float RealLimit = 60f;
 
         /// <summary>Her fresh near Dummy_A, the cursor on it (<paramref name="hit"/>) or on the floor where no target stands.</summary>
         IEnumerator Ready(bool hit)
@@ -326,8 +344,8 @@ namespace Roguelike.PlayModeTests
         IEnumerator Follow(int slot, int press, List<Seen> seen)
         {
             int i = 0;
-            float deadline = Time.realtimeSinceStartup + 4f;
-            while (Waiting(press) && Time.realtimeSinceStartup < deadline)
+            float end = Time.time + 4f, deadline = Time.realtimeSinceStartup + RealLimit; // work order 154: game time (it was 4 s of real time)
+            while (Waiting(press) && Time.time < end && Time.realtimeSinceStartup < deadline)
             {
                 seen.Add(Look(slot, i++));
                 yield return null;
@@ -363,7 +381,7 @@ namespace Roguelike.PlayModeTests
 
             var log = new StringBuilder();
             log.AppendLine("[142] " + skill + " press " + press + (hit ? ", the shot before it landing (hit stop)" : ", aimed at nothing (no hit stop)")
-                           + ": frames of 1/60 s; " + seen.Count + " frames from the press before to the window's end; frames in a hit stop: "
+                           + ": frames of 1/60 s (the one after each window opens half of one, work order 154; " + _halves.Halved + " so far); " + seen.Count + " frames from the press before to the window's end; frames in a hit stop: "
                            + seen.Count(s => s.HitStop) + ", their real seconds " + string.Join(",", seen.Where(s => s.HitStop).Select(s => s.Real.ToString("0.0000", CultureInfo.InvariantCulture))));
             int judgeFirst = seen.FindIndex(s => s.Judge), judgeLast = seen.FindLastIndex(s => s.Judge);
             Seen lastOpen = seen.LastOrDefault(s => s.Open);

@@ -24,14 +24,19 @@ namespace Roguelike.PlayModeTests
     /// in a fight; a missing clip is silence without an error; and asked before it has woken it answers.
     ///
     /// The music's clock is the test's own (<see cref="MusicPlayer.Clock"/>), moved by hand, at a 48 kHz rate: the engine's audio
-    /// clock is not needed and nothing waits for it. Nobody hears anything here (the listener is turned to 0 for the tests): what
+    /// clock is not needed and nothing waits for it. Work order 154: the test's clock starts an hour ahead of the engine's (it
+    /// started at 100 s): a source is still told to start on the test's line (AudioSource.PlayScheduled), and the engine plays it
+    /// when ITS clock gets there; late in a full run the engine's clock was long past 100 s, so a loop told "from its first sample"
+    /// began at once and had played 940 samples by the frame it was looked at. An hour ahead, no line comes in a test's time. Nobody hears anything here (the listener is turned to 0 for the tests): what
     /// is checked is what each source is told, when, and at what level. She cannot be hurt but where a test kills her.
     /// </summary>
     public class MusicPlayTests
     {
         const ulong RunSeed = 0x41414141UL; // the room fights' tests' run: a combat room after the first passage
         const int Rate = 48000;
-        const double Start = 100.0;
+        /// <summary>Work order 154: s the test's music clock starts ahead of the engine's audio clock, so no line it tells comes while a test runs.</summary>
+        const double AheadOfTheAudioClock = 3600.0;
+        double Start; // the test's music clock at the test's start: the engine's audio clock, a whole second, an hour ahead (it was 100 s)
 
         static NUnit.Framework.Constraints.IResolveConstraint NotAllocating => AllocExt.AllocatingGCMemory(Is.Not);
 
@@ -71,6 +76,7 @@ namespace Roguelike.PlayModeTests
             _rateWas = MusicPlayer.OutputRate;
             _clipsWas = MusicPlayer.Clips;
             MusicPlayer.Values = new MusicValues();
+            Start = Math.Ceiling(AudioSettings.dspTime) + AheadOfTheAudioClock;
             _now = Start;
             MusicPlayer.Clock = () => _now;
             MusicPlayer.OutputRate = () => Rate;

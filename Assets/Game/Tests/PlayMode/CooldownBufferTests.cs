@@ -63,6 +63,7 @@ namespace Roguelike.PlayModeTests
             if (_copy != null) Object.Destroy(_copy);
             _copy = null;
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
             PlayerInputDriver.ReadRealDevices = true;
@@ -73,6 +74,23 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + realSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>
+        /// Work order 154: until the condition holds, at most this many seconds of GAME time (and a minute of real time, however busy
+        /// the machine is), for a test whose frames are fixed steps of game time (<see cref="FixedStep"/>).
+        /// </summary>
+        static IEnumerator UntilInGameTime(Func<bool> condition, float gameSeconds)
+        {
+            float end = Time.time + gameSeconds, deadline = Time.realtimeSinceStartup + 60f;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        /// <summary>
+        /// Work order 154: s of game time a frame (Time.captureDeltaTime) in the tests here that judge a rule of the game's time by
+        /// its frames: beside a full EditMode run a frame carried up to a third of a second, and these tests failed by it on
+        /// 2026-11-26 (alone, every one passed).
+        /// </summary>
+        const float FixedStep = 1f / 60f;
 
         /// <summary>True once the skill has started again: its cooldown runs from the start (Slide's second charge from its own).</summary>
         bool Started(int slot) => _player.SkillCooldownRemaining(slot) > 1f;
@@ -231,14 +249,17 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator FanFire_Buffered_HoldsWhileTheKeyIsStillDown_AndStopsAtOnceIfItWentUp([Values(true, false)] bool stillDown)
         {
+            // Work order 154: every frame 1/60 s of game time: beside a full run (2026-11-26) the frame the buffered press went in
+            // was long enough to hold its whole use, and it had ended by the frame it was looked at ("it started as a press": null).
+            Time.captureDeltaTime = FixedStep;
             yield return OnCooldown(Fan, 0.2f);
             Assert.That(_player.PressSkill(Fan, AimFirst), Is.EqualTo(IntentResult.Buffered));
             if (!stillDown) _player.ReleaseSkill(Fan); // let go while it waits
-            yield return Until(() => Started(Fan), 3f);
+            yield return UntilInGameTime(() => Started(Fan), 3f);
             Assert.That(_player.ActiveSkill?.Name, Is.EqualTo("Fan Fire"), "it started as a press");
             float startedAt = Time.time;
             SkillDefinition fan = _player.Skills[Fan];
-            yield return Until(() => _player.Action == ActionKind.None || Time.time - startedAt > fan.Startup + fan.Recovery + 0.4f, 4f);
+            yield return UntilInGameTime(() => _player.Action == ActionKind.None || Time.time - startedAt > fan.Startup + fan.Recovery + 0.4f, 4f);
             if (stillDown)
             {
                 Assert.That(_player.ActiveSkill?.Name, Is.EqualTo("Fan Fire"), "held: still firing past a tap's length");
@@ -246,28 +267,31 @@ namespace Roguelike.PlayModeTests
                 _player.ReleaseSkill(Fan);
             }
             else Assert.That(Time.time - startedAt, Is.LessThanOrEqualTo(fan.Startup + fan.Recovery + fan.TickInterval + 0.05f), "let go: a tap's worth");
+            Time.captureDeltaTime = 0f;
         }
 
         [UnityTest]
         public IEnumerator LongShot_Buffered_ChargesWhileTheKeyIsStillDown_AndFiresUnchargedIfItWentUp([Values(true, false)] bool stillDown)
         {
+            Time.captureDeltaTime = FixedStep; // work order 154: as Fan Fire's above (2026-11-26: "Long Shot" was null)
             yield return OnCooldown(Long, 0.2f);
             int fired = _player.SkillShotsFired;
             Assert.That(_player.PressSkill(Long, AimFirst), Is.EqualTo(IntentResult.Buffered));
             if (!stillDown) _player.ReleaseSkill(Long);
-            yield return Until(() => Started(Long), 3f);
+            yield return UntilInGameTime(() => Started(Long), 3f);
             Assert.That(_player.ActiveSkill?.Name, Is.EqualTo("Long Shot"));
             float startedAt = Time.time;
             SkillDefinition shot = _player.Skills[Long];
-            yield return Until(() => _player.SkillShotsFired > fired || Time.time - startedAt > shot.Startup + 0.5f, 4f);
+            yield return UntilInGameTime(() => _player.SkillShotsFired > fired || Time.time - startedAt > shot.Startup + 0.5f, 4f);
             if (stillDown)
             {
                 Assert.That(_player.SkillShotsFired, Is.EqualTo(fired), "held: it charges, nothing fired yet");
                 _player.ReleaseSkill(Long);
-                yield return Until(() => _player.SkillShotsFired > fired, 2f);
+                yield return UntilInGameTime(() => _player.SkillShotsFired > fired, 2f);
                 Assert.That(_player.SkillShotsFired, Is.GreaterThan(fired), "and fires when let go");
             }
             else Assert.That(_player.SkillShotsFired, Is.GreaterThan(fired), "let go while it waited: it fires at once, uncharged");
+            Time.captureDeltaTime = 0f;
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

@@ -5,6 +5,7 @@ using System.Linq;
 using NUnit.Framework;
 using Roguelike.Rules;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -271,13 +272,13 @@ namespace Roguelike.PlayModeTests
             yield return Frames(2);
             List<Enemy> pack = _levels.SpawnPractice(EnemyKind.Swarmer);
             Enemy sw = pack[0];
+            // Work order 154: the measured frame the same whenever the test runs. Where it was made, and the way it faced.
+            Vector3 placed = sw.transform.position;
+            Quaternion facing = sw.transform.rotation;
             yield return Frames(3);
-            foreach (Enemy e in pack) e.enabled = false; // they stand as they are (and leave Enemy.All: its look is ticked here)
-            for (int i = 1; i < pack.Count; i++) pack[i].transform.position += new Vector3(30f, 0f, 30f); // the pack's others away
-            yield return Frames(2);
+            string found = FrameFound(sw, pack, placed, facing);
             List<Renderer> figure = sw.GetComponentsInChildren<Renderer>(true).Where(ToonInkFigures.Has).ToList();
             foreach (Renderer r in figure) r.shadowCastingMode = ShadowCastingMode.Off;
-            Camera cam = Camera.main;
             FeelValues feel = _player.Feel ?? new FeelValues();
             void Line(bool clean, bool on)
             {
@@ -287,7 +288,89 @@ namespace Roguelike.PlayModeTests
                 sw.Look.Toon.Tick();
                 foreach (Material m in sw.Look.Toon.Materials) m.SetFloat("_OutlineWidth", ToonLookValues.Live.InkWidth); // its own width now (pushed only when its look goes on)
             }
+            foreach (Enemy e in pack)
+            {
+                e.enabled = false; // they stand as they are (and leave Enemy.All: its look is ticked here)
+                NavMeshAgent agent = e.GetComponent<NavMeshAgent>();
+                if (agent != null) agent.enabled = false; // and nothing walks them on to where they were going
+            }
+            // Work order 154: the pack's others out of the picture, and the swarmer where it was made, facing as it was made, standing
+            // in the first frame of its Idle. Before, the others were moved 30 m off, and their agents put them back on the NavMesh:
+            // they stood 0.5 to 0.8 m from it, in its box, where their spawn's first frames had pushed them (in the class run two on
+            // one point and two 0.7 m off: 93.2 % of the ink in large pieces; the test alone, other places: 94.7 %), and it had
+            // walked 0.4 m and run its Idle on by those frames' length. Now the frame is the same whenever the test runs.
+            for (int i = 1; i < pack.Count; i++) pack[i].gameObject.SetActive(false);
+            sw.transform.SetPositionAndRotation(placed, facing);
+            StandInIdle(sw, 0.0);
+            yield return Frames(2);
+            StandInIdle(sw, 0.0);
+            TestContext.WriteLine(found + " | measured at " + Where(sw));
+            var results = new List<(bool close, InkFragments.Result clean, InkFragments.Result hull, string line, int covered)>();
             foreach (bool close in new[] { true, false })
+            {
+                (InkFragments.Result rClean, InkFragments.Result rHull, int covered) = MeasureOnce(sw, figure, close, Line, feel);
+                string line = "CLEANTOON swarmer " + (close ? "close up" : "at the game's camera") + ": the clean line multisampled " + rClean + " | 119's line " + rHull;
+                TestContext.WriteLine(line);
+                Debug.Log(line);
+                results.Add((close, rClean, rHull, line, covered));
+            }
+            // Work order 154: the same measure in other moments of its Idle, written down only (the asserted frame is the first):
+            // how near the clean line stands to the 94 % in the poses a standing swarmer goes through.
+            AnimationClip idle = EnemyLook.FindClip(sw.Look.Spec, "Idle");
+            double length = idle != null ? idle.length : 0.0;
+            foreach (double share in IdleShares)
+            {
+                if (length <= 0.0) break;
+                StandInIdle(sw, share * length);
+                foreach (bool close in new[] { true, false })
+                {
+                    var (c, h, _) = MeasureOnce(sw, figure, close, Line, feel);
+                    TestContext.WriteLine(string.Format(Inv, "CLEANTOON [154] Idle at {0:0.00} of its {1:0.00} s, {2}: the clean line {3} | 119's line {4}",
+                                                        share, length, close ? "close up" : "at the game's camera", c, h));
+                }
+            }
+            StandInIdle(sw, 0.0);
+            foreach ((bool close, InkFragments.Result rClean, InkFragments.Result rHull, string line, int covered) in results)
+            {
+                Assert.That(covered, Is.GreaterThan(200), "the swarmer is in the picture");
+                Assert.That(rClean.Passes, Is.True, line);
+                // At the game's camera a lone swarmer standing still is small and 119's line on it is whole too (its push moves it
+                // by under a pixel there): the fault it shows close up, and in the fights among many.
+                if (close) Assert.That(rHull.Passes, Is.False, "the measure sees 119's fault: " + line);
+            }
+        }
+
+        /// <summary>Work order 154: the moments of its Idle the measure is also written down for (shares of the clip).</summary>
+        static readonly double[] IdleShares = { 0.25, 0.5, 0.75 };
+
+        /// <summary>
+        /// Work order 154: the swarmer standing in its Idle at <paramref name="seconds"/> into the clip, every other clip out,
+        /// posed now (its look's own Reset, then one tick of exactly that time, then its pose made whether or not it is in sight).
+        /// </summary>
+        static void StandInIdle(Enemy sw, double seconds)
+        {
+            EnemyLook look = sw.Look;
+            float now = Time.time;
+            look.Tick(sw, Vector3.zero, now); // its clock set to now
+            look.Reset();                     // the first frame of Idle, all of it
+            look.Tick(sw, Vector3.zero, now + (float)seconds);
+            look.PoseNow();
+        }
+
+        static string Where(Enemy sw) => string.Format(Inv, "({0:0.000}, {1:0.000}) facing {2:0.0}, {3} at {4:0.000} s, skin box {5} {6}",
+            sw.transform.position.x, sw.transform.position.z, sw.transform.eulerAngles.y, sw.Look.Playing, sw.Look.PlayingTime,
+            sw.Look.Skin.bounds.center.ToString("F3"), sw.Look.Skin.bounds.size.ToString("F3"));
+
+        /// <summary>Work order 154: what the swarmer's first five frames made of it, as found before it is put to the measured frame.</summary>
+        static string FrameFound(Enemy sw, List<Enemy> pack, Vector3 placed, Quaternion facing) => string.Format(Inv,
+            "CLEANTOON [154] found after its first frames (clock {0:0.000} s, frame {1}, last step {2:0.0000} s): Id {3}, {4}, moved {5:0.000} m, turned {6:0.0} degrees, state {7}, in sight {8}, posed {9}; its pack {10}; the camera at {11}",
+            Time.time, Time.frameCount, Time.deltaTime, sw.Id, Where(sw), Vector3.Distance(sw.transform.position, placed),
+            Quaternion.Angle(sw.transform.rotation, facing), sw.State, sw.Look.InSight, sw.Look.Posed, pack.Count,
+            Camera.main != null ? Camera.main.transform.position.ToString("F2") : "none");
+
+        (InkFragments.Result clean, InkFragments.Result hull, int covered) MeasureOnce(Enemy sw, List<Renderer> figure, bool close, System.Action<bool, bool> setLine, FeelValues feel)
+        {
+            Camera cam = Camera.main;
             {
                 Vector3 middle = sw.Look.Skin.bounds.center;
                 if (close)
@@ -297,13 +380,13 @@ namespace Roguelike.PlayModeTests
                     cam.transform.SetPositionAndRotation(middle - rotation * Vector3.forward * (3.2f + 2.2f * Mathf.Max(1.5f, sw.ModelHeight)), rotation);
                 }
                 else Pose(cam, middle);
-                Line(true, false);
+                setLine(true, false);
                 Color32[] none = Draw(cam, 1), noneAa = Draw(cam, AntiAliasingValues.MsaaSamples);
-                Line(true, true);
+                setLine(true, true);
                 Color32[] clean = Draw(cam, AntiAliasingValues.MsaaSamples);
-                Line(false, true);
+                setLine(false, true);
                 Color32[] hull = Draw(cam, 1);
-                Line(true, true);
+                setLine(true, true);
                 foreach (Renderer r in figure) r.enabled = false;
                 Color32[] empty = Draw(cam, 1);
                 foreach (Renderer r in figure) r.enabled = true;
@@ -327,14 +410,31 @@ namespace Roguelike.PlayModeTests
                     }
                 InkFragments.Result rClean = InkFragments.Measure(InkFragments.InkOf(Luma(clean, x0, y0, bw, bh), Luma(noneAa, x0, y0, bw, bh)), bw, bh, fig);
                 InkFragments.Result rHull = InkFragments.Measure(InkFragments.InkOf(Luma(hull, x0, y0, bw, bh), Luma(none, x0, y0, bw, bh)), bw, bh, fig);
-                string line = "CLEANTOON swarmer " + (close ? "close up" : "at the game's camera") + ": the clean line multisampled " + rClean + " | 119's line " + rHull;
-                TestContext.WriteLine(line);
-                Debug.Log(line);
-                Assert.That(fig.Count(b => b), Is.GreaterThan(200), "the swarmer is in the picture");
-                Assert.That(rClean.Passes, Is.True, line);
-                // At the game's camera a lone swarmer standing still is small and 119's line on it is whole too (its push moves it
-                // by under a pixel there): the fault it shows close up, and in the fights among many.
-                if (close) Assert.That(rHull.Passes, Is.False, "the measure sees 119's fault: " + line);
+                Pictures(close, clean, hull, x0, y0, bw, bh);
+                return (rClean, rHull, fig.Count(b => b));
+            }
+        }
+
+        /// <summary>
+        /// Work order 154: with ROGUELIKE_CLEANTOON_PICTURES set to a folder, the measured box of the clean line and of 119's is
+        /// written there as pictures (for the producer, when the measure is near its line); unset, nothing is written.
+        /// </summary>
+        static int s_pictures;
+        static void Pictures(bool close, Color32[] clean, Color32[] hull, int x0, int y0, int bw, int bh)
+        {
+            string folder = System.Environment.GetEnvironmentVariable("ROGUELIKE_CLEANTOON_PICTURES");
+            if (string.IsNullOrEmpty(folder)) return;
+            System.IO.Directory.CreateDirectory(folder);
+            s_pictures++;
+            foreach ((string name, Color32[] px) in new[] { ("clean", clean), ("hull119", hull) })
+            {
+                var tex = new Texture2D(bw, bh, TextureFormat.RGBA32, false);
+                var box = new Color32[bw * bh];
+                for (int y = 0; y < bh; y++) for (int x = 0; x < bw; x++) box[y * bw + x] = px[(y0 + y) * W + x0 + x];
+                tex.SetPixels32(box);
+                tex.Apply();
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(folder, string.Format(Inv, "cleantoon-{0:00}-{1}-{2}.png", s_pictures, close ? "close" : "game", name)), tex.EncodeToPNG());
+                Object.Destroy(tex);
             }
         }
 

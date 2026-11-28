@@ -48,6 +48,7 @@ namespace Roguelike.PlayModeTests
         public void RestoreTimeAndInput()
         {
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.ReadRealDevices = true;
         }
 
@@ -72,11 +73,15 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ClickingEveryFrame_FiresOncePerCycle_NeverSooner()
         {
+            // Work order 154: every frame 1/60 s of game time. A hit is seen on the frame it lands in: with frames of up to 0.1 s
+            // beside a full run, the frame a hit was seen in lay up to a frame after it, and two hits seen 0.187 s apart were a
+            // cycle apart (2026-11-26).
+            Time.captureDeltaTime = FixedStep;
             _player.Teleport(NearA);
             yield return null;
             var hits = new List<float>();
             float start = Time.time;
-            float deadline = Time.realtimeSinceStartup + 5f;
+            float deadline = Time.realtimeSinceStartup + 60f;
             while (Time.time < start + Cycle * 4.5f && Time.realtimeSinceStartup < deadline)
             {
                 _player.Shoot(_a.transform.position); // a click every frame: far faster than she can shoot
@@ -85,6 +90,7 @@ namespace Roguelike.PlayModeTests
                 if (_a.HitsTaken > before) hits.Add(Time.time);
             }
             _player.Stop();
+            Time.captureDeltaTime = 0f;
             Assert.That(hits.Count, Is.InRange(4, 5), "one shot per cycle over four and a half cycles");
             for (int i = 1; i < hits.Count; i++)
             {
@@ -221,6 +227,13 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>
+        /// Work order 154: s of game time a frame (Time.captureDeltaTime) in the tests here that judge a rule of the game's time by
+        /// its frames: beside a full EditMode run a frame carried up to a third of a second, and these tests failed by it on
+        /// 2026-11-26 (alone, every one passed).
+        /// </summary>
+        const float FixedStep = 1f / 60f;
 
         /// <summary>True when a target's edge is within a reach of a point on the ground.</summary>
         static bool InReach(GroundPoint from, GroundPoint target, float radius, float reach) => from.DistanceTo(target) - radius <= reach;

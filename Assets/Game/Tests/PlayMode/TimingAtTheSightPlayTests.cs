@@ -166,8 +166,8 @@ namespace Roguelike.PlayModeTests
         /// <summary>Every frame until the window of press <paramref name="press"/> is open and the cue says clean (or it runs out); compared each frame.</summary>
         IEnumerator FollowUntilClean(int press, string what)
         {
-            float deadline = Time.realtimeSinceStartup + 3f;
-            while (Time.realtimeSinceStartup < deadline)
+            float end = Time.time + 3f, deadline = Time.realtimeSinceStartup + 60f; // work order 154: 3 s of game time (it was real), a minute of real at most
+            while (Time.time < end && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
                 Compare(what + ", press " + press);
@@ -182,6 +182,9 @@ namespace Roguelike.PlayModeTests
         public IEnumerator TripleTap_WithEachCue_APressIsCleanExactlyWhileTheCueSaysSo_ThroughTheWholeChain()
         {
             int slot = Slot("Triple Tap");
+            // Work order 154: every frame 1/60 s of game time: it counts the frames it compared, and with frames of 40 ms (LoadOnPurpose)
+            // the chain held 20 of them, for the more than 20 asked.
+            Time.captureDeltaTime = 1f / 60f;
             foreach (TimingCue cue in Cues)
             {
                 TimingCueSettings.SetCue(cue, keep: false);
@@ -204,8 +207,8 @@ namespace Roguelike.PlayModeTests
                 // A chain run through, every frame of its windows compared, pressed nowhere: the cue and the judge agree to the end.
                 yield return Ready();
                 Assert.That(_player.PressSkill(slot, _a.transform.position), Is.EqualTo(IntentResult.Started));
-                float deadline = Time.realtimeSinceStartup + 3f;
-                while (_player.RecastSlot == slot && Time.realtimeSinceStartup < deadline)
+                float end = Time.time + 3f, deadline = Time.realtimeSinceStartup + 60f;
+                while (_player.RecastSlot == slot && Time.time < end && Time.realtimeSinceStartup < deadline)
                 {
                     Compare(cue + ", the second window run out");
                     yield return null;
@@ -215,6 +218,7 @@ namespace Roguelike.PlayModeTests
                 Assert.That(_cue.SaysClean, Is.False);
                 Assert.That(_framesClean, Is.GreaterThan(0), cue + ": clean frames seen");
             }
+            Time.captureDeltaTime = 0f;
         }
 
         [UnityTest, Timeout(120000)]
@@ -308,6 +312,10 @@ namespace Roguelike.PlayModeTests
             yield return Ready();
             int slot = Slot("Triple Tap");
             _driver.InputSource = Feed;
+            // Work order 154: every frame 1/60 s of game time while the chain is looked at (its subject, "drawn while the chain runs",
+            // is the chain's game time): beside a full run one frame carried up to a third of a second, and the chain pressed two
+            // frames before could be over by the frame looked at.
+            Time.captureDeltaTime = 1f / 60f;
             foreach (Vector3 world in new[] { _a.transform.position + Vector3.up, _player.Position + new Vector3(-4f, 0f, 3f) })
             {
                 _cursorScreen = cam.WorldToScreenPoint(world);
@@ -332,6 +340,7 @@ namespace Roguelike.PlayModeTests
                 Assert.That(_player.AimCursor, Is.EqualTo(cursor), "her cursor untouched");
                 Assert.That(_player.transform.rotation, Is.EqualTo(facing), "her facing untouched");
             }
+            Time.captureDeltaTime = 0f;
             _driver.InputSource = () => null;
 
             // Her aim with each cue on, and with the order's switch off: the same, number for number.

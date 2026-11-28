@@ -79,6 +79,7 @@ namespace Roguelike.PlayModeTests
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.ReadRealDevices = true;
         }
 
@@ -86,6 +87,16 @@ namespace Roguelike.PlayModeTests
         {
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        /// <summary>
+        /// Work order 154: until the condition holds, at most this many seconds of game time (and a minute of real time, however busy
+        /// the machine is), for a test whose frames are fixed steps of game time.
+        /// </summary>
+        static IEnumerator UntilInGameTime(Func<bool> condition, float gameSeconds)
+        {
+            float end = Time.time + gameSeconds, deadline = Time.realtimeSinceStartup + 60f;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
         }
 
         static IEnumerator For(float seconds)
@@ -418,9 +429,12 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator BoneSpikes_ShowsWhereSheStood_ForItsWindup_BurstsOnTime_AndHurtsHerOnlyInsideIt()
         {
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time: its burst is seen on the frame it bursts in,
+            // and beside a full run (2026-11-26) that frame lay 0.055 s after the burst for the 0.05 asked; the rule was on time.
+            Time.captureDeltaTime = 1f / 60f;
             EnemyCaster caster = Spawn();
             EnemyAttackDefinition spikes = CasterTactics.Find(caster.Tuning.Enemy, CasterValues.BoneSpikes);
-            yield return Until(() => caster.State == EnemyState.Windup, 4f);
+            yield return UntilInGameTime(() => caster.State == EnemyState.Windup, 4f);
             Assert.That(caster.Attack.Name, Is.EqualTo(CasterValues.BoneSpikes), "its first cast");
             EnemyCaster.Circle c = caster.Circles.Single();
             Assert.That(c.Number, Is.EqualTo(1));
@@ -438,7 +452,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(c.Width, Is.GreaterThan(thin), "thickening");
 
             int health = _health.Current;
-            yield return Until(() => c.HasBurst, 2f);
+            yield return UntilInGameTime(() => c.HasBurst, 2f);
             float seen = Time.time;
             Assert.That(c.HasBurst, Is.True);
             Assert.That(seen - c.PlacedAt, Is.InRange(spikes.Windup - 1e-3f, spikes.Windup + 0.05f), "on time");
@@ -447,7 +461,7 @@ namespace Roguelike.PlayModeTests
             Assert.That(c.IsShown, Is.False, "gone once it has burst");
 
             // The next: she steps out sideways during its wind-up.
-            yield return Until(() => caster.State == EnemyState.Windup && caster.CastsBegun == 2, 5f);
+            yield return UntilInGameTime(() => caster.State == EnemyState.Windup && caster.CastsBegun == 2, 5f);
             Assert.That(caster.Attack.Name, Is.EqualTo(CasterValues.BoneSpikes), "its second cast");
             EnemyCaster.Circle c2 = caster.Circles.Last();
             Vector3 toCaster = Flat(caster.transform.position - _player.Position).normalized;
@@ -455,13 +469,14 @@ namespace Roguelike.PlayModeTests
             if (Room(_player.Position, side, 6f, out _) < 5f) side = -side;
             health = _health.Current;
             _player.Steer(side);
-            yield return Until(() => Flat(_player.Position, c2.Center) >= c2.Radius + Placeholders.PlayerRadius + 0.3f, spikes.Windup);
+            yield return UntilInGameTime(() => Flat(_player.Position, c2.Center) >= c2.Radius + Placeholders.PlayerRadius + 0.3f, spikes.Windup);
             _player.Steer(Vector3.zero);
             Assert.That(c2.IsPending, Is.True, "out before it bursts");
-            yield return Until(() => c2.HasBurst, 2f);
+            yield return UntilInGameTime(() => c2.HasBurst, 2f);
             Assert.That(c2.HasBurst, Is.True);
             Assert.That(c2.Hit, Is.False, "stepping out avoids it");
             Assert.That(_health.Current, Is.EqualTo(health));
+            Time.captureDeltaTime = 0f;
         }
 
         // ---------------- Grave Rain ----------------
@@ -472,10 +487,14 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator GraveRain_TheThirdCast_PlacesThree_OnTime_WhereSheStands_AndStandingStillTakesThree()
         {
+            // Work order 154: every frame 1/60 s of game time. "Shown on time" asks that each circle is seen on the frame it is placed
+            // (placed at its own moment inside a frame): beside a full run one frame carried 0.12 s, and circle 3 was seen 0.12 s
+            // after its moment for the 0.05 asked; the rule (placed on time) was right.
+            Time.captureDeltaTime = 1f / 60f;
             EnemyCaster caster = Spawn();
             CasterValues v = caster.Tuning;
             EnemyAttackDefinition rain = CasterTactics.Find(v.Enemy, CasterValues.GraveRain);
-            yield return Until(() => Casting(caster, CasterValues.GraveRain), 15f);
+            yield return UntilInGameTime(() => Casting(caster, CasterValues.GraveRain), 15f);
             Assert.That(Casting(caster, CasterValues.GraveRain), Is.True, "a Grave Rain");
             Assert.That(caster.CastsBegun, Is.EqualTo(3), "its third cast, after two Bone Spikes");
             Assert.That(caster.Circles.Take(2).All(x => x.Attack.Name == CasterValues.BoneSpikes), Is.True);
@@ -483,7 +502,7 @@ namespace Roguelike.PlayModeTests
             float start = caster.Circles[first].PlacedAt;
             int health = _health.Current;
             var seen = new List<float> { Time.time };
-            yield return Until(() =>
+            yield return UntilInGameTime(() =>
             {
                 if (caster.Circles.Count - first > seen.Count) seen.Add(Time.time);
                 return caster.Circles.Count - first >= v.RainCircles;
@@ -503,7 +522,8 @@ namespace Roguelike.PlayModeTests
                 Assert.That(c.BurstAt - start, Is.EqualTo(CasterRules.RainBurstAt(i, v)).Within(1e-4f), what + " bursts on time");
                 Assert.That(Flat(c.Center, _player.Position), Is.LessThan(0.05f), what + ": she stands still, so where she stands");
             }
-            yield return Until(() => circles.All(c => c.HasBurst), 3f);
+            yield return UntilInGameTime(() => circles.All(c => c.HasBurst), 3f);
+            Time.captureDeltaTime = 0f;
             Assert.That(circles.All(c => c.HasBurst && c.Hit), Is.True, "standing still takes all three");
             Assert.That(health - _health.Current, Is.EqualTo(3 * rain.Damage));
             Debug.Log(string.Format(s_Inv, "CASTERRAIN placed at {0}; burst at {1} (s from its start)",
@@ -621,6 +641,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator ACircleOffTheWalkableGround_IsNotPlaced()
         {
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time: her run at the edge is timed to the second
+            // circle's moment, and beside a full run (2026-11-26) the long frames put her elsewhere at it (no circle off the ground).
+            Time.captureDeltaTime = 1f / 60f;
             EnemyCaster caster = Spawn(v => v.BigCastEvery = 1);
             CasterValues values = caster.Tuning;
             Assert.That(caster.OnWalkableGround(_player.Position), Is.True, "where she stands");
@@ -629,7 +652,7 @@ namespace Roguelike.PlayModeTests
             Assume.That(room, Is.GreaterThan(8f).And.LessThan(40f), "an edge of the floor to run at");
             Assert.That(caster.OnWalkableGround(edge + dir * 1.2f), Is.False, "past the edge of the floor");
 
-            yield return Until(() => Casting(caster, CasterValues.GraveRain), 4f);
+            yield return UntilInGameTime(() => Casting(caster, CasterValues.GraveRain), 4f);
             int first = caster.Circles.Count - 1;
             float start = caster.Circles[first].PlacedAt;
             int off = caster.CirclesOffGround;
@@ -642,12 +665,13 @@ namespace Roguelike.PlayModeTests
             float left = start + CasterRules.RainPlacedAt(1, values) - Time.time;
             _player.Teleport(edge - dir * (speed * left + 0.6f));
             _player.Steer(dir);
-            yield return Until(() => caster.CirclesOffGround > off || caster.Circles.Count - first >= 2 || Time.time > start + 0.6f, 2f);
+            yield return UntilInGameTime(() => caster.CirclesOffGround > off || caster.Circles.Count - first >= 2 || Time.time > start + 0.6f, 2f);
             _player.Steer(Vector3.zero);
             Debug.Log(string.Format(s_Inv, "CASTERGROUND her speed {0:0.0} m/s, {1:0.00} m from the edge at the second circle; off the ground {2}",
                 speed, Flat(_player.Position, edge), caster.CirclesOffGround - off));
             Assert.That(caster.CirclesOffGround, Is.EqualTo(off + 1), "the second circle's place is off the ground");
             Assert.That(RainOf(caster, first).All(c => c.Number != 2), Is.True, "and it was not placed");
+            Time.captureDeltaTime = 0f;
         }
 
         // ---------------- Death ----------------
@@ -735,12 +759,15 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AFloor2sCastersCircle_HurtsByTheFloorsScale_AndThePracticeRoomsByAllOfIt()
         {
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time (2026-11-26, beside a full run: the 6 s of real
+            // time ran out before the practice caster's first circle burst, -1 for its 25).
+            Time.captureDeltaTime = 1f / 60f;
             // The practice room's caster: unscaled.
             EnemyCaster practice = Spawn();
             Assert.That(practice.DamageScale, Is.EqualTo(1f));
             int got = -1;
             practice.Reported += r => { if (r.Kind == EnemyReportKind.Struck && r.Outcome == StrikeOutcome.Landed && got < 0) got = r.Damage; };
-            yield return Until(() => got >= 0, 6f);
+            yield return UntilInGameTime(() => got >= 0, 6f);
             EnemyAttackDefinition spikes = CasterTactics.Find(practice.Tuning.Enemy, CasterValues.BoneSpikes);
             Assert.That(got, Is.EqualTo(spikes.Damage), "the practice room's: all of its damage");
             _levels.ClearSpawned();
@@ -764,10 +791,11 @@ namespace Roguelike.PlayModeTests
             Vector3 toMiddle = Flat(level.Middle(level.Layout.Rooms.First(r => level.EnemiesByRoom.TryGetValue(r.Order, out List<Enemy> l) && l.Contains(caster))) - caster.transform.position);
             Vector3 dir = toMiddle.sqrMagnitude > 1f ? toMiddle.normalized : -caster.transform.forward;
             _player.Teleport(Flat(caster.transform.position) + dir * 8f);
-            yield return Until(() => got >= 0, 15f);
+            yield return UntilInGameTime(() => got >= 0, 15f);
             Debug.Log(string.Format(s_Inv, "CASTERFLOOR2 seed {0}: a circle of a floor-2 caster hurt her by {1} ({2} times {3})", seed, got, scale, spikes.Damage));
             Assert.That(got, Is.EqualTo(Mathf.RoundToInt(spikes.Damage * scale)), "a floor-2 caster's Bone Spikes: 0.6 of 25 (work order 046)");
             _levels.BackToPracticeRoom();
+            Time.captureDeltaTime = 0f;
         }
 
         [UnityTest]

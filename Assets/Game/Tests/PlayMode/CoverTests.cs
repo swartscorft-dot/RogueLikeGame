@@ -88,6 +88,7 @@ namespace Roguelike.PlayModeTests
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.ReadRealDevices = true;
         }
 
@@ -215,11 +216,15 @@ namespace Roguelike.PlayModeTests
             yield return Synced();
             Assume.That(keg.Range, Is.GreaterThanOrEqualTo(6f));
 
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time: the keg's flight and fuse are game time,
+            // and beside a full run (2026-11-26) the 4 s of real time ran out before its fuse had (it hurt nothing yet).
+            Time.captureDeltaTime = FixedStep;
             Assert.That(_player.PressSkill(Keg, Ahead(6f)), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => _player.SkillShotsFired >= 1, 3f);
+            yield return UntilInGameTime(() => _player.SkillShotsFired >= 1, 3f);
             ShotFx outline = Newest(ShotFxKind.Outline);
-            yield return Until(() => _player.KegsBurst > 0, 4f); // work order 015: it lies on its fuse, then bursts
+            yield return UntilInGameTime(() => _player.KegsBurst > 0, 4f); // work order 015: it lies on its fuse, then bursts
             yield return new WaitForSeconds(0.1f);
+            Time.captureDeltaTime = 0f;
 
             Assert.That(outline, Is.Not.Null, "the circle shows where it landed");
             float landed = 4f - thickness * 0.5f - CoverRules.ShortOfCover;
@@ -242,25 +247,29 @@ namespace Roguelike.PlayModeTests
             Put(_a.transform, Ahead(8f));
             yield return Synced();
 
+            // Work order 154: every frame 1/60 s of game time, and the waits in game time (2026-11-26, beside a full run: the 3 s of
+            // real time ran out before Powder Keg's fuse had).
+            Time.captureDeltaTime = FixedStep;
             _player.Shoot(_a.transform.position);
-            yield return Until(() => _a.HitsTaken >= 1, 2f);
+            yield return UntilInGameTime(() => _a.HitsTaken >= 1, 2f);
             ShotFx streak = Newest(ShotFxKind.Streak);
             Assert.That(_a.HitsTaken, Is.EqualTo(1), "the basic shot passes through the wall and the pillar");
             Assert.That(streak, Is.Not.Null);
             Assert.That(Along(streak.End), Is.EqualTo(Along(_a.transform.position)).Within(0.05f), "its streak runs to the target");
-            yield return Until(() => _player.Action == ActionKind.None, 2f);
+            yield return UntilInGameTime(() => _player.Action == ActionKind.None, 2f);
 
             Put(_b.transform, Ahead(3.5f) + _side * 1.5f);
             yield return null;
             Assert.That(_player.PressSkill(Scatter, Ahead(3.5f)), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => _b.HitsTaken >= 1, 3f);
+            yield return UntilInGameTime(() => _b.HitsTaken >= 1, 3f);
             Assert.That(_b.HitsTaken, Is.EqualTo(1), "Scatter Blast reaches behind the wall");
-            yield return Until(() => !_player.IsLocked && _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 4f);
+            yield return UntilInGameTime(() => !_player.IsLocked && _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 4f);
 
             Put(_b.transform, Ahead(6f));
             yield return null;
             Assert.That(_player.PressSkill(Keg, Ahead(6f)), Is.EqualTo(IntentResult.Started));
-            yield return Until(() => _b.HitsTaken >= 2, 3f);
+            yield return UntilInGameTime(() => _b.HitsTaken >= 2, 3f);
+            Time.captureDeltaTime = 0f;
             Assert.That(_b.HitsTaken, Is.EqualTo(2), "Powder Keg lands where it was aimed, past the wall");
             Assert.That(_player.ShotsStoppedByCover, Is.EqualTo(0));
         }
@@ -435,6 +444,23 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>
+        /// Work order 154: until the condition holds, at most this many seconds of GAME time (and a minute of real time, however busy
+        /// the machine is), for a test whose frames are fixed steps of game time (<see cref="FixedStep"/>).
+        /// </summary>
+        static IEnumerator UntilInGameTime(Func<bool> condition, float gameSeconds)
+        {
+            float end = Time.time + gameSeconds, deadline = Time.realtimeSinceStartup + 60f;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        /// <summary>
+        /// Work order 154: s of game time a frame (Time.captureDeltaTime) in the tests here that judge a rule of the game's time by
+        /// its frames: beside a full EditMode run a frame carried up to a third of a second, and these tests failed by it on
+        /// 2026-11-26 (alone, every one passed).
+        /// </summary>
+        const float FixedStep = 1f / 60f;
 
         static GroundPoint Ground(Vector3 v) => new GroundPoint(v.x, v.z);
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

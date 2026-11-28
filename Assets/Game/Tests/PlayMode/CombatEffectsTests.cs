@@ -102,6 +102,7 @@ namespace Roguelike.PlayModeTests
             if (_levels != null) Object.Destroy(_levels.gameObject);
             _levels = null;
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.HeldByChoice = false;
             PlayerInputDriver.HeldByScreen = false;
             PlayerInputDriver.ReadRealDevices = true;
@@ -141,6 +142,23 @@ namespace Roguelike.PlayModeTests
             float deadline = Time.realtimeSinceStartup + timeoutSeconds;
             while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
         }
+
+        /// <summary>
+        /// Work order 154: until the condition holds, at most this many seconds of GAME time (and a minute of real time, however busy
+        /// the machine is), for a test whose frames are fixed steps of game time (<see cref="FixedStep"/>).
+        /// </summary>
+        static IEnumerator UntilInGameTime(Func<bool> condition, float gameSeconds)
+        {
+            float end = Time.time + gameSeconds, deadline = Time.realtimeSinceStartup + 60f;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        /// <summary>
+        /// Work order 154: s of game time a frame (Time.captureDeltaTime) in the tests here that judge a rule of the game's time by
+        /// its frames: beside a full EditMode run a frame carried up to a third of a second, and these tests failed by it on
+        /// 2026-11-26 (alone, every one passed).
+        /// </summary>
+        const float FixedStep = 1f / 60f;
 
         /// <summary>Until the condition holds, noting the frame it first held in; that frame's end follows.</summary>
         static IEnumerator Watch(Func<bool> condition, float timeoutSeconds, Action<int> atFrame)
@@ -1101,18 +1119,18 @@ namespace Roguelike.PlayModeTests
                 if (_player.Skills[slot].Input == SkillInput.Charge)
                 {
                     SkillDefinition s = _player.Skills[slot];
-                    yield return Until(() => _player.SkillChargedSeconds >= 0.5f * (s.PerfectFrom + s.PerfectTo), 5f);
+                    yield return UntilInGameTime(() => _player.SkillChargedSeconds >= 0.5f * (s.PerfectFrom + s.PerfectTo), 5f);
                     pressed = Time.time;
                     _player.ReleaseSkill(slot);
                 }
-                yield return Until(() => fight.Dealt.Count > before, 3f);
+                yield return UntilInGameTime(() => fight.Dealt.Count > before, 3f);
                 fight.Leads.Add(Time.time - pressed);
-                yield return UntilFree();
+                yield return UntilInGameTime(() => !_player.IsLocked && _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 5f);
             }
             // She stands 7 m from the brute: its Shockwave lands on her.
             BruteAt(7f);
             float from = Time.time;
-            yield return Until(() => fight.Taken.Count > 0, 8f);
+            yield return UntilInGameTime(() => fight.Taken.Count > 0, 8f);
             fight.TakenAfter = fight.Taken.Count > 0 ? Time.time - from : -1f;
             _brute.enabled = false;
             got(fight);
@@ -1121,6 +1139,9 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator AFight_DealsAndTakesTheSameDamage_InTheSameTime_WithTheEffectsOnAndOff()
         {
+            // Work order 154: both fights at the same fixed frames of game time, so they are frame for frame the same: beside a full
+            // run (2026-11-26) a long frame overran Long Shot's perfect band in one fight and not in the other (460 and 300 dealt).
+            Time.captureDeltaTime = FixedStep;
             Fight on = default, off = default;
             yield return FightOnce(f => on = f);
             Assert.That(_seen.Count, Is.GreaterThan(0), "the effects were at work: " + Drawn);
@@ -1140,6 +1161,7 @@ namespace Roguelike.PlayModeTests
             for (int i = 0; i < on.Leads.Count; i++)
                 Assert.That(off.Leads[i], Is.EqualTo(on.Leads[i]).Within(0.05f), "the same time from press to hit, skill " + i);
             Assert.That(off.TakenAfter, Is.EqualTo(on.TakenAfter).Within(0.1f), "the brute's strike came in the same time");
+            Time.captureDeltaTime = 0f;
         }
     }
 }
