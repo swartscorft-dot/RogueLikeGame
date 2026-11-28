@@ -7,7 +7,8 @@ namespace Roguelike.Rules
     public sealed class Dash
     {
         float _startedAt = float.NegativeInfinity;
-        float _readyAt = float.NegativeInfinity;
+        // Work order 154: a double, kept exact (ExactCooldowns); with that switch off, rounded to a float at every step as before.
+        double _readyAt = double.NegativeInfinity;
         float _duration;
         float _invulnerability;
         // Work order 029 (Spare Step, a piece of the rack between runs): more than one charge, counted as a skill's are.
@@ -28,7 +29,7 @@ namespace Roguelike.Rules
                 if (v == _maxCharges) return;
                 _maxCharges = v;
                 _charges = new Cooldown { MaxCharges = v };
-                _readyAt = float.NegativeInfinity;
+                _readyAt = double.NegativeInfinity;
             }
         }
 
@@ -37,7 +38,7 @@ namespace Roguelike.Rules
 
         public bool CanStart(float now) => _maxCharges > 1 ? _charges.IsReady(now) : now >= _readyAt;
 
-        public float CooldownRemaining(float now) => _maxCharges > 1 ? _charges.Remaining(now) : now >= _readyAt ? 0f : _readyAt - now;
+        public float CooldownRemaining(float now) => _maxCharges > 1 ? _charges.Remaining(now) : now >= _readyAt ? 0f : (float)(_readyAt - now);
 
         /// <summary>Cuts a running cooldown by a share of what is left, as <see cref="Cooldown.Cut"/> does. Returns the seconds cut.</summary>
         public float CutCooldown(float now, float share)
@@ -46,7 +47,7 @@ namespace Roguelike.Rules
             float left = CooldownRemaining(now);
             if (left <= 0f) return 0f;
             float cut = left * (share < 0f ? 0f : share > 1f ? 1f : share);
-            _readyAt -= cut;
+            _readyAt = ExactCooldowns.Keep(_readyAt - cut);
             return cut;
         }
 
@@ -60,7 +61,7 @@ namespace Roguelike.Rules
             float left = CooldownRemaining(now);
             if (left <= 0f || seconds <= 0f) return 0f;
             float cut = left < seconds ? left : seconds;
-            _readyAt -= cut;
+            _readyAt = ExactCooldowns.Keep(_readyAt - cut);
             return cut;
         }
 
@@ -73,7 +74,7 @@ namespace Roguelike.Rules
             if (!CanStart(now)) return false;
             _startedAt = now;
             if (_maxCharges > 1) _charges.Start(now, feel.DashCooldown * (cooldownShare < 0f ? 0f : cooldownShare)); // work order 029
-            else _readyAt = now + feel.DashCooldown * (cooldownShare < 0f ? 0f : cooldownShare);
+            else _readyAt = ExactCooldowns.Keep((double)now + (float)(feel.DashCooldown * (cooldownShare < 0f ? 0f : cooldownShare)));
             _duration = feel.DashDuration;
             _invulnerability = feel.DashInvulnerability;
             return true;
@@ -83,7 +84,7 @@ namespace Roguelike.Rules
         public void Clear()
         {
             _startedAt = float.NegativeInfinity;
-            _readyAt = float.NegativeInfinity;
+            _readyAt = double.NegativeInfinity;
             _duration = 0f;
             _invulnerability = 0f;
             _charges = new Cooldown { MaxCharges = _maxCharges };

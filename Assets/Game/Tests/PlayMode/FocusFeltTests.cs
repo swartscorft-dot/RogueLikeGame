@@ -78,6 +78,7 @@ namespace Roguelike.PlayModeTests
             if (_weight != null) Object.Destroy(_weight.gameObject);
             _weight = null;
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             PlayerInputDriver.ReadRealDevices = true;
         }
 
@@ -113,12 +114,27 @@ namespace Roguelike.PlayModeTests
 
         IEnumerator UntilFree() => Until(() => _player.Action == ActionKind.None && _player.SkillGateRemaining <= 0f, 3f);
 
+        /// <summary>
+        /// Work order 154: s of game time a frame where a test's subject is a rule in game time (Time.captureDeltaTime): the
+        /// machine's own frames were up to a third of a second long beside another run, and 0.3 ms alone.
+        /// </summary>
+        const float Step = 1f / 60f;
+        /// <summary>Work order 154: the real seconds a wait in game time may take at most, however busy the machine is.</summary>
+        const float RealLimit = 60f;
+
+        /// <summary>Work order 154: until the condition holds, at most this many seconds of game time (and <see cref="RealLimit"/> real).</summary>
+        static IEnumerator UntilInGameTime(Func<bool> condition, float gameSeconds)
+        {
+            float end = Time.time + gameSeconds, deadline = Time.realtimeSinceStartup + RealLimit;
+            while (!condition() && Time.time < end && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
         /// <summary>Basic shots at A for this many seconds of game time, a click every frame: the times they started.</summary>
         IEnumerator ShootFor(float seconds, List<float> starts)
         {
             int from = _reports.Count;
             float until = Time.time + seconds;
-            float deadline = Time.realtimeSinceStartup + seconds + 3f;
+            float deadline = Time.realtimeSinceStartup + RealLimit; // work order 154: game time is the measure, real time only the limit
             while (Time.time < until && Time.realtimeSinceStartup < deadline)
             {
                 _player.Shoot(_a.transform.position);
@@ -178,6 +194,9 @@ namespace Roguelike.PlayModeTests
         {
             FeelValues f = _player.Feel;
             float plain = f.BasicShotStartup + f.BasicShotActive + f.BasicShotRecovery;
+            // Work order 154: every frame 1/60 s of game time: a shot starts on a frame, and with frames of 40 ms (LoadOnPurpose) shot to
+            // shot was 0.249 s for the 0.225 of the feel; at a sixtieth it is the cycle rounded up to whole frames (FrameStepFindingsTests).
+            Time.captureDeltaTime = Step;
             _player.FocusModeValues.PartBoostSeconds = 2f;
             Assert.That(_player.SetPracticeFocusMode(FocusMode.HairTrigger), Is.True);
             _player.Teleport(NearA);
@@ -198,14 +217,19 @@ namespace Roguelike.PlayModeTests
             Assert.That(MedianGap(during), Is.EqualTo(plain / 1.4f).Within(0.02f), "40 % faster, as fired");
             Assert.That(MedianGap(during), Is.LessThan(MedianGap(before) - 0.04f));
 
-            yield return Until(() => !_player.IsFocusBoosted, 3f);
+            yield return UntilInGameTime(() => !_player.IsFocusBoosted, 3f);
             Assert.That(_player.BasicShotInterval, Is.EqualTo(plain).Within(1e-5f), "back after its two seconds");
+            Time.captureDeltaTime = 0f;
         }
 
         [UnityTest]
         public IEnumerator Spending_ARunningCooldown_IsCut_ThenRunsSixtyPercentFaster_AndPlainAfter()
         {
             IdentityValues id = _player.Identity;
+            // Work order 154: every frame 1/60 s of game time, so the frame it is seen ready is the rule's to a sixtieth (beside a full
+            // run a frame carried up to a third of a second). The fault it met in every full run (0.84 to 0.88 for 1.03) was the
+            // game's, repaired by ExactCooldowns: its 0.3 ms frames late in a long run rounded every frame's cut to the clock's step.
+            Time.captureDeltaTime = Step;
             _player.Teleport(NearA);
             yield return null;
             Assert.That(_player.PressSkill(Quick, _a.transform.position), Is.EqualTo(IntentResult.Started));
@@ -219,18 +243,19 @@ namespace Roguelike.PlayModeTests
             float afterCut = _player.SkillCooldownRemaining(Quick);
             Assert.That(afterCut, Is.EqualTo(left * (1f - id.CooldownCut)).Within(1e-3f), "the cut at the moment of spending stays");
             Assert.That(_player.FocusCooldownRate(Quick), Is.EqualTo(1.6f).Within(1e-5f));
-            yield return Until(() => _player.SkillCooldownRemaining(Quick) <= 0f, 4f);
+            yield return UntilInGameTime(() => _player.SkillCooldownRemaining(Quick) <= 0f, 4f);
             float took = Time.time - spentAt;
             Assert.That(took, Is.EqualTo(afterCut / 1.6f).Within(0.05f), "what was left, 1.6 times as fast");
 
             // After the window a cooldown runs in plain time again.
-            yield return Until(() => !_player.IsFocusBoosted, id.EmpoweredDuration + 2f);
+            yield return UntilInGameTime(() => !_player.IsFocusBoosted, id.EmpoweredDuration + 2f);
             Assert.That(_player.FocusCooldownRate(Quick), Is.EqualTo(1f));
             Assert.That(_player.PressSkill(Quick, _a.transform.position), Is.EqualTo(IntentResult.Started));
             float startedAt = Time.time;
             yield return UntilFree();
-            yield return Until(() => _player.SkillCooldownRemaining(Quick) <= 0f, 5f);
+            yield return UntilInGameTime(() => _player.SkillCooldownRemaining(Quick) <= 0f, 5f);
             Assert.That(Time.time - startedAt, Is.EqualTo(_player.CooldownOf(Quick)).Within(0.05f), "its own 3 s");
+            Time.captureDeltaTime = 0f;
         }
 
         [UnityTest]
@@ -324,7 +349,9 @@ namespace Roguelike.PlayModeTests
 
         // ---------------- Felt: spent, running, ending, gone ----------------
 
-        [UnityTest]
+        // Work order 154: its freeze is a few hundredths of real time (HitStop, unscaled), read once a frame: real time is part of its
+        // subject, and the category lets the runner run it alone (it held with frames of 40 ms).
+        [UnityTest, Category("RealTime")]
         public IEnumerator TheMomentOfSpending_ABurstAFreezeAKickAndItsSound_ThenTheAuraTheLightAndTheEdge_ThenTheFlicker_ThenNothingLeft()
         {
             Install();
@@ -400,7 +427,9 @@ namespace Roguelike.PlayModeTests
             Assert.That(() => { for (int i = 0; i < 300; i++) _feel.Tick(); }, NotAllocating, "and nothing allocated while nothing changes");
         }
 
-        [UnityTest]
+        // Work order 154: the camera's kick runs on real time (FiringWeight, unscaled), and its peak is read once a frame: with frames of
+        // 40 ms (LoadOnPurpose) the frames missed it (0.05 for 0.15). Real time is its subject: the category lets the runner run it alone.
+        [UnityTest, Category("RealTime")]
         public IEnumerator AFullGaugesBurst_IsTheLargest_AndKicksTheCamera()
         {
             Install();

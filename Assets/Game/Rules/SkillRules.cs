@@ -11,7 +11,10 @@ namespace Roguelike.Rules
     /// </summary>
     public sealed class Cooldown
     {
-        float _readyAt = float.NegativeInfinity; // when the charge recharging now comes back
+        // When the charge recharging now comes back. Work order 154: a double, kept exact (ExactCooldowns: a float of the game's
+        // clock rounded the gains' small cuts of every frame to its own step); with that switch off, every step of it is rounded
+        // to a float as before.
+        double _readyAt = double.NegativeInfinity;
         int _spent;
         float _seconds;                          // the recharge time of the charges still to come back
         int _max = 1;
@@ -32,7 +35,7 @@ namespace Roguelike.Rules
             while (_spent > 0 && now >= _readyAt)
             {
                 _spent--;
-                if (_spent > 0) _readyAt += _seconds;
+                if (_spent > 0) _readyAt = ExactCooldowns.Keep(_readyAt + _seconds);
             }
         }
 
@@ -46,13 +49,13 @@ namespace Roguelike.Rules
         public bool IsReady(float now) => Charges(now) > 0;
 
         /// <summary>Seconds until it is ready: 0 while a charge is left.</summary>
-        public float Remaining(float now) => IsReady(now) ? 0f : _readyAt - now;
+        public float Remaining(float now) => IsReady(now) ? 0f : (float)(_readyAt - now);
 
         /// <summary>Seconds until the next charge comes back: 0 when all are ready.</summary>
         public float NextCharge(float now)
         {
             Settle(now);
-            return _spent > 0 ? _readyAt - now : 0f;
+            return _spent > 0 ? (float)(_readyAt - now) : 0f;
         }
 
         /// <summary>A use: spends a charge, and starts its recharge if none was recharging. With none left it starts again.</summary>
@@ -60,7 +63,7 @@ namespace Roguelike.Rules
         {
             Settle(now);
             _seconds = Math.Max(0f, seconds);
-            if (_spent == 0 || _spent >= _max) _readyAt = now + _seconds;
+            if (_spent == 0 || _spent >= _max) _readyAt = ExactCooldowns.Keep((double)now + _seconds);
             if (_spent < _max) _spent++;
         }
 
@@ -74,7 +77,7 @@ namespace Roguelike.Rules
             float left = NextCharge(now);
             if (left <= 0f) return 0f;
             float cut = left * Math.Max(0f, Math.Min(1f, share));
-            _readyAt -= cut;
+            _readyAt = ExactCooldowns.Keep(_readyAt - cut);
             return cut;
         }
 
@@ -87,7 +90,7 @@ namespace Roguelike.Rules
             float left = NextCharge(now);
             if (left <= 0f || seconds <= 0f) return 0f;
             float cut = Math.Min(left, seconds);
-            _readyAt -= cut;
+            _readyAt = ExactCooldowns.Keep(_readyAt - cut);
             Settle(now);
             return cut;
         }
