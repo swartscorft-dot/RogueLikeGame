@@ -51,6 +51,7 @@ namespace Roguelike.PlayModeTests
         [TearDown]
         public void CleanUp()
         {
+            LevelValues.TimedChests = true; // the merge of 2026-11-28, W4: put back after the kit's test, which names it off
             foreach (GameObject go in _made)
                 if (go != null) Object.Destroy(go);
             _made.Clear();
@@ -103,6 +104,11 @@ namespace Roguelike.PlayModeTests
         [UnityTest]
         public IEnumerator KitOn_EveryWallCellHasOneSection_EveryFullDoorAnArch_PiersAndPostsOnePerPoint()
         {
+            // The merge of 2026-11-28, W4 (changed deliberately): the floor's colliders as the generator describes it, work order 153's
+            // timed chest off. The chest is made as the fights are set up, with a prop's collider on the walls' layer and its place carved
+            // out of the NavMesh (PropFactory, as the vault's chest), and it is not one of the description's props: on a floor from 2 it
+            // was the one collider more (TimedChest_C10 here, TimedChest_C4 on LargePropsTests' floor 5).
+            LevelValues.TimedChests = false;
             _archesSeen = _lowDoorsSeen = 0;
             foreach (ulong seed in Seeds)
                 foreach (int floor in FloorNumbers)
