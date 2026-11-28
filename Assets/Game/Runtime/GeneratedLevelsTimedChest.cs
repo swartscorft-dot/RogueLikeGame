@@ -589,7 +589,7 @@ namespace Roguelike
                     int away = her.x / layoutScale > x ? -1 : 1; // she stands right of it on screen: the prompt reaches left of it, and the other way
                     DrawChestPromptLine(x, y, t.State == TimedChestState.Openable ? t.Open : t.Takes[p], kinetic, away);
                 }
-                else if (t.State != TimedChestState.Openable) DrawChestLine(x, y, t.Over[p], kinetic, c.OverSize, 0);
+                else if (t.State != TimedChestState.Openable) DrawChestLine(x, y - (c.OverSize * 0.8f + OverClear), t.Over[p], kinetic, c.OverSize, 0); // its foot at that point: over the chest, never on it
             }
             if (t.State == TimedChestState.Fighting || t.State == TimedChestState.Won)
             {
@@ -604,6 +604,9 @@ namespace Roguelike
             GUI.color = colorBefore;
             GUI.matrix = before;
         }
+
+        /// <summary>Layout pixels between the number over the chest and the point 1.4 m over it, where its foot stands (round 2's first pictures had the larger number lying across the chest's lid).</summary>
+        const float OverClear = 6f;
 
         /// <summary>Without the kinetic skin: the HUD's line's left and middle in the plain layout (720 high), under the plain health readout.</summary>
         const float PlainHudLeft = 10f, PlainHudTop = 96f;
